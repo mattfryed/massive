@@ -42,14 +42,18 @@ public class PlayerControllerScript : MonoBehaviour
         float moveVertical = Input.GetAxis("Vertical_P" + playerID.ToString() + xboxString);
 
         //Store the current horizontal input in the float moveHorizontal.
-        float aimHorizontal = Input.GetAxis("Horizontal_RS_P" + playerID.ToString() + xboxString);
+        // float aimHorizontal = Input.GetAxis("Horizontal_RS_P" + playerID.ToString() + xboxString);
 
         //Store the current vertical input in the float moveVertical.
-        float aimVertical = Input.GetAxis("Vertical_RS_P" + playerID.ToString() + xboxString);
-
+        // float aimVertical = Input.GetAxis("Vertical_RS_P" + playerID.ToString() + xboxString);
+        float aimHorizontal = 0f;
+        float aimVertical = 0f;
         //Use the two store floats to create a new Vector2 variable movement.
         Vector3 movement = new Vector3(moveHorizontal, 0f, moveVertical);
-
+        if (playerID == 4)
+        {
+            Debug.Log(moveHorizontal);
+        }
 
         Vector3 aimDirection = new Vector3(aimHorizontal, 0, aimVertical);
 
