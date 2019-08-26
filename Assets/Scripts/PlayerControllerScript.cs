@@ -8,20 +8,35 @@ public class PlayerControllerScript : MonoBehaviour
 
     public int playerID;
     private string xboxString = "_Xbox";
-    public float movePower = 10;
+    public float movePower = 10f;
+    public float dashPower = 500f;
     private Rigidbody rb;
 
     public float massAddedOnGrow = .1f;
     public float massRemovedOnShrink = .1f;
     public float sizeChangeOnHit = .1f;
+    public float actionDelay = 1.5f;
 
+    // references to other objects that are part of the player
     public GameObject sword;
+    public GameObject body;
+
+    // flags
     public bool gamepadMode = false;
+    public bool canUserTakeAction = true;
+    public bool canUserControlMovement = true;
+
+    public float moveHorizontal;
+    public float moveVertical;
+    public Vector3 movement;
+
+    public bool didPlayerTapActionThisFrame = false;
 
 
     void Start()
     {
-        rb = gameObject.GetComponent<Rigidbody>();
+        body = transform.Find("Body").gameObject;
+        rb = body.GetComponent<Rigidbody>();
         if (gamepadMode)
         {
             xboxString = "_Xbox";
@@ -32,46 +47,63 @@ public class PlayerControllerScript : MonoBehaviour
         }
     }
 
+    private void Update()
+    {
+        //Store the current horizontal input in the float moveHorizontal.
+         moveHorizontal = Input.GetAxis("Horizontal_P" + playerID.ToString() + xboxString);
+
+        //Store the current vertical input in the float moveVertical.
+         moveVertical = Input.GetAxis("Vertical_P" + playerID.ToString() + xboxString);
+
+
+        //Use the two store floats to create a new Vector2 variable movement.
+         movement = new Vector3(moveHorizontal, 0f, moveVertical);
+
+        didPlayerTapActionThisFrame = Input.GetButtonDown("Jump_P" + playerID.ToString() + xboxString);
+    }
 
     void FixedUpdate()
     {
-        //Store the current horizontal input in the float moveHorizontal.
-        float moveHorizontal = Input.GetAxis("Horizontal_P" + playerID.ToString() + xboxString);
 
-        //Store the current vertical input in the float moveVertical.
-        float moveVertical = Input.GetAxis("Vertical_P" + playerID.ToString() + xboxString);
-
-        //Store the current horizontal input in the float moveHorizontal.
-        // float aimHorizontal = Input.GetAxis("Horizontal_RS_P" + playerID.ToString() + xboxString);
-
-        //Store the current vertical input in the float moveVertical.
-        // float aimVertical = Input.GetAxis("Vertical_RS_P" + playerID.ToString() + xboxString);
-        float aimHorizontal = 0f;
-        float aimVertical = 0f;
-        //Use the two store floats to create a new Vector2 variable movement.
-        Vector3 movement = new Vector3(moveHorizontal, 0f, moveVertical);
-        if (playerID == 4)
+        //Call the AddForce function of our Rigidbody2D rb2d supplying movement multiplied by speed to move our player.
+        if (canUserControlMovement)
         {
-            Debug.Log(moveHorizontal);
+            rb.AddForce(movement.normalized * movePower);
         }
 
-        Vector3 aimDirection = new Vector3(aimHorizontal, 0, aimVertical);
+        if (didPlayerTapActionThisFrame && sword.activeInHierarchy == false && canUserTakeAction == true)
+        {
+            sword.SetActive(true);
+            Dash();
+            didPlayerTapActionThisFrame = false;
+            canUserTakeAction = false;
+            canUserControlMovement = false;
+            Invoke("SwordWithdraw", .250f);
+            Invoke("EndActionCooldown", actionDelay);
 
-        if (aimDirection.magnitude <= .1f)
+        }
+    }
+
+    void Dash()
+    {
+        Debug.Log("Dashing now");
+   
+        rb.AddForce(movement.normalized * dashPower);
+    }
+
+    void EndActionCooldown()
+    {
+        canUserTakeAction = true;
+    }
+
+    void SwordWithdraw()
+    {
+        canUserControlMovement = true;
+        if (sword.activeInHierarchy == true)
         {
             sword.SetActive(false);
         }
-        else
-        {
-            sword.SetActive(true);
-        }
-
-        transform.rotation = Quaternion.LookRotation(aimDirection);
-
-        //Call the AddForce function of our Rigidbody2D rb2d supplying movement multiplied by speed to move our player.
-        rb.AddForce(movement.normalized * movePower);
     }
-
     void Shrink()
     {
         Debug.Log("SHRINKING!");
