@@ -14,7 +14,9 @@ public class PlayerControllerScript : MonoBehaviour
 
     public float massAddedOnGrow = .1f;
     public float massRemovedOnShrink = .1f;
+    public float massRemovedOnGoalShrink = .00001f;
     public float sizeChangeOnHit = .1f;
+    public float sizeChangeOnGoalHit = .00001f;
     public float actionDelay = 1.5f;
 
     // references to other objects that are part of the player
@@ -78,7 +80,7 @@ public class PlayerControllerScript : MonoBehaviour
             didPlayerTapActionThisFrame = false;
             canUserTakeAction = false;
             canUserControlMovement = false;
-            Invoke("SwordWithdraw", .250f);
+            Invoke("SwordWithdraw", .550f);
             Invoke("EndActionCooldown", actionDelay);
 
         }
@@ -109,6 +111,12 @@ public class PlayerControllerScript : MonoBehaviour
         Debug.Log("SHRINKING!");
         transform.localScale -= new Vector3(sizeChangeOnHit, sizeChangeOnHit, sizeChangeOnHit);
         rb.mass = rb.mass - massRemovedOnShrink;
+    }
+    void GoalShrink()
+    {
+        Debug.Log("GOAL SHRINKING!");
+        transform.localScale -= new Vector3(sizeChangeOnGoalHit, sizeChangeOnGoalHit, sizeChangeOnGoalHit);
+        rb.mass = rb.mass - massRemovedOnGoalShrink;
     }
 
     void Grow()

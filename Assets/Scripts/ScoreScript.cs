@@ -9,17 +9,15 @@ public class ScoreScript : MonoBehaviour
     public GameObject Goal;
 
 
-    void Update()
-    {
-        transform.position = transform.parent.Find("Body").gameObject.transform.position;
-    }
 
-
-    private void OnTriggerEnter(Collider other)
+    private void OnTriggerStay(Collider other)
     {
-        if (other.gameObject.tag == "Player")
+        Debug.Log("Trigger entered");
+        if (other.gameObject.tag == "Body")
         {
-            other.gameObject.BroadcastMessage("Shrink");
+            Debug.Log("Player identified");
+            other.gameObject.transform.parent.gameObject.BroadcastMessage("GoalShrink");
+            transform.parent.BroadcastMessage("Grow");
         }
     }
 
