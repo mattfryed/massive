@@ -10,8 +10,6 @@
 /[Ll]ogs/
 /[Mm]emoryCaptures/
 
-/Assets/Mirza Beig/
-
 # Never ignore Asset meta data
 !/[Aa]ssets/**/*.meta
 
