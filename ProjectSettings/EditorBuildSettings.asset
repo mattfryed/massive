@@ -8,6 +8,9 @@ EditorBuildSettings:
   - enabled: 0
     path: 
     guid: 00000000000000000000000000000000
+  - enabled: 0
+    path: Assets/__DELETED_GUID_Trash/b0e1ba4522ae1438399a919811408ae0
+    guid: b0e1ba4522ae1438399a919811408ae0
   - enabled: 1
     path: Assets/Scenes/S-0_ATTRACT.unity
     guid: 221eefdd02185479ca215f39b425661b
