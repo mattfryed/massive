@@ -358,10 +358,12 @@ MonoBehaviour:
   dashPower: 500
   massAddedOnGrow: 0.1
   massRemovedOnShrink: 0.1
+  massRemovedOnGoalShrink: 0.00001
   sizeChangeOnHit: 0.1
+  sizeChangeOnGoalHit: 0.00001
   actionDelay: 1.5
   sword: {fileID: 304036289}
-  body: {fileID: 0}
+  body: {fileID: 181649823557757633}
   gamepadMode: 1
   canUserTakeAction: 1
   canUserControlMovement: 1
