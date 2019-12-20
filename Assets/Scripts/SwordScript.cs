@@ -13,7 +13,7 @@ public class SwordScript : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        transform.position = transform.parent.Find("Body").gameObject.transform.position;
+      // transform.position = transform.parent.Find("Body").gameObject.transform.position;
     }
 
     private void OnTriggerEnter(Collider other)
