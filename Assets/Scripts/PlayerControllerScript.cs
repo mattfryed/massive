@@ -19,6 +19,8 @@ public class PlayerControllerScript : MonoBehaviour
     public float sizeChangeOnGoalHit = .00001f;
     public float actionDelay = 1.5f;
 
+    private float minScale = .5f;
+
     // references to other objects that are part of the player
     public GameObject sword;
     public GameObject body;
@@ -41,8 +43,8 @@ public class PlayerControllerScript : MonoBehaviour
     }
     void Start()
     {
-        body = transform.Find("Body").gameObject;
-        rb = body.GetComponent<Rigidbody>();
+       // body = transform.Find("Body").gameObject;
+        rb = GetComponent<Rigidbody>();
       
     }
 
@@ -85,6 +87,8 @@ public class PlayerControllerScript : MonoBehaviour
             Invoke("EndActionCooldown", actionDelay);
 
         }
+
+        // Make sure the y-axis for position is locked because it's acting weird.
     }
 
     void Dash()
@@ -113,11 +117,19 @@ public class PlayerControllerScript : MonoBehaviour
         transform.localScale -= new Vector3(sizeChangeOnHit, sizeChangeOnHit, sizeChangeOnHit);
         rb.mass = rb.mass - massRemovedOnShrink;
     }
-    public void GoalShrink()
+    public bool GoalShrink()
     {
-        Debug.Log("GOAL SHRINKING!");
-        transform.localScale -= new Vector3(sizeChangeOnGoalHit, sizeChangeOnGoalHit, sizeChangeOnGoalHit);
-        rb.mass = rb.mass - massRemovedOnGoalShrink;
+        if (transform.localScale.x > minScale)
+        {
+            Debug.Log("GOAL SHRINKING!");
+            transform.localScale -= new Vector3(sizeChangeOnGoalHit, sizeChangeOnGoalHit, sizeChangeOnGoalHit);
+            rb.mass = rb.mass - massRemovedOnGoalShrink;
+            return true;
+        }
+        else
+        {
+            return false;
+        }
     }
 
     void Grow()
