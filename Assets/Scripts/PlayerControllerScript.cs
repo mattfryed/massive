@@ -36,21 +36,14 @@ public class PlayerControllerScript : MonoBehaviour
 
     private void Awake()
     {
-        // assign a new 'rewired' player. For now, just use player 0.
-        player = Rewired.ReInput.players.GetPlayer(0); // get the player by id
+        // assign a new 'rewired' player.
+        player = Rewired.ReInput.players.GetPlayer(playerID); // get the player by id
     }
     void Start()
     {
         body = transform.Find("Body").gameObject;
         rb = body.GetComponent<Rigidbody>();
-        if (gamepadMode)
-        {
-            xboxString = "_Xbox";
-        }
-        else
-        {
-            xboxString = "";
-        }
+      
     }
 
     private void Update()
@@ -66,6 +59,10 @@ public class PlayerControllerScript : MonoBehaviour
          movement = new Vector3(moveHorizontal, 0f, moveVertical);
 
         didPlayerTapActionThisFrame = player.GetButtonDown("Sword");
+        if (didPlayerTapActionThisFrame)
+        {
+            Debug.Log("BUTTON!");
+        }
     }
 
     void FixedUpdate()
@@ -116,7 +113,7 @@ public class PlayerControllerScript : MonoBehaviour
         transform.localScale -= new Vector3(sizeChangeOnHit, sizeChangeOnHit, sizeChangeOnHit);
         rb.mass = rb.mass - massRemovedOnShrink;
     }
-    void GoalShrink()
+    public void GoalShrink()
     {
         Debug.Log("GOAL SHRINKING!");
         transform.localScale -= new Vector3(sizeChangeOnGoalHit, sizeChangeOnGoalHit, sizeChangeOnGoalHit);
