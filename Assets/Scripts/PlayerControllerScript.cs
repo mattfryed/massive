@@ -14,7 +14,7 @@ public class PlayerControllerScript : MonoBehaviour
 
     public float massAddedOnGrow = .1f;
     public float massRemovedOnShrink = .1f;
-    public float massRemovedOnGoalShrink = .00001f;
+    public float massRemovedOnGoalShrink = .1f;
     public float sizeChangeOnHit = .1f;
     public float sizeChangeOnGoalHit = .00001f;
     public float actionDelay = 1.5f;
@@ -23,16 +23,18 @@ public class PlayerControllerScript : MonoBehaviour
 
     // references to other objects that are part of the player
     public GameObject sword;
-    public GameObject body;
+    public GameObject shield;
 
     // flags
     public bool gamepadMode = false;
     public bool canUserTakeAction = true;
     public bool canUserControlMovement = true;
+    public bool shieldOn = false;
 
     public float moveHorizontal;
     public float moveVertical;
     public Vector3 movement;
+    private Quaternion lookRotation;
 
     public bool didPlayerTapActionThisFrame = false;
 
@@ -60,6 +62,8 @@ public class PlayerControllerScript : MonoBehaviour
         //Use the two store floats to create a new Vector2 variable movement.
          movement = new Vector3(moveHorizontal, 0f, moveVertical);
 
+        shieldOn = player.GetButton("Shield");
+
         didPlayerTapActionThisFrame = player.GetButtonDown("Sword");
         if (didPlayerTapActionThisFrame)
         {
@@ -76,8 +80,11 @@ public class PlayerControllerScript : MonoBehaviour
             rb.AddForce(movement.normalized * movePower);
         }
 
-        if (didPlayerTapActionThisFrame && sword.activeInHierarchy == false && canUserTakeAction == true)
+        if (didPlayerTapActionThisFrame && sword.activeInHierarchy == false && canUserTakeAction == true && !shieldOn)
         {
+            // rotate sword container to proper directio
+            lookRotation = Quaternion.LookRotation(movement.normalized);
+            sword.transform.parent.transform.rotation = lookRotation;
             sword.SetActive(true);
             Dash();
             didPlayerTapActionThisFrame = false;
@@ -86,6 +93,21 @@ public class PlayerControllerScript : MonoBehaviour
             Invoke("SwordWithdraw", .550f);
             Invoke("EndActionCooldown", actionDelay);
 
+        }
+
+        if (shieldOn)
+        {
+            // only make shield appear if sword is gone
+            if (sword.activeInHierarchy == false)
+            {
+                lookRotation = Quaternion.LookRotation(movement.normalized);
+                shield.transform.parent.transform.rotation = lookRotation;
+                shield.SetActive(true);
+            }
+
+        } else
+        {
+            shield.SetActive(false);
         }
 
         // Make sure the y-axis for position is locked because it's acting weird.
