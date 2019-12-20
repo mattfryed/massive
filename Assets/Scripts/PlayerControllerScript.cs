@@ -139,6 +139,14 @@ public class PlayerControllerScript : MonoBehaviour
         transform.localScale -= new Vector3(sizeChangeOnHit, sizeChangeOnHit, sizeChangeOnHit);
         rb.mass = rb.mass - massRemovedOnShrink;
     }
+
+    public void Stun(Vector3 shieldPosition)
+    {
+        // Knock back the player in the opposite direction of the opposing shield
+        Vector3 knockDirection = shieldPosition - transform.position;
+        rb.AddForce(knockDirection.normalized * movePower*5f);
+    }
+
     public bool GoalShrink()
     {
         if (transform.localScale.x > minScale)
