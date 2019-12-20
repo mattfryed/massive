@@ -7,6 +7,7 @@ public class PlayerControllerScript : MonoBehaviour
     private Rewired.Player player;
 
     public int playerID;
+    public int teamID;
     private string xboxString = "_Xbox";
     public float movePower = 10f;
     public float dashPower = 500f;
@@ -18,7 +19,8 @@ public class PlayerControllerScript : MonoBehaviour
     public float sizeChangeOnHit = .1f;
     public float sizeChangeOnGoalHit = .00001f;
     public float actionDelay = 1.5f;
-
+    public float stunTime = 1f;
+    private bool isStunned = false;
     private float minScale = .5f;
 
     // references to other objects that are part of the player
@@ -73,49 +75,51 @@ public class PlayerControllerScript : MonoBehaviour
 
     void FixedUpdate()
     {
-
-        //Call the AddForce function of our Rigidbody2D rb2d supplying movement multiplied by speed to move our player.
-        if (canUserControlMovement)
+        if (!isStunned)
         {
-            rb.AddForce(movement.normalized * movePower);
-        }
-
-        if (didPlayerTapActionThisFrame && sword.activeInHierarchy == false && canUserTakeAction == true && !shieldOn)
-        {
-            // rotate sword container to proper directio
-            if (movement != Vector3.zero)
+            //Call the AddForce function of our Rigidbody2D rb2d supplying movement multiplied by speed to move our player.
+            if (canUserControlMovement)
             {
-                lookRotation = Quaternion.LookRotation(movement.normalized);
+                rb.AddForce(movement.normalized * movePower);
             }
-            sword.transform.parent.transform.rotation = lookRotation;
-            sword.SetActive(true);
-            Dash();
-            didPlayerTapActionThisFrame = false;
-            canUserTakeAction = false;
-            canUserControlMovement = false;
-            Invoke("SwordWithdraw", .550f);
-            Invoke("EndActionCooldown", actionDelay);
 
-        }
-
-        if (shieldOn)
-        {
-            // only make shield appear if sword is gone
-            if (sword.activeInHierarchy == false)
-            {   
+            if (didPlayerTapActionThisFrame && sword.activeInHierarchy == false && canUserTakeAction == true && !shieldOn)
+            {
+                // rotate sword container to proper directio
                 if (movement != Vector3.zero)
                 {
                     lookRotation = Quaternion.LookRotation(movement.normalized);
                 }
-                shield.transform.parent.transform.rotation = lookRotation;
-                shield.SetActive(true);
+                sword.transform.parent.transform.rotation = lookRotation;
+                sword.SetActive(true);
+                Dash();
+                didPlayerTapActionThisFrame = false;
+                canUserTakeAction = false;
+                canUserControlMovement = false;
+                Invoke("SwordWithdraw", .550f);
+                Invoke("EndActionCooldown", actionDelay);
+
             }
 
-        } else
-        {
-            shield.SetActive(false);
-        }
+            if (shieldOn)
+            {
+                // only make shield appear if sword is gone
+                if (sword.activeInHierarchy == false)
+                {
+                    if (movement != Vector3.zero)
+                    {
+                        lookRotation = Quaternion.LookRotation(movement.normalized);
+                    }
+                    shield.transform.rotation = lookRotation;
+                    shield.SetActive(true);
+                }
 
+            }
+            else
+            {
+                shield.SetActive(false);
+            }
+        }
         // Make sure the y-axis for position is locked because it's acting weird.
     }
 
@@ -146,12 +150,21 @@ public class PlayerControllerScript : MonoBehaviour
         rb.mass = rb.mass - massRemovedOnShrink;
     }
 
+    void UnStun()
+    {
+        isStunned = false;
+    }
+
     public void Stun(Vector3 shieldPosition)
     {
         // Knock back the player in the opposite direction of the opposing shield
         Debug.Log("Player " + playerID.ToString() + " was stunned!");
         Vector3 knockDirection = transform.position - shieldPosition;
         rb.AddForce(knockDirection.normalized * movePower*50f);
+        shield.SetActive(false);
+        sword.SetActive(false);
+        isStunned = true;
+        Invoke("UnStun", stunTime);
     }
 
     public bool GoalShrink()

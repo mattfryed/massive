@@ -8,6 +8,7 @@ public class ScoreSphereScript : MonoBehaviour
     public GameObject sphereGraphic;
     private float maxSize = 11f;
     public GameObject scoreboard;
+    public int teamID;
 
     // Start is called before the first frame update
     void Start()
@@ -24,7 +25,7 @@ public class ScoreSphereScript : MonoBehaviour
     private void OnTriggerStay(Collider other)
     {
 
-        if (other.gameObject.tag == "Player")
+        if (other.gameObject.tag == "Player" && other.gameObject.GetComponent<PlayerControllerScript>().teamID == teamID)
         {
             Debug.Log("something is happening");
             // TODO: Should probably check what team the player is on, but for now, just tell em to shrink and lets grow the score acceptor
