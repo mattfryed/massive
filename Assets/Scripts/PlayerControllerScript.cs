@@ -83,7 +83,10 @@ public class PlayerControllerScript : MonoBehaviour
         if (didPlayerTapActionThisFrame && sword.activeInHierarchy == false && canUserTakeAction == true && !shieldOn)
         {
             // rotate sword container to proper directio
-            lookRotation = Quaternion.LookRotation(movement.normalized);
+            if (movement != Vector3.zero)
+            {
+                lookRotation = Quaternion.LookRotation(movement.normalized);
+            }
             sword.transform.parent.transform.rotation = lookRotation;
             sword.SetActive(true);
             Dash();
@@ -99,8 +102,11 @@ public class PlayerControllerScript : MonoBehaviour
         {
             // only make shield appear if sword is gone
             if (sword.activeInHierarchy == false)
-            {
-                lookRotation = Quaternion.LookRotation(movement.normalized);
+            {   
+                if (movement != Vector3.zero)
+                {
+                    lookRotation = Quaternion.LookRotation(movement.normalized);
+                }
                 shield.transform.parent.transform.rotation = lookRotation;
                 shield.SetActive(true);
             }
@@ -143,8 +149,9 @@ public class PlayerControllerScript : MonoBehaviour
     public void Stun(Vector3 shieldPosition)
     {
         // Knock back the player in the opposite direction of the opposing shield
-        Vector3 knockDirection = shieldPosition - transform.position;
-        rb.AddForce(knockDirection.normalized * movePower*5f);
+        Debug.Log("Player " + playerID.ToString() + " was stunned!");
+        Vector3 knockDirection = transform.position - shieldPosition;
+        rb.AddForce(knockDirection.normalized * movePower*50f);
     }
 
     public bool GoalShrink()

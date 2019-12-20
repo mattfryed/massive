@@ -8,8 +8,8 @@ public class ShieldScript : MonoBehaviour
     {
         if (other.gameObject.tag == "Sword")
         {
-
-            other.gameObject.transform.parent.parent.BroadcastMessage("Stun");
+            Debug.Log(transform.parent.parent.position);
+            other.gameObject.transform.parent.parent.BroadcastMessage("Stun", transform.parent.parent.position);
         }
     }
 }

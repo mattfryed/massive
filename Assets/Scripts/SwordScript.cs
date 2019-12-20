@@ -8,7 +8,8 @@ public class SwordScript : MonoBehaviour
     {
         if (other.gameObject.tag == "Player")
         {
-            transform.parent.BroadcastMessage("Grow");
+            Debug.Log("Sword colliding with player");
+            transform.parent.parent.BroadcastMessage("Grow");
             other.gameObject.BroadcastMessage("Shrink");
         }
     }
