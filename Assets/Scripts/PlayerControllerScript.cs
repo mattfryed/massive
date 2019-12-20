@@ -4,7 +4,7 @@ using UnityEngine;
 
 public class PlayerControllerScript : MonoBehaviour
 {
-    // Start is called before the first frame update
+    private Rewired.Player player;
 
     public int playerID;
     private string xboxString = "_Xbox";
@@ -34,7 +34,11 @@ public class PlayerControllerScript : MonoBehaviour
 
     public bool didPlayerTapActionThisFrame = false;
 
-
+    private void Awake()
+    {
+        // assign a new 'rewired' player. For now, just use player 0.
+        player = Rewired.ReInput.players.GetPlayer(0); // get the player by id
+    }
     void Start()
     {
         body = transform.Find("Body").gameObject;
@@ -52,16 +56,16 @@ public class PlayerControllerScript : MonoBehaviour
     private void Update()
     {
         //Store the current horizontal input in the float moveHorizontal.
-         moveHorizontal = Input.GetAxis("Horizontal_P" + playerID.ToString() + xboxString);
+         moveHorizontal = player.GetAxis("MoveH");
 
         //Store the current vertical input in the float moveVertical.
-         moveVertical = Input.GetAxis("Vertical_P" + playerID.ToString() + xboxString);
+         moveVertical = player.GetAxis("MoveV");
 
 
         //Use the two store floats to create a new Vector2 variable movement.
          movement = new Vector3(moveHorizontal, 0f, moveVertical);
 
-        didPlayerTapActionThisFrame = Input.GetButtonDown("Jump_P" + playerID.ToString() + xboxString);
+        didPlayerTapActionThisFrame = player.GetButtonDown("Sword");
     }
 
     void FixedUpdate()
