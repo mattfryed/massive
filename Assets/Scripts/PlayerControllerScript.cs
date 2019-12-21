@@ -12,6 +12,7 @@ public class PlayerControllerScript : MonoBehaviour
     public float movePower = 10f;
     public float dashPower = 500f;
     private Rigidbody rb;
+    private Vector3 startingPosition;
 
     public float massAddedOnGrow = .1f;
     public float massRemovedOnShrink = .1f;
@@ -22,6 +23,7 @@ public class PlayerControllerScript : MonoBehaviour
     public float stunTime = 1f;
     private bool isStunned = false;
     private float minScale = .5f;
+    private float timeToReturn = 5f;
 
     // references to other objects that are part of the player
     public GameObject sword;
@@ -32,6 +34,7 @@ public class PlayerControllerScript : MonoBehaviour
     public bool canUserTakeAction = true;
     public bool canUserControlMovement = true;
     public bool shieldOn = false;
+    public bool temporarilyEliminated = false;
 
     public float moveHorizontal;
     public float moveVertical;
@@ -49,6 +52,7 @@ public class PlayerControllerScript : MonoBehaviour
     {
        // body = transform.Find("Body").gameObject;
         rb = GetComponent<Rigidbody>();
+        startingPosition = transform.position;
       
     }
 
@@ -75,7 +79,7 @@ public class PlayerControllerScript : MonoBehaviour
 
     void FixedUpdate()
     {
-        if (!isStunned)
+        if (!isStunned && !temporarilyEliminated)
         {
             //Call the AddForce function of our Rigidbody2D rb2d supplying movement multiplied by speed to move our player.
             if (canUserControlMovement)
@@ -148,6 +152,23 @@ public class PlayerControllerScript : MonoBehaviour
         Debug.Log("SHRINKING!");
         transform.localScale -= new Vector3(sizeChangeOnHit, sizeChangeOnHit, sizeChangeOnHit);
         rb.mass = rb.mass - massRemovedOnShrink;
+
+        if (transform.localScale.x < minScale)
+        {
+            // Temporarily eliminate this player.
+            temporarilyEliminated = true;
+            transform.localScale = new Vector3(1f, 1f, 1f);
+            rb.mass = 1f;
+            Invoke("Return", timeToReturn);
+            // just.... uh... move the player somewhere very very far away.
+            transform.position = new Vector3(1200f, 1200f, 1200f);
+        }
+    }
+
+    void Return()
+    {
+        transform.position = startingPosition;
+        temporarilyEliminated = false;
     }
 
     void UnStun()
