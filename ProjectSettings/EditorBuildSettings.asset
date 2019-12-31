@@ -29,5 +29,7 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/S-6_STARDUST-CLOUD.unity
     guid: 3891defdec8f649daac8b10665004cda
-
+  - enabled: 1
+    path: Assets/Scenes/S-0_LEVEL-SELECT.unity
+    guid: 8ff558f2eea7b489c8973f9a0054f56e
   m_configObjects: {}
