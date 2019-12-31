@@ -21,6 +21,8 @@ public class MatterNuggetScript : MonoBehaviour
         if (other.gameObject.tag == "Player")
         {
             other.gameObject.BroadcastMessage("Grow");
+            other.gameObject.BroadcastMessage("Grow");
+            other.gameObject.BroadcastMessage("Grow");
             Destroy(transform.gameObject);
         }
     }
