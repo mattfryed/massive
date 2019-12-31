@@ -20,4 +20,13 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/S-X_LEVEL-END.unity
     guid: 2cde54bef5b5b407981e481f3a617e89
+  - enabled: 1
+    path: Assets/Scenes/levelendnewscene.unity
+    guid: 5760f3bebd3a04e869a67143e3cfc426
+  - enabled: 1
+    path: Assets/Scenes/S-4_STAR-CROSSED.unity
+    guid: ca3956fddc39d44b3ad87f3af8d35d6a
+  - enabled: 1
+    path: Assets/Scenes/S-6_STARDUST-CLOUD.unity
+    guid: 3891defdec8f649daac8b10665004cda
   m_configObjects: {}
