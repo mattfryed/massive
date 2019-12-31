@@ -20,4 +20,7 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/S-X_LEVEL-END.unity
     guid: 2cde54bef5b5b407981e481f3a617e89
+  - enabled: 1
+    path: Assets/Scenes/levelendnewscene.unity
+    guid: 5760f3bebd3a04e869a67143e3cfc426
   m_configObjects: {}
