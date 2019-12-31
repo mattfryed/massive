@@ -30,7 +30,7 @@ public class GameManagerScript : MonoBehaviour
                 Debug.Log("Game is now over");
                 StoreFinalScores();
                 // Game over, team 1 wins
-                Application.LoadLevel(2);
+                Application.LoadLevel("levelendnewscene");
             }
 
             if (Score_2.transform.localScale.x >= winScale)
@@ -38,7 +38,7 @@ public class GameManagerScript : MonoBehaviour
                 Debug.Log("Game is now over");
                 StoreFinalScores();
                 // Game over, team 2 wins
-                Application.LoadLevel(2);
+                Application.LoadLevel("levelendnewscene");
             }
         }
     }
