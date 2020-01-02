@@ -19,7 +19,7 @@ public class PlayerControllerScript : MonoBehaviour
     public float massRemovedOnGoalShrink = .1f;
     public float sizeChangeOnHit = .1f;
     public float sizeChangeOnGoalHit = .00001f;
-    public float actionDelay = 1.5f;
+    private float actionDelay = .7f;
     public float stunTime = 1f;
     private bool isStunned = false;
     private float minScale = .5f;
@@ -91,6 +91,10 @@ public class PlayerControllerScript : MonoBehaviour
             {
                 rb.AddForce(movement.normalized * movePower);
             }
+            else
+            {
+                rb.AddForce(movement.normalized * movePower * .33f);
+            }
 
             if (didPlayerTapActionThisFrame && sword.activeInHierarchy == false && canUserTakeAction == true && !shieldOn)
             {
@@ -105,7 +109,7 @@ public class PlayerControllerScript : MonoBehaviour
                 didPlayerTapActionThisFrame = false;
                 canUserTakeAction = false;
                 canUserControlMovement = false;
-                Invoke("SwordWithdraw", .550f);
+                Invoke("SwordWithdraw", .5f);
                 Invoke("EndActionCooldown", actionDelay);
 
             }
