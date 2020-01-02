@@ -27,6 +27,14 @@ public class WinLoseScreenManagerScript : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
+        // load how many games have already been played
+        int newNumber = PlayerPrefs.GetInt("gamesPlayed");
+        Debug.Log("Number of games played was " + newNumber.ToString());
+        // add one to it
+        newNumber = newNumber + 1;
+        // save it as the new number of games played
+        PlayerPrefs.SetInt("gamesPlayed", newNumber);
+        Debug.Log("number of games played is now " + newNumber.ToString());
         // get variables from game manager and destroy it.
         gm = GameObject.FindWithTag("GameManager");
 
