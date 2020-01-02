@@ -75,6 +75,11 @@ public class PlayerControllerScript : MonoBehaviour
         {
             Debug.Log("BUTTON!");
         }
+
+        if (rb.mass < .1f)
+        {
+            rb.mass = 1f;
+        }
     }
 
     void FixedUpdate()
