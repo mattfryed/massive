@@ -12,11 +12,26 @@ public class GameManagerScript : MonoBehaviour
     public string levelName = "NOVA";
     private bool isGameOver = false;
     public string levelNumber = "003";
+    private GameObject dm;
 
     // Start is called before the first frame update
     void Start()
     {
+        dm = GameObject.FindWithTag("DataManager");
         DontDestroyOnLoad(gameObject.transform);
+
+        if (dm != null)
+        {
+            // deactivate players based on dm setting
+            if (!dm.GetComponent<DataManagerScript>().is2v2)
+            {
+                GameObject p2 = GameObject.Find("Players/Player 2");
+                GameObject p4 = GameObject.Find("Players/Player 4");
+                p2.SetActive(false);
+                p4.SetActive(false);
+            }
+            Destroy(dm);
+        }
     }
 
     // Update is called once per frame

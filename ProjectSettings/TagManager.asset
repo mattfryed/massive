@@ -9,6 +9,7 @@ TagManager:
   - Score Sphere
   - Sword
   - GameManager
+  - DataManager
   layers:
   - Default
   - TransparentFX
