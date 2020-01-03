@@ -24,7 +24,11 @@ public class PlayerControllerScript : MonoBehaviour
     private bool isStunned = false;
     private float minScale = .5f;
     private float timeToReturn = 5f;
-
+    private GameObject dm;
+    public bool isActive = true;
+    private float idleTime = 60f;
+    public float timeSinceLastActivity;
+    public float lastActivityTime;
     // references to other objects that are part of the player
     public GameObject sword;
     public GameObject shield;
@@ -47,13 +51,15 @@ public class PlayerControllerScript : MonoBehaviour
     {
         // assign a new 'rewired' player.
         player = Rewired.ReInput.players.GetPlayer(playerID); // get the player by id
+        lastActivityTime = Time.time;
     }
     void Start()
     {
        // body = transform.Find("Body").gameObject;
         rb = GetComponent<Rigidbody>();
         startingPosition = transform.position;
-      
+        dm = GameObject.FindWithTag("GameManager");
+
     }
 
     private void Update()
@@ -79,6 +85,21 @@ public class PlayerControllerScript : MonoBehaviour
         if (rb.mass < .1f)
         {
             rb.mass = 1f;
+        }
+
+        if (didPlayerTapActionThisFrame || shieldOn || movement != Vector3.zero)
+        {
+            lastActivityTime = Time.time;
+        }
+
+        timeSinceLastActivity = Time.time - lastActivityTime;
+        if (timeSinceLastActivity > idleTime)
+        {
+            isActive = false;
+        }
+        else
+        {
+            isActive = true;
         }
     }
 

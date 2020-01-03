@@ -13,6 +13,7 @@ public class GameManagerScript : MonoBehaviour
     private bool isGameOver = false;
     public string levelNumber = "003";
     private GameObject dm;
+    private bool is2v2;
 
     // Start is called before the first frame update
     void Start()
@@ -25,6 +26,7 @@ public class GameManagerScript : MonoBehaviour
             // deactivate players based on dm setting
             if (!dm.GetComponent<DataManagerScript>().is2v2)
             {
+                is2v2 = dm.GetComponent<DataManagerScript>().is2v2;
                 GameObject p2 = GameObject.Find("Players/Player 2");
                 GameObject p4 = GameObject.Find("Players/Player 4");
                 p2.SetActive(false);
@@ -55,7 +57,42 @@ public class GameManagerScript : MonoBehaviour
                 // Game over, team 2 wins
                 Application.LoadLevel("levelendnewscene");
             }
+            // check for inactive players
+            CheckForInactivePlayers();
         }
+    }
+
+    public void CheckForInactivePlayers()
+    {
+        GameObject p1 = GameObject.Find("Players/Player 1");
+        GameObject p2 = GameObject.Find("Players/Player 2");
+        GameObject p3 = GameObject.Find("Players/Player 3");
+        GameObject p4 = GameObject.Find("Players/Player 4");
+        Debug.Log("Checking for inactive players");
+        if (!is2v2)
+        {
+            if (!p1.GetComponent<PlayerControllerScript>().isActive && !p3.GetComponent<PlayerControllerScript>().isActive)
+            {
+                // end the game prematurely!
+                EndGamePrematurely();
+            }
+        }
+        else
+        {
+            if (!p1.GetComponent<PlayerControllerScript>().isActive && !p2.GetComponent<PlayerControllerScript>().isActive && !p3.GetComponent<PlayerControllerScript>().isActive && !p4.GetComponent<PlayerControllerScript>().isActive)
+            {
+                EndGamePrematurely();
+            }
+        }
+    }
+
+    public void EndGamePrematurely()
+
+    {
+        Debug.Log("Ending game prematurely");
+        StoreFinalScores();
+        Application.LoadLevel(0);
+
     }
 
     public void StoreFinalScores()
