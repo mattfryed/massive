@@ -87,7 +87,7 @@ public class PlayerControllerScript : MonoBehaviour
             rb.mass = 1f;
         }
 
-        if (didPlayerTapActionThisFrame || shieldOn || movement != Vector3.zero)
+        if (didPlayerTapActionThisFrame || shieldOn)
         {
             lastActivityTime = Time.time;
         }
