@@ -110,11 +110,23 @@ public class PlayerControllerScript : MonoBehaviour
             //Call the AddForce function of our Rigidbody2D rb2d supplying movement multiplied by speed to move our player.
             if (canUserControlMovement)
             {
-                rb.AddForce(movement.normalized * movePower);
+                if (playerID == 3)
+                {
+                    //Debug.Log(movement.x);
+                    Debug.Log(movement.magnitude);
+                }
+
+                if (Mathf.Abs(movement.magnitude) > .15f)
+                {
+                    rb.AddForce(movement * movePower);
+                }
             }
             else
             {
-                rb.AddForce(movement.normalized * movePower * .33f);
+                if (Mathf.Abs(movement.magnitude) > .15f)
+                {
+                    rb.AddForce(movement * movePower * .33f);
+                }
             }
 
             if (didPlayerTapActionThisFrame && sword.activeInHierarchy == false && canUserTakeAction == true && !shieldOn)
