@@ -22,6 +22,19 @@ public class ScoreSphereScript : MonoBehaviour
         
     }
 
+    public void LoseScore(int whichTeam)
+    {
+        if (teamID == whichTeam)
+        {
+            sphereGraphic.GetComponent<RectTransform>().localScale -= new Vector3(1f, 1f, 1f);
+            scoreboard.GetComponent<ScoreboardManagerScript>().UpdateScoreboard(sphereGraphic.GetComponent<RectTransform>().localScale.x / maxSize);
+            if (sphereGraphic.GetComponent<RectTransform>().localScale.x < 0f)
+            {
+                sphereGraphic.GetComponent<RectTransform>().localScale = new Vector3(0f, 0f, 0f);
+            }
+        }
+    }
+
     private void OnTriggerStay(Collider other)
     {
 

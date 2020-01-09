@@ -42,19 +42,11 @@ public class GameManagerScript : MonoBehaviour
         if (!isGameOver)
         {
 
-            if (Score_1.transform.localScale.x >= winScale)
+            if (Score_1.transform.localScale.x >= winScale || Score_1.transform.localScale.x <= 0f || Score_2.transform.localScale.x >= winScale || Score_2.transform.localScale.x <= 0f)
             {
                 Debug.Log("Game is now over");
                 StoreFinalScores();
-                // Game over, team 1 wins
-                Application.LoadLevel("levelendnewscene");
-            }
-
-            if (Score_2.transform.localScale.x >= winScale)
-            {
-                Debug.Log("Game is now over");
-                StoreFinalScores();
-                // Game over, team 2 wins
+                // Game over
                 Application.LoadLevel("levelendnewscene");
             }
             // check for inactive players
@@ -68,7 +60,7 @@ public class GameManagerScript : MonoBehaviour
         GameObject p2 = GameObject.Find("Players/Player 2");
         GameObject p3 = GameObject.Find("Players/Player 3");
         GameObject p4 = GameObject.Find("Players/Player 4");
-        Debug.Log("Checking for inactive players");
+    //    Debug.Log("Checking for inactive players");
         if (!is2v2)
         {
             if (!p1.GetComponent<PlayerControllerScript>().isActive && !p3.GetComponent<PlayerControllerScript>().isActive)

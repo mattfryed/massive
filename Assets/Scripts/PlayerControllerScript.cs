@@ -14,11 +14,14 @@ public class PlayerControllerScript : MonoBehaviour
     private Rigidbody rb;
     private Vector3 startingPosition;
 
+    private GameObject goalZone;
+
     public float massAddedOnGrow = .1f;
     public float massRemovedOnShrink = .1f;
     public float massRemovedOnGoalShrink = .1f;
     public float sizeChangeOnHit = .1f;
     public float sizeChangeOnGoalHit = .00001f;
+    private float maxScale = 3.0f;
     private float actionDelay = .7f;
     public float stunTime = 1f;
     private bool isStunned = false;
@@ -59,6 +62,15 @@ public class PlayerControllerScript : MonoBehaviour
         rb = GetComponent<Rigidbody>();
         startingPosition = transform.position;
         dm = GameObject.FindWithTag("GameManager");
+
+        if (teamID == 1)
+        {
+            goalZone = GameObject.Find("TEAM 1");
+        }
+        else
+        {
+            goalZone = GameObject.Find("TEAM 2");
+        }
 
     }
 
@@ -113,7 +125,7 @@ public class PlayerControllerScript : MonoBehaviour
                 if (playerID == 3)
                 {
                     //Debug.Log(movement.x);
-                    Debug.Log(movement.magnitude);
+             //      Debug.Log(movement.magnitude);
                 }
 
                 if (Mathf.Abs(movement.magnitude) > .15f)
@@ -204,6 +216,10 @@ public class PlayerControllerScript : MonoBehaviour
             Invoke("Return", timeToReturn);
             // just.... uh... move the player somewhere very very far away.
             transform.position = new Vector3(1200f, 1200f, 1200f);
+
+            //Broadcast to that player's goal that they should lose mass.
+
+            goalZone.BroadcastMessage("LoseScore", teamID);
         }
     }
 
@@ -247,8 +263,11 @@ public class PlayerControllerScript : MonoBehaviour
 
     void Grow()
     {
-        Debug.Log("GROWING!");
-        transform.localScale += new Vector3(sizeChangeOnHit, sizeChangeOnHit, sizeChangeOnHit);
-        rb.mass = rb.mass + massAddedOnGrow;
+        if (transform.localScale.x < maxScale)
+        {
+            Debug.Log("GROWING!");
+            transform.localScale += new Vector3(sizeChangeOnHit, sizeChangeOnHit, sizeChangeOnHit);
+            rb.mass = rb.mass + massAddedOnGrow;
+        }
     }
 }
