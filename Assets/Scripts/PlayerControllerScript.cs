@@ -15,6 +15,7 @@ public class PlayerControllerScript : MonoBehaviour
     private Vector3 startingPosition;
 
     private GameObject goalZone;
+    private GameObject sm;
 
     public float massAddedOnGrow = .1f;
     public float massRemovedOnShrink = .1f;
@@ -62,6 +63,7 @@ public class PlayerControllerScript : MonoBehaviour
         rb = GetComponent<Rigidbody>();
         startingPosition = transform.position;
         dm = GameObject.FindWithTag("GameManager");
+        sm = gameObject.transform.Find("SfxModule").gameObject;
 
         if (teamID == 1)
         {
@@ -184,8 +186,21 @@ public class PlayerControllerScript : MonoBehaviour
     void Dash()
     {
         Debug.Log("Dashing now");
-   
+        // Play dash SFX
+        playSFX("testSFX");
         rb.AddForce(movement.normalized * dashPower);
+    }
+
+    void playSFX(string sfxName)
+    {
+        if (sm != null)
+        {
+            sm.GetComponent<SfxPlayerScript>().SafePlay(sfxName);
+        }
+        else
+        {
+            Debug.Log("SFX Module not found");
+        }
     }
 
     void EndActionCooldown()
