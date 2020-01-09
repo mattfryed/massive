@@ -7,6 +7,8 @@ public class MoveToNextSceneScript : MonoBehaviour
 
     public float delayToNextScene = 5f;
     public int nextSceneNum;
+    public float delayUntilAllowingInput = 0.1f;
+    private bool allowingInput = false;
     private bool movingToNextScene = false;
     private Rewired.Player p1;
     private Rewired.Player p2;
@@ -19,8 +21,14 @@ public class MoveToNextSceneScript : MonoBehaviour
         p2 = Rewired.ReInput.players.GetPlayer(1); // get the player by id
         p3 = Rewired.ReInput.players.GetPlayer(2); // get the player by id
         p4 = Rewired.ReInput.players.GetPlayer(3); // get the player by id
+
+        Invoke("AllowInput", delayUntilAllowingInput);
     }
 
+    private void AllowInput()
+    {
+        allowingInput = true;
+    }
 
     void Update()
     {
@@ -28,7 +36,7 @@ public class MoveToNextSceneScript : MonoBehaviour
         if (p1.GetButtonDown("Sword") || p2.GetButtonDown("Sword") || p3.GetButtonDown("Sword")|| p4.GetButtonDown("Sword") || Input.GetButtonDown("Jump_P1_Xbox") || Input.GetButtonDown("Jump_P2_Xbox") || Input.GetButtonDown("Jump_P3_Xbox") || Input.GetButtonDown("Jump_P4_Xbox") || Input.GetButtonDown("Jump_P1") || Input.GetButtonDown("Jump_P2") || Input.GetButtonDown("Jump_P3") || Input.GetButtonDown("Jump_P4"))
         {
             Debug.Log("A button was pressed");
-            if (!movingToNextScene)
+            if (!movingToNextScene && allowingInput)
             {
                 movingToNextScene = true;
                 Invoke("MoveToNextScene", delayToNextScene);
