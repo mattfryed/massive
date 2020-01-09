@@ -34,6 +34,7 @@ public class WinLoseScreenManagerScript : MonoBehaviour
         newNumber = newNumber + 1;
         // save it as the new number of games played
         PlayerPrefs.SetInt("gamesPlayed", newNumber);
+        PlayerPrefs.Save();
         Debug.Log("number of games played is now " + newNumber.ToString());
         // get variables from game manager and destroy it.
         gm = GameObject.FindWithTag("GameManager");
