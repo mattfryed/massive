@@ -141,3 +141,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   testSFX: {fileID: 8300000, guid: 152facba5fa444d62b8ba90fee951e04, type: 3}
+  stunnedSFX: {fileID: 8300000, guid: b1703d6a9311142a3a35497b47bab2f0, type: 3}
+  diedSFX: {fileID: 8300000, guid: 5a2b023a8db0d4e11a24119a4975a1fc, type: 3}
+  massNuggetSFX: {fileID: 8300000, guid: 94ae558012ead4892b8d0a49ed3f2336, type: 3}
+  struckSFX: {fileID: 8300000, guid: 83525f813b76c44958e6f79369f4edeb, type: 3}

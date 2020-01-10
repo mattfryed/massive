@@ -11,6 +11,7 @@ public class SwordScript : MonoBehaviour
             Debug.Log("Sword colliding with player");
             transform.parent.parent.BroadcastMessage("Grow");
             other.gameObject.BroadcastMessage("Shrink");
+            other.gameObject.BroadcastMessage("playSFX", "struckSFX");
         }
     }
 }

@@ -20,6 +20,7 @@ public class MatterNuggetScript : MonoBehaviour
     {
         if (other.gameObject.tag == "Player")
         {
+            other.gameObject.BroadcastMessage("playSFX", "massNuggetSFX");
             other.gameObject.BroadcastMessage("Grow");
             other.gameObject.BroadcastMessage("Grow");
             other.gameObject.BroadcastMessage("Grow");

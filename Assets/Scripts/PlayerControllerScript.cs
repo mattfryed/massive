@@ -187,12 +187,13 @@ public class PlayerControllerScript : MonoBehaviour
     {
         Debug.Log("Dashing now");
         // Play dash SFX
-        playSFX("testSFX");
+        playSFX("attackSFX");
         rb.AddForce(movement.normalized * dashPower);
     }
 
-    void playSFX(string sfxName)
+    public void playSFX(string sfxName)
     {
+        Debug.Log("trying to play sfx");
         if (sm != null)
         {
             sm.GetComponent<SfxPlayerScript>().SafePlay(sfxName);
@@ -226,6 +227,8 @@ public class PlayerControllerScript : MonoBehaviour
         {
             // Temporarily eliminate this player.
             temporarilyEliminated = true;
+            // play a sfx
+            playSFX("diedSFX");
             transform.localScale = new Vector3(1f, 1f, 1f);
             rb.mass = 1f;
             Invoke("Return", timeToReturn);
@@ -253,6 +256,8 @@ public class PlayerControllerScript : MonoBehaviour
     {
         // Knock back the player in the opposite direction of the opposing shield
         Debug.Log("Player " + playerID.ToString() + " was stunned!");
+        // play a sfx
+        playSFX("StunnedSFX");
         Vector3 knockDirection = transform.position - shieldPosition;
         rb.AddForce(knockDirection.normalized * movePower*50f);
         shield.SetActive(false);
