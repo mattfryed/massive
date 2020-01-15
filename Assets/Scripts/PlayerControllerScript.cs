@@ -17,6 +17,8 @@ public class PlayerControllerScript : MonoBehaviour
     private GameObject goalZone;
     private GameObject sm;
 
+    public GameObject massBlobPrefab;
+
     private float shieldSlowdownFactor = .3f;
     public float massAddedOnGrow = .1f;
     public float massRemovedOnShrink = .1f;
@@ -233,12 +235,21 @@ public class PlayerControllerScript : MonoBehaviour
             sword.SetActive(false);
         }
     }
-    void Shrink()
+    public void Shrink(GameObject target)
     {
         Debug.Log("SHRINKING!");
         transform.localScale -= new Vector3(sizeChangeOnHit, sizeChangeOnHit, sizeChangeOnHit);
         rb.mass = rb.mass - massRemovedOnShrink;
+        Debug.Log(target);
+        if (target != null)
+        {
 
+            for (int i = 0; i < 5; i++)
+            {
+                EjectBlob(target);
+            }
+
+        }
         if (transform.localScale.x < minScale)
         {
             // Temporarily eliminate this player.
@@ -289,6 +300,7 @@ public class PlayerControllerScript : MonoBehaviour
             Debug.Log("GOAL SHRINKING!");
             transform.localScale -= new Vector3(sizeChangeOnGoalHit, sizeChangeOnGoalHit, sizeChangeOnGoalHit);
             rb.mass = rb.mass - massRemovedOnGoalShrink;
+            EjectBlob(goalZone.gameObject);
             return true;
         }
         else
@@ -305,5 +317,13 @@ public class PlayerControllerScript : MonoBehaviour
             transform.localScale += new Vector3(sizeChangeOnHit, sizeChangeOnHit, sizeChangeOnHit);
             rb.mass = rb.mass + massAddedOnGrow;
         }
+    }
+
+    void EjectBlob(GameObject newTarget)
+    {
+        Debug.Log(newTarget);
+        GameObject newBlob = Instantiate(massBlobPrefab);
+        newBlob.transform.position = transform.position;
+        newBlob.GetComponent<SmallMassBlobScript>().target = newTarget;
     }
 }

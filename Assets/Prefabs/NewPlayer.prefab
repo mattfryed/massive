@@ -9633,6 +9633,8 @@ MonoBehaviour:
   teamID: 1
   movePower: 20
   dashPower: 500
+  massBlobPrefab: {fileID: 7791493175810018229, guid: 99bb681ff6f4f46a38ca9d3ced4cd651,
+    type: 3}
   massAddedOnGrow: 0.05
   massRemovedOnShrink: 0.05
   massRemovedOnGoalShrink: 0.005
