@@ -11,23 +11,23 @@ public class SmallMassBlobScript : MonoBehaviour
     void Start()
     {
         // Launch in a random direction
-        float ejectPowerX = Random.Range(-200f, 200f);
-        float ejectPowerY = Random.Range(-200f, 200f);
+        float ejectPowerX = Random.Range(-250f, 250f);
+        float ejectPowerY = Random.Range(-250f, 250f);
         if (ejectPowerX >= 0f)
         {
-            ejectPowerX += 70f;
+            ejectPowerX += 20f;
         }
         else
         {
-            ejectPowerX -= 70f;
+            ejectPowerX -= 20f;
         }
         if (ejectPowerY >= 0f)
         {
-            ejectPowerY += 70f;
+            ejectPowerY += 20f;
         }
         else
         {
-            ejectPowerY -= 70f;
+            ejectPowerY -= 20f;
         }
         gameObject.GetComponent<Rigidbody>().AddForce(ejectPowerX, 0f, ejectPowerY);
         float timeToTarget = Random.Range(.25f, .75f);

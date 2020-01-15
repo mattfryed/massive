@@ -18,6 +18,8 @@ public class PlayerControllerScript : MonoBehaviour
     private GameObject sm;
 
     public GameObject massBlobPrefab;
+    public GameObject explosionPrefab;
+    public GameObject respawnPrefab;
 
     private float shieldSlowdownFactor = .3f;
     public float massAddedOnGrow = .1f;
@@ -254,10 +256,14 @@ public class PlayerControllerScript : MonoBehaviour
         {
             // Temporarily eliminate this player.
             temporarilyEliminated = true;
+            // fire a death explosion;
+            GameObject exp = Instantiate(explosionPrefab);
+            exp.transform.position = gameObject.transform.position;
             // play a sfx
             playSFX("diedSFX");
             transform.localScale = new Vector3(1f, 1f, 1f);
             rb.mass = 1f;
+            RespawnEffect();
             Invoke("Return", timeToReturn);
             // just.... uh... move the player somewhere very very far away.
             transform.position = new Vector3(1200f, 1200f, 1200f);
@@ -267,7 +273,11 @@ public class PlayerControllerScript : MonoBehaviour
             goalZone.BroadcastMessage("LoseScore", teamID);
         }
     }
-
+    void RespawnEffect()
+    {
+        GameObject re = Instantiate(respawnPrefab);
+        re.transform.position = startingPosition;
+    }
     void Return()
     {
         transform.position = startingPosition;
