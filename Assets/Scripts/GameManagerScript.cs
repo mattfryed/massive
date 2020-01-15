@@ -8,7 +8,7 @@ public class GameManagerScript : MonoBehaviour
     public GameObject Score_2;
     public float finalScore_1;
     public float finalScore_2;
-    public float winScale = 11f;
+    public float winScale = 10.9f;
     public string levelName = "NOVA";
     private bool isGameOver = false;
     public string levelNumber = "003";
