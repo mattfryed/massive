@@ -300,7 +300,7 @@ public class PlayerControllerScript : MonoBehaviour
             Debug.Log("GOAL SHRINKING!");
             transform.localScale -= new Vector3(sizeChangeOnGoalHit, sizeChangeOnGoalHit, sizeChangeOnGoalHit);
             rb.mass = rb.mass - massRemovedOnGoalShrink;
-            EjectBlob(goalZone.gameObject);
+            EjectBlob(goalZone.gameObject.transform.Find("Score Sphere").gameObject);
             return true;
         }
         else
