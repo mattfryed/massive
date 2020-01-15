@@ -122,14 +122,7 @@ public class PlayerControllerScript : MonoBehaviour
     {
         if (!isStunned && !temporarilyEliminated)
         {
-            if (shieldOn)
-            {
-                shieldSlowdownFactor = .4f;
-            }
-            else
-            {
-                shieldSlowdownFactor = 1f;
-            }
+           
 
             //Call the AddForce function of our Rigidbody2D rb2d supplying movement multiplied by speed to move our player.
             if (canUserControlMovement)
@@ -182,11 +175,19 @@ public class PlayerControllerScript : MonoBehaviour
                     }
                     shield.transform.rotation = lookRotation;
                     shield.SetActive(true);
+                    shieldSlowdownFactor = .4f;
+                    // decrease size and mass by a very small amount
+                    if (transform.localScale.x > minScale)
+                    {
+                        transform.localScale -= new Vector3(sizeChangeOnGoalHit / 6f, sizeChangeOnGoalHit / 6f, sizeChangeOnGoalHit / 6f);
+                        rb.mass = rb.mass - massRemovedOnGoalShrink / 6f;
+                    }
                 }
 
             }
             else
             {
+                shieldSlowdownFactor = 1f;
                 shield.SetActive(false);
             }
         }
@@ -199,6 +200,11 @@ public class PlayerControllerScript : MonoBehaviour
         // Play dash SFX
         playSFX("attackSFX");
         rb.AddForce(movement.normalized * dashPower);
+        if (transform.localScale.x > minScale)
+        {
+            transform.localScale -= new Vector3(sizeChangeOnGoalHit*3f, sizeChangeOnGoalHit*3f, sizeChangeOnGoalHit*3f);
+            rb.mass = rb.mass - massRemovedOnGoalShrink*3f;
+        }
     }
 
     public void playSFX(string sfxName)
