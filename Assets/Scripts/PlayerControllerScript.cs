@@ -17,6 +17,7 @@ public class PlayerControllerScript : MonoBehaviour
     private GameObject goalZone;
     private GameObject sm;
 
+    private float shieldSlowdownFactor = .3f;
     public float massAddedOnGrow = .1f;
     public float massRemovedOnShrink = .1f;
     public float massRemovedOnGoalShrink = .1f;
@@ -121,6 +122,15 @@ public class PlayerControllerScript : MonoBehaviour
     {
         if (!isStunned && !temporarilyEliminated)
         {
+            if (shieldOn)
+            {
+                shieldSlowdownFactor = .4f;
+            }
+            else
+            {
+                shieldSlowdownFactor = 1f;
+            }
+
             //Call the AddForce function of our Rigidbody2D rb2d supplying movement multiplied by speed to move our player.
             if (canUserControlMovement)
             {
@@ -132,14 +142,14 @@ public class PlayerControllerScript : MonoBehaviour
 
                 if (Mathf.Abs(movement.magnitude) > .15f)
                 {
-                    rb.AddForce(movement * movePower);
+                    rb.AddForce(movement * movePower * shieldSlowdownFactor);
                 }
             }
             else
             {
                 if (Mathf.Abs(movement.magnitude) > .15f)
                 {
-                    rb.AddForce(movement * movePower * .33f);
+                    rb.AddForce(movement * movePower * .33f * shieldSlowdownFactor);
                 }
             }
 
