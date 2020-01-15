@@ -5,6 +5,8 @@ public class LevelSelect : MonoBehaviour
 {
     public void LoadLevel(string levelName)
     {
-        SceneManager.LoadScene(levelName);
+        GameObject dm = GameObject.FindWithTag("DataManager");
+        dm.GetComponent<DataManagerScript>().levelToLoad = levelName;
+        SceneManager.LoadScene("S-0_INSTRUCTIONS");
     }
 }

@@ -5,6 +5,7 @@ using UnityEngine;
 public class DataManagerScript : MonoBehaviour
 {
     public bool is2v2;
+    public string levelToLoad;
 
     private void Awake()
     {
