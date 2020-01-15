@@ -32,8 +32,25 @@ public class MatterNuggerSpawnScript : MonoBehaviour
         {
             mn.transform.position = transform.parent.position;
         }
-
-        mn.GetComponent<Rigidbody>().AddForce(Random.Range(-100.0f, 100.0f), 0f, Random.Range(-100f,100f));
+        float ejectPowerX = Random.Range(-50f, 50f);
+        float ejectPowerY = Random.Range(-50f, 50f);
+        if (ejectPowerX >= 0f)
+        {
+            ejectPowerX += 50f;
+        }
+        else
+        {
+            ejectPowerX -= 50f;
+        }
+        if (ejectPowerY >= 0f)
+        {
+            ejectPowerY += 50f;
+        }
+        else
+        {
+            ejectPowerY -= 50f;
+        }
+        mn.GetComponent<Rigidbody>().AddForce(ejectPowerX, 0f, ejectPowerY);
         Invoke("SpawnSoon", Random.Range(respawnBaseTime, respawnBaseTime + variance));
     }
 }

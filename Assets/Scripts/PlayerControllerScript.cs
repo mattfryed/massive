@@ -17,6 +17,9 @@ public class PlayerControllerScript : MonoBehaviour
     private GameObject goalZone;
     private GameObject sm;
 
+    public GameObject massBlobPrefab;
+
+    private float shieldSlowdownFactor = .3f;
     public float massAddedOnGrow = .1f;
     public float massRemovedOnShrink = .1f;
     public float massRemovedOnGoalShrink = .1f;
@@ -121,6 +124,8 @@ public class PlayerControllerScript : MonoBehaviour
     {
         if (!isStunned && !temporarilyEliminated)
         {
+           
+
             //Call the AddForce function of our Rigidbody2D rb2d supplying movement multiplied by speed to move our player.
             if (canUserControlMovement)
             {
@@ -132,14 +137,14 @@ public class PlayerControllerScript : MonoBehaviour
 
                 if (Mathf.Abs(movement.magnitude) > .15f)
                 {
-                    rb.AddForce(movement * movePower);
+                    rb.AddForce(movement * movePower * shieldSlowdownFactor);
                 }
             }
             else
             {
                 if (Mathf.Abs(movement.magnitude) > .15f)
                 {
-                    rb.AddForce(movement * movePower * .33f);
+                    rb.AddForce(movement * movePower * .33f * shieldSlowdownFactor);
                 }
             }
 
@@ -172,11 +177,19 @@ public class PlayerControllerScript : MonoBehaviour
                     }
                     shield.transform.rotation = lookRotation;
                     shield.SetActive(true);
+                    shieldSlowdownFactor = .4f;
+                    // decrease size and mass by a very small amount
+                    if (transform.localScale.x > minScale)
+                    {
+                        transform.localScale -= new Vector3(sizeChangeOnGoalHit / 6f, sizeChangeOnGoalHit / 6f, sizeChangeOnGoalHit / 6f);
+                        rb.mass = rb.mass - massRemovedOnGoalShrink / 6f;
+                    }
                 }
 
             }
             else
             {
+                shieldSlowdownFactor = 1f;
                 shield.SetActive(false);
             }
         }
@@ -189,6 +202,11 @@ public class PlayerControllerScript : MonoBehaviour
         // Play dash SFX
         playSFX("attackSFX");
         rb.AddForce(movement.normalized * dashPower);
+        if (transform.localScale.x > minScale)
+        {
+            transform.localScale -= new Vector3(sizeChangeOnGoalHit*3f, sizeChangeOnGoalHit*3f, sizeChangeOnGoalHit*3f);
+            rb.mass = rb.mass - massRemovedOnGoalShrink*3f;
+        }
     }
 
     public void playSFX(string sfxName)
@@ -217,12 +235,21 @@ public class PlayerControllerScript : MonoBehaviour
             sword.SetActive(false);
         }
     }
-    void Shrink()
+    public void Shrink(GameObject target)
     {
         Debug.Log("SHRINKING!");
         transform.localScale -= new Vector3(sizeChangeOnHit, sizeChangeOnHit, sizeChangeOnHit);
         rb.mass = rb.mass - massRemovedOnShrink;
+        Debug.Log(target);
+        if (target != null)
+        {
 
+            for (int i = 0; i < 5; i++)
+            {
+                EjectBlob(target);
+            }
+
+        }
         if (transform.localScale.x < minScale)
         {
             // Temporarily eliminate this player.
@@ -273,6 +300,7 @@ public class PlayerControllerScript : MonoBehaviour
             Debug.Log("GOAL SHRINKING!");
             transform.localScale -= new Vector3(sizeChangeOnGoalHit, sizeChangeOnGoalHit, sizeChangeOnGoalHit);
             rb.mass = rb.mass - massRemovedOnGoalShrink;
+            EjectBlob(goalZone.gameObject.transform.Find("Score Sphere").gameObject);
             return true;
         }
         else
@@ -289,5 +317,13 @@ public class PlayerControllerScript : MonoBehaviour
             transform.localScale += new Vector3(sizeChangeOnHit, sizeChangeOnHit, sizeChangeOnHit);
             rb.mass = rb.mass + massAddedOnGrow;
         }
+    }
+
+    void EjectBlob(GameObject newTarget)
+    {
+        Debug.Log(newTarget);
+        GameObject newBlob = Instantiate(massBlobPrefab);
+        newBlob.transform.position = transform.position;
+        newBlob.GetComponent<SmallMassBlobScript>().target = newTarget;
     }
 }
