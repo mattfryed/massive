@@ -54,7 +54,7 @@ public class SfxPlayerScript : MonoBehaviour
                 }
                 break;
             default:
-                Debug.Log("No sfx found by that key");
+            //    Debug.Log("No sfx found by that key");
                 break;
 
         }

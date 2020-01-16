@@ -21,6 +21,8 @@ public class PlayerControllerScript : MonoBehaviour
     public GameObject explosionPrefab;
     public GameObject respawnPrefab;
 
+    private float timeUntilNextShrink = .1f;
+    private float timeOfLastShrink = 0f;
     private float shieldSlowdownFactor = .3f;
     public float massAddedOnGrow = .1f;
     public float massRemovedOnShrink = .1f;
@@ -98,7 +100,7 @@ public class PlayerControllerScript : MonoBehaviour
         didPlayerTapActionThisFrame = player.GetButtonDown("Sword");
         if (didPlayerTapActionThisFrame)
         {
-            Debug.Log("BUTTON!");
+       //     Debug.Log("BUTTON!");
         }
 
         if (rb.mass < .1f)
@@ -200,7 +202,7 @@ public class PlayerControllerScript : MonoBehaviour
 
     void Dash()
     {
-        Debug.Log("Dashing now");
+//        Debug.Log("Dashing now");
         // Play dash SFX
         playSFX("attackSFX");
         rb.AddForce(movement.normalized * dashPower);
@@ -213,7 +215,7 @@ public class PlayerControllerScript : MonoBehaviour
 
     public void playSFX(string sfxName)
     {
-        Debug.Log("trying to play sfx");
+   //     Debug.Log("trying to play sfx");
         if (sm != null)
         {
             sm.GetComponent<SfxPlayerScript>().SafePlay(sfxName);
@@ -239,37 +241,41 @@ public class PlayerControllerScript : MonoBehaviour
     }
     public void Shrink(GameObject target)
     {
-        Debug.Log("SHRINKING!");
-        transform.localScale -= new Vector3(sizeChangeOnHit, sizeChangeOnHit, sizeChangeOnHit);
-        rb.mass = rb.mass - massRemovedOnShrink;
-        Debug.Log(target);
-        if (target != null)
+        if (Time.time - timeOfLastShrink > timeUntilNextShrink)
         {
-
-            for (int i = 0; i < 5; i++)
+            Debug.Log("SHRINKING!");
+            transform.localScale -= new Vector3(sizeChangeOnHit, sizeChangeOnHit, sizeChangeOnHit);
+            rb.mass = rb.mass - massRemovedOnShrink;
+//            Debug.Log(target);
+            if (target != null)
             {
-                EjectBlob(target);
+
+                for (int i = 0; i < 5; i++)
+                {
+                    EjectBlob(target);
+                }
+
             }
+            if (transform.localScale.x < minScale)
+            {
+                // Temporarily eliminate this player.
+                temporarilyEliminated = true;
+                // fire a death explosion;
+                GameObject exp = Instantiate(explosionPrefab);
+                exp.transform.position = gameObject.transform.position;
+                // play a sfx
+                playSFX("diedSFX");
+                transform.localScale = new Vector3(1f, 1f, 1f);
+                rb.mass = 1f;
+                RespawnEffect();
+                Invoke("Return", timeToReturn);
+                // just.... uh... move the player somewhere very very far away.
+                transform.position = new Vector3(1200f, 1200f, 1200f);
 
-        }
-        if (transform.localScale.x < minScale)
-        {
-            // Temporarily eliminate this player.
-            temporarilyEliminated = true;
-            // fire a death explosion;
-            GameObject exp = Instantiate(explosionPrefab);
-            exp.transform.position = gameObject.transform.position;
-            // play a sfx
-            playSFX("diedSFX");
-            transform.localScale = new Vector3(1f, 1f, 1f);
-            rb.mass = 1f;
-            RespawnEffect();
-            Invoke("Return", timeToReturn);
-            // just.... uh... move the player somewhere very very far away.
-            transform.position = new Vector3(1200f, 1200f, 1200f);
-
-            //Broadcast to that player's goal that they should lose mass.
-            goalZone.BroadcastMessage("LoseScore", teamID);
+                //Broadcast to that player's goal that they should lose mass.
+                goalZone.BroadcastMessage("LoseScore", teamID);
+            }
+            timeOfLastShrink = Time.time;
         }
     }
     void RespawnEffect()
@@ -330,7 +336,7 @@ public class PlayerControllerScript : MonoBehaviour
 
     void EjectBlob(GameObject newTarget)
     {
-        Debug.Log(newTarget);
+   //    Debug.Log(newTarget);
         GameObject newBlob = Instantiate(massBlobPrefab);
         newBlob.transform.position = transform.position;
         newBlob.GetComponent<SmallMassBlobScript>().target = newTarget;
