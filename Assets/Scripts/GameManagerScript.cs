@@ -90,7 +90,19 @@ public class GameManagerScript : MonoBehaviour
     public void StoreFinalScores()
     {
         isGameOver = true; 
+
         finalScore_1 = Score_1.transform.localScale.x;
         finalScore_2 = Score_2.transform.localScale.x;
+
+        if (finalScore_1 < 0f)
+        {
+            finalScore_1 = 0f;
+        }
+
+        if (finalScore_2 < 0f)
+        {
+            finalScore_2 = 0f;
+        }
+
     }
 }

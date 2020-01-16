@@ -269,8 +269,7 @@ public class PlayerControllerScript : MonoBehaviour
             transform.position = new Vector3(1200f, 1200f, 1200f);
 
             //Broadcast to that player's goal that they should lose mass.
-
-           // goalZone.BroadcastMessage("LoseScore", teamID);
+            goalZone.BroadcastMessage("LoseScore", teamID);
         }
     }
     void RespawnEffect()
