@@ -6,8 +6,15 @@ public class SwordScript : MonoBehaviour
 {
     private void OnTriggerEnter(Collider other)
     {
-        if (other.gameObject.tag == "Player")
+        if (other.gameObject.tag == "Sword")
         {
+            Debug.Log("two swords collided");
+            transform.parent.parent.BroadcastMessage("SwordClash");
+            other.gameObject.transform.parent.parent.BroadcastMessage("SwordClash");
+
+        }
+        else if (other.gameObject.tag == "Player")
+        {   
       //     Debug.Log("Sword colliding with player");
             transform.parent.parent.BroadcastMessage("Grow");
             other.gameObject.BroadcastMessage("Shrink", transform.parent.parent.gameObject);

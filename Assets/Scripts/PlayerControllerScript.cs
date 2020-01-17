@@ -243,7 +243,7 @@ public class PlayerControllerScript : MonoBehaviour
     {
         if (Time.time - timeOfLastShrink > timeUntilNextShrink)
         {
-            Debug.Log("SHRINKING!");
+           // Debug.Log("SHRINKING!");
             transform.localScale -= new Vector3(sizeChangeOnHit, sizeChangeOnHit, sizeChangeOnHit);
             rb.mass = rb.mass - massRemovedOnShrink;
 //            Debug.Log(target);
@@ -308,6 +308,15 @@ public class PlayerControllerScript : MonoBehaviour
         Invoke("UnStun", stunTime);
     }
 
+    public void SwordClash()
+    {
+        Debug.Log("Sword clash");
+        canUserTakeAction = true;
+        canUserControlMovement = true;
+        // could 'push back' a player here, but for now just cancel cooldowns
+
+    }
+
     public bool GoalShrink()
     {
         if (transform.localScale.x > minScale)
@@ -328,7 +337,7 @@ public class PlayerControllerScript : MonoBehaviour
     {
         if (transform.localScale.x < maxScale)
         {
-            Debug.Log("GROWING!");
+        //   Debug.Log("GROWING!");
             transform.localScale += new Vector3(sizeChangeOnHit, sizeChangeOnHit, sizeChangeOnHit);
             rb.mass = rb.mass + massAddedOnGrow;
         }
