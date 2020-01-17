@@ -58,5 +58,13 @@ public class SmallMassBlobScript : MonoBehaviour
                 Destroy(gameObject);
             }
         }
+        Vector3 distanceToTarget = transform.position - target.transform.position;
+
+        if (distanceToTarget.magnitude > 100f)
+        {
+            // target is dead, choose a new target. That player's goal sounds good. 
+            GameObject newTarget = target.gameObject.GetComponent<PlayerControllerScript>().goalZone.gameObject.transform.Find("Score Sphere").gameObject;
+            target = newTarget;
+        }
     }
 }

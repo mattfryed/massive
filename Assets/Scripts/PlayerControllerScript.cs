@@ -14,7 +14,7 @@ public class PlayerControllerScript : MonoBehaviour
     private Rigidbody rb;
     private Vector3 startingPosition;
 
-    private GameObject goalZone;
+    public GameObject goalZone;
     private GameObject sm;
 
     public GameObject massBlobPrefab;
