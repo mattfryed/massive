@@ -311,9 +311,13 @@ public class PlayerControllerScript : MonoBehaviour
     public void SwordClash()
     {
         Debug.Log("Sword clash");
+        Debug.Log("I am player:");
+        Debug.Log(playerID);
         canUserTakeAction = true;
         canUserControlMovement = true;
-        // could 'push back' a player here, but for now just cancel cooldowns
+        // apply a force in the opposite direction of the sword
+        Vector3 direction = transform.position - sword.transform.position;
+        rb.AddForce(direction * 200f);
 
     }
 

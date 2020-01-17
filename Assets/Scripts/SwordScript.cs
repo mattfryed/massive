@@ -10,7 +10,7 @@ public class SwordScript : MonoBehaviour
         {
             Debug.Log("two swords collided");
             transform.parent.parent.BroadcastMessage("SwordClash");
-            other.gameObject.transform.parent.parent.BroadcastMessage("SwordClash");
+
 
         }
         else if (other.gameObject.tag == "Player")
