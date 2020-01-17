@@ -451,7 +451,7 @@ ParticleSystem:
     startSize:
       serializedVersion: 2
       minMaxState: 0
-      scalar: 0.02
+      scalar: 0.05
       minScalar: 1
       maxCurve:
         serializedVersion: 2
@@ -2739,7 +2739,7 @@ ParticleSystem:
     strength:
       serializedVersion: 2
       minMaxState: 0
-      scalar: 0.2
+      scalar: 0.1
       minScalar: 1
       maxCurve:
         serializedVersion: 2
@@ -2896,7 +2896,7 @@ ParticleSystem:
         m_PostInfinity: 2
         m_RotationOrder: 4
     separateAxes: 0
-    frequency: 10.29
+    frequency: 12
     damping: 1
     octaves: 4
     octaveMultiplier: 0.5
@@ -2905,7 +2905,7 @@ ParticleSystem:
     scrollSpeed:
       serializedVersion: 2
       minMaxState: 0
-      scalar: 10.99
+      scalar: 12
       minScalar: 0
       maxCurve:
         serializedVersion: 2
@@ -3118,7 +3118,7 @@ ParticleSystem:
     positionAmount:
       serializedVersion: 2
       minMaxState: 0
-      scalar: 1
+      scalar: 2
       minScalar: 1
       maxCurve:
         serializedVersion: 2
@@ -4916,6 +4916,7 @@ MonoBehaviour:
   teamID: 1
   movePower: 20
   dashPower: 500
+  goalZone: {fileID: 0}
   massBlobPrefab: {fileID: 7791493175810018229, guid: 99bb681ff6f4f46a38ca9d3ced4cd651,
     type: 3}
   explosionPrefab: {fileID: 6059322679546588180, guid: 30da03a3d3a124fa59bf6bd6254ebce1,
@@ -14829,6 +14830,11 @@ PrefabInstance:
   m_Modification:
     m_TransformParent: {fileID: 832050996641821730}
     m_Modifications:
+    - target: {fileID: 8641256601804804452, guid: 1e7f0484c476844478eca73faab321ef,
+        type: 3}
+      propertyPath: m_Name
+      value: SfxModule
+      objectReference: {fileID: 0}
     - target: {fileID: 3597180623879228294, guid: 1e7f0484c476844478eca73faab321ef,
         type: 3}
       propertyPath: m_LocalPosition.x
@@ -14883,11 +14889,6 @@ PrefabInstance:
         type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 8641256601804804452, guid: 1e7f0484c476844478eca73faab321ef,
-        type: 3}
-      propertyPath: m_Name
-      value: SfxModule
       objectReference: {fileID: 0}
     m_RemovedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 1e7f0484c476844478eca73faab321ef, type: 3}

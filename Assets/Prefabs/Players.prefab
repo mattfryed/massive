@@ -287,6 +287,41 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 832050996641821740, guid: 085098f52480d463faec6fc85e28a674,
+        type: 3}
+      propertyPath: m_Materials.Array.data[0]
+      value: 
+      objectReference: {fileID: 2100000, guid: f8a6a924a7a7f4b40bd0a399af1981e7, type: 2}
+    - target: {fileID: 6252023532462757543, guid: 085098f52480d463faec6fc85e28a674,
+        type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 3214346967389557083, guid: 085098f52480d463faec6fc85e28a674,
+        type: 3}
+      propertyPath: m_LocalScale.x
+      value: 0.9
+      objectReference: {fileID: 0}
+    - target: {fileID: 3214346967389557083, guid: 085098f52480d463faec6fc85e28a674,
+        type: 3}
+      propertyPath: m_LocalScale.y
+      value: 0.9
+      objectReference: {fileID: 0}
+    - target: {fileID: 3214346967389557083, guid: 085098f52480d463faec6fc85e28a674,
+        type: 3}
+      propertyPath: m_LocalScale.z
+      value: 0.9
+      objectReference: {fileID: 0}
+    - target: {fileID: 3214346967389557083, guid: 085098f52480d463faec6fc85e28a674,
+        type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0.249
+      objectReference: {fileID: 0}
+    - target: {fileID: 7197613613072212274, guid: 085098f52480d463faec6fc85e28a674,
+        type: 3}
+      propertyPath: m_Materials.Array.data[0]
+      value: 
+      objectReference: {fileID: 2100000, guid: 82bffc4de1c0642809bc357e654eff76, type: 2}
     m_RemovedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 085098f52480d463faec6fc85e28a674, type: 3}
 --- !u!4 &1956411462393607143 stripped
@@ -306,6 +341,51 @@ PrefabInstance:
         type: 3}
       propertyPath: m_Name
       value: Player 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 832050996641821729, guid: 085098f52480d463faec6fc85e28a674,
+        type: 3}
+      propertyPath: shield
+      value: 
+      objectReference: {fileID: 1200939537155045729}
+    - target: {fileID: 832050996641821729, guid: 085098f52480d463faec6fc85e28a674,
+        type: 3}
+      propertyPath: teamID
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 832050996641821729, guid: 085098f52480d463faec6fc85e28a674,
+        type: 3}
+      propertyPath: massRemovedOnGoalShrink
+      value: 0.005
+      objectReference: {fileID: 0}
+    - target: {fileID: 832050996641821729, guid: 085098f52480d463faec6fc85e28a674,
+        type: 3}
+      propertyPath: massRemovedOnShrink
+      value: 0.05
+      objectReference: {fileID: 0}
+    - target: {fileID: 832050996641821729, guid: 085098f52480d463faec6fc85e28a674,
+        type: 3}
+      propertyPath: massAddedOnGrow
+      value: 0.05
+      objectReference: {fileID: 0}
+    - target: {fileID: 832050996641821729, guid: 085098f52480d463faec6fc85e28a674,
+        type: 3}
+      propertyPath: playerID
+      value: 2
+      objectReference: {fileID: 0}
+    - target: {fileID: 832050996641821729, guid: 085098f52480d463faec6fc85e28a674,
+        type: 3}
+      propertyPath: sizeChangeOnHit
+      value: 0.15
+      objectReference: {fileID: 0}
+    - target: {fileID: 3061122919469906767, guid: 085098f52480d463faec6fc85e28a674,
+        type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 832050997540803857, guid: 085098f52480d463faec6fc85e28a674,
+        type: 3}
+      propertyPath: m_IsActive
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 832050996641821730, guid: 085098f52480d463faec6fc85e28a674,
         type: 3}
@@ -362,50 +442,15 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: 832050997540803857, guid: 085098f52480d463faec6fc85e28a674,
+    - target: {fileID: 832050996641821740, guid: 085098f52480d463faec6fc85e28a674,
         type: 3}
-      propertyPath: m_IsActive
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 832050996641821729, guid: 085098f52480d463faec6fc85e28a674,
-        type: 3}
-      propertyPath: shield
+      propertyPath: m_Materials.Array.data[0]
       value: 
-      objectReference: {fileID: 1200939537155045729}
-    - target: {fileID: 832050996641821729, guid: 085098f52480d463faec6fc85e28a674,
-        type: 3}
-      propertyPath: teamID
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 832050996641821729, guid: 085098f52480d463faec6fc85e28a674,
-        type: 3}
-      propertyPath: massRemovedOnGoalShrink
-      value: 0.005
-      objectReference: {fileID: 0}
-    - target: {fileID: 832050996641821729, guid: 085098f52480d463faec6fc85e28a674,
-        type: 3}
-      propertyPath: massRemovedOnShrink
-      value: 0.05
-      objectReference: {fileID: 0}
-    - target: {fileID: 832050996641821729, guid: 085098f52480d463faec6fc85e28a674,
-        type: 3}
-      propertyPath: massAddedOnGrow
-      value: 0.05
-      objectReference: {fileID: 0}
-    - target: {fileID: 832050996641821729, guid: 085098f52480d463faec6fc85e28a674,
-        type: 3}
-      propertyPath: playerID
-      value: 2
-      objectReference: {fileID: 0}
-    - target: {fileID: 832050996641821729, guid: 085098f52480d463faec6fc85e28a674,
-        type: 3}
-      propertyPath: sizeChangeOnHit
-      value: 0.15
-      objectReference: {fileID: 0}
+      objectReference: {fileID: 2100000, guid: f8a6a924a7a7f4b40bd0a399af1981e7, type: 2}
     - target: {fileID: 6252023532462757543, guid: 085098f52480d463faec6fc85e28a674,
         type: 3}
       propertyPath: m_IsActive
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 3214346967389557083, guid: 085098f52480d463faec6fc85e28a674,
         type: 3}
@@ -422,10 +467,10 @@ PrefabInstance:
       propertyPath: m_LocalScale.z
       value: 0.9
       objectReference: {fileID: 0}
-    - target: {fileID: 3061122919469906767, guid: 085098f52480d463faec6fc85e28a674,
+    - target: {fileID: 3214346967389557083, guid: 085098f52480d463faec6fc85e28a674,
         type: 3}
-      propertyPath: m_IsActive
-      value: 0
+      propertyPath: m_LocalPosition.y
+      value: 0.275
       objectReference: {fileID: 0}
     - target: {fileID: 3061122919469906765, guid: 085098f52480d463faec6fc85e28a674,
         type: 3}
@@ -446,6 +491,11 @@ PrefabInstance:
       propertyPath: m_RootOrder
       value: 3
       objectReference: {fileID: 0}
+    - target: {fileID: 7197613613072212274, guid: 085098f52480d463faec6fc85e28a674,
+        type: 3}
+      propertyPath: m_Materials.Array.data[0]
+      value: 
+      objectReference: {fileID: 2100000, guid: 82bffc4de1c0642809bc357e654eff76, type: 2}
     m_RemovedComponents:
     - {fileID: 832050997960268983, guid: 085098f52480d463faec6fc85e28a674, type: 3}
     - {fileID: 832050997960268977, guid: 085098f52480d463faec6fc85e28a674, type: 3}
@@ -480,6 +530,46 @@ PrefabInstance:
         type: 3}
       propertyPath: m_Name
       value: Player 2
+      objectReference: {fileID: 0}
+    - target: {fileID: 832050996641821729, guid: 085098f52480d463faec6fc85e28a674,
+        type: 3}
+      propertyPath: playerID
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 832050996641821729, guid: 085098f52480d463faec6fc85e28a674,
+        type: 3}
+      propertyPath: shield
+      value: 
+      objectReference: {fileID: 1200939537429397526}
+    - target: {fileID: 832050996641821729, guid: 085098f52480d463faec6fc85e28a674,
+        type: 3}
+      propertyPath: teamID
+      value: 2
+      objectReference: {fileID: 0}
+    - target: {fileID: 832050996641821729, guid: 085098f52480d463faec6fc85e28a674,
+        type: 3}
+      propertyPath: massRemovedOnGoalShrink
+      value: 0.005
+      objectReference: {fileID: 0}
+    - target: {fileID: 832050996641821729, guid: 085098f52480d463faec6fc85e28a674,
+        type: 3}
+      propertyPath: massRemovedOnShrink
+      value: 0.05
+      objectReference: {fileID: 0}
+    - target: {fileID: 832050996641821729, guid: 085098f52480d463faec6fc85e28a674,
+        type: 3}
+      propertyPath: massAddedOnGrow
+      value: 0.05
+      objectReference: {fileID: 0}
+    - target: {fileID: 832050996641821729, guid: 085098f52480d463faec6fc85e28a674,
+        type: 3}
+      propertyPath: sizeChangeOnHit
+      value: 0.15
+      objectReference: {fileID: 0}
+    - target: {fileID: 832050997540803857, guid: 085098f52480d463faec6fc85e28a674,
+        type: 3}
+      propertyPath: m_IsActive
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 832050996641821730, guid: 085098f52480d463faec6fc85e28a674,
         type: 3}
@@ -536,46 +626,6 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: 832050997540803857, guid: 085098f52480d463faec6fc85e28a674,
-        type: 3}
-      propertyPath: m_IsActive
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 832050996641821729, guid: 085098f52480d463faec6fc85e28a674,
-        type: 3}
-      propertyPath: playerID
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 832050996641821729, guid: 085098f52480d463faec6fc85e28a674,
-        type: 3}
-      propertyPath: shield
-      value: 
-      objectReference: {fileID: 1200939537429397526}
-    - target: {fileID: 832050996641821729, guid: 085098f52480d463faec6fc85e28a674,
-        type: 3}
-      propertyPath: teamID
-      value: 2
-      objectReference: {fileID: 0}
-    - target: {fileID: 832050996641821729, guid: 085098f52480d463faec6fc85e28a674,
-        type: 3}
-      propertyPath: massRemovedOnGoalShrink
-      value: 0.005
-      objectReference: {fileID: 0}
-    - target: {fileID: 832050996641821729, guid: 085098f52480d463faec6fc85e28a674,
-        type: 3}
-      propertyPath: massRemovedOnShrink
-      value: 0.05
-      objectReference: {fileID: 0}
-    - target: {fileID: 832050996641821729, guid: 085098f52480d463faec6fc85e28a674,
-        type: 3}
-      propertyPath: massAddedOnGrow
-      value: 0.05
-      objectReference: {fileID: 0}
-    - target: {fileID: 832050996641821729, guid: 085098f52480d463faec6fc85e28a674,
-        type: 3}
-      propertyPath: sizeChangeOnHit
-      value: 0.15
-      objectReference: {fileID: 0}
     - target: {fileID: 6252023532462757543, guid: 085098f52480d463faec6fc85e28a674,
         type: 3}
       propertyPath: m_IsActive
@@ -584,22 +634,22 @@ PrefabInstance:
     - target: {fileID: 3214346967389557083, guid: 085098f52480d463faec6fc85e28a674,
         type: 3}
       propertyPath: m_LocalScale.x
-      value: 0.9
+      value: 0.95
       objectReference: {fileID: 0}
     - target: {fileID: 3214346967389557083, guid: 085098f52480d463faec6fc85e28a674,
         type: 3}
       propertyPath: m_LocalScale.y
-      value: 0.9
+      value: 0.95
       objectReference: {fileID: 0}
     - target: {fileID: 3214346967389557083, guid: 085098f52480d463faec6fc85e28a674,
         type: 3}
       propertyPath: m_LocalScale.z
-      value: 0.9
+      value: 0.95
       objectReference: {fileID: 0}
     - target: {fileID: 3214346967389557083, guid: 085098f52480d463faec6fc85e28a674,
         type: 3}
       propertyPath: m_LocalPosition.y
-      value: 1
+      value: 0.267
       objectReference: {fileID: 0}
     - target: {fileID: 3061122919469906765, guid: 085098f52480d463faec6fc85e28a674,
         type: 3}
@@ -653,6 +703,46 @@ PrefabInstance:
         type: 3}
       propertyPath: m_Name
       value: Player 4
+      objectReference: {fileID: 0}
+    - target: {fileID: 832050996641821729, guid: 085098f52480d463faec6fc85e28a674,
+        type: 3}
+      propertyPath: playerID
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 832050996641821729, guid: 085098f52480d463faec6fc85e28a674,
+        type: 3}
+      propertyPath: shield
+      value: 
+      objectReference: {fileID: 1200939537342952478}
+    - target: {fileID: 832050996641821729, guid: 085098f52480d463faec6fc85e28a674,
+        type: 3}
+      propertyPath: teamID
+      value: 2
+      objectReference: {fileID: 0}
+    - target: {fileID: 832050996641821729, guid: 085098f52480d463faec6fc85e28a674,
+        type: 3}
+      propertyPath: massRemovedOnGoalShrink
+      value: 0.005
+      objectReference: {fileID: 0}
+    - target: {fileID: 832050996641821729, guid: 085098f52480d463faec6fc85e28a674,
+        type: 3}
+      propertyPath: massRemovedOnShrink
+      value: 0.05
+      objectReference: {fileID: 0}
+    - target: {fileID: 832050996641821729, guid: 085098f52480d463faec6fc85e28a674,
+        type: 3}
+      propertyPath: massAddedOnGrow
+      value: 0.05
+      objectReference: {fileID: 0}
+    - target: {fileID: 832050996641821729, guid: 085098f52480d463faec6fc85e28a674,
+        type: 3}
+      propertyPath: sizeChangeOnHit
+      value: 0.15
+      objectReference: {fileID: 0}
+    - target: {fileID: 832050997540803857, guid: 085098f52480d463faec6fc85e28a674,
+        type: 3}
+      propertyPath: m_IsActive
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 832050996641821730, guid: 085098f52480d463faec6fc85e28a674,
         type: 3}
@@ -709,46 +799,6 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: 832050997540803857, guid: 085098f52480d463faec6fc85e28a674,
-        type: 3}
-      propertyPath: m_IsActive
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 832050996641821729, guid: 085098f52480d463faec6fc85e28a674,
-        type: 3}
-      propertyPath: playerID
-      value: 3
-      objectReference: {fileID: 0}
-    - target: {fileID: 832050996641821729, guid: 085098f52480d463faec6fc85e28a674,
-        type: 3}
-      propertyPath: shield
-      value: 
-      objectReference: {fileID: 1200939537342952478}
-    - target: {fileID: 832050996641821729, guid: 085098f52480d463faec6fc85e28a674,
-        type: 3}
-      propertyPath: teamID
-      value: 2
-      objectReference: {fileID: 0}
-    - target: {fileID: 832050996641821729, guid: 085098f52480d463faec6fc85e28a674,
-        type: 3}
-      propertyPath: massRemovedOnGoalShrink
-      value: 0.005
-      objectReference: {fileID: 0}
-    - target: {fileID: 832050996641821729, guid: 085098f52480d463faec6fc85e28a674,
-        type: 3}
-      propertyPath: massRemovedOnShrink
-      value: 0.05
-      objectReference: {fileID: 0}
-    - target: {fileID: 832050996641821729, guid: 085098f52480d463faec6fc85e28a674,
-        type: 3}
-      propertyPath: massAddedOnGrow
-      value: 0.05
-      objectReference: {fileID: 0}
-    - target: {fileID: 832050996641821729, guid: 085098f52480d463faec6fc85e28a674,
-        type: 3}
-      propertyPath: sizeChangeOnHit
-      value: 0.15
-      objectReference: {fileID: 0}
     - target: {fileID: 6252023532462757543, guid: 085098f52480d463faec6fc85e28a674,
         type: 3}
       propertyPath: m_IsActive
@@ -757,22 +807,22 @@ PrefabInstance:
     - target: {fileID: 3214346967389557083, guid: 085098f52480d463faec6fc85e28a674,
         type: 3}
       propertyPath: m_LocalPosition.y
-      value: 1
+      value: 0.205
       objectReference: {fileID: 0}
     - target: {fileID: 3214346967389557083, guid: 085098f52480d463faec6fc85e28a674,
         type: 3}
       propertyPath: m_LocalScale.x
-      value: 0.9
+      value: 0.95
       objectReference: {fileID: 0}
     - target: {fileID: 3214346967389557083, guid: 085098f52480d463faec6fc85e28a674,
         type: 3}
       propertyPath: m_LocalScale.y
-      value: 0.9
+      value: 0.95
       objectReference: {fileID: 0}
     - target: {fileID: 3214346967389557083, guid: 085098f52480d463faec6fc85e28a674,
         type: 3}
       propertyPath: m_LocalScale.z
-      value: 0.9
+      value: 0.95
       objectReference: {fileID: 0}
     - target: {fileID: 3061122919469906765, guid: 085098f52480d463faec6fc85e28a674,
         type: 3}
