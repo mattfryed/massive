@@ -37,10 +37,10 @@ public class ScoreSphereScript : MonoBehaviour
 
     private void OnTriggerStay(Collider other)
     {
-
+//        Debug.Log("something is happening. sumpin' is in the score sphere");
         if (other.gameObject.tag == "Player" && other.gameObject.GetComponent<PlayerControllerScript>().teamID == teamID)
         {
-            Debug.Log("something is happening");
+        //    Debug.Log("something is happening. A player is in the score sphere");
             // TODO: Should probably check what team the player is on, but for now, just tell em to shrink and lets grow the score acceptor
             if (other.gameObject.GetComponent<PlayerControllerScript>().GoalShrink())
             {

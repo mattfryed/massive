@@ -320,7 +320,18 @@ public class PlayerControllerScript : MonoBehaviour
         rb.AddForce(direction * 200f);
 
     }
+    public void ShrinkSlow(GameObject target)
+    {
+        if (transform.localScale.x > minScale)
+        {
+            Debug.Log("shrinkslow!");
+            transform.localScale -= new Vector3(sizeChangeOnGoalHit, sizeChangeOnGoalHit, sizeChangeOnGoalHit);
+            rb.mass = rb.mass - massRemovedOnGoalShrink;
+            EjectBlob(target);
 
+        }
+       
+    }
     public bool GoalShrink()
     {
         if (transform.localScale.x > minScale)
