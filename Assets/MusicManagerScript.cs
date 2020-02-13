@@ -41,6 +41,6 @@ public class MusicManagerScript : MonoBehaviour
         audioMusic.Stop();
 
         // Destroy
-        Destroy(this);
+        Destroy(gameObject);
     }
 }

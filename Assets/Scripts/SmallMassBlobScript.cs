@@ -64,7 +64,14 @@ public class SmallMassBlobScript : MonoBehaviour
         {
             // target is dead, choose a new target. That player's goal sounds good. 
             GameObject newTarget = target.gameObject.GetComponent<PlayerControllerScript>().goalZone.gameObject.transform.Find("Score Sphere").gameObject;
-            target = newTarget;
+            if (newTarget != null)
+            {
+                target = newTarget;
+            }
+            else
+            {
+                Destroy(gameObject);
+            }
         }
     }
 }
