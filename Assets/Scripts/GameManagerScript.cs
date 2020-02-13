@@ -13,12 +13,15 @@ public class GameManagerScript : MonoBehaviour
     private bool isGameOver = false;
     public string levelNumber = "003";
     private GameObject dm;
+    private GameObject gmm;
     private bool is2v2;
 
     // Start is called before the first frame update
     void Start()
     {
         dm = GameObject.FindWithTag("DataManager");
+        gmm = GameObject.FindWithTag("GameMusicManager");
+        DontDestroyOnLoad(gmm);
         DontDestroyOnLoad(gameObject.transform);
 
         if (dm != null)
@@ -94,6 +97,7 @@ public class GameManagerScript : MonoBehaviour
         finalScore_1 = Score_1.transform.localScale.x;
         finalScore_2 = Score_2.transform.localScale.x;
 
+        gmm.GetComponent<MusicManagerScript>().StopMusic();
         if (finalScore_1 < 0f)
         {
             finalScore_1 = 0f;
