@@ -50,7 +50,8 @@ public class GameManagerScript : MonoBehaviour
                 Debug.Log("Game is now over");
                 StoreFinalScores();
                 // Game over
-                Application.LoadLevel("levelendnewscene");
+                Invoke("EndGame", 1f);
+              
             }
             // check for inactive players
             CheckForInactivePlayers();
@@ -81,6 +82,10 @@ public class GameManagerScript : MonoBehaviour
         }
     }
 
+    public void EndGame()
+    {
+        Application.LoadLevel("levelendnewscene");
+    }
     public void EndGamePrematurely()
 
     {
