@@ -30,7 +30,7 @@ public class PlayerControllerScript : MonoBehaviour
     public float sizeChangeOnHit = .1f;
     public float sizeChangeOnGoalHit = .00001f;
     private float maxScale = 3.0f;
-    private float actionDelay = .7f;
+    private float actionDelay = .5f;
     public float stunTime = 1f;
     private bool isStunned = false;
     private float minScale = .5f;
