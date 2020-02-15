@@ -4,12 +4,13 @@ using UnityEngine;
 
 public class ShieldScript : MonoBehaviour
 {
-    private void OnTriggerEnter(Collider other)
+    private void OnCollisionEnter(Collision collision)
     {
-        if (other.gameObject.tag == "Sword")
+    
+        if (collision.gameObject.tag == "Sword")
         {
             Debug.Log(transform.parent.parent.position);
-            other.gameObject.transform.parent.parent.BroadcastMessage("Stun", transform.parent.parent.position);
+            collision.gameObject.transform.parent.parent.BroadcastMessage("Stun", transform.parent.parent.position);
         }
     }
 }

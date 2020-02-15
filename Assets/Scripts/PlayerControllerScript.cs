@@ -296,6 +296,7 @@ public class PlayerControllerScript : MonoBehaviour
 
     public void Stun(Vector3 shieldPosition)
     {
+      //  Destroy(gameObject);
         // Knock back the player in the opposite direction of the opposing shield
         Debug.Log("Player " + playerID.ToString() + " was stunned!");
         // play a sfx

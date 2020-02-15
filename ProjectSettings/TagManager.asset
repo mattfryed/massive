@@ -12,6 +12,7 @@ TagManager:
   - DataManager
   - TitleMusicManager
   - GameMusicManager
+  - Shield
   layers:
   - Default
   - TransparentFX

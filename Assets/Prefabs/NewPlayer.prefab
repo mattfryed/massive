@@ -14,7 +14,7 @@ GameObject:
   - component: {fileID: 5105880082375202542}
   m_Layer: 0
   m_Name: PhysicalShield
-  m_TagString: Untagged
+  m_TagString: Shield
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -31,7 +31,7 @@ Transform:
   m_LocalScale: {x: 1.61, y: 1.61, z: 1.61}
   m_Children: []
   m_Father: {fileID: 832050997540803856}
-  m_RootOrder: 1
+  m_RootOrder: 0
   m_LocalEulerAnglesHint: {x: 90, y: 0, z: 0}
 --- !u!135 &2156578907067991404
 SphereCollider:
@@ -124,7 +124,7 @@ Transform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children: []
   m_Father: {fileID: 832050997540803856}
-  m_RootOrder: 2
+  m_RootOrder: 1
   m_LocalEulerAnglesHint: {x: 90, y: -44.92, z: 0}
 --- !u!33 &1439706095531012033
 MeshFilter:
@@ -5033,69 +5033,11 @@ Transform:
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children:
-  - {fileID: 832050997960268978}
   - {fileID: 1798912521}
   - {fileID: 574900858643052019}
   m_Father: {fileID: 832050996641821730}
   m_RootOrder: 2
   m_LocalEulerAnglesHint: {x: 0, y: -283.2, z: 0}
---- !u!1 &832050997960268979
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 832050997960268978}
-  - component: {fileID: 832050997960268981}
-  - component: {fileID: 8403562054418134135}
-  m_Layer: 0
-  m_Name: Shield
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &832050997960268978
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 832050997960268979}
-  m_LocalRotation: {x: 0.7071068, y: 0, z: 0, w: 0.7071068}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1.61, y: 1, z: 1}
-  m_Children: []
-  m_Father: {fileID: 832050997540803856}
-  m_RootOrder: 0
-  m_LocalEulerAnglesHint: {x: 90, y: 0, z: 0}
---- !u!114 &832050997960268981
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 832050997960268979}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 4f48b80033d6349eab0a23e0c7a7aa62, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
---- !u!135 &8403562054418134135
-SphereCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 832050997960268979}
-  m_Material: {fileID: 0}
-  m_IsTrigger: 0
-  m_Enabled: 1
-  serializedVersion: 2
-  m_Radius: 0.5
-  m_Center: {x: 0, y: 0, z: 0}
 --- !u!1 &3061122919469906767
 GameObject:
   m_ObjectHideFlags: 0
@@ -5109,6 +5051,7 @@ GameObject:
   - component: {fileID: 552228999991369009}
   - component: {fileID: 2967002454781333764}
   - component: {fileID: 8485152738858556546}
+  - component: {fileID: 8532878528151462185}
   m_Layer: 0
   m_Name: Sword
   m_TagString: Sword
@@ -9916,6 +9859,18 @@ ParticleSystemRenderer:
   m_Mesh2: {fileID: 0}
   m_Mesh3: {fileID: 0}
   m_MaskInteraction: 0
+--- !u!114 &8532878528151462185
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3061122919469906767}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2b52be97d64d04cc297c326a42205c33, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &3424908623238354779
 GameObject:
   m_ObjectHideFlags: 0

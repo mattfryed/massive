@@ -15,12 +15,26 @@ public class SwordScript : MonoBehaviour
 
 
         }
+
+        if (other.gameObject.tag == "Shield")
+        {
+            Debug.Log("shield hit, stunning attacker");
+          
+            transform.parent.parent.parent.BroadcastMessage("Stun", other.gameObject.transform.position);
+
+
+        }
+
         else if (other.gameObject.tag == "Player")
-        {   
-      //     Debug.Log("Sword colliding with player");
-            transform.parent.parent.parent.BroadcastMessage("Grow");
-            other.gameObject.BroadcastMessage("Shrink", transform.parent.parent.gameObject);
-            other.gameObject.BroadcastMessage("playSFX", "struckSFX");
+        {
+
+                 Debug.Log("Sword colliding with player");
+            if (!other.gameObject.GetComponent<PlayerControllerScript>().shieldOn)
+            {
+                transform.parent.parent.parent.BroadcastMessage("Grow");
+                other.gameObject.BroadcastMessage("Shrink", transform.parent.parent.gameObject);
+                other.gameObject.BroadcastMessage("playSFX", "struckSFX");
+            }
         }
     }
 }
