@@ -9824,9 +9824,11 @@ TextMesh:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 7183316291196105257}
-  m_Text: 'CREDITS
+  m_Text: 'DESIGN & DEVELOPMENT
 
-    NICK SANTANIELLO (@_ROBYSOFT_) & MATT FRY (@mattfryed)'
+    MATT FRY (@mattfryed) & NICK SANTANIELLO (@_ROBYSOFT_)
+
+    BGM: DEVIN CURRY (@grandatrium) '
   m_OffsetZ: 0
   m_CharacterSize: 0.04
   m_LineSpacing: 3
@@ -14676,7 +14678,7 @@ MeshFilter:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 7183316291392531486}
-  m_Mesh: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}
+  m_Mesh: {fileID: 4300000, guid: 043172280ab654d3e911fe12f0466fba, type: 3}
 --- !u!23 &7183316291392531474
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -15390,7 +15392,7 @@ MeshFilter:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 7183316291816357829}
-  m_Mesh: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}
+  m_Mesh: {fileID: 4300000, guid: 043172280ab654d3e911fe12f0466fba, type: 3}
 --- !u!23 &7183316291816357851
 MeshRenderer:
   m_ObjectHideFlags: 0
