@@ -8,6 +8,7 @@ public class MatterNuggerSpawnScript : MonoBehaviour
     public float respawnBaseTime = 15f;
     public float variance = 5f;
     public bool spawnFromParentPosition = false;
+    private GameObject gameplayObjects; 
 
     // Start is called before the first frame update
     void Start()
@@ -23,7 +24,8 @@ public class MatterNuggerSpawnScript : MonoBehaviour
 
     void SpawnSoon()
     {
-        GameObject mn = Instantiate(matterNuggetPrefab);
+        GameObject mn = Instantiate(matterNuggetPrefab, gameplayObjects.transform);
+        
         if (!spawnFromParentPosition)
         {
             mn.transform.position = new Vector3(0f, 0f, 0f);

@@ -13,6 +13,8 @@ TagManager:
   - TitleMusicManager
   - GameMusicManager
   - Shield
+  - sss
+  - GameplayObjects
   layers:
   - Default
   - TransparentFX
@@ -49,4 +51,7 @@ TagManager:
   m_SortingLayers:
   - name: Default
     uniqueID: 0
+    locked: 0
+  - name: top
+    uniqueID: 2690299111
     locked: 0

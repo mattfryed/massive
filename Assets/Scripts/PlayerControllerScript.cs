@@ -58,11 +58,14 @@ public class PlayerControllerScript : MonoBehaviour
 
     public bool didPlayerTapActionThisFrame = false;
 
+    private GameObject gameplayObjects;
+
     private void Awake()
     {
         // assign a new 'rewired' player.
         player = Rewired.ReInput.players.GetPlayer(playerID); // get the player by id
         lastActivityTime = Time.time;
+        gameplayObjects = GameObject.FindWithTag("GameplayObjects");
     }
     void Start()
     {
@@ -284,7 +287,7 @@ public class PlayerControllerScript : MonoBehaviour
     }
     void RespawnEffect()
     {
-        GameObject re = Instantiate(respawnPrefab);
+        GameObject re = Instantiate(respawnPrefab, gameplayObjects.transform);
         re.transform.position = startingPosition;
     }
     void Return()

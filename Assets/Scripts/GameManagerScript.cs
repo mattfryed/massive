@@ -14,6 +14,8 @@ public class GameManagerScript : MonoBehaviour
     public string levelNumber = "003";
     private GameObject dm;
     private GameObject gmm;
+    public GameObject sss;
+    private GameObject gameplayObjects;
     private bool is2v2;
 
     // Start is called before the first frame update
@@ -21,6 +23,9 @@ public class GameManagerScript : MonoBehaviour
     {
         dm = GameObject.FindWithTag("DataManager");
         gmm = GameObject.FindWithTag("GameMusicManager");
+        gameplayObjects = GameObject.FindWithTag("GameplayObjects");
+      //  sss = GameObject.FindWithTag("sss");
+
         DontDestroyOnLoad(gmm);
         DontDestroyOnLoad(gameObject.transform);
 
@@ -44,17 +49,18 @@ public class GameManagerScript : MonoBehaviour
     {
         if (!isGameOver)
         {
-
+            // check for inactive players
+            CheckForInactivePlayers();
             if (Score_1.transform.localScale.x >= winScale || Score_1.transform.localScale.x <= 0f || Score_2.transform.localScale.x >= winScale || Score_2.transform.localScale.x <= 0f)
             {
                 Debug.Log("Game is now over");
+                isGameOver = true;
                 StoreFinalScores();
                 // Game over
-                Invoke("EndGame", 1f);
+               
               
             }
-            // check for inactive players
-            CheckForInactivePlayers();
+
         }
     }
 
@@ -84,7 +90,9 @@ public class GameManagerScript : MonoBehaviour
 
     public void EndGame()
     {
-        Application.LoadLevel("levelendnewscene");
+        //Application.LoadLevel("levelendnewscene");
+        gameplayObjects.SetActive(false);
+        sss.SetActive(true);
     }
     public void EndGamePrematurely()
 
@@ -112,6 +120,6 @@ public class GameManagerScript : MonoBehaviour
         {
             finalScore_2 = 0f;
         }
-
+        EndGame();
     }
 }
