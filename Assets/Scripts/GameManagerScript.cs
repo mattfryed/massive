@@ -16,6 +16,7 @@ public class GameManagerScript : MonoBehaviour
     private GameObject gmm;
     public GameObject sss;
     private GameObject gameplayObjects;
+    private GameObject deathSphere;
     private bool is2v2;
 
     // Start is called before the first frame update
@@ -23,6 +24,7 @@ public class GameManagerScript : MonoBehaviour
     {
         dm = GameObject.FindWithTag("DataManager");
         gmm = GameObject.FindWithTag("GameMusicManager");
+        deathSphere = GameObject.FindWithTag("DeathSphere");
         gameplayObjects = GameObject.FindWithTag("GameplayObjects");
       //  sss = GameObject.FindWithTag("sss");
 
@@ -91,8 +93,18 @@ public class GameManagerScript : MonoBehaviour
     public void EndGame()
     {
         //Application.LoadLevel("levelendnewscene");
+        //activate death sphere!
+        deathSphere.GetComponent<DSScript>().Engage();
+        //gameplayObjects.SetActive(false);
+        //sss.SetActive(true);
+    }
+
+    public void ShowEndScreen()
+    {
         gameplayObjects.SetActive(false);
         sss.SetActive(true);
+        deathSphere.GetComponent<DSScript>().ScrollOff();
+
     }
     public void EndGamePrematurely()
 

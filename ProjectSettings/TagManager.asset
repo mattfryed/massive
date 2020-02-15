@@ -15,6 +15,7 @@ TagManager:
   - Shield
   - sss
   - GameplayObjects
+  - DeathSphere
   layers:
   - Default
   - TransparentFX
