@@ -61,7 +61,7 @@ MeshRenderer:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1798912520}
-  m_Enabled: 1
+  m_Enabled: 0
   m_CastShadows: 1
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
@@ -261,7 +261,7 @@ ParticleSystem:
   ringBufferMode: 0
   ringBufferLoopRange: {x: 0, y: 1}
   looping: 1
-  prewarm: 1
+  prewarm: 0
   playOnAwake: 1
   useUnscaledTime: 0
   autoRandomSeed: 1
@@ -1017,7 +1017,7 @@ ParticleSystem:
           m_PostInfinity: 2
           m_RotationOrder: 4
     arc:
-      value: 90
+      value: 360
       mode: 0
       spread: 0
       speed:
@@ -14832,6 +14832,11 @@ PrefabInstance:
   m_Modification:
     m_TransformParent: {fileID: 832050996641821730}
     m_Modifications:
+    - target: {fileID: 8641256601804804452, guid: 1e7f0484c476844478eca73faab321ef,
+        type: 3}
+      propertyPath: m_Name
+      value: SfxModule
+      objectReference: {fileID: 0}
     - target: {fileID: 3597180623879228294, guid: 1e7f0484c476844478eca73faab321ef,
         type: 3}
       propertyPath: m_LocalPosition.x
@@ -14886,11 +14891,6 @@ PrefabInstance:
         type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 8641256601804804452, guid: 1e7f0484c476844478eca73faab321ef,
-        type: 3}
-      propertyPath: m_Name
-      value: SfxModule
       objectReference: {fileID: 0}
     m_RemovedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 1e7f0484c476844478eca73faab321ef, type: 3}
