@@ -18,9 +18,9 @@ public class DSScript : MonoBehaviour
     {
         if (goingToCenter)
         {
-            transform.Translate(Vector3.back * Time.deltaTime * 20f);
+            transform.Translate(Vector3.back * Time.deltaTime * 30f);
             Vector3 distToCenter = transform.localPosition - new Vector3(0f, 0f, 0f);
-            if (distToCenter.magnitude < 25f)
+            if (distToCenter.magnitude < 35f)
             {
                 goingToCenter = false;
                 gameManager.BroadcastMessage("ShowEndScreen");
@@ -28,7 +28,7 @@ public class DSScript : MonoBehaviour
         }
         if (scrollingOff)
         {
-            transform.Translate(Vector3.back * Time.deltaTime * 20f);
+            transform.Translate(Vector3.back * Time.deltaTime * 30f);
         }
     }
     public void Engage()
