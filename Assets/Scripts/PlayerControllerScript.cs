@@ -211,6 +211,10 @@ public class PlayerControllerScript : MonoBehaviour
             transform.localScale -= new Vector3(sizeChangeOnGoalHit*3f, sizeChangeOnGoalHit*3f, sizeChangeOnGoalHit*3f);
             rb.mass = rb.mass - massRemovedOnGoalShrink*3f;
         }
+        //eject some blobs to signify mass lossage
+        EjectBlob(null);
+        EjectBlob(null);
+        EjectBlob(null);
     }
 
     public void playSFX(string sfxName)

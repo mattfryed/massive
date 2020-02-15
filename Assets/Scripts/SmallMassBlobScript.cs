@@ -33,8 +33,11 @@ public class SmallMassBlobScript : MonoBehaviour
             ejectPowerY -= 20f;
         }
         gameObject.GetComponent<Rigidbody>().AddForce(ejectPowerX, 0f, ejectPowerY);
-        float timeToTarget = Random.Range(.25f, .75f);
-        Invoke("GoToTarget", timeToTarget);
+        if (target != null)
+        {
+            float timeToTarget = Random.Range(.25f, .75f);
+            Invoke("GoToTarget", timeToTarget);
+        }
     }
 
     void GoToTarget()
@@ -44,7 +47,7 @@ public class SmallMassBlobScript : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-     //  child.GetComponent<ParticleSystem>().GetComponent<Renderer>().material.SetColor("_Color", new Color(0f, 1f, 0f, .1f));
+        //  child.GetComponent<ParticleSystem>().GetComponent<Renderer>().material.SetColor("_Color", new Color(0f, 1f, 0f, .1f));
         if (target != null && targetOn)
         {
             // get direction vector between opbject and target
@@ -57,18 +60,28 @@ public class SmallMassBlobScript : MonoBehaviour
             {
                 Destroy(gameObject);
             }
-        }
-        Vector3 distanceToTarget = transform.position - target.transform.position;
 
-        if (distanceToTarget.magnitude > 100f)
-        {
-            // target is dead, choose a new target. That player's goal sounds good. 
-            GameObject newTarget = target.gameObject.GetComponent<PlayerControllerScript>().goalZone.gameObject.transform.Find("Score Sphere").gameObject;
-            if (newTarget != null)
+
+            Vector3 distanceToTarget = transform.position - target.transform.position;
+
+            if (distanceToTarget.magnitude > 100f)
             {
-                target = newTarget;
+                // target is dead, choose a new target. That player's goal sounds good. 
+                GameObject newTarget = target.gameObject.GetComponent<PlayerControllerScript>().goalZone.gameObject.transform.Find("Score Sphere").gameObject;
+                if (newTarget != null)
+                {
+                    target = newTarget;
+                }
+                else
+                {
+                    Destroy(gameObject);
+                }
             }
-            else
+        } else if (target == null)
+        {
+            // just fade out until ya gone
+            transform.localScale *= .95f;
+            if (transform.localScale.x < .1f)
             {
                 Destroy(gameObject);
             }
