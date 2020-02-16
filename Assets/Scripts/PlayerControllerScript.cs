@@ -311,7 +311,7 @@ public class PlayerControllerScript : MonoBehaviour
         // play a sfx
         playSFX("StunnedSFX");
         Vector3 knockDirection = transform.position - shieldPosition;
-        rb.AddForce(knockDirection.normalized * movePower*50f);
+        rb.AddForce(knockDirection.normalized * movePower*30f);
         shield.SetActive(false);
         sword.SetActive(false);
         isStunned = true;
