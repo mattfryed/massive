@@ -20,6 +20,10 @@ public class ScoreboardManagerScript : MonoBehaviour
     public void UpdateScoreboard(float newPercentage)
     {
         float newDisplay = Mathf.Round(newPercentage * 100f);
+        if (newDisplay < 0f)
+        {
+            newDisplay = 0f;
+        }
         string scoreString = newDisplay.ToString();
         for (int i = 1; i <= scoreString.Length; i += 1)
         {
