@@ -99,7 +99,7 @@ public class SmallMassBlobScript : MonoBehaviour
         } else if (target == null)
         {
             // just fade out until ya gone
-            transform.localScale *= .95f;
+            transform.localScale *= .97f;
             if (transform.localScale.x < .1f)
             {
                 Destroy(gameObject);

@@ -32,7 +32,7 @@ public class PlayerControllerScript : MonoBehaviour
     private float sizeChangeOnShrink = .1f;
     private float sizeChangeOnGoalHit = .01f;
     private float maxScale = 3.0f;
-    private float actionDelay = .3f;
+    private float actionDelay = .25f;
     public float stunTime = 1f;
     private bool isStunned = false;
     private float minScale = .5f;
@@ -217,6 +217,9 @@ public class PlayerControllerScript : MonoBehaviour
             rb.mass = rb.mass - massRemovedOnGoalShrink*3f;
         }
         //eject some blobs to signify mass lossage
+        EjectBlob(null);
+        EjectBlob(null);
+        EjectBlob(null);
         EjectBlob(null);
         EjectBlob(null);
         EjectBlob(null);
