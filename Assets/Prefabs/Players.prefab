@@ -227,6 +227,16 @@ PrefabInstance:
   m_Modification:
     m_TransformParent: {fileID: 1956411463531335750}
     m_Modifications:
+    - target: {fileID: 832050996641821729, guid: 085098f52480d463faec6fc85e28a674,
+        type: 3}
+      propertyPath: massRemovedOnGoalShrink
+      value: 0.005
+      objectReference: {fileID: 0}
+    - target: {fileID: 832050996641821729, guid: 085098f52480d463faec6fc85e28a674,
+        type: 3}
+      propertyPath: massAddedOnGrow
+      value: 0.05
+      objectReference: {fileID: 0}
     - target: {fileID: 832050996641821730, guid: 085098f52480d463faec6fc85e28a674,
         type: 3}
       propertyPath: m_LocalPosition.x
@@ -358,17 +368,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 832050996641821729, guid: 085098f52480d463faec6fc85e28a674,
         type: 3}
-      propertyPath: massRemovedOnGoalShrink
-      value: 0.005
-      objectReference: {fileID: 0}
-    - target: {fileID: 832050996641821729, guid: 085098f52480d463faec6fc85e28a674,
-        type: 3}
       propertyPath: massRemovedOnShrink
-      value: 0.05
-      objectReference: {fileID: 0}
-    - target: {fileID: 832050996641821729, guid: 085098f52480d463faec6fc85e28a674,
-        type: 3}
-      propertyPath: massAddedOnGrow
       value: 0.05
       objectReference: {fileID: 0}
     - target: {fileID: 832050996641821729, guid: 085098f52480d463faec6fc85e28a674,

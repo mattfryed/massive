@@ -24,13 +24,15 @@ public class PlayerControllerScript : MonoBehaviour
     private float timeUntilNextShrink = .1f;
     private float timeOfLastShrink = 0f;
     private float shieldSlowdownFactor = .3f;
-    public float massAddedOnGrow = .1f;
-    public float massRemovedOnShrink = .1f;
-    public float massRemovedOnGoalShrink = .1f;
-    public float sizeChangeOnHit = .1f;
-    public float sizeChangeOnGoalHit = .00001f;
+    private float massAddedOnGrow = .1f;
+    private float massRemovedOnShrink = .05f;
+    private float massRemovedOnGoalShrink = .0045f;
+    private float sizeChangeOnHit = .15f;
+    private float sizeChangeOnGrow = .2f;
+    private float sizeChangeOnShrink = .1f;
+    private float sizeChangeOnGoalHit = .01f;
     private float maxScale = 3.0f;
-    private float actionDelay = .5f;
+    private float actionDelay = .3f;
     public float stunTime = 1f;
     private bool isStunned = false;
     private float minScale = .5f;
@@ -251,7 +253,7 @@ public class PlayerControllerScript : MonoBehaviour
         if (Time.time - timeOfLastShrink > timeUntilNextShrink)
         {
            // Debug.Log("SHRINKING!");
-            transform.localScale -= new Vector3(sizeChangeOnHit, sizeChangeOnHit, sizeChangeOnHit);
+            transform.localScale -= new Vector3(sizeChangeOnShrink, sizeChangeOnShrink, sizeChangeOnShrink);
             rb.mass = rb.mass - massRemovedOnShrink;
 //            Debug.Log(target);
             if (target != null)
@@ -361,7 +363,7 @@ public class PlayerControllerScript : MonoBehaviour
         if (transform.localScale.x < maxScale)
         {
         //   Debug.Log("GROWING!");
-            transform.localScale += new Vector3(sizeChangeOnHit, sizeChangeOnHit, sizeChangeOnHit);
+            transform.localScale += new Vector3(sizeChangeOnGrow, sizeChangeOnGrow, sizeChangeOnGrow);
             rb.mass = rb.mass + massAddedOnGrow;
         }
     }
