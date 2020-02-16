@@ -20,7 +20,7 @@ public class DSScript : MonoBehaviour
         {
             transform.Translate(Vector3.back * Time.deltaTime * 30f);
             Vector3 distToCenter = transform.localPosition - new Vector3(0f, 0f, 0f);
-            if (distToCenter.magnitude < 10f)
+            if (distToCenter.magnitude < 15f)
             {
                 goingToCenter = false;
                 gameManager.BroadcastMessage("ShowEndScreen");
