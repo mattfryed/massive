@@ -4,6 +4,8 @@ using UnityEngine;
 
 public class SwordScript : MonoBehaviour
 {
+    public GameObject swordClashPrefab;
+
     private void OnTriggerEnter(Collider other)
     {
         if (other.gameObject.tag == "Sword")
@@ -11,6 +13,8 @@ public class SwordScript : MonoBehaviour
             Debug.Log("two swords collided");
             Debug.Log("as reported by ");
             Debug.Log(transform.parent.parent.parent.GetComponent<PlayerControllerScript>().playerID);
+            GameObject sc = Instantiate(swordClashPrefab);
+            sc.transform.position = gameObject.transform.position;
             transform.parent.parent.parent.BroadcastMessage("SwordClash");
 
 
