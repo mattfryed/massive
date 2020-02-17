@@ -46,7 +46,7 @@ public class WinLoseScreenManagerScript : MonoBehaviour
             whichLevel = gm.GetComponent<GameManagerScript>().levelName;
             stageNum = "STAGE_" + gm.GetComponent<GameManagerScript>().levelNumber;
             winScale = gm.GetComponent<GameManagerScript>().winScale;
-            Destroy(gm);
+          // Destroy(gm);
             UpdateText();
         }
 

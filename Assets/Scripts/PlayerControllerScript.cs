@@ -33,7 +33,7 @@ public class PlayerControllerScript : MonoBehaviour
     private float sizeChangeOnGoalHit = .01f;
     private float maxScale = 3.0f;
     private float actionDelay = .25f;
-    public float stunTime = 1f;
+    public float stunTime = 1.25f;
     private bool isStunned = false;
     private float minScale = .5f;
     private float timeToReturn = 5f;
@@ -45,7 +45,7 @@ public class PlayerControllerScript : MonoBehaviour
     // references to other objects that are part of the player
     public GameObject sword;
     public GameObject shield;
-
+    private GameObject stunEffect;
     // flags
     public bool gamepadMode = false;
     public bool canUserTakeAction = true;
@@ -68,6 +68,7 @@ public class PlayerControllerScript : MonoBehaviour
         player = Rewired.ReInput.players.GetPlayer(playerID); // get the player by id
         lastActivityTime = Time.time;
         gameplayObjects = GameObject.FindWithTag("GameplayObjects");
+
     }
     void Start()
     {
@@ -76,6 +77,7 @@ public class PlayerControllerScript : MonoBehaviour
         startingPosition = transform.position;
         dm = GameObject.FindWithTag("GameManager");
         sm = gameObject.transform.Find("SfxModule").gameObject;
+        stunEffect = gameObject.transform.Find("StunnedEffect").gameObject;
 
         if (teamID == 1)
         {
@@ -304,6 +306,7 @@ public class PlayerControllerScript : MonoBehaviour
     void UnStun()
     {
         isStunned = false;
+        stunEffect.GetComponent<ParticleSystem>().Stop();
     }
 
     public void Stun(Vector3 shieldPosition)
@@ -318,6 +321,7 @@ public class PlayerControllerScript : MonoBehaviour
         shield.SetActive(false);
         sword.SetActive(false);
         isStunned = true;
+        stunEffect.GetComponent<ParticleSystem>().Play();
         Invoke("UnStun", stunTime);
     }
 
