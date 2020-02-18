@@ -29,7 +29,7 @@ public class PlayerControllerScript : MonoBehaviour
     private float massRemovedOnGoalShrink = .0045f;
     private float sizeChangeOnHit = .15f;
     private float sizeChangeOnGrow = .2f;
-    private float sizeChangeOnShrink = .1f;
+    private float sizeChangeOnShrink = .15f;
     private float sizeChangeOnGoalHit = .01f;
     private float maxScale = 3.0f;
     private float actionDelay = .25f;
