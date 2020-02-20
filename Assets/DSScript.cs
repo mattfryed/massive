@@ -22,7 +22,7 @@ public class DSScript : MonoBehaviour
             Vector3 distToCenter = transform.localPosition - new Vector3(0f, 0f, 0f);
             if (distToCenter.magnitude < 15f)
             {
-               // goingToCenter = false;
+              //  goingToCenter = false;
                 gameManager.BroadcastMessage("ShowEndScreen");
             }
         }
