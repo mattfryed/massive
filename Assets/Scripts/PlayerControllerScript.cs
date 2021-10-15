@@ -189,11 +189,13 @@ public class PlayerControllerScript : MonoBehaviour
                     shield.transform.rotation = lookRotation;
                     shield.SetActive(true);
                     shieldSlowdownFactor = .4f;
-                    // decrease size and mass by a very small amount
+                    // decrease size and mass by a very small amount. 
+                    // NOTE: Decrease factor was / 6f.
+                    float decreaseFactor = 4f;
                     if (transform.localScale.x > minScale)
                     {
-                        transform.localScale -= new Vector3(sizeChangeOnGoalHit / 6f, sizeChangeOnGoalHit / 6f, sizeChangeOnGoalHit / 6f);
-                        rb.mass = rb.mass - massRemovedOnGoalShrink / 6f;
+                        transform.localScale -= new Vector3(sizeChangeOnGoalHit / decreaseFactor, sizeChangeOnGoalHit / decreaseFactor, sizeChangeOnGoalHit / decreaseFactor);
+                        rb.mass = rb.mass - massRemovedOnGoalShrink / decreaseFactor;
                     }
                 }
 
