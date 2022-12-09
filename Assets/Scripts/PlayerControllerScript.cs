@@ -9,7 +9,7 @@ public class PlayerControllerScript : MonoBehaviour
     public int playerID;
     public int teamID;
     private string xboxString = "_Xbox";
-    public float movePower = 10f;
+    private float movePower = 10f;
     public float dashPower = 500f;
     private Rigidbody rb;
     private Vector3 startingPosition;
@@ -123,7 +123,7 @@ public class PlayerControllerScript : MonoBehaviour
         timeSinceLastActivity = Time.time - lastActivityTime;
         if (timeSinceLastActivity > idleTime)
         {
-            isActive = false;
+          //  isActive = false;
         }
         else
         {
@@ -148,14 +148,34 @@ public class PlayerControllerScript : MonoBehaviour
 
                 if (Mathf.Abs(movement.magnitude) > .15f)
                 {
-                    rb.AddForce(movement * movePower * shieldSlowdownFactor);
+                    // Legacy 'force-based' movement
+                    //  rb.AddForce(movement * movePower * shieldSlowdownFactor);
+                    float massFactor = 1f;
+                    if (rb.mass > 1.0f)
+                    {
+                        massFactor = 1 / (1 + (rb.mass - 1f));
+                    } 
+                    if (rb.mass < 1.0f)
+                    {
+                        massFactor = 1 + (1f - rb.mass);
+                    }
+                    rb.velocity = movement * movePower * shieldSlowdownFactor * massFactor;
                 }
             }
             else
             {
                 if (Mathf.Abs(movement.magnitude) > .15f)
                 {
-                    rb.AddForce(movement * movePower * .33f * shieldSlowdownFactor);
+                    float massFactor = 1f;
+                    if (rb.mass > 1.0f)
+                    {
+                        massFactor = 1 / (1 + (rb.mass - 1f));
+                    }
+                    if (rb.mass < 1.0f)
+                    {
+                        massFactor = 1 + (1f - rb.mass);
+                    }
+                    rb.velocity = movement * movePower * shieldSlowdownFactor * massFactor;
                 }
             }
 
