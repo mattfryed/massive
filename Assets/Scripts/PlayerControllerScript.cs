@@ -9,7 +9,7 @@ public class PlayerControllerScript : MonoBehaviour
     public int playerID;
     public int teamID;
     private string xboxString = "_Xbox";
-    private float movePower = 10f;
+    private float movePower = 8f;
     public float dashPower = 500f;
     private Rigidbody rb;
     private Vector3 startingPosition;
