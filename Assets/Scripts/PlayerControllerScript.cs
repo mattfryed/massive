@@ -135,7 +135,13 @@ public class PlayerControllerScript : MonoBehaviour
     {
         if (!isStunned && !temporarilyEliminated)
         {
-           
+            // rotate sword container to proper direction
+            if (movement != Vector3.zero)
+            {
+                lookRotation = Quaternion.LookRotation(movement.normalized);
+            }
+            sword.transform.parent.transform.rotation = lookRotation;
+            
 
             //Call the AddForce function of our Rigidbody2D rb2d supplying movement multiplied by speed to move our player.
             if (canUserControlMovement)
@@ -181,7 +187,7 @@ public class PlayerControllerScript : MonoBehaviour
 
             if (didPlayerTapActionThisFrame && sword.activeInHierarchy == false && canUserTakeAction == true && !shieldOn)
             {
-                // rotate sword container to proper directio
+                // rotate sword container to proper direction
                 if (movement != Vector3.zero)
                 {
                     lookRotation = Quaternion.LookRotation(movement.normalized);
