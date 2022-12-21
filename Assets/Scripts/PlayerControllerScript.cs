@@ -9,7 +9,7 @@ public class PlayerControllerScript : MonoBehaviour
     public int playerID;
     public int teamID;
     private string xboxString = "_Xbox";
-    public float movePower = 10f;
+    private float movePower = 8f;
     public float dashPower = 500f;
     private Rigidbody rb;
     private Vector3 startingPosition;
@@ -123,7 +123,7 @@ public class PlayerControllerScript : MonoBehaviour
         timeSinceLastActivity = Time.time - lastActivityTime;
         if (timeSinceLastActivity > idleTime)
         {
-            isActive = false;
+          //  isActive = false;
         }
         else
         {
@@ -135,7 +135,13 @@ public class PlayerControllerScript : MonoBehaviour
     {
         if (!isStunned && !temporarilyEliminated)
         {
-           
+            // rotate sword container to proper direction
+            if (movement != Vector3.zero)
+            {
+                lookRotation = Quaternion.LookRotation(movement.normalized);
+            }
+            sword.transform.parent.transform.rotation = lookRotation;
+            
 
             //Call the AddForce function of our Rigidbody2D rb2d supplying movement multiplied by speed to move our player.
             if (canUserControlMovement)
@@ -148,20 +154,40 @@ public class PlayerControllerScript : MonoBehaviour
 
                 if (Mathf.Abs(movement.magnitude) > .15f)
                 {
-                    rb.AddForce(movement * movePower * shieldSlowdownFactor);
+                    // Legacy 'force-based' movement
+                    //  rb.AddForce(movement * movePower * shieldSlowdownFactor);
+                    float massFactor = 1f;
+                    if (rb.mass > 1.0f)
+                    {
+                        massFactor = 1 / (1 + (rb.mass - 1f));
+                    } 
+                    if (rb.mass < 1.0f)
+                    {
+                        massFactor = 1 + (1f - rb.mass);
+                    }
+                    rb.velocity = movement * movePower * shieldSlowdownFactor * massFactor;
                 }
             }
             else
             {
                 if (Mathf.Abs(movement.magnitude) > .15f)
                 {
-                    rb.AddForce(movement * movePower * .33f * shieldSlowdownFactor);
+                    float massFactor = 1f;
+                    if (rb.mass > 1.0f)
+                    {
+                        massFactor = 1 / (1 + (rb.mass - 1f));
+                    }
+                    if (rb.mass < 1.0f)
+                    {
+                        massFactor = 1 + (1f - rb.mass);
+                    }
+                    rb.velocity = movement * movePower * shieldSlowdownFactor * massFactor;
                 }
             }
 
             if (didPlayerTapActionThisFrame && sword.activeInHierarchy == false && canUserTakeAction == true && !shieldOn)
             {
-                // rotate sword container to proper directio
+                // rotate sword container to proper direction
                 if (movement != Vector3.zero)
                 {
                     lookRotation = Quaternion.LookRotation(movement.normalized);
