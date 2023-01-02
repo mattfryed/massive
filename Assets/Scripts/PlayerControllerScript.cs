@@ -10,7 +10,7 @@ public class PlayerControllerScript : MonoBehaviour
     public int teamID;
     private string xboxString = "_Xbox";
     private float movePower = 8f;
-    public float dashPower = 500f;
+    public float dashPower = 50f;
     private Rigidbody rb;
     private Vector3 startingPosition;
 
@@ -42,6 +42,7 @@ public class PlayerControllerScript : MonoBehaviour
     private float idleTime = 60f;
     public float timeSinceLastActivity;
     public float lastActivityTime;
+    public bool isBlinking = false;
     // references to other objects that are part of the player
     public GameObject sword;
     public GameObject shield;
@@ -56,11 +57,15 @@ public class PlayerControllerScript : MonoBehaviour
     public float moveHorizontal;
     public float moveVertical;
     public Vector3 movement;
+    public Vector3 lastMovement;
     private Quaternion lookRotation;
 
     public bool didPlayerTapActionThisFrame = false;
-
+    public bool didPlayerReleaseActionThisFrame = false;
+    public float timeLastPressed;
+    
     private GameObject gameplayObjects;
+    private MeshRenderer mr;
 
     private void Awake()
     {
@@ -77,6 +82,7 @@ public class PlayerControllerScript : MonoBehaviour
         startingPosition = transform.position;
         dm = GameObject.FindWithTag("GameManager");
         sm = gameObject.transform.Find("SfxModule").gameObject;
+        mr = transform.Find("Ring").gameObject.GetComponent<MeshRenderer>();
         stunEffect = gameObject.transform.Find("StunnedEffect").gameObject;
 
         if (teamID == 1)
@@ -104,11 +110,22 @@ public class PlayerControllerScript : MonoBehaviour
 
         shieldOn = player.GetButton("Shield");
 
+        if (player.GetButton("Sword"))
+        {
+
+        }
+
+      
         didPlayerTapActionThisFrame = player.GetButtonDown("Sword");
         if (didPlayerTapActionThisFrame)
         {
-       //     Debug.Log("BUTTON!");
+            // Start recording how long the button is held
+            timeLastPressed = Time.time;
         }
+
+        didPlayerReleaseActionThisFrame = player.GetButtonUp("Sword");
+       
+
 
         if (rb.mass < .1f)
         {
@@ -129,16 +146,25 @@ public class PlayerControllerScript : MonoBehaviour
         {
             isActive = true;
         }
+
+        ManageBlink();
     }
 
     void FixedUpdate()
     {
         if (!isStunned && !temporarilyEliminated)
         {
-           
+            // rotate sword container to proper direction
+            if (movement != Vector3.zero)
+            {
+                lookRotation = Quaternion.LookRotation(movement.normalized);
+                lastMovement = movement;
+            }
+            sword.transform.parent.transform.rotation = lookRotation;
+            
 
             //Call the AddForce function of our Rigidbody2D rb2d supplying movement multiplied by speed to move our player.
-            if (canUserControlMovement)
+            if (canUserControlMovement && canUserTakeAction)
             {
                 if (playerID == 3)
                 {
@@ -164,36 +190,46 @@ public class PlayerControllerScript : MonoBehaviour
             }
             else
             {
-                if (Mathf.Abs(movement.magnitude) > .15f)
-                {
-                    float massFactor = 1f;
-                    if (rb.mass > 1.0f)
-                    {
-                        massFactor = 1 / (1 + (rb.mass - 1f));
-                    }
-                    if (rb.mass < 1.0f)
-                    {
-                        massFactor = 1 + (1f - rb.mass);
-                    }
-                    rb.velocity = movement * movePower * shieldSlowdownFactor * massFactor;
-                }
+            //    if (Mathf.Abs(movement.magnitude) > .15f)
+           //     {
+           //         float massFactor = 1f;
+           //        if (rb.mass > 1.0f)
+           //         {
+          //              massFactor = 1 / (1 + (rb.mass - 1f));
+            //        }
+             //       if (rb.mass < 1.0f)
+              //      {
+               //         massFactor = 1 + (1f - rb.mass);
+                //    }
+                 //   rb.velocity = movement * movePower * shieldSlowdownFactor * massFactor;
+               // }
             }
 
-            if (didPlayerTapActionThisFrame && sword.activeInHierarchy == false && canUserTakeAction == true && !shieldOn)
+            if (didPlayerReleaseActionThisFrame && sword.activeInHierarchy == false && canUserTakeAction == true && !shieldOn)
             {
-                // rotate sword container to proper directio
+               
+                // rotate sword container to proper direction
                 if (movement != Vector3.zero)
                 {
                     lookRotation = Quaternion.LookRotation(movement.normalized);
                 }
                 sword.transform.parent.transform.rotation = lookRotation;
                 sword.SetActive(true);
-                Dash();
+                // Calculate how long button was held
+                float totalTimeHeld = Time.time - timeLastPressed;
+                Dash(totalTimeHeld);
                 didPlayerTapActionThisFrame = false;
+                didPlayerReleaseActionThisFrame = false;
                 canUserTakeAction = false;
                 canUserControlMovement = false;
                 Invoke("SwordWithdraw", .5f);
-                Invoke("EndActionCooldown", actionDelay);
+                if (totalTimeHeld < .5f)
+                {
+                    Invoke("EndActionCooldown", .1f);
+                } else
+                {
+                    Invoke("EndActionCooldown", actionDelay);
+                }
 
             }
 
@@ -222,19 +258,60 @@ public class PlayerControllerScript : MonoBehaviour
             }
             else
             {
-                shieldSlowdownFactor = 1f;
+                // player is charging an attack... keep the slowdown factor
+                if (player.GetButton("Sword"))
+                {
+                    shieldSlowdownFactor = .55f;
+                }
+                else
+                {
+                    shieldSlowdownFactor = 1f;
+                }
                 shield.SetActive(false);
+                   
             }
         }
         // Make sure the y-axis for position is locked because it's acting weird.
     }
-
-    void Dash()
+    void ManageBlink()
     {
-//        Debug.Log("Dashing now");
+        if (player.GetButton("Sword") && Time.time - timeLastPressed > 0.5f)
+        {
+            if (!isBlinking)
+            {
+                StartCoroutine("Blink");
+                isBlinking = true;
+            }
+        }
+        else
+        {
+            if (isBlinking)
+            {
+                StopCoroutine("Blink");
+                isBlinking = false;
+                mr.enabled = true;
+            }
+        }
+    }
+    void Dash(float timeButtonWasHeld)
+    {
+        Debug.Log("Button was held: " + timeButtonWasHeld.ToString());
+        float computedDashPower = dashPower;
+        if (timeButtonWasHeld > 0.5f)
+        {
+            if (timeButtonWasHeld > 3f)
+            {
+                timeButtonWasHeld = 3f;
+            }
+            computedDashPower = dashPower + 30f * (timeButtonWasHeld / 3f);
+        }
+
+
         // Play dash SFX
         playSFX("attackSFX");
-        rb.AddForce(movement.normalized * dashPower);
+      //rb.AddForce(lastMovement.normalized * computedDashPower);
+        // Using velocity for the moment.
+       rb.velocity += lastMovement.normalized * computedDashPower;
         if (transform.localScale.x > minScale)
         {
             transform.localScale -= new Vector3(sizeChangeOnGoalHit*3f, sizeChangeOnGoalHit*3f, sizeChangeOnGoalHit*3f);
@@ -347,7 +424,17 @@ public class PlayerControllerScript : MonoBehaviour
         Invoke("UnStun", stunTime);
     }
 
-    public void SwordClash()
+    IEnumerator Blink()
+
+    {
+        while (true)
+        {
+            yield return new WaitForSeconds(.05f);
+            mr.enabled = !mr.enabled;
+        }
+    }
+
+        public void SwordClash()
     {
         Debug.Log("Sword clash");
         Debug.Log("I am player:");
