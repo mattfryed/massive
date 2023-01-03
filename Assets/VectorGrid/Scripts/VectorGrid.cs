@@ -221,8 +221,7 @@ public class VectorGrid : MonoBehaviour
 				{
 					m_VectorGridPoints[x, y].m_GridSpring[springLoop].Reset();
 					m_VectorGridPoints[x, y].m_Clamped = false;
-                    m_VectorGridPoints[10, 10].m_Clamped = true;
-                }
+				}
 
 				// Connect points at the edge of the grid to their original position
 				if(xLoop == m_XRowStart || yLoop == m_YRowStart || xLoop == m_XRowStart + m_GridWidth - 1 || yLoop == m_YRowStart + m_GridHeight - 1)
