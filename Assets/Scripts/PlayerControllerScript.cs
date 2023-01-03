@@ -244,7 +244,7 @@ public class PlayerControllerScript : MonoBehaviour
                     }
                     shield.transform.rotation = lookRotation;
                     shield.SetActive(true);
-                    shieldSlowdownFactor = .4f;
+                    shieldSlowdownFactor = .1f;
                     // decrease size and mass by a very small amount. 
                     // NOTE: Decrease factor was / 6f.
                     float decreaseFactor = 4f;
