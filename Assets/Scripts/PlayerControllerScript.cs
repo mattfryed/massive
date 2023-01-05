@@ -123,8 +123,11 @@ public class PlayerControllerScript : MonoBehaviour
             timeLastPressed = Time.time;
         }
 
-        didPlayerReleaseActionThisFrame = player.GetButtonUp("Sword");
-       
+        if (player.GetButtonUp("Sword"))
+        {
+            didPlayerReleaseActionThisFrame = true;
+         }
+
 
 
         if (rb.mass < .1f)
