@@ -143,7 +143,7 @@ public class PlayerControllerScript : MonoBehaviour
         timeSinceLastActivity = Time.time - lastActivityTime;
         if (timeSinceLastActivity > idleTime)
         {
-          //  isActive = false;
+            isActive = false;
         }
         else
         {
