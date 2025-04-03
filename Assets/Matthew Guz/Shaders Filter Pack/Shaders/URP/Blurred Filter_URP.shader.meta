@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: faf6db20bbdf27b45b1bbc5e6f92dd29
+ShaderImporter:
+  externalObjects: {}
+  defaultTextures: []
+  nonModifiableTextures: []
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 305806
+  packageName: Shaders Filters Pack
+  packageVersion: 1.0.1
+  assetPath: Assets/Matthew Guz/Shaders Filter Pack/Shaders/URP/Blurred Filter_URP.shader
+  uploadId: 745455

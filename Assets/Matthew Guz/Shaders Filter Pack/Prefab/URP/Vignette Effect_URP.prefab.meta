@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 6f8b39556df5db44e900760f614f563a
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 305806
+  packageName: Shaders Filters Pack
+  packageVersion: 1.0.1
+  assetPath: Assets/Matthew Guz/Shaders Filter Pack/Prefab/URP/Vignette Effect_URP.prefab
+  uploadId: 745455

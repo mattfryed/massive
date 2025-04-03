@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 50f71581f8c60a941b5d71577a028f3b
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 305806
+  packageName: Shaders Filters Pack
+  packageVersion: 1.0.1
+  assetPath: Assets/Matthew Guz/Shaders Filter Pack/Prefab/URP/Outline Detection_URP.prefab
+  uploadId: 745455

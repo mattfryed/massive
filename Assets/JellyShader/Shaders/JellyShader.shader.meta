@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: f8e2acc75b227a44c8fb810f20e25443
+timeCreated: 1493664882
+licenseType: Store
+ShaderImporter:
+  defaultTextures: []
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 106980
+  packageName: Jelly Shader
+  packageVersion: 1.0
+  assetPath: Assets/JellyShader/Shaders/JellyShader.shader
+  uploadId: 217864

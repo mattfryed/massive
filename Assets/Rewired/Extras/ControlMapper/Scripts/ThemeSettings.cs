@@ -2,7 +2,7 @@
 
 //#define REWIRED_CONTROL_MAPPER_USE_TMPRO
 
-#if UNITY_2020 || UNITY_2021 || UNITY_2022 || UNITY_2023 || UNITY_2024 || UNITY_2025
+#if UNITY_2020 || UNITY_2021 || UNITY_2022 || UNITY_2023 || UNITY_6000 || UNITY_6000_0_OR_NEWER
 #define UNITY_2020_PLUS
 #endif
 
@@ -204,6 +204,10 @@ namespace Rewired.UI.ControlMapper {
                 item.resizeTextMinSize = (int)(item.resizeTextMinSize * settings.sizeMultiplier);
 #endif
             }
+#if REWIRED_CONTROL_MAPPER_USE_TMPRO
+            item.characterSpacing = settings.chracterSpacing;
+            item.wordSpacing = settings.wordSpacing;
+#endif
             if(settings.style != FontStyleOverride.Default) {
                 item.fontStyle = GetFontStyle(settings.style);
             }
@@ -542,15 +546,24 @@ namespace Rewired.UI.ControlMapper {
             [SerializeField]
             private FontStyleOverride _style = FontStyleOverride.Default;
             [SerializeField]
-            private float _lineSpacing = 1.0f;
-            [SerializeField]
             private float _sizeMultiplier = 1.0f;
-
+            [SerializeField]
+            private float _lineSpacing = 1.0f;
+#if REWIRED_CONTROL_MAPPER_USE_TMPRO
+            [SerializeField]
+            private float _characterSpacing = 1.0f;
+            [SerializeField]
+            private float _wordSpacing = 1.0f;
+#endif
             public Color color { get { return _color; } }
             public Font font { get { return _font; } }
             public FontStyleOverride style { get { return _style; } }
-            public float lineSpacing { get { return _lineSpacing; } }
             public float sizeMultiplier { get { return _sizeMultiplier; } }
+            public float lineSpacing { get { return _lineSpacing; } }
+#if REWIRED_CONTROL_MAPPER_USE_TMPRO
+            public float chracterSpacing { get { return _characterSpacing; } }
+            public float wordSpacing { get { return _wordSpacing; } }
+#endif
         }
 
         private enum FontStyleOverride {

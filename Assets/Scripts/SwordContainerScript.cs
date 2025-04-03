@@ -14,6 +14,6 @@ public class SwordContainerScript : MonoBehaviour
     void Update()
     {
         transform.position = transform.parent.Find("Body").gameObject.transform.position;
-        transform.rotation = Quaternion.LookRotation(transform.parent.Find("Body").gameObject.GetComponent<Rigidbody>().velocity);
+        transform.rotation = Quaternion.LookRotation(transform.parent.Find("Body").gameObject.GetComponent<Rigidbody>().linearVelocity);
     }
 }

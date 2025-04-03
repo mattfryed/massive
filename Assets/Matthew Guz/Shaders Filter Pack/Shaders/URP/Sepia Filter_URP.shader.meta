@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: fa2d6c001e220d0448170641c3a1b420
+ShaderImporter:
+  externalObjects: {}
+  defaultTextures: []
+  nonModifiableTextures: []
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 305806
+  packageName: Shaders Filters Pack
+  packageVersion: 1.0.1
+  assetPath: Assets/Matthew Guz/Shaders Filter Pack/Shaders/URP/Sepia Filter_URP.shader
+  uploadId: 745455

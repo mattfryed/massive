@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: bf8c0ab5b0d9897458ec3b2e71b87a5f
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 305806
+  packageName: Shaders Filters Pack
+  packageVersion: 1.0.1
+  assetPath: Assets/Matthew Guz/Shaders Filter Pack/Material/Built in/Vignette Effect.mat
+  uploadId: 745455

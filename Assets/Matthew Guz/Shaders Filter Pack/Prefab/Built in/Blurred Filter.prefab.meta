@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: d1545b74d4f5d2f4d8881b4d8c951b21
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 305806
+  packageName: Shaders Filters Pack
+  packageVersion: 1.0.1
+  assetPath: Assets/Matthew Guz/Shaders Filter Pack/Prefab/Built in/Blurred Filter.prefab
+  uploadId: 745455

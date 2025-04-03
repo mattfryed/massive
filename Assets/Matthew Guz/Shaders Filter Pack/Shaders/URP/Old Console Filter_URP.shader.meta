@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 7f698574dfbab10419b4b6cc6d577bf3
+ShaderImporter:
+  externalObjects: {}
+  defaultTextures: []
+  nonModifiableTextures: []
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 305806
+  packageName: Shaders Filters Pack
+  packageVersion: 1.0.1
+  assetPath: Assets/Matthew Guz/Shaders Filter Pack/Shaders/URP/Old Console Filter_URP.shader
+  uploadId: 745455

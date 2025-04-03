@@ -1,9 +1,11 @@
 ﻿using System;
-using System.Runtime.InteropServices;
+using System.Linq;
 using UnityEditor;
 using UnityEditorInternal;
 using UnityEngine;
 using Object = UnityEngine.Object;
+
+using FullscreenEditor.Windows;
 
 namespace FullscreenEditor {
     /// <summary>Helper for getting fullscreen rectangles.</summary>
@@ -18,12 +20,10 @@ namespace FullscreenEditor {
         /// <summary>The number of monitors attached to this machine, returns -1 if the platform is not supported.</summary>
         public static int ScreenCount {
             get {
-                #if UNITY_EDITOR_WIN
+                if (!FullscreenUtility.IsWindows)
+                    return -1;
                 const int SM_CMONITORS = 80;
-                return GetSystemMetrics(SM_CMONITORS);
-                #else
-                return -1;
-                #endif
+                return User32.GetSystemMetrics(SM_CMONITORS);
             }
         }
 
@@ -74,8 +74,25 @@ namespace FullscreenEditor {
                 case RectSourceMode.Custom:
                     return GetCustomUserRect();
 
+                case RectSourceMode.Display1:
+                    return GetMonitorRect(0);
+                case RectSourceMode.Display2:
+                    return GetMonitorRect(1);
+                case RectSourceMode.Display3:
+                    return GetMonitorRect(2);
+                case RectSourceMode.Display4:
+                    return GetMonitorRect(3);
+                case RectSourceMode.Display5:
+                    return GetMonitorRect(4);
+                case RectSourceMode.Display6:
+                    return GetMonitorRect(5);
+                case RectSourceMode.Display7:
+                    return GetMonitorRect(6);
+                case RectSourceMode.Display8:
+                    return GetMonitorRect(7);
+
                 default:
-                    Logger.Warning("Invalid fullscreen mode, please fix this by changing the rect source mode in preferences.");
+                    Logger.Warning("Invalid fullscreen mode, please fix this by changing the placement source mode in preferences.");
                     return new Rect(Vector2.zero, Vector2.one * 300f);
             }
         }
@@ -83,7 +100,39 @@ namespace FullscreenEditor {
         /// <summary>Returns a rect with the dimensions of the main screen.
         /// (Note that the position may not be right for multiple screen setups)</summary>
         public static Rect GetMainDisplayRect() {
+
+            if (FullscreenUtility.IsWindows) {
+                var mainDisplay = DisplayInfo
+                    .GetDisplays()
+                    .FirstOrDefault(d => d.PrimaryDisplay);
+
+                if (mainDisplay != null)
+                    return mainDisplay.UnityCorrectedArea;
+
+                Logger.Error("No main display??? This should not happen, falling back to Screen.currentResolution");
+            }
+
+            // Screen.currentResolution returns the resolution of the screen where
+            // the currently focused window is located, not the main display resolution. 
+            // This caused the bug #53 on windows.
+            // The same behaviour was not tested on Linux as macOS
             return new Rect(0f, 0f, Screen.currentResolution.width, Screen.currentResolution.height);
+        }
+
+        /// <summary>Returns the rect of a given display index.</summary>
+        public static Rect GetMonitorRect(int index) {
+
+            if (!FullscreenUtility.IsWindows)
+                return GetMainDisplayRect();
+
+            var d = DisplayInfo.GetDisplay(index);
+
+            if (d == null) {
+                Logger.Error("Display {0} not connected", index + 1);
+                return GetMainDisplayRect();
+            }
+
+            return d.UnityCorrectedArea;
         }
 
         /// <summary>Returns a rect defined by the user in the preferences.</summary>
@@ -116,32 +165,29 @@ namespace FullscreenEditor {
 
         /// <summary>Full virtual screen bounds, spanning across all monitors. (Windows only)</summary>
         public static Rect GetVirtualScreenBounds() {
-            #if UNITY_EDITOR_WIN
+
+            if (!FullscreenUtility.IsWindows)
+                throw new NotImplementedException();
+
             const int SM_XVIRTUALSCREEN = 76;
             const int SM_YVIRTUALSCREEN = 77;
             const int SM_CXVIRTUALSCREEN = 78;
             const int SM_CYVIRTUALSCREEN = 79;
 
-            var x = GetSystemMetrics(SM_XVIRTUALSCREEN);
-            var y = GetSystemMetrics(SM_YVIRTUALSCREEN);
-            var width = GetSystemMetrics(SM_CXVIRTUALSCREEN);
-            var height = GetSystemMetrics(SM_CYVIRTUALSCREEN);
+            var x = User32.GetSystemMetrics(SM_XVIRTUALSCREEN);
+            var y = User32.GetSystemMetrics(SM_YVIRTUALSCREEN);
+            var width = User32.GetSystemMetrics(SM_CXVIRTUALSCREEN);
+            var height = User32.GetSystemMetrics(SM_CYVIRTUALSCREEN);
 
-            return new Rect {
+            var rect = new Rect {
                 yMin = y,
-                    xMin = x,
-                    width = width,
-                    height = height,
+                xMin = x,
+                width = width,
+                height = height,
             };
-            #else
-            throw new NotImplementedException();
-            #endif
-        }
 
-        #if UNITY_EDITOR_WIN
-        [DllImport("user32.dll", SetLastError = true)]
-        private static extern int GetSystemMetrics(int smIndex);
-        #endif
+            return FullscreenUtility.DpiCorrectedArea(rect);
+        }
 
     }
 }

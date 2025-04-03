@@ -34,6 +34,8 @@ namespace FullscreenEditor {
         [DynamicMenuItem(false)] public const string GAME_VIEW_PATH = "Fullscreen/Game View _F10";
         [DynamicMenuItem(false)] public const string SCENE_VIEW_PATH = "Fullscreen/Scene View _F11";
         [DynamicMenuItem(false)] public const string MAIN_VIEW_PATH = "Fullscreen/Main View _F12";
+        [DynamicMenuItem(false)] public const string MOSAIC_PATH = "Fullscreen/Mosaic %F10";
+        [DynamicMenuItem(true)] public const string CLOSE_ALL_FULLSCREEN = "Fullscreen/Close All %F12";
 
         private const char CTRL_CHAR = '%';
         private const char SHIFT_CHAR = '#';
@@ -41,12 +43,15 @@ namespace FullscreenEditor {
         private const char NONE_CHAR = '_';
 
         private static readonly List<Shortcut> fieldsInfo = new List<Shortcut>();
+        /* fixformat ignore:start */
         private static readonly string[] keys = new string[] {
             "None",
             "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12",
-            "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
+            "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
+            "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
             "LEFT", "RIGHT", "UP", "DOWN", "HOME", "END", "PGUP", "PGDN"
         };
+        /* fixformat ignore:end */
 
         private static bool changed;
         #endregion
@@ -67,8 +72,7 @@ namespace FullscreenEditor {
             get {
                 try {
                     return new StackFrame(true).GetFileName();
-                }
-                catch(Exception e) {
+                } catch (Exception e) {
                     Logger.Exception(e);
                     return string.Empty;
                 }
@@ -81,12 +85,12 @@ namespace FullscreenEditor {
             var type = typeof(Shortcut);
             var fields = type.GetFields(BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance);
 
-            if(fields != null)
-                foreach(var field in fields) {
+            if (fields != null)
+                foreach (var field in fields) {
                     var att = field.GetCustomAttributes(typeof(DynamicMenuItemAttribute), false);
 
-                    if(att != null)
-                        for(var i = 0; i < att.Length; i++)
+                    if (att != null)
+                        for (var i = 0; i < att.Length; i++)
                             fieldsInfo.Add(new Shortcut((DynamicMenuItemAttribute)att[i], field));
                 }
         }
@@ -98,7 +102,7 @@ namespace FullscreenEditor {
             var constant = (string)field.GetValue(null);
             var lastSpace = constant.LastIndexOf(' ') + 1;
 
-            if(!constant.EndsWith(" "))
+            if (!constant.EndsWith(" "))
                 BaseString = constant.Remove(lastSpace);
             else {
                 BaseString = constant;
@@ -107,7 +111,7 @@ namespace FullscreenEditor {
 
             constant = constant.Substring(lastSpace);
 
-            if(string.IsNullOrEmpty(constant))
+            if (string.IsNullOrEmpty(constant))
                 return;
 
             Ctrl = constant.Contains(CTRL_CHAR);
@@ -121,30 +125,27 @@ namespace FullscreenEditor {
 
             KeyCode = Array.IndexOf(keys, constant);
 
-            if(KeyCode < 0 || KeyCode >= keys.Length) {
+            if (KeyCode < 0 || KeyCode >= keys.Length) {
                 Logger.Warning("Invalid shortcut term: {0}", constant);
                 KeyCode = 0;
             }
         }
         #endregion
 
-        #region Methods
-        public override string ToString() {
-            if(KeyCode == 0)
-                return BaseString;
+        public string GetShortcutString() {
+            if (KeyCode == 0)
+                return "";
 
             var result = new StringBuilder();
 
-            result.Append(BaseString);
-
-            if(!Ctrl && !Shift && !Alt)
+            if (!Ctrl && !Shift && !Alt)
                 result.Append(NONE_CHAR);
             else {
-                if(Ctrl)
+                if (Ctrl)
                     result.Append(CTRL_CHAR);
-                if(Shift)
+                if (Shift)
                     result.Append(SHIFT_CHAR);
-                if(Alt)
+                if (Alt)
                     result.Append(ALT_CHAR);
             }
 
@@ -153,9 +154,12 @@ namespace FullscreenEditor {
             return result.ToString();
         }
 
+        #region Methods
+        public override string ToString() {
+            return BaseString + GetShortcutString();
+        }
+
         public static void DoShortcutsGUI() {
-            EditorGUILayout.LabelField("Shortcuts", EditorStyles.boldLabel);
-            EditorGUI.indentLevel++;
             GUI.changed = false;
 
             using(new EditorGUI.DisabledGroupScope(EditorApplication.isCompiling || !IsSourceFile)) {
@@ -163,58 +167,56 @@ namespace FullscreenEditor {
                 if (InternalEditorUtility.GetUnityVersion() >= new Version(2019, 1))
                     EditorGUILayout.HelpBox(string.Format("You can set custom shortcuts on a per user basis by editing them under {0} menu", FullscreenUtility.IsMacOS ? "Unity/Shortcuts" : "Edit/Shortcuts"), MessageType.Info);
 
-                foreach(var field in fieldsInfo)
+                foreach (var field in fieldsInfo)
                     DrawShortcut(field);
 
                 var duplicated = AnyDuplicates();
                 var invalid = AnyInvalid();
 
-                if(duplicated)
-                    EditorGUILayout.HelpBox("Some shortcuts have the same keystroke, this is not allowed.", MessageType.Error);
+                if (duplicated)
+                    EditorGUILayout.HelpBox("Some menu items have the same keystroke, this is not allowed.", MessageType.Error);
 
-                if(invalid)
-                    EditorGUILayout.HelpBox("Some shortcuts must have a valid keystroke, otherwise you may not be able to close a fullscreen view.", MessageType.Error);
+                if (invalid)
+                    EditorGUILayout.HelpBox("Some menu items don't have a valid keystroke, you won't be able to use their correspondent fullscreens.", MessageType.Warning);
 
-                using(new EditorGUI.DisabledGroupScope(invalid || duplicated || !changed))
-                    if(GUILayout.Button("Apply Shortcuts"))
-                        ApplyChanges();
+                using(new EditorGUI.DisabledGroupScope(duplicated || !changed))
+                if (GUILayout.Button("Apply Shortcuts"))
+                    ApplyChanges();
             }
 
-            if(GUI.changed)
+            if (GUI.changed)
                 changed = true;
-
-            EditorGUI.indentLevel--;
         }
 
         private static void ApplyChanges() {
-            if(EditorApplication.isCompiling)
+            if (EditorApplication.isCompiling)
                 return;
 
             AssetDatabase.StartAssetEditing();
 
-            foreach(var field in fieldsInfo)
-                if(field.AllowNoneValue || field.KeyCode != 0)
-                    ReplaceConstant(field.FieldName, field);
+            foreach (var field in fieldsInfo)
+                ReplaceConstant(field.FieldName, field);
 
             AssetDatabase.StopAssetEditing();
             AssetDatabase.Refresh();
         }
 
         private static bool AnyInvalid() {
-            foreach(var field in fieldsInfo)
-                if(field == null || !field.AllowNoneValue && field.KeyCode == 0)
+            foreach (var field in fieldsInfo)
+                if (field == null || !field.AllowNoneValue && field.KeyCode == 0)
                     return true;
 
             return false;
         }
 
         private static bool AnyDuplicates() {
-            for(var i = 0; i < fieldsInfo.Count; i++)
-                for(var j = i + 1; j < fieldsInfo.Count; j++) {
+            for (var i = 0; i < fieldsInfo.Count; i++)
+                for (var j = i + 1; j < fieldsInfo.Count; j++) {
                     var fieldI = fieldsInfo[i];
                     var fieldJ = fieldsInfo[j];
 
-                    if(fieldI == null || fieldJ == null || (fieldI.KeyCode != 0 && fieldI.ToString() == fieldJ.ToString()))
+                    if (fieldI == null || fieldJ == null ||
+                        (fieldI.KeyCode != 0 && fieldI.GetShortcutString() == fieldJ.GetShortcutString()))
                         return true;
                 }
 
@@ -229,6 +231,13 @@ namespace FullscreenEditor {
                 shortcut.Shift = GUILayout.Toggle(shortcut.Shift, "Shift", EditorStyles.miniButtonMid, GUILayout.Width(50f));
                 shortcut.Alt = GUILayout.Toggle(shortcut.Alt, "Alt", EditorStyles.miniButtonRight, GUILayout.Width(50f));
                 shortcut.KeyCode = EditorGUILayout.Popup(shortcut.KeyCode, keys);
+
+                if (GUILayout.Button(new GUIContent("X", "Clear Shortcut"))) {
+                    shortcut.Ctrl = false;
+                    shortcut.Shift = false;
+                    shortcut.Alt = false;
+                    shortcut.KeyCode = 0;
+                }
             }
 
             return shortcut;
@@ -236,7 +245,7 @@ namespace FullscreenEditor {
 
         private static void ReplaceConstant(string constantName, object newValue) {
             try {
-                if(!IsSourceFile) {
+                if (!IsSourceFile) {
                     Logger.Error("Could not find the source code file to change value");
                     return;
                 }
@@ -245,31 +254,30 @@ namespace FullscreenEditor {
                 var changed = false;
 
                 using(var file = File.OpenText(ThisFilePath))
-                    while(!file.EndOfStream) {
-                        var line = file.ReadLine();
+                while (!file.EndOfStream) {
+                    var line = file.ReadLine();
 
-                        if(!line.Contains(constantName)) {
-                            fileText.AppendLine(line);
-                            continue;
-                        }
-
-                        var indexOfValue = line.IndexOf('=');
-
-                        fileText.Append(line.Remove(indexOfValue));
-                        fileText.AppendLine(string.Format("= \"{0}\";", newValue));
-                        fileText.Append(file.ReadToEnd());
-
-                        changed = true;
+                    if (!line.Contains(constantName)) {
+                        fileText.AppendLine(line);
+                        continue;
                     }
+
+                    var indexOfValue = line.IndexOf('=');
+
+                    fileText.Append(line.Remove(indexOfValue));
+                    fileText.AppendLine(string.Format("= \"{0}\";", newValue));
+                    fileText.Append(file.ReadToEnd());
+
+                    changed = true;
+                }
 
                 fileText = fileText.Replace("\r\n", "\n").Replace("\r", "\n").Replace("\n", Environment.NewLine);
 
-                if(changed)
+                if (changed)
                     File.WriteAllText(ThisFilePath, fileText.ToString());
                 else
                     Logger.Warning("Failed to find field {0} on {1}", constantName, ThisFilePath);
-            }
-            catch(Exception e) {
+            } catch (Exception e) {
                 Logger.Exception(e);
                 Logger.Error("Failed to save Fullscreen Editor shortcuts");
             }

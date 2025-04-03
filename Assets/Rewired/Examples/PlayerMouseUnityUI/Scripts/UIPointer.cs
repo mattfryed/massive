@@ -1,7 +1,7 @@
 ﻿// Copyright (c) 2018 Augie R. Maddox, Guavaman Enterprises. All rights reserved.
 
 #region Defines
-#if UNITY_2020 || UNITY_2021 || UNITY_2022 || UNITY_2023 || UNITY_2024 || UNITY_2025
+#if UNITY_2020 || UNITY_2021 || UNITY_2022 || UNITY_2023 || UNITY_6000 || UNITY_6000_0_OR_NEWER
 #define UNITY_2020_PLUS
 #endif
 #if UNITY_2019 || UNITY_2020_PLUS
@@ -47,6 +47,7 @@
 #pragma warning disable 0618
 #pragma warning disable 0649
 #pragma warning disable 0067
+#pragma warning disable 0414
 #endregion
 
 namespace Rewired.Demos {
@@ -70,8 +71,7 @@ namespace Rewired.Demos {
         [SerializeField]
         private bool _autoSort = true;
 
-        [NonSerialized]
-        private RectTransform _canvasRectTransform;
+        private Canvas _canvas;
 
         /// <summary>
         /// Sets the pointer to the last sibling in the parent hierarchy. Do not enable this on multiple UIPointers under the same parent transform or they will constantly fight each other for dominance.
@@ -109,7 +109,7 @@ namespace Rewired.Demos {
         }
 
         protected override void OnCanvasGroupChanged() {
- 	        base.OnCanvasGroupChanged();
+            base.OnCanvasGroupChanged();
             GetDependencies();
         }
 
@@ -118,19 +118,34 @@ namespace Rewired.Demos {
         /// </summary>
         /// <param name="screenPosition">The screen position of the pointer.</param>
         public void OnScreenPositionChanged(Vector2 screenPosition) {
-            if(_canvasRectTransform == null) return;
-            
-            Rect rootCanvasRect = _canvasRectTransform.rect;
-            Vector2 viewportPos = Camera.main.ScreenToViewportPoint(screenPosition);
+            if(_canvas == null) return;
 
-            viewportPos.x = (viewportPos.x * rootCanvasRect.width) - _canvasRectTransform.pivot.x * rootCanvasRect.width;
-            viewportPos.y = (viewportPos.y * rootCanvasRect.height) - _canvasRectTransform.pivot.y * rootCanvasRect.height;
-            (transform as RectTransform).anchoredPosition = viewportPos;
+            // Get the rendering camera the current Canvas render mode
+            Camera camera = null;
+            switch(_canvas.renderMode) {
+                case RenderMode.ScreenSpaceCamera:
+                case RenderMode.WorldSpace:
+                    camera = _canvas.worldCamera;
+                    break;
+                case RenderMode.ScreenSpaceOverlay:
+                    // leave null
+                    break;
+            }
+
+            // Convert screen-space point to local space point
+            Vector2 point;
+            RectTransformUtility.ScreenPointToLocalPointInRectangle((transform.parent as RectTransform), screenPosition, camera, out point);
+
+            // Apply to transform position
+            transform.localPosition = new Vector3(
+                point.x,
+                point.y,
+                transform.localPosition.z
+            );
         }
 
         private void GetDependencies() {
-            Canvas canvas = transform.root.GetComponentInChildren<Canvas>();
-            _canvasRectTransform = canvas != null ? canvas.GetComponent<RectTransform>() : null;
+            _canvas = transform.root.GetComponentInChildren<Canvas>();
         }
     }
 }

@@ -109,9 +109,9 @@ public class GameManagerScript : MonoBehaviour
     public void EndGamePrematurely()
 
     {
-        Debug.Log("Ending game prematurely");
-        StoreFinalScores();
-        Application.LoadLevel(0);
+        //Debug.Log("Ending game prematurely");
+        //StoreFinalScores();
+        //Application.LoadLevel(0);
 
     }
 

@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: bf48020cd94d60a41b8c965072d2f91c
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 305806
+  packageName: Shaders Filters Pack
+  packageVersion: 1.0.1
+  assetPath: Assets/Matthew Guz/Shaders Filter Pack/Prefab/Built in/BlackWhite Filter.prefab
+  uploadId: 745455

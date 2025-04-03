@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: dd44fcc540605db4b9b925f854374554
+ShaderImporter:
+  externalObjects: {}
+  defaultTextures: []
+  nonModifiableTextures: []
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 305806
+  packageName: Shaders Filters Pack
+  packageVersion: 1.0.1
+  assetPath: Assets/Matthew Guz/Shaders Filter Pack/Shaders/URP/Movement Filter Shader_URP.shader
+  uploadId: 745455

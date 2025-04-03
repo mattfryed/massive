@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: ada264e815550574ea0b8a3570d3410b
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 305806
+  packageName: Shaders Filters Pack
+  packageVersion: 1.0.1
+  assetPath: Assets/Matthew Guz/Shaders Filter Pack/Prefab/URP/RedBlue Filter_URP.prefab
+  uploadId: 745455

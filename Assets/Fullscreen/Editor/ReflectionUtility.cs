@@ -7,10 +7,36 @@ namespace FullscreenEditor {
     /// <summary>Class containing method extensions for getting private and internal members.</summary>
     public static class ReflectionUtility {
 
+        private static Assembly[] cachedAssemblies;
+
         public const BindingFlags FULL_BINDING = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
 
         /// <summary>Find a type by its name.</summary>
-        public static Type FindClass(string name) { return typeof(Editor).Assembly.GetType(name, false, true); }
+        public static Type FindClass(string name) {
+            // return typeof(Editor).Assembly.GetType(name, false, true);
+            var result = FindTypeInAssembly(name, typeof(Editor).Assembly);
+
+            if (result != null)
+                return result;
+
+            if (cachedAssemblies == null)
+                cachedAssemblies = AppDomain.CurrentDomain.GetAssemblies();
+
+            for (var i = 0; i < cachedAssemblies.Length; i++) {
+                result = FindTypeInAssembly(name, cachedAssemblies[i]);
+
+                if (result != null)
+                    return result;
+            }
+
+            return result;
+        }
+
+        private static Type FindTypeInAssembly(string name, Assembly assembly) {
+            return assembly == null ?
+                null :
+                assembly.GetType(name, false, true);
+        }
 
         /// <summary>Find a field of a type by its name.</summary>
         public static FieldInfo FindField(this Type type, string fieldName, bool throwNotFound = true) {
@@ -57,7 +83,7 @@ namespace FullscreenEditor {
                 // e.g. when the method declares an enum and the arg type is an int, so we ignore the args 
                 // and hope that there are no ambiguity of methods
                 if (method == null) {
-                    method = FindMethod(type, methodName);
+                    method = FindMethod(type, methodName, null, throwNotFound);
 
                     if (method != null && method.GetParameters().Length != args.Length)
                         method = null;

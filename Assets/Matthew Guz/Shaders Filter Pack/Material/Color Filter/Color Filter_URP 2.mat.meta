@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 16692ff3c8478444d9954d0599c341ad
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 305806
+  packageName: Shaders Filters Pack
+  packageVersion: 1.0.1
+  assetPath: Assets/Matthew Guz/Shaders Filter Pack/Material/Color Filter/Color Filter_URP
+    2.mat
+  uploadId: 745455

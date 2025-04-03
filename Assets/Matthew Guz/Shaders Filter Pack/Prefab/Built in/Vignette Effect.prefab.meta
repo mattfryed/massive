@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 2c7abbb58dbc9614daeb8194f01d85de
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 305806
+  packageName: Shaders Filters Pack
+  packageVersion: 1.0.1
+  assetPath: Assets/Matthew Guz/Shaders Filter Pack/Prefab/Built in/Vignette Effect.prefab
+  uploadId: 745455

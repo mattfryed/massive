@@ -31,14 +31,14 @@ namespace FullscreenEditor {
             RequestScriptReload();
         }
 
-        private static void RequestScriptReload() {
+        public static void RequestScriptReload() {
             if (typeof(EditorUtility).HasMethod("RequestScriptReload")) {
                 typeof(EditorUtility).InvokeMethod("RequestScriptReload");
             }
             if (typeof(InternalEditorUtility).HasMethod("RequestScriptReload")) {
                 typeof(InternalEditorUtility).InvokeMethod("RequestScriptReload");
             } else {
-                Debug.LogError("Could not reload scripts");
+                Logger.Error("Could not reload scripts");
             }
 
         }

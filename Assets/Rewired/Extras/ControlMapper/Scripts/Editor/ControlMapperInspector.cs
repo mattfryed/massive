@@ -1,15 +1,11 @@
 // Copyright (c) 2015 Augie R. Maddox, Guavaman Enterprises. All rights reserved.
-#pragma warning disable 0219
-#pragma warning disable 0618
 #pragma warning disable 0649
 
 namespace Rewired.UI.ControlMapper {
 
     using UnityEngine;
     using UnityEditor;
-    using System.Collections;
     using System.Collections.Generic;
-    using System.Text.RegularExpressions;
     using Rewired;
     using Rewired.Data;
     using Rewired.Utils;
@@ -83,6 +79,7 @@ namespace Rewired.UI.ControlMapper {
 
         private const string c_useThemeSettings = "_useThemeSettings";
         private const string c_themeSettings = "_themeSettings";
+        private const string c_showGlyphs = "_showGlyphs";
 
         private const string c_language = "_language";
 
@@ -194,6 +191,7 @@ namespace Rewired.UI.ControlMapper {
 
             AddProperty(c_useThemeSettings);
             AddProperty(c_themeSettings);
+            AddProperty(c_showGlyphs);
 
             AddProperty(c_language);
 
@@ -437,10 +435,11 @@ namespace Rewired.UI.ControlMapper {
 
             // Theme options
             using(new EditorGUILayoutSection(true, style_sectionBkg)) {
-                EditorGUILayout.LabelField(new GUIContent("Theme Options:", "UI theme options."), style_sectionLabel);
+                EditorGUILayout.LabelField(new GUIContent("Style Options:", "UI style and theme options."), style_sectionLabel);
                 EditorGUILayout.Space();
                 EditorGUILayout.PropertyField(properties[c_useThemeSettings]);
                 if(properties[c_useThemeSettings].boolValue) EditorGUILayout.PropertyField(properties[c_themeSettings], true);
+                EditorGUILayout.PropertyField(properties[c_showGlyphs]);
             }
 
             // Language options
@@ -538,6 +537,16 @@ namespace Rewired.UI.ControlMapper {
                     DrawPopupProperty(new GUIContent("Map Category", "The Map Category that will be displayed to the user for mapping."), mapCategoryIds, mapCategoryNames, mapCategoryId); // NOTE: mapCategoryId tool tip from Attribute is always NULL!
                     int selectedMapCategoryIndex = System.Array.IndexOf<int>(mapCategoryIds, mapCategoryId.intValue);
                     if(selectedMapCategoryIndex < 0) continue;
+
+                    // Make sure Map Category is user assignable
+                    if(userData != null && mapCategoryId.intValue >= 0) {
+                        InputMapCategory mapCategory = userData.GetMapCategoryById(mapCategoryId.intValue);
+                        if(mapCategory != null) {
+                            if(!mapCategory.userAssignable) {
+                                EditorGUILayout.HelpBox("The selected Map Category is not user assignable and will not be displayed.", MessageType.Error);
+                            }
+                        }
+                    }
 
                     SerializedProperty actionListMode = mapSet.FindPropertyRelative("_actionListMode");
                     EditorGUILayout.PropertyField(actionListMode);

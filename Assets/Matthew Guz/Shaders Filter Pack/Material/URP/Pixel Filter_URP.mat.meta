@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: f6f266786f363f34083c3eddabb78e83
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 305806
+  packageName: Shaders Filters Pack
+  packageVersion: 1.0.1
+  assetPath: Assets/Matthew Guz/Shaders Filter Pack/Material/URP/Pixel Filter_URP.mat
+  uploadId: 745455

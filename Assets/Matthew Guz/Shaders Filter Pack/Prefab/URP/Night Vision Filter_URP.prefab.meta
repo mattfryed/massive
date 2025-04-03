@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: ecb95a7770388544fbca02ac1b64b6bf
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 305806
+  packageName: Shaders Filters Pack
+  packageVersion: 1.0.1
+  assetPath: Assets/Matthew Guz/Shaders Filter Pack/Prefab/URP/Night Vision Filter_URP.prefab
+  uploadId: 745455
