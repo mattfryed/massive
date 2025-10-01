@@ -1,0 +1,138 @@
+// GridUnlitLines.compute
+// NOTE: This is a compute shader (no Shader{} block).
+#pragma kernel CSMain
+
+// --- Buffers ---
+StructuredBuffer<float3> _OrigPos;
+RWStructuredBuffer<float3> _Pos;
+RWStructuredBuffer<float3> _Vel;
+
+struct Force {
+    float3 position; float radius;      // radius > 0
+    float3 direction; float strength;   // strength can be +/-
+    uint   flags;                       // bit 0: 1 = directional, 0 = radial
+    float  innerFrac;                   // 0..0.9 plateau inside radius (per-force)
+    float4 color;                       // reserved (not used yet)
+};
+StructuredBuffer<Force> _Forces;
+
+// --- Uniforms (compute) ---
+uint  _Count;
+uint  _ForceCount;
+float _DeltaTime;
+float _Kspring;
+float _Damping;
+
+// grid + edges
+int _GridX, _GridY;
+int _PinEdges;
+
+// falloff shaping (global)
+int   _FalloffMode;   // 0=Linear,1=Smooth,2=Quadratic,3=Gaussian,4=InvSq
+float _FalloffExp;    // gamma on weight
+float _InnerFrac;     // extra inner plateau (added to per-force innerFrac)
+float _Sharpness;     // Gaussian/InvSq aggressiveness
+float _MaxSpeed;      // per-step velocity clamp (0 = off)
+
+// “extras”
+float _WeightCap;     // cap on sum of weights per point (0..1, 0.8 is nice)
+float _CrowdStiffness;// scales spring by (1 + _CrowdStiffness * wsum)
+
+// ---------- helpers ----------
+
+// t in [0,1] = dist / radius
+float FalloffWeight(float t, float innerFrac)
+{
+    t = saturate(t);
+
+    // combine global + per-force inner plateau
+    float inner = saturate(_InnerFrac + innerFrac);
+    if (inner > 0)
+    {
+        float s = saturate((t - inner) / max(1e-4, (1 - inner)));
+        t = s;
+    }
+
+    float w;
+    if (_FalloffMode == 0)       w = 1.0 - t;                         // Linear
+    else if (_FalloffMode == 1)  w = smoothstep(1.0, 0.0, t);         // Smooth
+    else if (_FalloffMode == 2)  w = saturate(1.0 - t * t);           // Quadratic
+    else if (_FalloffMode == 3)  w = exp(-_Sharpness * t * t);        // Gaussian
+    else                         w = 1.0 / (1.0 + _Sharpness*t*t);    // InvSq (soft)
+
+    if (_FalloffExp != 1.0) w = pow(saturate(w), max(0.001, _FalloffExp));
+    return w;
+}
+
+[numthreads(256,1,1)]
+void CSMain (uint3 id3 : SV_DispatchThreadID)
+{
+    uint id = id3.x;
+    if (id >= _Count) return;
+
+    float3 pos = _Pos[id];
+    float3 vel = _Vel[id];
+
+    // grid coords (for pinned edges)
+    uint x = id % (uint)_GridX;
+    uint y = id / (uint)_GridX;
+
+    if (_PinEdges != 0 && (x == 0 || x == _GridX - 1 || y == 0 || y == _GridY - 1))
+    {
+        pos = _OrigPos[id];
+        vel = 0;
+        _Pos[id] = pos;
+        _Vel[id] = vel;
+        return;
+    }
+
+    // Accumulate external forces with weight cap
+    float wsum = 0.0;
+
+    [loop]
+    for (uint i = 0; i < _ForceCount; i++)
+    {
+        Force F = _Forces[i];
+
+        float3 d = pos - F.position;
+        float dist = length(d);
+        if (dist <= 1e-6) continue;
+
+        float t = dist / max(1e-4, F.radius);
+        float w = FalloffWeight(t, F.innerFrac);
+
+        // optional cap: prevent total influence > _WeightCap
+        if (_WeightCap > 0)
+        {
+            float remaining = max(0.0, _WeightCap - wsum);
+            w = min(w, remaining);
+            if (w <= 0.0) continue;
+            wsum += w;
+            // small early-out: if we used it all, we can stop
+            if (wsum >= _WeightCap) { /* do last contribution then continue; */ }
+        }
+
+        float3 dir = ((F.flags & 1u) != 0u)
+            ? normalize(F.direction)
+            : (-d / dist);
+
+        vel += dir * (F.strength * w) * _DeltaTime;
+    }
+
+    // spring to origin (stiffen under crowds)
+    float k = _Kspring * (1.0 + _CrowdStiffness * wsum);
+    vel += (-k * (pos - _OrigPos[id])) * _DeltaTime;
+
+    // damping + optional clamp
+    vel *= _Damping;
+    if (_MaxSpeed > 0.0)
+    {
+        float vlen = length(vel);
+        if (vlen > _MaxSpeed) vel *= (_MaxSpeed / vlen);
+    }
+
+    pos += vel * _DeltaTime;
+
+    _Vel[id] = vel;
+    _Pos[id] = pos;
+}

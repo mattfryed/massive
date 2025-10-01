@@ -28,7 +28,7 @@ Material:
     - _Float0: 0.05
     - _Float1: 0.08
     - _Float2: 0.3
-    - __dirty: 0
+    - __dirty: 1
     m_Colors: []
   m_BuildTextureStacks: []
   m_AllowLocking: 1
