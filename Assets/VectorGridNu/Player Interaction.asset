@@ -15,9 +15,9 @@ MonoBehaviour:
   modules:
   - tag: Gravity
     type: 0
-    radius: 3.09
-    strength: 12.05
-    innerFrac: 0.15
+    radius: 2
+    strength: 6
+    innerFrac: 0.047
     directional: 0
     useVelocity: 1
     pullAgainstVelocity: 1
@@ -77,6 +77,13 @@ MonoBehaviour:
     duration: 0.18
     autoStart: 1
     loopPulse: 0
+    repel: 0
+    radiusOverTime:
+      serializedVersion: 2
+      m_Curve: []
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
     envelope:
       serializedVersion: 2
       m_Curve:
@@ -103,104 +110,6 @@ MonoBehaviour:
       m_RotationOrder: 4
     waveSpeed: 8
     waveThickness: 0.79
-    tuningEnabled: 0
-    tuningSpringK: 0
-    tuningDamping: 0
-    tuningFalloffMode: 0
-    tuningFalloffExp: 0
-    tuningSharpness: 0
-    tuningMaxSpeed: 0
-    tuningBlend: 0
-  - tag: Wake
-    type: 1
-    radius: 3
-    strength: 10
-    innerFrac: 0
-    directional: 0
-    useVelocity: 1
-    pullAgainstVelocity: 1
-    fixedDirection: {x: 1, y: 0, z: 0}
-    scaleBySpeed: 1
-    radiusOverSpeed:
-      serializedVersion: 2
-      m_Curve:
-      - serializedVersion: 3
-        time: 0
-        value: 1
-        inSlope: 0
-        outSlope: 0.020000005
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0
-        outWeight: 0
-      - serializedVersion: 3
-        time: 10
-        value: 1.2
-        inSlope: 0.020000005
-        outSlope: 0
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0
-        outWeight: 0
-      m_PreInfinity: 2
-      m_PostInfinity: 2
-      m_RotationOrder: 4
-    strengthOverSpeed:
-      serializedVersion: 2
-      m_Curve:
-      - serializedVersion: 3
-        time: 0
-        value: 0.7
-        inSlope: 0
-        outSlope: 0.050000004
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0
-        outWeight: 0
-      - serializedVersion: 3
-        time: 10
-        value: 1.2
-        inSlope: 0.050000004
-        outSlope: 0
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0
-        outWeight: 0
-      m_PreInfinity: 2
-      m_PostInfinity: 2
-      m_RotationOrder: 4
-    spinDegPerSec: 180
-    noiseAmplitude: 0.35
-    noiseFrequency: 8
-    duration: 0.18
-    autoStart: 1
-    loopPulse: 0
-    envelope:
-      serializedVersion: 2
-      m_Curve:
-      - serializedVersion: 3
-        time: 0
-        value: 1
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0
-        outWeight: 0
-      - serializedVersion: 3
-        time: 1
-        value: 0
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0
-        outWeight: 0
-      m_PreInfinity: 2
-      m_PostInfinity: 2
-      m_RotationOrder: 4
-    waveSpeed: 8
-    waveThickness: 0.7
     tuningEnabled: 0
     tuningSpringK: 0
     tuningDamping: 0

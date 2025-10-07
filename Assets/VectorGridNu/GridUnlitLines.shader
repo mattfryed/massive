@@ -28,6 +28,10 @@ Shader "MASSIVE/GridUnlitLines"
           float _LinePixelWidth;   // kept for future AA work
           float _DispBrightness;
           float2 _GridSize;
+            // --- Border overlay controls (set via MPB from C#) ---
+            int     _BorderOnly;        // 0 = normal draw, 1 = draw only border lines
+            float   _BorderWidthMul;    // placeholder until quad lines (no effect with GL lines)
+            float4  _BorderColor;       // overlay tint for the frame
 
           struct appdata
           {
@@ -39,6 +43,7 @@ Shader "MASSIVE/GridUnlitLines"
           {
               float4 pos : SV_POSITION;
               float  dispMag : TEXCOORD0;
+              float2 uv      : TEXCOORD1;
           };
 
           // Bilinear sample from simulated grid at uv in 0..1
@@ -75,14 +80,31 @@ Shader "MASSIVE/GridUnlitLines"
 
               o.dispMag = length(displaced - flat);
               o.pos = UnityObjectToClipPos(float4(displaced,1));
+              o.uv  = v.uv; 
               return o;
           }
 
-          float4 frag (v2f i) : SV_Target
-          {
-              float bright = 1.0 + _DispBrightness * saturate(i.dispMag);
-              return float4(_LineColor.rgb * bright, _LineColor.a);
-          }
+            float4 frag (v2f i) : SV_Target
+            {
+                // A line lies on the outer frame if either UV axis is at 0 or 1.
+                // We allow a tiny epsilon for floating error and rounding in your mesh mapping.
+                const float eps = 1e-4;
+                bool isBorder = (i.uv.x <= eps) || (i.uv.x >= 1.0 - eps) ||
+                                (i.uv.y <= eps) || (i.uv.y >= 1.0 - eps);
+
+                // If this is the overlay pass, draw ONLY the frame and discard everything else.
+                if (_BorderOnly == 1 && !isBorder) discard;
+
+                // Pick base color depending on whether we're in the overlay pass.
+                float4 baseCol = (_BorderOnly == 1) ? _BorderColor : _LineColor;
+
+                // Existing brightness boost from displacement magnitude
+                float bright = 1.0 + _DispBrightness * saturate(i.dispMag);
+
+                // NOTE: _BorderWidthMul is a no-op with core GL/Raster lines; to get true thicker lines,
+                // we need a quad-line pass (see note below).
+                return float4(baseCol.rgb * bright, baseCol.a);
+            }
           ENDHLSL
         }
     }

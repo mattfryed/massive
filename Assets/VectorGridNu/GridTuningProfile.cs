@@ -4,8 +4,11 @@ using UnityEngine;
 public class GridTuningProfile : ScriptableObject
 {
     [Header("Simulation")]
-    [Min(0f)] public float springK = 3.0f;
-    [Range(0.8f, 0.999f)] public float damping = 0.97f;
+    [Tooltip("Pull to rest. Higher = faster return. Units ~1/s² with dt.")]
+    [Range(0f, 25f)] public float springK = 12f;
+
+    [Tooltip("Viscous damping (rate). Higher = less bounce, faster settle. Units ~1/s.")]
+    [Range(0f, 5f)] public float damping = 2.2f;
     [Min(0f)] public float maxSpeed = 12f;     // 0 = off
     public bool pinEdges = true;
 

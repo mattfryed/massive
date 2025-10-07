@@ -18,8 +18,11 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
     [Min(2)] public int visibleY = 9;    // horizontal lines shown
 
     [Header("Simulation")]
-    [Range(0f, 10f)] public float springK = 3.0f;   // spring to origin
-    [Range(0.8f, 0.999f)] public float damping = 0.97f;
+    [Tooltip("Pull to rest. Higher = faster return. Units ~1/s² with dt.")]
+    [Range(0f, 25f)] public float springK = 12f;
+
+    [Tooltip("Viscous damping (rate). Higher = less bounce, faster settle. Units ~1/s.")]
+    [Range(0f, 5f)] public float damping = 2.2f;
     public bool pinEdges = true;
 
     [Header("Force Falloff")]
@@ -46,6 +49,51 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
     [Header("Compute")]
     public ComputeShader vectorCompute;  // CS_Vectors.compute
     private int _kernel = -1;
+
+    [System.Serializable]
+    public struct BoundarySettings
+    {
+        [Header("Soft edge band")]
+        [Min(0)] public int featherCells;                 // 0..6 good
+        [Range(0.25f, 4f)] public float featherSharp;     // falloff curve
+        [Range(1f, 4f)] public float edgeSpringMul;       // extra spring near edge
+        [Range(1f, 3f)] public float edgeDampMul;         // extra damping near edge
+        [Range(0f, 0.2f)] public float edgeForceMin;      // leave a whisper of force
+
+        [Header("Projection / Bounce")]
+        public bool projectAtEdge;                        // enable project/bounce
+        [Range(0f, 0.05f)] public float edgeAllowance;    // tiny overshoot allowance
+        [Range(0f, 1.5f)] public float restitution;       // 0=stick, 1=perfect bounce
+
+        [Header("Border Overlay (visual)")]
+        public bool borderOverlay;                        // do second draw for border
+        [Range(1f, 4f)] public float borderWidthMul;      // thickness multiplier
+        public Color borderColor;
+
+        [Header("Feather curve")]
+        public bool useExpFeather;              // enable exponential shaping
+        [Range(0f, 16f)] public float featherExpK;  // 0..16; 6 is a good start
+    }
+
+    [Header("Boundary")]
+    public BoundarySettings boundary = new BoundarySettings
+    {
+        featherCells = 3,
+        featherSharp = 2f,
+        useExpFeather = true,
+        featherExpK = 6f,
+        edgeSpringMul = 2f,
+        edgeDampMul = 1.5f,
+        edgeForceMin = 0f,
+        projectAtEdge = true,
+        edgeAllowance = 0f,
+        restitution = 0.6f,
+        borderOverlay = true,
+        borderWidthMul = 2f,
+        borderColor = new Color(1, 1, 1, 1)
+    };
+
+
 
     // Public props for IVectorGrid
     public float SpringK { get => springK; set => springK = value; }
@@ -104,6 +152,27 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
     static readonly int _WeightCapID    = Shader.PropertyToID("_WeightCap");
     static readonly int _CrowdStiffID   = Shader.PropertyToID("_CrowdStiffness");
 
+    // ---- Shader property IDs (compute + render) ----
+    static readonly int _FeatherCellsID = Shader.PropertyToID("_FeatherCells");
+    static readonly int _FeatherSharpID = Shader.PropertyToID("_FeatherSharp");
+    static readonly int _FeatherUseExpID = Shader.PropertyToID("_FeatherUseExp");
+    static readonly int _FeatherExpKID = Shader.PropertyToID("_FeatherExpK");
+    static readonly int _EdgeSpringMulID = Shader.PropertyToID("_EdgeSpringMul");
+    static readonly int _EdgeDampMulID = Shader.PropertyToID("_EdgeDampMul");
+    static readonly int _EdgeForceMinID = Shader.PropertyToID("_EdgeForceMin");
+
+    static readonly int _ProjectAtEdgeID = Shader.PropertyToID("_ProjectAtEdge"); // int/bool in HLSL
+    static readonly int _EdgeAllowanceID = Shader.PropertyToID("_EdgeAllowance");
+    static readonly int _RestitutionID = Shader.PropertyToID("_Restitution");
+
+    // render-side (overlay)
+    static readonly int _BorderOnlyID = Shader.PropertyToID("_BorderOnly");
+    static readonly int _BorderWidthMulID = Shader.PropertyToID("_BorderWidthMul");
+    static readonly int _BorderColorID = Shader.PropertyToID("_BorderColor");
+
+    // Optional: keep a second MPB for overlay
+    MaterialPropertyBlock _mpbBorder;
+
     // change tracking
     int _currGridX, _currGridY, _currRenderX, _currRenderY;
     Vector2 _currSize;
@@ -159,6 +228,9 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
         renderX = Mathf.Max(2, renderX);
         renderY = Mathf.Max(2, renderY);
 
+        boundary.featherCells = Mathf.Max(0, boundary.featherCells);
+        boundary.borderWidthMul = Mathf.Max(1f, boundary.borderWidthMul);
+
         _needsRebuild = true;         // << do not call BuildMesh/Allocate here
         // also refresh kernel id if compute assigned (safe)
         if (vectorCompute != null) _kernel = vectorCompute.FindKernel("CSMain");
@@ -196,12 +268,7 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
 
         // Sim params
         vectorCompute.SetFloat(_DeltaTimeID, Application.isPlaying ? Time.deltaTime : 1f / 60f);
-        vectorCompute.SetFloat(_SpringKID, springK);
-        vectorCompute.SetFloat(_DampingID, damping);
 
-        vectorCompute.SetInt(_CSGridXID, gridX);
-        vectorCompute.SetInt(_CSGridYID, gridY);
-        vectorCompute.SetInt(_PinEdgesID, pinEdges ? 1 : 0);
 
         // Ensure buffers are (re)bound each frame (defensive against reloads/recompiles)
         vectorCompute.SetBuffer(_kernel, _PosID,    _posBuf);
@@ -216,7 +283,7 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
         vectorCompute.SetInt(_ForceCountID, _forces.Count);
         vectorCompute.SetFloat(_DeltaTimeID, Application.isPlaying ? Time.deltaTime : 1f/60f);
         vectorCompute.SetFloat(_SpringKID, springK);
-        vectorCompute.SetFloat(_DampingID, damping);
+        vectorCompute.SetFloat(_DampingID, Mathf.Max(0f, damping));
         vectorCompute.SetInt   (_FalloffModeID, falloffMode);
         vectorCompute.SetFloat (_FalloffExpID,  falloffExp);
         vectorCompute.SetFloat (_InnerFracID,   innerFrac);
@@ -224,6 +291,11 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
         vectorCompute.SetFloat (_MaxSpeedID,    maxSpeed);
         vectorCompute.SetFloat (_WeightCapID,   weightCap);
         vectorCompute.SetFloat (_CrowdStiffID,  crowdStiffness);
+        // Sim uniforms (compute) ... your existing lines above
+        vectorCompute.SetFloat(_CrowdStiffID, crowdStiffness);
+
+        // NEW: boundary uniforms every frame (handles live edits)
+        ApplyBoundaryUniforms();
 
         // Dispatch
         int count = gridX * gridY;
@@ -240,6 +312,37 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
             _mpb.SetInt(_SimGridYID, gridY);
             _mpb.SetVector(_GridSizeID, size);
             _mr.SetPropertyBlock(_mpb);
+        }
+
+        // ---- Border overlay (second draw) ----
+        if (boundary.borderOverlay && _mesh != null && _mr != null && lineMaterial != null)
+        {
+            if (_mpbBorder == null) _mpbBorder = new MaterialPropertyBlock();
+            _mpbBorder.Clear();
+
+            // Bind the positions buffer and common render params again
+            _mpbBorder.SetBuffer(_PosID, _posBuf);
+            _mpbBorder.SetInt(_GridXID, gridX);
+            _mpbBorder.SetInt(_GridYID, gridY);
+            _mpbBorder.SetInt(_SimGridXID, gridX);
+            _mpbBorder.SetInt(_SimGridYID, gridY);
+            _mpbBorder.SetVector(_GridSizeID, size);
+
+            // Overlay toggles
+            _mpbBorder.SetInt(_BorderOnlyID, 1);
+            _mpbBorder.SetFloat(_BorderWidthMulID, boundary.borderWidthMul);
+            _mpbBorder.SetColor(_BorderColorID, boundary.borderColor);
+
+            // You can reuse the same material; URP/HDRP friendly
+            Graphics.DrawMesh(
+                _mesh,
+                transform.localToWorldMatrix,
+                lineMaterial,
+                gameObject.layer,
+                null, 0, _mpbBorder,
+                castShadows: false,
+                receiveShadows: false
+            );
         }
 
         // If callers are pushing transient forces every frame, clear here.
@@ -296,6 +399,24 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
         _mpb.SetInt(_SimGridXID, gridX);
         _mpb.SetInt(_SimGridYID, gridY);
         _mpb.SetVector(_GridSizeID, size);
+    }
+
+    void ApplyBoundaryUniforms()
+    {
+        if (vectorCompute == null || _kernel < 0) return;
+
+        vectorCompute.SetInt(_FeatherCellsID, boundary.featherCells);
+        vectorCompute.SetFloat(_FeatherSharpID, boundary.featherSharp);
+        vectorCompute.SetInt(_FeatherUseExpID, boundary.useExpFeather ? 1 : 0);
+        vectorCompute.SetFloat(_FeatherExpKID, Mathf.Max(0f, boundary.featherExpK));
+        vectorCompute.SetFloat(_EdgeSpringMulID, boundary.edgeSpringMul);
+        vectorCompute.SetFloat(_EdgeDampMulID, boundary.edgeDampMul);
+        vectorCompute.SetFloat(_EdgeForceMinID, boundary.edgeForceMin);
+
+        // HLSL 'bool' is int on many backends; be explicit:
+        vectorCompute.SetInt(_ProjectAtEdgeID, boundary.projectAtEdge ? 1 : 0);
+        vectorCompute.SetFloat(_EdgeAllowanceID, boundary.edgeAllowance);
+        vectorCompute.SetFloat(_RestitutionID, boundary.restitution);
     }
 
     void BuildMesh()
@@ -398,6 +519,8 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
             vectorCompute.SetInt(_GridXID, gridX);
             vectorCompute.SetInt(_GridYID, gridY);
             vectorCompute.SetInt(_PinEdgesID, pinEdges ? 1 : 0);
+            // NEW: push boundary params once here (also pushed every frame in Update)
+            ApplyBoundaryUniforms();
         }
     }
 
