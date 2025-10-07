@@ -101,20 +101,20 @@ public class GridInteractor : MonoBehaviour
                 continue;
 
             // base params
-            float radius   = m.radius * profile.radiusMultiplier;
+            float radius = m.radius * profile.radiusMultiplier;
             float strength = m.strength * profile.strengthMultiplier;
-            float inner    = m.innerFrac;
+            float inner = m.innerFrac;
 
             if (overridesEnabled)
             {
-                if (overrideRadius   >= 0) radius   = overrideRadius;
+                if (overrideRadius >= 0) radius = overrideRadius;
                 if (overrideStrength >= 0) strength = overrideStrength;
-                if (overrideInnerFrac >= 0) inner   = overrideInnerFrac;
+                if (overrideInnerFrac >= 0) inner = overrideInnerFrac;
             }
 
             if (m.scaleBySpeed)
             {
-                if (m.radiusOverSpeed != null)   radius   *= m.radiusOverSpeed.Evaluate(speed);
+                if (m.radiusOverSpeed != null) radius *= m.radiusOverSpeed.Evaluate(speed);
                 if (m.strengthOverSpeed != null) strength *= m.strengthOverSpeed.Evaluate(speed);
             }
 
@@ -152,9 +152,10 @@ public class GridInteractor : MonoBehaviour
                         break;
                     }
 
-                    case GridModuleType.BurstRadial:
+                case GridModuleType.BurstRadial:
                     {
-                        if (s.t < 0f) {
+                        if (s.t < 0f)
+                        {
                             if (!m.autoStart) break;   // wait until Trigger(tag)
                             s.t = 0f;
                         }
@@ -166,23 +167,40 @@ public class GridInteractor : MonoBehaviour
                         break;
                     }
 
-                    case GridModuleType.Pulse:
+                case GridModuleType.Pulse:
                     {
                         if (s.t < 0f) {
-                            if (!m.autoStart) break;   // NEW
+                            if (!m.autoStart) break;
                             s.t = 0f;
                         }
-                        float u = Mathf.Repeat(s.t / Mathf.Max(0.0001f, m.duration), 1f);
+
+                        // 0..1 through the pulse
+                        float u   = Mathf.Repeat(s.t / Mathf.Max(0.0001f, m.duration), 1f);
+
+                        // amplitude envelope
                         float env = (m.envelope != null ? m.envelope.Evaluate(u) : 1f);
-                        outForces.Add(VectorGridGPU.MakeRadial(localPos, radius, strength * env, inner));
+
+                        // radius growth (shockwave): multiply base radius
+                        float rMul = (m.radiusOverTime != null && m.radiusOverTime.keys != null && m.radiusOverTime.keys.Length > 0)
+                                    ? Mathf.Max(0.0001f, m.radiusOverTime.Evaluate(u))
+                                    : 1f;
+                        float rNow = radius * rMul;
+
+                        // outward if repel, inward otherwise
+                        float sign = m.repel ? -1f : 1f;
+
+                        outForces.Add(VectorGridGPU.MakeRadial(localPos, rNow, sign * strength * env, inner));
+
                         s.t += Time.deltaTime;
                         if (!m.loopPulse && s.t >= m.duration) s.t = -1f;
                         break;
                     }
 
-                    case GridModuleType.TravelingWave:
+
+                case GridModuleType.TravelingWave:
                     {
-                        if (s.t < 0f) {
+                        if (s.t < 0f)
+                        {
                             if (!m.autoStart) break;   // NEW
                             s.t = 0f;
                         }
@@ -190,7 +208,7 @@ public class GridInteractor : MonoBehaviour
                         float rMid = radius + traveled;
                         float rMin = Mathf.Max(0.1f, rMid - m.waveThickness * 0.5f);
                         float rMax = rMid + m.waveThickness * 0.5f;
-                        outForces.Add(VectorGridGPU.MakeRadial(localPos, rMin,  strength * 0.5f, inner));
+                        outForces.Add(VectorGridGPU.MakeRadial(localPos, rMin, strength * 0.5f, inner));
                         outForces.Add(VectorGridGPU.MakeRadial(localPos, rMax, -strength * 0.5f, inner));
                         s.t += Time.deltaTime;
                         if (!m.loopPulse && rMid > radius + 4f * m.waveSpeed) s.t = -1f;
@@ -209,22 +227,19 @@ public class GridInteractor : MonoBehaviour
                 var s = GetState(i);
                 if (!s.active || !m.tuningEnabled) continue;
 
-                _mixer.Add(new GridTuningMixer.Contribution {
-                    blend        = Mathf.Clamp01(m.tuningBlend),
-                    springK      = m.tuningSpringK,
-                    damping      = m.tuningDamping,
-                    falloffMode  = Mathf.Clamp(m.tuningFalloffMode, 0, 4),
-                    falloffExp   = m.tuningFalloffExp,
-                    sharpness    = m.tuningSharpness,
-                    maxSpeed     = m.tuningMaxSpeed
+                _mixer.Add(new GridTuningMixer.Contribution
+                {
+                    blend = Mathf.Clamp01(m.tuningBlend),
+                    springK = m.tuningSpringK,
+                    damping = m.tuningDamping,
+                    falloffMode = Mathf.Clamp(m.tuningFalloffMode, 0, 4),
+                    falloffExp = m.tuningFalloffExp,
+                    sharpness = m.tuningSharpness,
+                    maxSpeed = m.tuningMaxSpeed
                 });
             }
         }
 
-        ModuleState GetState(int i)
-        {
-            if (!_state.TryGetValue(i, out var s)) _state[i] = s = new ModuleState();
-            return s;
-        }
+
     }
 }

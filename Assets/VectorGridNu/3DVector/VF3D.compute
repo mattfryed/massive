@@ -1,0 +1,204 @@
+// Assets/VectorGridNu/3DVector/VF3D.compute
+#pragma kernel IntegrateCS
+#include "Packages/jp.keijiro.noiseshader/Shader/ClassicNoise3D.hlsl"
+#ifndef snoise
+#define snoise ClassicNoise
+#endif
+
+// ---------- Buffers ----------
+StructuredBuffer<float3> _Seeds;
+struct Segment { float3 a; float3 b; float mag; };
+AppendStructuredBuffer<Segment> _Segments;
+
+// ---------- Integration params ----------
+uint  _SeedCount;
+float _Step;
+int   _MaxSteps;
+
+// ---------- Field uniforms ----------
+float3   _Center;
+float4x4 _R;       // model->local/world
+float4x4 _Rinv;    // local/world->model
+float3   _Moment0; // fixed model-space dipole moment
+float    _DipoleK;
+float    _DipoleWeight;
+float3   _BoundsMin;
+float3   _BoundsMax;
+float    _SoftCore2;
+float _CaptureRadius;   // small sphere around each pole, in model units (e.g. 0.35..0.6)
+float  _PoleCenter;    // distance of each pole center from origin in MODEL space
+
+
+
+// --- Curl (procedural) ---
+float  _CurlScale;      // model->noise UV scale
+float3 _CurlOffset;     // time scroll in noise space
+float  _CurlWeight;     // contribution strength
+float  _CurlEpsilon;    // finite-diff step for derivatives
+float3 _CurlSeed;       // decorrelation offsets
+
+// --- Solar wind (opens/closes field lines) ---
+float3 _WindDirM;       // model-space wind direction (normalized)
+float  _WindWeight;     // strength
+
+// ---------- Integration tuning ----------
+float _MinMag;     // early-stop threshold on |B|
+float _StepNear;   // step multiplier near core (0..1)
+
+// ---------- Helpers ----------
+bool InsideBounds(float3 p) { return all(p >= _BoundsMin) && all(p <= _BoundsMax); }
+
+bool ReachedPoleModel(float3 pm, float3 axisN, float poleCenter, float capR)
+{
+    float3 north =  axisN * poleCenter;
+    float3 south = -axisN * poleCenter;
+    return (distance(pm, north) <= capR) || (distance(pm, south) <= capR);
+}
+
+
+float3 DipoleModel(float3 pm, float3 m0, float k, float soft2)
+{
+    float3 r = pm;
+    float r2 = dot(r,r) + soft2;
+    float r1 = sqrt(r2);
+    float r5 = r2*r2*r1;
+    float3 term1 = (3.0 * r * dot(m0, r)) / r5;
+    float3 term2 = m0 / (r2 * r1);
+    return k * (term1 - term2);
+}
+
+float3 CurlClassic(float3 uvw)
+{
+    float e = max(0.0005, _CurlEpsilon);
+
+    // Three shifted scalar noises → vector field
+    float n1p = snoise(uvw + _CurlSeed + float3( e,0,0));
+    float n1m = snoise(uvw + _CurlSeed - float3( e,0,0));
+    float n2p = snoise(uvw + _CurlSeed + float3(0, e,0));
+    float n2m = snoise(uvw + _CurlSeed - float3(0, e,0));
+    float n3p = snoise(uvw + _CurlSeed + float3(0,0, e));
+    float n3m = snoise(uvw + _CurlSeed - float3(0,0, e));
+
+    // Simple central-difference curl
+    float fx_y = (n1p - n1m) / (2*e);
+    float fy_x = (n2p - n2m) / (2*e);
+    float fz_x = (n3p - n3m) / (2*e);
+    float fx_z = fx_y; // reusing samples to keep it cheap
+    float fz_y = (n3p - n3m) / (2*e);
+    float fy_z = (n2p - n2m) / (2*e);
+
+    float3 curl;
+    curl.x = fz_y - fy_z;
+    curl.y = fx_z - fz_x;
+    curl.z = fy_x - fx_y;
+    return curl;
+}
+
+// Field in LOCAL space, evaluated in MODEL space then rotated back
+float3 Field(float3 pLocal)
+{
+    float3 pm = mul(_Rinv, float4(pLocal - _Center, 0)).xyz; // local→model
+
+    float3 Bm = _DipoleWeight * DipoleModel(pm, normalize(_Moment0), _DipoleK, _SoftCore2);
+
+    if (_CurlWeight > 0.0001) {
+        float3 uvw = pm * _CurlScale + _CurlOffset;
+        Bm += _CurlWeight * CurlClassic(uvw);
+    }
+
+    // “Solar wind” pushes field globally in model space (opens/closes lobes)
+    if (_WindWeight > 0.0001) {
+        Bm += _WindWeight * normalize(_WindDirM);
+    }
+
+    return mul(_R, float4(Bm, 0)).xyz; // model→local
+}
+
+void StepRK4(float3 p, float h, out float3 pNext, out float avgMag, out float3 dirOut)
+{
+    float3 k1 = Field(p);          float m1 = length(k1); float3 d1 = (m1>1e-6)? k1/m1 : 0;
+    float3 k2 = Field(p + 0.5*h*d1); float m2 = length(k2); float3 d2 = (m2>1e-6)? k2/m2 : 0;
+    float3 k3 = Field(p + 0.5*h*d2); float m3 = length(k3); float3 d3 = (m3>1e-6)? k3/m3 : 0;
+    float3 k4 = Field(p +       h*d3); float m4 = length(k4); float3 d4 = (m4>1e-6)? k4/m4 : 0;
+
+    float3 d = normalize(d1 + 2*d2 + 2*d3 + d4);
+    avgMag = (m1 + 2*m2 + 2*m3 + m4) / 6.0;
+    dirOut = d;
+    pNext = p + h * d;
+}
+
+// ---------- Kernel (two-sided + adaptive step) ----------
+[numthreads(64,1,1)]
+void IntegrateCS (uint3 tid : SV_DispatchThreadID)
+{
+    uint id = tid.x;
+    if (id >= _SeedCount) return;
+
+    float3 seed = _Seeds[id];
+    if (!InsideBounds(seed)) return;
+
+    // forward (dirIdx=0 => +B) and backward (dirIdx=1 => -B)
+    for (int dirIdx = 0; dirIdx < 2; dirIdx++)
+    {
+        float sgn = (dirIdx == 0) ? 1.0 : -1.0;
+
+        float3 prev = seed;
+        float3 prevDir = 0;
+
+        [loop] for (int i = 0; i < _MaxSteps - 1; i++)
+        {
+            // ----- adaptive step based on distance from core -----
+            float3 pm = mul(_Rinv, float4(prev - _Center, 0)).xyz;
+            float pmLen = length(pm);
+            float softR = sqrt(max(_SoftCore2, 1e-6));
+            float adapt = lerp(_StepNear, 1.0, saturate((pmLen - softR) / max(softR, 1e-3)));
+
+            // RK4 with adaptive step
+            float3 pRK; float m; float3 dRK;
+            StepRK4(prev, _Step * adapt, pRK, m, dRK);
+            if (m < _MinMag) break;
+
+            // Direction from RK4 position
+            float3 stepDir = normalize(pRK - prev);
+
+            // Optional heading clamp
+            if (i > 0)
+            {
+                const float minCos = 0.85;
+                float c = dot(prevDir, stepDir);
+                if (c < minCos)
+                    stepDir = normalize(lerp(prevDir, stepDir, 0.5));
+            }
+
+            stepDir *= sgn;
+            float3 pNext = pRK;
+
+            // Bounds first
+            if (!InsideBounds(pNext)) break;
+
+            // Convert to model space for pole check
+            float3 pmNext = mul(_Rinv, float4(pNext - _Center, 0)).xyz;
+
+            // Hard-capture if we reached either pole (write the last tiny segment, then stop)
+            if (ReachedPoleModel(pmNext, normalize(_Moment0), _PoleCenter, _CaptureRadius))
+            {
+                // (optional) snap to the pole center for a perfect finish:
+                float s = sign(dot(pmNext, _Moment0));
+                float3 poleModel = normalize(_Moment0) * (_PoleCenter * s);
+                float3 poleLocal = _Center + mul(_R, float4(poleModel, 0)).xyz;
+                Segment sgm; sgm.a = prev; sgm.b = poleLocal; sgm.mag = m; _Segments.Append(sgm);
+                break;
+            }
+
+
+            // Commit segment
+            Segment seg; seg.a = prev; seg.b = pNext; seg.mag = m;
+            _Segments.Append(seg);
+
+            prev    = pNext;
+            prevDir = stepDir;
+        }
+
+    }
+
+}

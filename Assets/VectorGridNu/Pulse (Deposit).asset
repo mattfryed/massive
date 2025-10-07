@@ -14,10 +14,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   modules:
   - tag: Deposit
-    type: 4
-    radius: 4.5
-    strength: 18
-    innerFrac: 0
+    type: 5
+    radius: 4
+    strength: 14
+    innerFrac: 0.169
     directional: 0
     useVelocity: 0
     pullAgainstVelocity: 1
@@ -74,8 +74,34 @@ MonoBehaviour:
     spinDegPerSec: 180
     noiseAmplitude: 0.35
     noiseFrequency: 8
-    duration: 0.18
-    loopPulse: 0
+    duration: 2
+    autoStart: 1
+    loopPulse: 1
+    repel: 1
+    radiusOverTime:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 2.430734
+        outSlope: 2.430734
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0.01944445
+      - serializedVersion: 3
+        time: 4.96109
+        value: -0.011520386
+        inSlope: 1.9213307
+        outSlope: 1.9213307
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0.055236943
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
     envelope:
       serializedVersion: 2
       m_Curve:
@@ -102,5 +128,13 @@ MonoBehaviour:
       m_RotationOrder: 4
     waveSpeed: 8
     waveThickness: 0.7
+    tuningEnabled: 0
+    tuningSpringK: 0
+    tuningDamping: 0
+    tuningFalloffMode: 0
+    tuningFalloffExp: 0
+    tuningSharpness: 0
+    tuningMaxSpeed: 0
+    tuningBlend: 0
   strengthMultiplier: 1
   radiusMultiplier: 1

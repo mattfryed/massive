@@ -18,6 +18,51 @@ public struct GridInteractionModule
     public string tag;                 // optional label to trigger by name
     public GridModuleType type;
 
+    // Common
+    public float radius;
+    public float strength;
+    [Range(0, 0.9f)] public float innerFrac;
+
+    // Directional (DirectionalWake)
+    public bool directional;
+    public bool useVelocity;
+    public bool pullAgainstVelocity;
+    public Vector3 fixedDirection;
+
+    // Scaling
+    public bool scaleBySpeed;
+    public AnimationCurve radiusOverSpeed;
+    public AnimationCurve strengthOverSpeed;
+
+    // Vortex
+    public float spinDegPerSec;
+
+    // Jiggle
+    public float noiseAmplitude;
+    public float noiseFrequency;
+
+    // Pulse / Burst
+    public float duration;
+    public bool autoStart;
+    public bool loopPulse;          // (Pulse only)
+    public bool  repel;              // NEW: outward if true, inward if false
+    public AnimationCurve radiusOverTime; // 0..1 → multiplier (default 1)
+    public AnimationCurve envelope;
+
+    // Traveling Wave
+    public float waveSpeed;
+    public float waveThickness;
+
+    // Local Tuning (ConstantRadial only)
+    public bool tuningEnabled;
+    public float tuningSpringK;
+    public float tuningDamping;
+    [Range(0, 4)] public int tuningFalloffMode;
+    public float tuningFalloffExp;
+    public float tuningSharpness;
+    public float tuningMaxSpeed;
+    [Range(0f, 1f)] public float tuningBlend;
+    
     // [Header("Common")]
     // public float radius;               // base radius
     // public float strength;             // base strength (can be +/-)
