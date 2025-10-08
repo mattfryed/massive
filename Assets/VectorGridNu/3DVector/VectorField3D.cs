@@ -330,7 +330,22 @@ public class VectorField3D : MonoBehaviour
             lineMaterial.SetColor(_LineColorNear, lineColorNear);
             lineMaterial.SetColor(_LineColorFar,  lineColorFar);
             lineMaterial.SetFloat(_ColorMagScale, Mathf.Max(0.0001f, colorByMagScale));
-            lineMaterial.SetMatrix(_LocalToWorld, transform.localToWorldMatrix);
+            // --- before drawing ---
+            var pos = transform.position;
+            var rot = transform.rotation;
+
+            // Force unit scale to avoid distorting the dipole in the renderer
+            var l2wNoScale = Matrix4x4.TRS(pos, rot, Vector3.one);
+            lineMaterial.SetMatrix(_LocalToWorld, l2wNoScale);
+
+            // Optional: warn if non-uniform scale is present anywhere up the hierarchy
+            Vector3 lossy = transform.lossyScale;
+            if (Mathf.Abs(lossy.x - lossy.y) > 1e-4f || Mathf.Abs(lossy.y - lossy.z) > 1e-4f)
+            {
+                Debug.LogWarning($"VectorField3D: Non-uniform scale detected ({lossy}). " +
+                                "Rendering uses unit scale to prevent squashing.");
+            }
+
 
             Graphics.DrawProceduralIndirect(lineMaterial, new Bounds(transform.position, Vector3.one * 9999f),
                 MeshTopology.Lines, argsBuf, 0, null, null,

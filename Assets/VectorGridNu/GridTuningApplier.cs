@@ -50,7 +50,7 @@ public class GridTuningApplier : MonoBehaviour
         if (scaleSpringBySpeed)
         {
             if (!rbForSpeed) rbForSpeed = GetComponent<Rigidbody>();
-            float spd = rbForSpeed ? rbForSpeed.velocity.magnitude : 0f;
+            float spd = rbForSpeed ? rbForSpeed.linearVelocity.magnitude : 0f;
             springK += springPerUnitSpeed * spd;
         }
 

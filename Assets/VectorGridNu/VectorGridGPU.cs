@@ -68,6 +68,8 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
         [Header("Border Overlay (visual)")]
         public bool borderOverlay;                        // do second draw for border
         [Range(1f, 4f)] public float borderWidthMul;      // thickness multiplier
+        [Range(0f, 0.25f)] public float borderWidthWorld;  // full width in world units
+
         public Color borderColor;
 
         [Header("Feather curve")]
@@ -90,6 +92,7 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
         restitution = 0.6f,
         borderOverlay = true,
         borderWidthMul = 2f,
+        borderWidthWorld = 0.02f,
         borderColor = new Color(1, 1, 1, 1)
     };
 
@@ -120,6 +123,8 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
     MeshFilter _mf;
     MeshRenderer _mr;
     MaterialPropertyBlock _mpb;
+    Mesh _borderMesh;
+
 
     bool _needsRebuild; 
 
@@ -169,6 +174,8 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
     static readonly int _BorderOnlyID = Shader.PropertyToID("_BorderOnly");
     static readonly int _BorderWidthMulID = Shader.PropertyToID("_BorderWidthMul");
     static readonly int _BorderColorID = Shader.PropertyToID("_BorderColor");
+    static readonly int _BorderHalfWidthID = Shader.PropertyToID("_BorderHalfWidth");
+
 
     // Optional: keep a second MPB for overlay
     MaterialPropertyBlock _mpbBorder;
@@ -195,6 +202,7 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
         _kernel = vectorCompute.FindKernel("CSMain");
 
         BuildMesh();
+        BuildBorderStripMesh();
         AllocateBuffers();
         UploadStaticData();
         ApplyMaterialBindings();
@@ -206,6 +214,7 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
     void RebuildAll()
     {
         BuildMesh();          // uses renderX/renderY
+        BuildBorderStripMesh();
         AllocateBuffers();    // alloc sim buffers gridX*gridY & bind to compute
         UploadStaticData();   // fill sim grid (gridX/gridY) into _orig/_pos, zero _vel
         ApplyMaterialBindings();
@@ -219,6 +228,9 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
         ReleaseBuffers();
         if (_mesh != null && Application.isPlaying == false)
             DestroyImmediate(_mesh);
+        if (_borderMesh != null && Application.isPlaying == false)
+        DestroyImmediate(_borderMesh);
+
     }
 
     void OnValidate()
@@ -291,8 +303,6 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
         vectorCompute.SetFloat (_MaxSpeedID,    maxSpeed);
         vectorCompute.SetFloat (_WeightCapID,   weightCap);
         vectorCompute.SetFloat (_CrowdStiffID,  crowdStiffness);
-        // Sim uniforms (compute) ... your existing lines above
-        vectorCompute.SetFloat(_CrowdStiffID, crowdStiffness);
 
         // NEW: boundary uniforms every frame (handles live edits)
         ApplyBoundaryUniforms();
@@ -315,12 +325,13 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
         }
 
         // ---- Border overlay (second draw) ----
-        if (boundary.borderOverlay && _mesh != null && _mr != null && lineMaterial != null)
+        // Thick border strip draw (triangles)
+        if (boundary.borderOverlay && _borderMesh != null && lineMaterial != null)
         {
             if (_mpbBorder == null) _mpbBorder = new MaterialPropertyBlock();
             _mpbBorder.Clear();
 
-            // Bind the positions buffer and common render params again
+            // common bindings
             _mpbBorder.SetBuffer(_PosID, _posBuf);
             _mpbBorder.SetInt(_GridXID, gridX);
             _mpbBorder.SetInt(_GridYID, gridY);
@@ -328,22 +339,19 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
             _mpbBorder.SetInt(_SimGridYID, gridY);
             _mpbBorder.SetVector(_GridSizeID, size);
 
-            // Overlay toggles
-            _mpbBorder.SetInt(_BorderOnlyID, 1);
-            _mpbBorder.SetFloat(_BorderWidthMulID, boundary.borderWidthMul);
+            // border params
+            float halfW = 0.5f * Mathf.Max(0f, boundary.borderWidthWorld) * Mathf.Max(1f, boundary.borderWidthMul);
+            _mpbBorder.SetFloat(_BorderHalfWidthID, halfW);
             _mpbBorder.SetColor(_BorderColorID, boundary.borderColor);
 
-            // You can reuse the same material; URP/HDRP friendly
-            Graphics.DrawMesh(
-                _mesh,
-                transform.localToWorldMatrix,
-                lineMaterial,
-                gameObject.layer,
-                null, 0, _mpbBorder,
-                castShadows: false,
-                receiveShadows: false
-            );
+            // Use submesh 0, and guard just in case
+            if (_borderMesh != null && _borderMesh.subMeshCount > 0)
+            {
+                Graphics.DrawMesh(_borderMesh, transform.localToWorldMatrix, lineMaterial,
+                                gameObject.layer, null, 0, _mpbBorder, false, false);
+            }
         }
+
 
         // If callers are pushing transient forces every frame, clear here.
         _forces.Clear();
@@ -481,6 +489,7 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
             }
         }
 
+
         _mesh.Clear();
         _mesh.SetVertices(verts);
         _mesh.SetUVs(0, uvs);
@@ -490,6 +499,73 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
         if (_mf == null) _mf = GetComponent<MeshFilter>();
         _mf.sharedMesh = _mesh;
     }
+    void BuildBorderStripMesh()
+        {
+            if (_borderMesh == null) _borderMesh = new Mesh { name = "VectorGrid BorderStrip" };
+            _borderMesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+            _borderMesh.MarkDynamic();
+
+            var verts = new List<Vector3>();
+            var uv0   = new List<Vector2>();   // uv of the strip vertex
+            var uv1   = new List<Vector2>();   // step along the edge (to compute tangent)
+            var uv2   = new List<Vector2>();   // x = side (-1 or +1), y unused
+            var idx   = new List<int>();
+
+            // helper to append one edge as a triangle strip
+            void AppendEdge(bool horizontal, bool atMax, int count, ref int baseV)
+            {
+                // uv step along the edge (render grid)
+                float du = horizontal ? (count > 1 ? 1f / (count - 1) : 0f) : 0f;
+                float dv = horizontal ? 0f : (count > 1 ? 1f / (count - 1) : 0f);
+
+                for (int i = 0; i < count; i++)
+                {
+                    float fx = horizontal ? (float)i / Mathf.Max(1, count - 1) : (atMax ? 1f : 0f);
+                    float fy = horizontal ? (atMax ? 1f : 0f) : (float)i / Mathf.Max(1, count - 1);
+
+                    // two verts per sample: side = -1 (inner) and +1 (outer)
+                    for (int s = -1; s <= 1; s += 2)
+                    {
+                        verts.Add(Vector3.zero);                // shader computes position
+                        uv0.Add(new Vector2(fx, fy));
+                        uv1.Add(new Vector2(du, dv));
+                        uv2.Add(new Vector2((float)s, 0f));
+                    }
+                }
+
+                // triangles
+                int pairs = count - 1;
+                for (int i = 0; i < pairs; i++)
+                {
+                    int a = baseV + i * 2;
+                    int b = a + 1;
+                    int c = a + 2;
+                    int d = a + 3;
+                    idx.Add(a); idx.Add(b); idx.Add(c);
+                    idx.Add(b); idx.Add(d); idx.Add(c);
+                }
+                baseV += count * 2;
+            }
+
+            int v = 0;
+            // bottom (y=0), horizontal along X
+            AppendEdge(horizontal: true,  atMax: false, count: renderX, ref v);
+            // top (y=1), horizontal along X
+            AppendEdge(horizontal: true,  atMax: true,  count: renderX, ref v);
+            // left (x=0), vertical along Y
+            AppendEdge(horizontal: false, atMax: false, count: renderY, ref v);
+            // right (x=1), vertical along Y
+            AppendEdge(horizontal: false, atMax: true,  count: renderY, ref v);
+
+            _borderMesh.Clear();
+            _borderMesh.SetVertices(verts);
+            _borderMesh.SetUVs(0, uv0);
+            _borderMesh.SetUVs(1, uv1);
+            _borderMesh.SetUVs(2, uv2);
+            _borderMesh.SetIndices(idx, MeshTopology.Triangles, 0, true);
+            _borderMesh.RecalculateBounds();
+        }
+
 
     void AllocateBuffers()
     {

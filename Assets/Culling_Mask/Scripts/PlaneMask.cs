@@ -12,15 +12,23 @@ public class PlaneMask : MonoBehaviour {
 	}
 	
 	// Update is called once per frame
-	void Update () {
+		void Update()
+		{
+			Vector3 pos = transform.position;
+			Vector3 normal = transform.up;
 
-		Vector3 pos = transform.position;
-		Vector3 normal = transform.up;
-		for (int i = 0; i < renderers.Length; i++) {
-			renderers[i].material.SetVector ("pV", pos);
-			renderers[i].material.SetVector ("pN", normal);
+			for (int i = 0; i < renderers.Length; i++)
+			{
+		#if UNITY_EDITOR
+				// Use sharedMaterial in edit mode to avoid leaks
+				renderers[i].sharedMaterial.SetVector("pV", pos);
+				renderers[i].sharedMaterial.SetVector("pN", normal);
+		#else
+				// Use material in play mode to ensure each renderer has its own instance
+				renderers[i].material.SetVector("pV", pos);
+				renderers[i].material.SetVector("pN", normal);
+		#endif
+			}
 		}
 
-
-	}
 }

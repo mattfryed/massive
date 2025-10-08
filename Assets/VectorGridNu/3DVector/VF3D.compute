@@ -137,68 +137,106 @@ void IntegrateCS (uint3 tid : SV_DispatchThreadID)
     float3 seed = _Seeds[id];
     if (!InsideBounds(seed)) return;
 
-    // forward (dirIdx=0 => +B) and backward (dirIdx=1 => -B)
-    for (int dirIdx = 0; dirIdx < 2; dirIdx++)
+    // forward (+B) and backward (-B)
+    [loop] for (int dirIdx = 0; dirIdx < 2; dirIdx++)
     {
-        float sgn = (dirIdx == 0) ? 1.0 : -1.0;
+        const float sgn = (dirIdx == 0) ? 1.0 : -1.0;
 
-        float3 prev = seed;
+        float3 prev    = seed;
         float3 prevDir = 0;
 
         [loop] for (int i = 0; i < _MaxSteps - 1; i++)
         {
-            // ----- adaptive step based on distance from core -----
-            float3 pm = mul(_Rinv, float4(prev - _Center, 0)).xyz;
-            float pmLen = length(pm);
-            float softR = sqrt(max(_SoftCore2, 1e-6));
-            float adapt = lerp(_StepNear, 1.0, saturate((pmLen - softR) / max(softR, 1e-3)));
+            // --- adaptive step vs. soft core radius ---
+            float3 pm     = mul(_Rinv, float4(prev - _Center, 0)).xyz;
+            float  pmLen  = length(pm);
+            float  softR  = sqrt(max(_SoftCore2, 1e-6));
+            float  adapt  = lerp(_StepNear, 1.0, saturate((pmLen - softR) / max(softR, 1e-3)));
+            float  h      = _Step * adapt;
 
-            // RK4 with adaptive step
+            // --- RK4 integration (gives a curved step) ---
             float3 pRK; float m; float3 dRK;
-            StepRK4(prev, _Step * adapt, pRK, m, dRK);
-            if (m < _MinMag) break;
+            StepRK4(prev, h, pRK, m, dRK);
 
-            // Direction from RK4 position
+            // Direction suggested by RK4
             float3 stepDir = normalize(pRK - prev);
 
-            // Optional heading clamp
+            // Trace in +B or -B
+            stepDir *= sgn;
+
+            // Clamp extreme heading flips to reduce fold-backs
             if (i > 0)
             {
-                const float minCos = 0.85;
+                const float minCos = 0.95;  // ~31°
                 float c = dot(prevDir, stepDir);
                 if (c < minCos)
-                    stepDir = normalize(lerp(prevDir, stepDir, 0.5));
+                    stepDir = normalize(lerp(prevDir, stepDir, 0.35));
             }
 
-            stepDir *= sgn;
-            float3 pNext = pRK;
+            // --- near-pole perpendicular steering ---
+            // Work in world space using the model-space moment axis
+            const float3 mAxis      = normalize(_Moment0);
+            const float3 northModel =  mAxis * _PoleCenter;
+            const float3 southModel = -mAxis * _PoleCenter;
+            const float3 northWorld = _Center + mul(_R, float4(northModel, 0)).xyz;
+            const float3 southWorld = _Center + mul(_R, float4(southModel, 0)).xyz;
 
-            // Bounds first
-            if (!InsideBounds(pNext)) break;
+            float  dN = distance(prev, northWorld);
+            float  dS = distance(prev, southWorld);
 
-            // Convert to model space for pole check
+            // Ramp-in steering as we approach a capture sphere (a bit outside the radius)
+            float  steerN = smoothstep(2.0 * _CaptureRadius, 1.2 * _CaptureRadius, dN);
+            float  steerS = smoothstep(2.0 * _CaptureRadius, 1.2 * _CaptureRadius, dS);
+
+            // Blend towards a straight shot into the pole (encourages perpendicular landings)
+            float3 toN = normalize(northWorld - prev);
+            float3 toS = normalize(southWorld - prev);
+            stepDir = normalize( lerp(stepDir, toN, steerN) );
+            stepDir = normalize( lerp(stepDir, toS, steerS) );
+
+            float steerBlend = max(steerN, steerS);  // already have steerN/steerS
+            float smoothAmt  = lerp(0.6, 0.0, steerBlend); // fade smoothing out near the pole
+            stepDir = normalize(lerp(prevDir, stepDir, max(0.2, smoothAmt)));
+
+
+            // Proposed next point
+            float3 pNext = prev + stepDir * h;
+
+            // --- fallback: don't early-out; steer home if weak field or bounds ---
+            // If the RK4 said the field is too weak OR we go out of bounds, redirect to nearest pole instead of breaking
+            if (m < _MinMag || !InsideBounds(pNext))
+            {
+                float3 toPole = (dN < dS) ? toN : toS;
+                pNext = prev + toPole * h;
+            }
+
+            // Model-space version for capture test
             float3 pmNext = mul(_Rinv, float4(pNext - _Center, 0)).xyz;
 
-            // Hard-capture if we reached either pole (write the last tiny segment, then stop)
-            if (ReachedPoleModel(pmNext, normalize(_Moment0), _PoleCenter, _CaptureRadius))
+            // --- hard capture: if we reached either pole, snap and stop ---
+            if (ReachedPoleModel(pmNext, mAxis, _PoleCenter, _CaptureRadius))
             {
-                // (optional) snap to the pole center for a perfect finish:
-                float s = sign(dot(pmNext, _Moment0));
-                float3 poleModel = normalize(_Moment0) * (_PoleCenter * s);
-                float3 poleLocal = _Center + mul(_R, float4(poleModel, 0)).xyz;
-                Segment sgm; sgm.a = prev; sgm.b = poleLocal; sgm.mag = m; _Segments.Append(sgm);
+                // Snap to exact pole for a clean finish
+                float s          = sign(dot(pmNext, mAxis));               // +1 north, -1 south
+                float3 poleModel = mAxis * (_PoleCenter * s);
+                float3 poleWorld = _Center + mul(_R, float4(poleModel, 0)).xyz;
+
+                // Write the last tiny segment right into the pole
+                Segment capSeg; capSeg.a = prev; capSeg.b = poleWorld; capSeg.mag = m;
+                _Segments.Append(capSeg);
                 break;
             }
 
-
-            // Commit segment
-            Segment seg; seg.a = prev; seg.b = pNext; seg.mag = m;
+            // --- commit regular segment and continue ---
+            Segment seg; 
+            seg.a = prev; 
+            seg.b = pNext;
+            seg.mag = m;
             _Segments.Append(seg);
 
             prev    = pNext;
             prevDir = stepDir;
         }
-
     }
-
 }
+

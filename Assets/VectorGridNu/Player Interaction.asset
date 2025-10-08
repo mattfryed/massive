@@ -17,7 +17,7 @@ MonoBehaviour:
     type: 0
     radius: 2
     strength: 6
-    innerFrac: 0.047
+    innerFrac: 0.263
     directional: 0
     useVelocity: 1
     pullAgainstVelocity: 1
