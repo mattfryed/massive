@@ -1,149 +1,266 @@
 using UnityEngine;
+using Rigidbody = UnityEngine.Rigidbody;
 
-[RequireComponent(typeof(Rigidbody))]
+[DisallowMultipleComponent]
 public class PlayerVisualController : MonoBehaviour
 {
-    [Header("Material & Shader Properties")]
-    [Tooltip("Material using MASSIVE/PlayerPlasma")]
-    public Material playerMat;
-    [Range(0f, 1f)] public float plasmaFill = 0.25f;           // normalized mass level
-    public float arcAppearSpeed = 0.2f;                         // min speed for arc to show
-    public float arcMaxLengthDeg = 120f;                        // arc length at max speed
-    public AnimationCurve arcLengthBySpeed = AnimationCurve.Linear(0, 0, 1, 1);
-    public AnimationCurve arcThicknessBySpeed = AnimationCurve.Linear(0, 0.5f, 1, 1.5f);
+#if UNITY_EDITOR
+    public bool debugOverlay = true;
+    Vector2 _dbgStick, _dbgVFromWorld, _dbgVPlanar, _dbgHeading;
 
-    [Header("Elastic Body (non-uniform scale)")]
-    public float stretchFactor = 0.10f;                         // forward scale gain per 1 m/s
-    public float compressFactor = 0.10f;                        // sideways compression per 1 m/s
-    public float maxStretch = 0.25f;
-    public float returnSmooth = 12f;                            // return to 1.0 scale
-    public float impactDeform = 0.18f;                          // squash amount on hit
-    public float impactRecover = 18f;
+    // joystick input cached by the visuals (x → world X, y → world Z)
+    Vector2 _input;                    // joystick input cached (x → world X, y → world Z)
+    Vector2 _heading = Vector2.right;  // persistent facing used for yaw (defaults to +X)
 
-    [Header("Noise Motion")]
-    public float plasmaAdvectScale = 0.06f;                     // how much plasma condenses in velocity direction
-    public float plasmaTurbulence = 1.0f;                       // use to increase internal noise speed at high mass
 
-    [Header("Debug")]
-    public bool visualizeForwardGizmo = false;
-    public Color gizmoColor = new Color(1, 0.8f, 0.2f, 0.6f);
-
-    // cached
-    Rigidbody rb;
-    Vector3 baseScale, targetScale;
-
-    // shader property IDs
-    static readonly int _VelocityVector   = Shader.PropertyToID("_VelocityVector");
-    static readonly int _VelocityMag      = Shader.PropertyToID("_VelocityMag");
-    static readonly int _PlasmaFill       = Shader.PropertyToID("_PlasmaFill");
-    static readonly int _PlasmaAdvect     = Shader.PropertyToID("_PlasmaAdvect");
-    static readonly int _PlasmaTurb       = Shader.PropertyToID("_PlasmaTurb");
-    static readonly int _ArcEnable        = Shader.PropertyToID("_ArcEnable");
-    static readonly int _ArcMidDir        = Shader.PropertyToID("_ArcMidDir");
-    static readonly int _ArcLengthCos     = Shader.PropertyToID("_ArcLengthCos");
-    static readonly int _ArcThickness     = Shader.PropertyToID("_ArcThickness");
-
-    void Awake()
+    // API your PlayerControllerScript calls each frame
+    public void SetMoveInput(Vector2 stick)
     {
-        rb = GetComponent<Rigidbody>();
-        baseScale = transform.localScale;
-        targetScale = baseScale;
+        if (invertY) stick.y = -stick.y;
+
+        float m = stick.magnitude;
+        if (m < inputDeadzone) stick = Vector2.zero;
+        else stick = stick.normalized * ((m - inputDeadzone) / (1f - inputDeadzone));
+
+        _input = stick;
+        if (stick.sqrMagnitude > 0f)
+            _aimDir = stick.normalized; // <-- remember last pressed direction
+    }
+
+    //void OnGUI()
+    //{
+    //    if (!debugOverlay) return;
+    //    var s = $"vPlanar=({_dbgVPlanar.x:F2},{_dbgVPlanar.y:F2})  speed={_dbgVPlanar.magnitude:F2}  heading=({_dbgHeading.x:F2},{_dbgHeading.y:F2})";
+    //    GUI.Label(new Rect(20, 20, 800, 30), s);
+    //}
+
+    //void OnGUI()
+    //{
+    //    if (!debugOverlay) return;
+    //    string s =
+    //        $"Stick: {_dbgStick.x:F2},{_dbgStick.y:F2} | " +
+    //        $"RB: {_dbgVFromWorld.x:F2},{_dbgVFromWorld.y:F2} | " +
+    //        $"Planar: {_dbgVPlanar.x:F2},{_dbgVPlanar.y:F2} | " +
+    //        $"Heading: {_dbgHeading.x:F2},{_dbgHeading.y:F2} | " +
+    //        $"Blend: {headingBlendWithInput:F2}";
+    //    GUI.Label(new Rect(16, 16, 1000, 24), s);
+    //}
+
+    //void OnDrawGizmosSelected()
+    //{
+    //    if (!debugOverlay) return;
+    //    Gizmos.color = Color.yellow;
+    //    var p = visuals ? visuals.position : transform.position;
+    //    var h = new Vector3(_dbgHeading.x, 0, _dbgHeading.y);
+    //    Gizmos.DrawLine(p, p + h * 1.0f);
+    //}
+#endif
+
+    // keep Visuals “flat on XZ” and add a yaw in LOCAL space
+    static readonly Quaternion VISUALS_BASE = Quaternion.Euler(-90f, 0f, 0f);
+
+    Quaternion _visualsBase = Quaternion.Euler(-90f, 0f, 0f); // cancel the root’s +90°X
+    Quaternion _visualsYaw = Quaternion.identity;
+
+    [Header("Blob Shader (MASSIVE/PlayerBlob)")]
+    public Material blobMat;
+    public float baseRadius = 0.65f;
+    public float outlineHalf = 0.03f;
+    public float maxWobble = 0.12f;
+    public float hitImpulseDecay = 7.5f;
+    public bool rightTeam = false; // false: white fill/black outline; true: black fill/white outline
+
+    [Header("Blob Colors")]
+    public Color blobFillLeft = Color.black;
+    public Color blobFillRight = Color.black;
+    public Color outlineLeft = Color.black;
+    public Color outlineRight = Color.white;
+
+    [Header("Nuggets (mesh-based)")]
+    public PlayerNuggetsMesh nuggets;           // <- mesh renderer script
+    public Color nuggetsColorLeft = Color.white;
+    public Color nuggetsColorRight = Color.black;
+
+    [Header("Heading / Rotation Control")]
+    [Range(0f, 1f)]
+    public float headingBlendWithInput = 1.0f;   // 1 = joystick dominates, 0 = physics velocity only
+    [Range(1f, 30f)]
+    public float headingSmoothing = 12f;         // higher = faster yaw response
+
+    [Header("Arc")]
+    public PlayerArc arc;
+    public Material arcMatLeft;   // black
+    public Material arcMatRight;  // white
+
+    [Header("Team Colors")]
+    public Color fillColorLeft = Color.black;  // interior fill color for Left
+    public Color fillColorRight = Color.black;  // interior fill color for Right
+
+    [Header("Movement (optional fallback)")]
+    public Vector2 velocityWS;   // XZ velocity if you’re not using a Rigidbody
+
+    [Header("Visuals root (unrotated)")]
+    public Transform visuals;    // assign your "Visuals" child
+
+    [Header("Yaw Smoothing")]
+    [Range(0.01f, 0.3f)] public float yawSmoothTime = 0.07f; // seconds
+    public float maxYawSpeed = 900f;   // deg/sec clamp
+    public float stopSpeedEps = 0.02f;           // below this = treat as stopped (keeps last heading)
+
+    // persistent state
+    Vector2 _aimDir = Vector2.right; // LAST non-zero input dir (what we face)
+    float _yawDeg;    // current smoothed yaw (deg)
+    float _yawVelDeg; // velocity for SmoothDampAngle
+
+    [Header("Input")]
+    public bool invertY = true; // your cabinet needs this
+    public float inputDeadzone = 0.12f;
+
+    float _hit, _noise;
+
+    void Start()
+    {
+        if (arc && arc.GetComponent<MeshRenderer>())
+            arc.GetComponent<MeshRenderer>().sharedMaterial = rightTeam ? arcMatRight : arcMatLeft;
+
+
+        // Auto-bind the PlayerBlob material instance on BlobQuad if not assigned
+        if (blobMat == null && visuals != null)
+        {
+            var mr = visuals.GetComponentInChildren<MeshRenderer>();
+            if (mr != null && mr.sharedMaterial != null && mr.sharedMaterial.shader != null &&
+                mr.sharedMaterial.shader.name.Contains("MASSIVE/PlayerBlob"))
+            {
+                blobMat = mr.material; // instance, not shared
+            }
+        }
+
+        // set initial nugget color
+        if (nuggets)
+            nuggets.SetDotColor(rightTeam ? nuggetsColorRight : nuggetsColorLeft);
     }
 
     void Update()
     {
-        if (!playerMat) return;
+        // --- Movement (world) ---
+        Vector3 v3;
+        if (TryGetComponent<Rigidbody>(out var rb)) v3 = rb.velocity;
+        else v3 = new Vector3(velocityWS.x, 0f, velocityWS.y);
 
-        // velocity & direction
-        Vector3 v = rb.linearVelocity;
-        float speed = v.magnitude;
-        Vector3 dir = speed > 0.0001f ? v / speed : Vector3.right;
+        // world planar velocity & magnitude (for speed/slosh only)
+        Vector2 vFromWorld = new Vector2(v3.x, v3.z);
+        float worldMag = vFromWorld.magnitude;
 
-        // 1) INNER PLASMA: density + directional condensation
-        playerMat.SetVector(_VelocityVector, new Vector4(dir.x, dir.y, dir.z, 0));
-        playerMat.SetFloat(_VelocityMag, speed);
-        playerMat.SetFloat(_PlasmaFill, Mathf.Clamp01(plasmaFill));
-        playerMat.SetFloat(_PlasmaAdvect, plasmaAdvectScale * speed);
-        playerMat.SetFloat(_PlasmaTurb, plasmaTurbulence * Mathf.Lerp(0.5f, 1.5f, plasmaFill));
+        // --- Input (already preprocessed in SetMoveInput) ---
+        Vector2 vFromInput = _input; // 0..1 after deadzone
+        _dbgStick = _input;
+        _dbgVFromWorld = vFromWorld;
 
-        // 3) ARC OUTLINE (shader-based)
-        bool arcOn = speed >= arcAppearSpeed;
-        playerMat.SetFloat(_ArcEnable, arcOn ? 1f : 0f);
-        playerMat.SetVector(_ArcMidDir, new Vector4(dir.x, dir.y, dir.z, 0));
+        // --- Facing/Aim: ALWAYS use the last non-zero input dir ---
+        float targetYaw =
+            (_aimDir.sqrMagnitude > 0f)
+            ? Mathf.Atan2(_aimDir.y, _aimDir.x) * Mathf.Rad2Deg
+            : _yawDeg; // keep current if no aim yet
 
-        // arc length/thickness scale with normalized speed (0..1 at some reference)
-        float normSpeed = Mathf.Clamp01(speed / 12f); // tune denominator to your top speed
-        float arcLenDeg = Mathf.Clamp(arcMaxLengthDeg * arcLengthBySpeed.Evaluate(normSpeed), 0f, 179f);
-        // We send cosine of half-length for cheap angular test in shader
-        float halfLenCos = Mathf.Cos(arcLenDeg * 0.5f * Mathf.Deg2Rad);
-        playerMat.SetFloat(_ArcLengthCos, halfLenCos);
-        playerMat.SetFloat(_ArcThickness, arcThicknessBySpeed.Evaluate(normSpeed));
+        // Smooth toward target yaw
+        float nextYaw = Mathf.SmoothDampAngle(_yawDeg, targetYaw, ref _yawVelDeg, yawSmoothTime);
+        float maxStep = maxYawSpeed * Time.deltaTime;
+        float delta = Mathf.DeltaAngle(_yawDeg, nextYaw);
+        if (Mathf.Abs(delta) > maxStep)
+            nextYaw = _yawDeg + Mathf.Clamp(delta, -maxStep, +maxStep);
 
-        // 2) ELASTIC BODY (non-uniform scale in velocity direction, smooth return)
-        // Build a basis: forward = dir (velocity), choose any perpendicular for up/right
-        Vector3 fwd = dir;
-        Vector3 up = Vector3.up;
-        if (Mathf.Abs(Vector3.Dot(fwd, up)) > 0.95f) up = Vector3.forward; // avoid colinear
-        Vector3 right = Vector3.Cross(up, fwd).normalized;
-        up = Vector3.Cross(fwd, right).normalized;
+        _yawDeg = nextYaw;
+        Quaternion baseRot = Quaternion.Euler(-90f, 0f, 0f);
+        Quaternion yawRot = Quaternion.AngleAxis(_yawDeg, Vector3.up);
 
-        float stretch = Mathf.Min(maxStretch, stretchFactor * speed);
-        float compress = Mathf.Min(maxStretch, compressFactor * speed);
-
-        // target scale in local player space: 1+stretch along forward, 1-compress sideways
-        // (approximate by building a directional scaling and applying as world-space)
-        Vector3 sF = Vector3.one + new Vector3(stretch, stretch, stretch) * 0f; // base
-        // project scale along our axes
-        float sForward = 1f + stretch;
-        float sSide = Mathf.Max(0.7f, 1f - compress);
-
-        // compose a world-space scale by rotating the object so forward = fwd, apply scale, rotate back
-        // simpler: lerp between baseScale and a skew approximation using local z-forward (if your model uses z-forward).
-        // Most reliable cross-pipeline approach: just slightly skew by setting localScale with a directional bias in Update:
-       // targetScale = new Vector3(baseScale.x * sSide, baseScale.y * sSide, baseScale.z * sForward);
-       // transform.localScale = Vector3.Lerp(transform.localScale, targetScale, Time.deltaTime * returnSmooth);
-    }
-
-    /// <summary>Call this when a strong impact happens. Pass contact normal (world), or just call with forward if unknown.</summary>
-    public void VisualImpact(Vector3 hitNormal)
-    {
-        // quick perpendicular squash
-        Vector3 loc = transform.InverseTransformDirection(hitNormal);
-        float x = Mathf.Abs(loc.x);
-        float y = Mathf.Abs(loc.y);
-        float z = Mathf.Abs(loc.z);
-
-        // squash perpendicular axes
-        Vector3 s = transform.localScale;
-        if (x > y && x > z)      s.x = s.x * (1f - impactDeform);
-        else if (y > x && y > z) s.y = s.y * (1f - impactDeform);
-        else                     s.z = s.z * (1f - impactDeform);
-        transform.localScale = s;
-        // spring back
-        StopAllCoroutines();
-        StartCoroutine(RecoverScale());
-    }
-
-    System.Collections.IEnumerator RecoverScale()
-    {
-        float t = 0f;
-        Vector3 start = transform.localScale;
-        while (t < 1f)
+        // Drive Visuals in world space (decoupled from RB rotation)
+        if (visuals)
         {
-            t += Time.deltaTime * (impactRecover * 0.1f);
-            transform.localScale = Vector3.Lerp(start, targetScale, t);
-            yield return null;
+            visuals.position = transform.position;
+            visuals.rotation = yawRot * baseRot; // WORLD rotation
         }
-        transform.localScale = targetScale;
+
+        if (nuggets)
+        {
+            // same position as Visuals, but world rotation is ONLY the -90° X base (no yaw)
+            nuggets.transform.position = visuals ? visuals.position : transform.position;
+            nuggets.transform.rotation = Quaternion.Euler(-90f, 0f, 0f);
+        }
+
+        // --- Speed for deform/arc uses physical movement (or blended if you prefer) ---
+        float speed = worldMag; // or: Mathf.Lerp(worldMag, vFromInput.magnitude, 0.3f);
+
+        // --- Build a planar vector to drive slosh/arc based on AIM (direction) ---
+        Vector2 vPlanarForVfx = _aimDir * Mathf.Max(worldMag, vFromInput.magnitude);
+
+        // --- Velocity in VISUALS-LOCAL XZ (so “forward” = +local X) ---
+        // NOTE: we negate the Z projection to fix your up/down inversion while keeping L/R correct.
+        Vector2 vLocal;
+        if (visuals)
+        {
+            var pv = new Vector3(vPlanarForVfx.x, 0f, vPlanarForVfx.y);
+            float lx = Vector3.Dot(pv, visuals.right);          // left/right OK
+            float lz = -Vector3.Dot(pv, visuals.forward);       // <-- NEGATE fixes up/down flip
+            vLocal = new Vector2(lx, lz);
+        }
+        else
+        {
+            vLocal = vPlanarForVfx;
+        }
+
+        // debug
+        _dbgVPlanar = vPlanarForVfx;
+        _dbgHeading = new Vector2(Mathf.Cos(_yawDeg * Mathf.Deg2Rad), Mathf.Sin(_yawDeg * Mathf.Deg2Rad));
+
+        float spLocal = vLocal.magnitude;
+
+
+
+        // --- Blob uniforms ---
+        _noise += Time.deltaTime * 1.3f;
+        _hit = Mathf.Max(0, _hit - hitImpulseDecay * Time.deltaTime);
+
+        // Because visuals rotates to heading, inside the shader “forward” is +X of the quad.
+        // So we can just set DeformDir = (1,0) in LOCAL space.
+        Vector2 deformDirLocal = new Vector2(1, 0);
+
+        blobMat.SetFloat("_Radius", baseRadius);
+        blobMat.SetFloat("_OutlineHalfWidth", outlineHalf);
+        blobMat.SetVector("_DeformDir", new Vector4(1, 0, 0, 0)); // local +X (because we rotate Visuals)
+        blobMat.SetFloat("_DeformAmt", Mathf.Min(maxWobble, speed * 0.03f));
+        blobMat.SetFloat("_HitImpulse", _hit);
+        blobMat.SetFloat("_NoisePhase", _noise);
+        blobMat.SetInt("_TeamMode", rightTeam ? 1 : 0);
+        blobMat.SetVector("_Center", Vector2.zero);
+        blobMat.SetColor("_FillColor", rightTeam ? blobFillRight : blobFillLeft);
+        blobMat.SetColor("_OutlineColor", rightTeam ? outlineRight : outlineLeft);
+        blobMat.SetFloat("_Taper", 0.18f);
+        blobMat.SetFloat("_Stretch", 1.0f);
+
+        // --- Arc (use world center of visuals) ---
+        if (arc)
+        {
+            // arc wants world XZ velocity
+            arc.Rebuild(_aimDir * Mathf.Max(worldMag, 1f), visuals.position, baseRadius + outlineHalf);
+        }
+
+        // --- Nuggets (mesh-based) ---
+        if (nuggets)
+        {
+            //nuggets.transform.localRotation = Quaternion.identity; // stays flat under Visuals
+
+            // feed world XZ inertia (so they slosh with movement but do NOT rotate with yaw)
+            Vector2 vWorldPlanar = new Vector2(rb ? rb.velocity.x : velocityWS.x,
+                                               rb ? rb.velocity.z : velocityWS.y);
+            nuggets.blobRadius = baseRadius;
+            nuggets.outlineHalf = outlineHalf;
+            nuggets.dotRadius = nuggets.dotSize * 0.5f;
+            nuggets.velocityWS = vWorldPlanar; // <-- world planar now
+
+            nuggets.SetDotColor(rightTeam ? nuggetsColorRight : nuggetsColorLeft);
+        }
     }
 
-#if UNITY_EDITOR
-    void OnDrawGizmosSelected()
-    {
-        if (!visualizeForwardGizmo || rb == null) return;
-        Gizmos.color = gizmoColor;
-        Vector3 p = transform.position;
-        Gizmos.DrawLine(p, p + rb.linearVelocity.normalized * 1.0f);
-    }
-#endif
+    // Call from gameplay on impact/knockback/etc.
+    public void OnHit(float strength = 1f) { _hit = Mathf.Clamp01(_hit + strength); }
 }

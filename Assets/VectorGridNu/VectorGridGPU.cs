@@ -8,6 +8,8 @@ using UnityEngine.Rendering;
 [RequireComponent(typeof(MeshFilter), typeof(MeshRenderer))]
 public class VectorGridGPU : MonoBehaviour, IVectorGrid
 {
+    [SerializeField] Material borderMaterial;
+
     [Header("Resolution (sim grid)")]
     [Min(2)] public int gridX = 64;
     [Min(2)] public int gridY = 32;
@@ -95,6 +97,25 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
         borderWidthWorld = 0.02f,
         borderColor = new Color(1, 1, 1, 1)
     };
+
+    [Header("Intro")]
+    public bool playIntroOnEnable = true;
+    [Min(0.1f)] public float introDuration = 1.0f;
+    [Min(1f)] public float introStartScale = 6f;   // how “zoomed” it begins
+    [Range(0f, 1f)] public float introFisheyeK = 0.35f;
+    [Range(0f, 0.1f)] public float introWarpAmp = 0.02f;  // NDC units
+    [Range(0f, 12f)] public float introWarpFreq = 4f;    // Hz
+
+    // IDs
+    static readonly int _IntroTID = Shader.PropertyToID("_IntroT");
+    static readonly int _IntroScale0ID = Shader.PropertyToID("_IntroScale0");
+    static readonly int _IntroFishKID = Shader.PropertyToID("_IntroFisheyeK");
+    static readonly int _IntroWarpAmpID = Shader.PropertyToID("_IntroWarpAmp");
+    static readonly int _IntroWarpFreqID = Shader.PropertyToID("_IntroWarpFreq");
+    static readonly int _IntroTimeID = Shader.PropertyToID("_IntroTime");
+
+    // state
+    float _introT = 1f;   // 1 = off by default
 
 
 
@@ -190,8 +211,13 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
     {
         _mf = GetComponent<MeshFilter>();
         _mr = GetComponent<MeshRenderer>();
+
         if (_mpb == null) _mpb = new MaterialPropertyBlock();
         if (lineMaterial != null) _mr.sharedMaterial = lineMaterial;
+
+        // Ensure we have a dedicated border material
+        if (borderMaterial == null && lineMaterial != null)
+            borderMaterial = new Material(lineMaterial) { name = lineMaterial.name + " (Border)" };
 
         if (vectorCompute == null)
         {
@@ -209,6 +235,26 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
         _currGridX = gridX; _currGridY = gridY;
         _currRenderX = renderX; _currRenderY = renderY;
         _currSize = size;
+
+        if (playIntroOnEnable)
+        {
+            _introT = 0f;
+            StopAllCoroutines();
+            StartCoroutine(RunIntro());
+        }
+        else _introT = 1f;
+    }
+
+    System.Collections.IEnumerator RunIntro()
+    {
+        float t = 0f;
+        while (t < introDuration)
+        {
+            _introT = Mathf.Clamp01(t / introDuration);
+            t += Application.isPlaying ? Time.deltaTime : (1f / 60f);
+            yield return null;
+        }
+        _introT = 1f; // end clean
     }
 
     void RebuildAll()
@@ -261,11 +307,11 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
 
         // Re-acquire kernel if needed (after recompile/reset)
         if (_kernel < 0)
-        _kernel = vectorCompute.FindKernel("CSMain");
+            _kernel = vectorCompute.FindKernel("CSMain");
 
 
         // live edit support (play/edit mode): if dimensions changed, rebuild
-        bool simChanged    = (gridX != _currGridX) || (gridY != _currGridY) || (size != _currSize);
+        bool simChanged = (gridX != _currGridX) || (gridY != _currGridY) || (size != _currSize);
         bool renderChanged = (renderX != _currRenderX) || (renderY != _currRenderY);
         if (simChanged || renderChanged)
         {
@@ -283,9 +329,9 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
 
 
         // Ensure buffers are (re)bound each frame (defensive against reloads/recompiles)
-        vectorCompute.SetBuffer(_kernel, _PosID,    _posBuf);
-        vectorCompute.SetBuffer(_kernel, _VelID,    _velBuf);
-        vectorCompute.SetBuffer(_kernel, _OrigPosID,_origBuf);
+        vectorCompute.SetBuffer(_kernel, _PosID, _posBuf);
+        vectorCompute.SetBuffer(_kernel, _VelID, _velBuf);
+        vectorCompute.SetBuffer(_kernel, _OrigPosID, _origBuf);
         vectorCompute.SetBuffer(_kernel, _ForcesID, _forceBuf);
 
         // Sim uniforms (compute)
@@ -293,16 +339,16 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
         vectorCompute.SetInt(_CSGridYID, gridY);
         vectorCompute.SetInt(_PinEdgesID, pinEdges ? 1 : 0);
         vectorCompute.SetInt(_ForceCountID, _forces.Count);
-        vectorCompute.SetFloat(_DeltaTimeID, Application.isPlaying ? Time.deltaTime : 1f/60f);
+        vectorCompute.SetFloat(_DeltaTimeID, Application.isPlaying ? Time.deltaTime : 1f / 60f);
         vectorCompute.SetFloat(_SpringKID, springK);
         vectorCompute.SetFloat(_DampingID, Mathf.Max(0f, damping));
-        vectorCompute.SetInt   (_FalloffModeID, falloffMode);
-        vectorCompute.SetFloat (_FalloffExpID,  falloffExp);
-        vectorCompute.SetFloat (_InnerFracID,   innerFrac);
-        vectorCompute.SetFloat (_SharpnessID,   sharpness);
-        vectorCompute.SetFloat (_MaxSpeedID,    maxSpeed);
-        vectorCompute.SetFloat (_WeightCapID,   weightCap);
-        vectorCompute.SetFloat (_CrowdStiffID,  crowdStiffness);
+        vectorCompute.SetInt(_FalloffModeID, falloffMode);
+        vectorCompute.SetFloat(_FalloffExpID, falloffExp);
+        vectorCompute.SetFloat(_InnerFracID, innerFrac);
+        vectorCompute.SetFloat(_SharpnessID, sharpness);
+        vectorCompute.SetFloat(_MaxSpeedID, maxSpeed);
+        vectorCompute.SetFloat(_WeightCapID, weightCap);
+        vectorCompute.SetFloat(_CrowdStiffID, crowdStiffness);
 
         // NEW: boundary uniforms every frame (handles live edits)
         ApplyBoundaryUniforms();
@@ -312,44 +358,63 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
         int groups = Mathf.CeilToInt(count / 256f);
         vectorCompute.Dispatch(_kernel, Mathf.Max(1, groups), 1, 1);
 
-        // Per-frame material params via MPB (SRP-safe)
+        // -------- Main grid draw (MeshRenderer) ----------
         if (_mr != null)
         {
-            _mpb.SetFloat(_LinePxID, lineThickness);
-            _mpb.SetColor(_LineColorID, lineColor);
-            _mpb.SetFloat(_DispBrightID, displacementBrightness);
+            _mpb.Clear();
+
+            // Always bind buffer first
+            _mpb.SetBuffer(_PosID, _posBuf);
+
+            // Shared uniforms
             _mpb.SetInt(_SimGridXID, gridX);
             _mpb.SetInt(_SimGridYID, gridY);
             _mpb.SetVector(_GridSizeID, size);
+
+            // Visuals
+            _mpb.SetFloat(_LinePxID, lineThickness);
+            _mpb.SetColor(_LineColorID, lineColor);
+            _mpb.SetFloat(_DispBrightID, displacementBrightness);
+            _mpb.SetInt(_BorderOnlyID, 0);
+
+            // Intro warp
+            PushIntroToMPB(_mpb);
+
             _mr.SetPropertyBlock(_mpb);
         }
 
-        // ---- Border overlay (second draw) ----
-        // Thick border strip draw (triangles)
-        if (boundary.borderOverlay && _borderMesh != null && lineMaterial != null)
+        // -------- Border strip draw (second draw) ----------
+        if (boundary.borderOverlay && _borderMesh != null && _posBuf != null && borderMaterial != null)
         {
             if (_mpbBorder == null) _mpbBorder = new MaterialPropertyBlock();
             _mpbBorder.Clear();
 
-            // common bindings
             _mpbBorder.SetBuffer(_PosID, _posBuf);
-            _mpbBorder.SetInt(_GridXID, gridX);
-            _mpbBorder.SetInt(_GridYID, gridY);
             _mpbBorder.SetInt(_SimGridXID, gridX);
             _mpbBorder.SetInt(_SimGridYID, gridY);
             _mpbBorder.SetVector(_GridSizeID, size);
 
-            // border params
             float halfW = 0.5f * Mathf.Max(0f, boundary.borderWidthWorld) * Mathf.Max(1f, boundary.borderWidthMul);
             _mpbBorder.SetFloat(_BorderHalfWidthID, halfW);
             _mpbBorder.SetColor(_BorderColorID, boundary.borderColor);
 
-            // Use submesh 0, and guard just in case
-            if (_borderMesh != null && _borderMesh.subMeshCount > 0)
-            {
-                Graphics.DrawMesh(_borderMesh, transform.localToWorldMatrix, lineMaterial,
-                                gameObject.layer, null, 0, _mpbBorder, false, false);
-            }
+            // Intro warp on the border too
+            PushIntroToMPB(_mpbBorder);
+
+            if (_borderMesh.subMeshCount > 0)
+                Graphics.DrawMesh(_borderMesh, transform.localToWorldMatrix, borderMaterial,
+                                  gameObject.layer, null, 0, _mpbBorder, false, false);
+        }
+
+        void PushIntroToMPB(MaterialPropertyBlock mpb)
+        {
+            if (mpb == null) return;
+            mpb.SetFloat(_IntroTID, _introT);
+            mpb.SetFloat(_IntroScale0ID, introStartScale);
+            mpb.SetFloat(_IntroFishKID, introFisheyeK);
+            mpb.SetFloat(_IntroWarpAmpID, introWarpAmp);
+            mpb.SetFloat(_IntroWarpFreqID, introWarpFreq);
+            mpb.SetFloat(_IntroTimeID, Time.time);   // <— drives the warble
         }
 
 
@@ -403,11 +468,13 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
         _mpb.SetFloat(_LinePxID, lineThickness);
         _mpb.SetColor(_LineColorID, lineColor);
         _mpb.SetFloat(_DispBrightID, displacementBrightness);
-        _mr.SetPropertyBlock(_mpb);
         _mpb.SetInt(_SimGridXID, gridX);
         _mpb.SetInt(_SimGridYID, gridY);
         _mpb.SetVector(_GridSizeID, size);
-    }
+
+
+            _mr.SetPropertyBlock(_mpb);
+        }
 
     void ApplyBoundaryUniforms()
     {
@@ -496,6 +563,16 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
         _mesh.SetIndices(indices, MeshTopology.Lines, 0, true);
         _mesh.RecalculateBounds();
 
+        // Inflate bounds so shader-side intro zoom/warp isn't frustum-culled
+        float maxScaleForBounds = Mathf.Max(1f, introStartScale);
+        var expandedBoundsMain = new Bounds(
+            Vector3.zero,
+            new Vector3(size.x * maxScaleForBounds * 1.1f,
+                        size.y * maxScaleForBounds * 1.1f,
+                        4f) // small thickness in Z
+        );
+        _mesh.bounds = expandedBoundsMain;
+
         if (_mf == null) _mf = GetComponent<MeshFilter>();
         _mf.sharedMesh = _mesh;
     }
@@ -564,7 +641,17 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
             _borderMesh.SetUVs(2, uv2);
             _borderMesh.SetIndices(idx, MeshTopology.Triangles, 0, true);
             _borderMesh.RecalculateBounds();
-        }
+
+            float maxScaleForBounds2 = Mathf.Max(1f, introStartScale);
+            var expandedBoundsBorder = new Bounds(
+                Vector3.zero,
+                new Vector3(size.x * maxScaleForBounds2 * 1.1f,
+                            size.y * maxScaleForBounds2 * 1.1f,
+                            4f)
+            );
+            _borderMesh.bounds = expandedBoundsBorder;
+
+    }
 
 
     void AllocateBuffers()

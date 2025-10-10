@@ -18,7 +18,8 @@ Material:
   m_DoubleSidedGI: 0
   m_CustomRenderQueue: -1
   stringTagMap: {}
-  disabledShaderPasses: []
+  disabledShaderPasses:
+  - BorderStrip
   m_LockedProperties: 
   m_SavedProperties:
     serializedVersion: 3
@@ -61,6 +62,7 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
+    - _BorderHalfWidth: 0.01
     - _BumpScale: 1
     - _Cutoff: 0.5
     - _DetailNormalMapScale: 1
@@ -69,7 +71,13 @@ Material:
     - _GlossMapScale: 1
     - _Glossiness: 0.5
     - _GlossyReflections: 1
-    - _LinePixelWidth: 1.6
+    - _IntroFisheyeK: 0
+    - _IntroScale0: 1
+    - _IntroT: 1
+    - _IntroTime: 0
+    - _IntroWarpAmp: 0
+    - _IntroWarpFreq: 0
+    - _LinePixelWidth: 1
     - _Metallic: 0
     - _Mode: 0
     - _OcclusionStrength: 1

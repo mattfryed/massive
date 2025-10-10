@@ -1,4 +1,3 @@
-// GridUnlitLines.shader
 Shader "MASSIVE/GridUnlitLines"
 {
     Properties{
@@ -6,10 +5,22 @@ Shader "MASSIVE/GridUnlitLines"
         _LineColor("Line Color", Color) = (1,1,1,1)
         _DispBrightness("Displacement Brightness", Float) = 2.0
         _GridSize("Grid Size (XY)", Vector) = (16,8,0,0)
+
+        // Intro (per renderer; set via MPB)
+        [PerRendererData][HideInInspector]_IntroT        ("Intro T", Float) = 1
+        [PerRendererData][HideInInspector]_IntroScale0   ("Intro Scale0", Float) = 1
+        [PerRendererData][HideInInspector]_IntroFisheyeK ("Intro Fisheye K", Float) = 0
+        [PerRendererData][HideInInspector]_IntroWarpAmp  ("Intro Warp Amp", Float) = 0
+        [PerRendererData][HideInInspector]_IntroWarpFreq ("Intro Warp Freq", Float) = 0
+        [PerRendererData][HideInInspector]_IntroTime     ("Intro Time", Float) = 0
+
+        // Border strip width (if missing)
+        [PerRendererData][HideInInspector]_BorderHalfWidth ("Border Half Width", Float) = 0.01
+
     }
     SubShader
     {
-        Tags{ "RenderType"="Transparent" "Queue"="Transparent" }
+        Tags{ "RenderType"="Transparent" "Queue"="Transparent" "RenderPipeline"="UniversalRenderPipeline" }
         Blend SrcAlpha OneMinusSrcAlpha
         ZWrite Off
         ZTest LEqual
@@ -17,10 +28,21 @@ Shader "MASSIVE/GridUnlitLines"
 
         Pass
         {
+          Name "UniversalForward"
+          Tags { "LightMode"="UniversalForward" } 
+
           HLSLPROGRAM
           #pragma vertex vert
           #pragma fragment frag
           #include "UnityCG.cginc"
+
+            // --- Intro controls ---
+            
+            float _IntroT, _IntroScale0, _IntroFisheyeK, _IntroWarpAmp, _IntroWarpFreq;
+            float _IntroTime; // <-- ADD THIS (your DistortClip uses it)
+
+
+
 
           StructuredBuffer<float3> _Pos;
           int _SimGridX, _SimGridY;
@@ -71,15 +93,54 @@ Shader "MASSIVE/GridUnlitLines"
               return lerp(lerp(p00, p10, tx), lerp(p01, p11, tx), ty);
           }
 
+            float4 DistortClip(float4 clipPos)
+            {
+                // timeline & easing
+                float t = saturate(_IntroT);
+                float e = smoothstep(0.0, 1.0, t);
+
+                // fisheye in NDC
+                float2 ndc = clipPos.xy / max(1e-6, clipPos.w);
+                float  r2  = dot(ndc, ndc);
+                float  k   = _IntroFisheyeK * (1.0 - e); // fades out
+                ndc *= (1.0 + k * r2);
+
+                // glitchy warble window
+                float gateA = smoothstep(0.30, 0.40, t);
+                float gateB = 1.0 - smoothstep(0.65, 0.75, t);
+                float gate  = gateA * gateB;
+                if (gate > 0.0)
+                {
+                    float time = _IntroTime * _IntroWarpFreq;
+                    float wob  = sin((ndc.y * 90.0) + time) * cos((ndc.x * 40.0) - time * 0.7);
+                    ndc.x += wob * _IntroWarpAmp * gate;
+                    ndc.y += sin((ndc.x * 120.0) - time * 1.3) * (_IntroWarpAmp * 0.35) * gate;
+                }
+
+                clipPos.xy = ndc * clipPos.w;
+                return clipPos;
+            }
+
           v2f vert (appdata v)
           {
               v2f o;
               float3 displaced = SampleSimPos(v.uv);
+
+                // intro zoom (object/local space): starts big, shrinks to 1
+                float e = smoothstep(0.0, 1.0, saturate(_IntroT));
+                float sc = lerp(max(_IntroScale0, 1.0), 1.0, e);
+                displaced.xy *= sc;
+
               float3 flat = float3(lerp(-_GridSize.x*0.5, _GridSize.x*0.5, v.uv.x),
                                    lerp(-_GridSize.y*0.5, _GridSize.y*0.5, v.uv.y), 0);
 
               o.dispMag = length(displaced - flat);
-              o.pos = UnityObjectToClipPos(float4(displaced,1));
+
+                // clip transform + screen-space distortion
+                float4 clipPos = mul(UNITY_MATRIX_MVP, float4(displaced, 1));
+                o.pos = DistortClip(clipPos);
+
+              //o.pos = UnityObjectToClipPos(float4(displaced,1));
               o.uv  = v.uv; 
               return o;
           }
@@ -105,11 +166,13 @@ Shader "MASSIVE/GridUnlitLines"
                 // we need a quad-line pass (see note below).
                 return float4(baseCol.rgb * bright, baseCol.a);
             }
+
           ENDHLSL
         }
         Pass
         {
-            Name "BorderStrip"
+          Name "BorderStrip"
+          Tags { "LightMode"="UniversalForward" } 
             Cull Off ZWrite Off ZTest LEqual
             Blend SrcAlpha OneMinusSrcAlpha
 
@@ -118,6 +181,15 @@ Shader "MASSIVE/GridUnlitLines"
             #pragma fragment fragBorder
             #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+
+            // --- Intro controls ---
+            float _IntroT;          // 0..1 (timeline)
+            float _IntroScale0;     // start scale (>1 = starts huge/zoomed in)
+            float _IntroFisheyeK;   // fisheye strength
+            float _IntroWarpAmp;    // warble amplitude (in NDC units)
+            float _IntroWarpFreq;   // warble frequency (Hz-ish)
+            float _IntroTime; // <-- ADD THIS (your DistortClip uses it)
+
             
 
             StructuredBuffer<float3> _Pos;
@@ -170,6 +242,34 @@ Shader "MASSIVE/GridUnlitLines"
                 float4 col : COLOR0;
             };
 
+                float4 DistortClip(float4 clipPos)
+                {
+                    // timeline & easing
+                    float t  = saturate(_IntroT);
+                    float e  = smoothstep(0.0, 1.0, t);     // 0→1
+
+                    // ---- fisheye in NDC ----
+                    float2 ndc = clipPos.xy / max(1e-6, clipPos.w);
+                    float  r2  = dot(ndc, ndc);
+                    float  k   = _IntroFisheyeK * (1.0 - e);     // fades out by end
+                    ndc *= (1.0 + k * r2);
+
+                    // ---- glitchy warble window (only mid segment of timeline) ----
+                    float gate = smoothstep(0.30, 0.40, t) * (1.0 - smoothstep(0.65, 0.75, t));
+                    if (gate > 0.0)
+                    {
+                        // vertical scan wobble with mild horizontal variation
+                        float time = _IntroTime * _IntroWarpFreq;
+                        float wob  = sin((ndc.y * 90.0) + time) * cos((ndc.x * 40.0) - time*0.7);
+                        ndc.x += wob * _IntroWarpAmp * gate;
+                        ndc.y += sin((ndc.x*120.0) - time*1.3) * (_IntroWarpAmp*0.35) * gate;
+                    }
+
+                    // write back to clip
+                    clipPos.xy = ndc * clipPos.w;
+                    return clipPos;
+                }
+
             v2f_b vertBorder(appdata_b v)
             {
                 v2f_b o;
@@ -191,7 +291,17 @@ Shader "MASSIVE/GridUnlitLines"
                 float  s  = v.side.x;                 // -1 or +1 (inner/outer)
                 float3 pw = float3(pCurr.xy + n * (_BorderHalfWidth * s), pCurr.z);
 
-                o.pos = TransformObjectToHClip(pw);   // or mul(UNITY_MATRIX_MVP, float4(pw,1)) if using UnityCG
+                // intro zoom
+                float eIntro = smoothstep(0.0, 1.0, saturate(_IntroT));
+                float sc     = lerp(max(_IntroScale0, 1.0), 1.0, eIntro);
+                pw.xy *= sc;
+
+                float4 clipPos = TransformObjectToHClip(pw);          // or mul(UNITY_MATRIX_MVP, float4(pw,1))
+                o.pos = DistortClip(clipPos);
+
+
+
+                //o.pos = TransformObjectToHClip(pw);   // or mul(UNITY_MATRIX_MVP, float4(pw,1)) if using UnityCG
                 o.col = _BorderColor;
                 return o;
             }
@@ -200,6 +310,7 @@ Shader "MASSIVE/GridUnlitLines"
             {
                 return i.col;
             }
+
             ENDHLSL
         }
 

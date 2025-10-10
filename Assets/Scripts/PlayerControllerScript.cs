@@ -1,6 +1,7 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using Rigidbody = UnityEngine.Rigidbody;
 
 public class PlayerControllerScript : MonoBehaviour
 {
@@ -20,6 +21,12 @@ public class PlayerControllerScript : MonoBehaviour
     public GameObject massBlobPrefab;
     public GameObject explosionPrefab;
     public GameObject respawnPrefab;
+
+    public PlayerVisualController visualsController; // assign in inspector
+
+    public Vector2 CurrentInput2D => new Vector2(moveHorizontal, moveVertical);
+    public Vector2 CurrentPlanarVelocity => rb ? new Vector2(rb.velocity.x, rb.velocity.z) : Vector2.zero;
+    public Vector2 CurrentFacing => (CurrentInput2D.sqrMagnitude > 0.0001f) ? CurrentInput2D.normalized : CurrentPlanarVelocity.normalized;
 
     private float timeUntilNextShrink = .1f;
     private float timeOfLastShrink = 0f;
@@ -101,6 +108,21 @@ public class PlayerControllerScript : MonoBehaviour
 
         //Use the two store floats to create a new Vector2 variable movement.
          movement = new Vector3(moveHorizontal, 0f, moveVertical);
+
+        // movement is your Vector3(x,0,z) from Rewired
+        if (visualsController != null)
+        {
+            var stick = new Vector2(movement.x, movement.z);
+            visualsController.SetMoveInput(stick);
+            if (rb != null) visualsController.velocityWS = new Vector2(rb.velocity.x, rb.velocity.z);
+
+            //if (stick.sqrMagnitude > 0.0001f)
+            //    Debug.Log($"[PCS] Sent stick {stick}  rb.vel=({rb?.velocity.x:F2},{rb?.velocity.z:F2}) to {visualsController.name}");
+        }
+        //else
+        //{
+        //    Debug.LogWarning("[PCS] visualsController is null on PlayerControllerScript.");
+        //}
 
         shieldOn = player.GetButton("Shield");
 
