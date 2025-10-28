@@ -32,6 +32,7 @@ Shader "MASSIVE/GridUnlitLines"
           Tags { "LightMode"="UniversalForward" } 
 
           HLSLPROGRAM
+          #pragma target 4.5
           #pragma vertex vert
           #pragma fragment frag
           #include "UnityCG.cginc"
@@ -177,6 +178,7 @@ Shader "MASSIVE/GridUnlitLines"
             Blend SrcAlpha OneMinusSrcAlpha
 
             HLSLPROGRAM
+            #pragma target 4.5
             #pragma vertex vertBorder
             #pragma fragment fragBorder
             #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl"
