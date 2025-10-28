@@ -147,8 +147,7 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
     Mesh _borderMesh;
 
 
-    bool _needsRebuild;
-    Material _lastLineMaterial;
+    bool _needsRebuild; 
 
     // Shader property IDs
     static readonly int _PosID          = Shader.PropertyToID("_Pos");
@@ -216,7 +215,9 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
         if (_mpb == null) _mpb = new MaterialPropertyBlock();
         if (lineMaterial != null) _mr.sharedMaterial = lineMaterial;
 
-        EnsureBorderMaterial();
+        // Ensure we have a dedicated border material
+        if (borderMaterial == null && lineMaterial != null)
+            borderMaterial = new Material(lineMaterial) { name = lineMaterial.name + " (Border)" };
 
         if (vectorCompute == null)
         {
@@ -291,32 +292,12 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
         _needsRebuild = true;         // << do not call BuildMesh/Allocate here
         // also refresh kernel id if compute assigned (safe)
         if (vectorCompute != null) _kernel = vectorCompute.FindKernel("CSMain");
-
-        if (!Application.isPlaying)
-        {
-            if (_mr == null) _mr = GetComponent<MeshRenderer>();
-            if (_mr != null && lineMaterial != null)
-                _mr.sharedMaterial = lineMaterial;
-            EnsureBorderMaterial();
-        }
     }
 
     void Update()
     {
         if (_posBuf == null || _velBuf == null || _origBuf == null) return;
         if (vectorCompute == null || _kernel < 0) return;
-
-        if (lineMaterial == null)
-        {
-            if (_lastLineMaterial != null && _mr != null)
-                _mr.sharedMaterial = null;
-            _lastLineMaterial = null;
-        }
-        else if (lineMaterial != _lastLineMaterial)
-        {
-            ApplyMaterialBindings();
-            EnsureBorderMaterial();
-        }
 
         if (_needsRebuild)
         {
@@ -420,11 +401,9 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
             // Intro warp on the border too
             PushIntroToMPB(_mpbBorder);
 
-            _mpbBorder.SetInt(_BorderOnlyID, 1);
-
             if (_borderMesh.subMeshCount > 0)
                 Graphics.DrawMesh(_borderMesh, transform.localToWorldMatrix, borderMaterial,
-                                  gameObject.layer, null, 1, _mpbBorder, false, false);
+                                  gameObject.layer, null, 0, _mpbBorder, false, false);
         }
 
         void PushIntroToMPB(MaterialPropertyBlock mpb)
@@ -494,27 +473,8 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
         _mpb.SetVector(_GridSizeID, size);
 
 
-        _mr.SetPropertyBlock(_mpb);
-        _lastLineMaterial = lineMaterial;
-    }
-
-    void EnsureBorderMaterial()
-    {
-        if (lineMaterial == null) return;
-
-        if (borderMaterial == null || borderMaterial == lineMaterial || borderMaterial.shader != lineMaterial.shader)
-        {
-            if (borderMaterial != null && borderMaterial != lineMaterial && borderMaterial.name.EndsWith(" (Border)", StringComparison.Ordinal))
-            {
-                if (Application.isPlaying) UnityEngine.Object.Destroy(borderMaterial);
-                else UnityEngine.Object.DestroyImmediate(borderMaterial);
-            }
-
-            borderMaterial = new Material(lineMaterial) { name = lineMaterial.name + " (Border)" };
+            _mr.SetPropertyBlock(_mpb);
         }
-
-        borderMaterial.SetShaderPassEnabled("BorderStrip", true);
-    }
 
     void ApplyBoundaryUniforms()
     {
@@ -795,5 +755,4 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
             strength = strength, flags = 1u, innerFrac = Mathf.Clamp(innerFrac, 0f, 0.9f),
             color = Vector4.zero
         };
-    }
-}
+    }}
