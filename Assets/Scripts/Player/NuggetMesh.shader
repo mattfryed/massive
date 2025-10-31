@@ -7,8 +7,9 @@ Shader "MASSIVE/NuggetsMesh"
     }
     SubShader
     {
-        Tags { "Queue"="Transparent" "RenderType"="Transparent" }
-        ZWrite Off Cull Off Blend SrcAlpha OneMinusSrcAlpha
+        Tags { "Queue"="Transparent+5" "RenderType"="Transparent" }
+        ZWrite Off
+        ZTest Always
 
         Pass
         {
