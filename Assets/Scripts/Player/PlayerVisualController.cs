@@ -6,10 +6,19 @@ using UnityEngine.Rendering;  // built-in pipeline CommandBuffer API
 [DisallowMultipleComponent]
 public class PlayerVisualController : MonoBehaviour
 {
+    Material _blobMatInstance;
+    float _hitAngle; // radians, blob-local angle of last impact
+    float _hitTime;
+
     [Header("Rendering")]
     public bool vectorBlobMode = true;
     public Transform visuals;          // "Visuals" child that follows player & gets yaw
     public Material blobMat;           // MASSIVE/PlayerBlobVector
+
+    [Header("Attacks")]
+    public Massive.Player.PlayerAttackController attackController;
+    [Range(0f, 1f)] public float attackEffortScale = 0.08f;
+
 
     [Header("Blob Shape")]
     public float baseRadius = 0.65f;
@@ -18,11 +27,13 @@ public class PlayerVisualController : MonoBehaviour
     [Header("Wobble & Reactions")]
     [Range(0,1)] public float idleWobble = 0.25f;  // symmetric idle scallop (no sideways drift)
     public float maxWobble  = 0.12f;               // velocity wobble cap
-    public float hitImpulseDecay = 7.5f;
+    public float hitImpulseDecay = 3.0f;
 
     [Header("Directional Stretch")]
-[Range(0f,2f)] public float dirFrontGain = 1.0f;
-[Range(0f,2f)] public float dirBackGain  = 0.5f;
+    [Range(0f,2f)] public float dirFrontGain = 1.0f;
+    [Range(0f, 2f)] public float dirBackGain = 0.5f;
+    [Range(0f, 1f)] public float areaKeep = 0.85f;  // cancels average growth
+
 
     [Header("Team Colors (auto from PlayerControllerScript.teamID)")]
     public Color team1_Fill    = Color.black;
@@ -30,8 +41,8 @@ public class PlayerVisualController : MonoBehaviour
     public Color team2_Fill    = Color.white;
     public Color team2_Outline = Color.black;
 
-    [Header("Nuggets (mesh-based)")]
-    public PlayerNuggetsMesh nuggets;
+    [Header("Nuggets (GPU-based)")]
+   public PlayerNuggetsGPU nuggetsGPU;
     public Color nuggetsTeam1 = Color.white;
     public Color nuggetsTeam2 = Color.black;
 
@@ -65,6 +76,16 @@ public class PlayerVisualController : MonoBehaviour
     {
         TryGetComponent(out _rb);
         TryGetComponent(out _pcs); // has teamID & calls SetMoveInput(...)
+
+    if (!attackController)
+        TryGetComponent(out attackController);
+
+    // 2) Clone the blob material so this player owns its own copy
+    if (blobMat)
+    {
+        _blobMatInstance = new Material(blobMat);
+        blobMat = _blobMatInstance;
+    }
     }
 
     void OnEnable()
@@ -88,7 +109,16 @@ public class PlayerVisualController : MonoBehaviour
             if (cam) cam.RemoveCommandBuffer(CameraEvent.BeforeForwardAlpha, cb);
             cb?.Release();
         }
-        _perCamCB.Clear();
+        _perCamCB.Clear();    // 3) Clean up the instance (prevents Editor leaks during play/stop)
+        if (_blobMatInstance)
+        {
+            #if UNITY_EDITOR
+            DestroyImmediate(_blobMatInstance);
+            #else
+            Destroy(_blobMatInstance);
+            #endif
+            _blobMatInstance = null;
+        }
     }
 
     void Start()
@@ -96,8 +126,8 @@ public class PlayerVisualController : MonoBehaviour
         if (arc && arc.TryGetComponent<MeshRenderer>(out var arcMR))
             arcMR.sharedMaterial = IsTeam2() ? arcMatTeam2 : arcMatTeam1;
 
-        if (nuggets)
-            nuggets.SetDotColor(IsTeam2() ? nuggetsTeam2 : nuggetsTeam1);
+        if (nuggetsGPU)
+            nuggetsGPU.SetDotColor(IsTeam2() ? nuggetsTeam2 : nuggetsTeam1);
     }
 
     // called every frame by PlayerControllerScript
@@ -113,9 +143,27 @@ public class PlayerVisualController : MonoBehaviour
 
     void Update()
     {
-        Vector3 v3 = _rb ? _rb.velocity : new Vector3(velocityWS.x, 0f, velocityWS.y);
+        Vector3 v3 = _rb ? _rb.linearVelocity : new Vector3(velocityWS.x, 0f, velocityWS.y);
         Vector2 vWorld = new(v3.x, v3.z);
         float worldMag = vWorld.magnitude;
+
+        // attack stage effort
+        float effectiveMag = worldMag;
+
+        if (attackController && attackController.IsAttacking && attackController.CurrentStage != null)
+        {
+            var s = attackController.CurrentStage;
+
+            // Approximate dash speed (units/second)
+            float baseDashSpeed = (s.Duration > 0.001f) ? (s.TravelDistance / s.Duration) : 0f;
+
+            // Optional: shape the effect so it peaks mid-attack (0..1..0)
+            float t     = Mathf.Clamp01(attackController.StageNormalizedTime);
+            float ramp  = Mathf.Sin(Mathf.PI * t); // 0 → 1 → 0
+            float dashEffort = baseDashSpeed * ramp * attackEffortScale;
+
+            effectiveMag = Mathf.Max(worldMag, dashEffort);
+        }
 
         // smooth yaw to last aim
         float targetYaw = (_aimDir.sqrMagnitude > 0f)
@@ -139,40 +187,54 @@ public class PlayerVisualController : MonoBehaviour
 
         _noise += Time.deltaTime * 1.3f;
         _hit    = Mathf.Max(0, _hit - hitImpulseDecay * Time.deltaTime);
+        _hitTime += Time.deltaTime; 
 
         // Nuggets stay flat on XZ & get fed world planar velocity
-        if (nuggets)
+        if (nuggetsGPU)
         {
-            nuggets.transform.position = visuals ? visuals.position : transform.position;
-            nuggets.transform.rotation = Quaternion.Euler(-90f, 0f, 0f);
+            // reuse worldMag computed above
+            float baseWobble = worldMag * 0.03f;
+            float attackWobble = 0f;
 
-            Vector2 vPlanar = _rb ? new Vector2(_rb.velocity.x, _rb.velocity.z) : velocityWS;
-            nuggets.blobRadius = baseRadius;
-            nuggets.outlineHalf = outlineHalf;
-            nuggets.dotRadius = nuggets.dotSize * 0.5f;
-            nuggets.velocityWS = vPlanar;
-            nuggets.SetDotColor(IsTeam2() ? nuggetsTeam2 : nuggetsTeam1);
+            if (attackController && attackController.IsAttacking && attackController.CurrentStage != null)
+            {
+                var s = attackController.CurrentStage;
+                float baseDashSpeed = (s.Duration > 0.001f) ? (s.TravelDistance / s.Duration) : 0f;
+                float t = Mathf.Clamp01(attackController.StageNormalizedTime);
+                float ramp = Mathf.Sin(Mathf.PI * t);
+                attackWobble = baseDashSpeed * ramp * attackEffortScale * 0.06f; // extra gain for attacks
+            }
+
+            float deformAmtNow = Mathf.Min(maxWobble, baseWobble + attackWobble);
+            Vector2 deformDirNow = (effectiveMag > 0.05f || _hit > 0.001f) ? new Vector2(1,0) : Vector2.zero;
+
+            // Nuggets
+            if (nuggetsGPU)
+            {
+                nuggetsGPU.FeedFromController(
+                    idleWobble, deformAmtNow, deformDirNow,
+                    dirFrontGain, dirBackGain, areaKeep,
+                    _hit, _noise,
+                    baseRadius, outlineHalf, 1.0f
+                );
+
+                if (arc && visuals)
+                    arc.Rebuild(_aimDir * Mathf.Max(effectiveMag, 1f), visuals.position, baseRadius + outlineHalf);
+            }
+
+            // Blob uniforms
+            ApplyBlobUniforms(deformAmtNow, deformDirNow);
+
         }
-
-        if (arc && visuals)
-            arc.Rebuild(_aimDir * Mathf.Max(worldMag, 1f), visuals.position, baseRadius + outlineHalf);
-
-        ApplyBlobUniforms(worldMag);
     }
 
-    void ApplyBlobUniforms(float worldSpeedMag)
+    void ApplyBlobUniforms(float deformAmt, Vector2 deformDirLocal)
     {
         if (!blobMat) return;
 
         // Team colors from PlayerControllerScript.teamID
         Color fill    = IsTeam2() ? team2_Fill    : team1_Fill;
         Color outline = IsTeam2() ? team2_Outline : team1_Outline;
-
-        // Symmetric idle wobble at rest (no directional bias)
-        Vector2 deformDirLocal =
-            (worldSpeedMag > 0.05f || _hit > 0.001f) ? new Vector2(1, 0) : Vector2.zero;
-
-        float deformAmt = Mathf.Min(maxWobble, worldSpeedMag * 0.03f);
 
         blobMat.SetFloat("_Radius",       baseRadius);
         blobMat.SetFloat("_OutlineHalf",  outlineHalf);
@@ -186,6 +248,12 @@ public class PlayerVisualController : MonoBehaviour
         blobMat.SetColor("_OutlineColor", outline);
         blobMat.SetFloat("_DirFrontGain", dirFrontGain);
         blobMat.SetFloat("_DirBackGain",  dirBackGain);
+        blobMat.SetFloat("_AreaKeep", areaKeep);
+        blobMat.SetFloat("_HitImpulse",   _hit);
+        blobMat.SetFloat("_NoisePhase",   _noise);
+        blobMat.SetFloat("_HitAngle",     _hitAngle);
+        blobMat.SetFloat("_HitTime",      _hitTime); 
+
 
     }
 
@@ -236,7 +304,28 @@ public class PlayerVisualController : MonoBehaviour
         // No-op; keeping hook for debugging if needed.
     }
 
-    public void OnHit(float strength = 1f) { _hit = Mathf.Clamp01(_hit + strength); }
+    public void OnHit(float strength, Vector3 worldHitPos)
+    {
+        _hit = Mathf.Clamp01(_hit + strength);
+    _hitTime = 0f; 
+
+        if (visuals)
+        {
+            // Convert hit point into blob-local XZ and get angle
+            Vector3 local = visuals.InverseTransformPoint(worldHitPos);
+            Vector2 p = new Vector2(local.x, local.z);
+            if (p.sqrMagnitude > 1e-5f)
+            {
+                _hitAngle = Mathf.Atan2(p.y, p.x); // -pi..pi
+            }
+        }
+    }
+
+    // keep the old API for existing callsites if any:
+    public void OnHit(float strength = 1f)
+    {
+        _hit = Mathf.Clamp01(_hit + strength);
+    }
 
     bool IsTeam2()
     {

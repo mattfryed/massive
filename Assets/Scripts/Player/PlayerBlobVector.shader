@@ -18,6 +18,8 @@ Shader "MASSIVE/PlayerBlobVector"
         _HitImpulse   ("Hit Impulse", Float)   = 0.0
         _NoisePhase   ("Noise Phase", Float)   = 0.0
         _Stretch      ("Uniform Y scale", Float) = 1.0
+        _HitAngle   ("Hit Angle", Float) = 0.0
+        _HitTime   ("Hit Time", Float) = 0.0
     }
 
     SubShader
@@ -28,14 +30,16 @@ Shader "MASSIVE/PlayerBlobVector"
         HLSLINCLUDE
         #pragma target 4.5
         #include "UnityCG.cginc"
+        #include "BlobDeform.hlsl"
 
         static const uint SEG = 128u;
 
         // Shared uniforms
         float4x4 _MVP;
         float4   _OutlineColor, _FillColor;
-        float    _Radius, _OutlineHalf, _IdleWobble, _DeformAmt, _DirFrontGain, _DirBackGain, _AreaKeep, _HitImpulse, _NoisePhase, _Stretch;
+        float    _Radius, _OutlineHalf, _IdleWobble, _DeformAmt, _DirFrontGain, _DirBackGain, _AreaKeep, _HitImpulse, _NoisePhase, _Stretch, _HitAngle, _HitTime;
         float4   _DeformDir;
+
 
         // -------- helpers
         float2 normSafe(float2 v) { float l = max(length(v), 1e-6); return v / l; }
@@ -47,30 +51,77 @@ Shader "MASSIVE/PlayerBlobVector"
             return _IdleWobble * 0.08 * band;
         }
 
-        float hitRipple(float ang)
+        float wrapToPi(float a)
         {
-            return _HitImpulse * (sin(_NoisePhase * 20.0 + ang * 8.0)) * 0.10;
+            // wrap to [-pi, pi]
+            const float PI = 3.14159265;
+            a = fmod(a + PI, 2.0 * PI);
+            if (a < 0.0) a += 2.0 * PI;
+            return a - PI;
         }
 
-        // asymmetric teardrop along DeformDir; signed front(+) / back(-)
+        float hitRipple(float ang)
+        {
+            if (_HitImpulse <= 1e-5) return 0.0;
+
+            // Angle relative to impact direction
+            float da = wrapToPi(ang - _HitAngle);
+
+            // Time since hit
+            float t = _HitTime;
+
+            // 1) Local indentation at impact (inward dent), decaying fairly quickly
+            float indentWidth = 0.45;         // angular width of initial dent
+            float indentFallT = 2.0;          // how fast the dent relaxes
+            float indent = -exp(- (da * da) / (2.0 * indentWidth * indentWidth))
+                        * exp(-t * indentFallT);
+
+            // 2) Traveling ring: wave center moves away from impact along circumference
+            float waveSpeed   = 3.5;          // radians per second along the circle
+            float waveK       = 8.0;          // ripple frequency
+            float waveDecay   = 1.5;          // angular decay away from ring center
+            float timeDecay   = 1.0;          // overall time decay
+
+            // Wavefront position measured in angle-space
+            float travel      = da - waveSpeed * t;
+            float travelEnv   = exp(-abs(travel) * waveDecay);
+            float ripple      = sin(travel * waveK) * travelEnv * exp(-t * timeDecay);
+
+            // Combine: dent + weaker traveling ring
+            float combined = indent + 0.7 * ripple;
+
+            // Scale by hit impulse and a global gain
+            return _HitImpulse * combined * 0.25;
+        }
+
+
+        // asymmetric + elliptical stretch along DeformDir; keeps overall area ~constant
         float dirStretch(float2 dirUnit)
         {
             if (_DeformAmt <= 1e-6) return 0.0;
 
             float2 ax = normSafe(_DeformDir.xy);
-            float front = max(dot(dirUnit,  ax), 0.0); // 0..1
-            float back  = max(dot(dirUnit, -ax), 0.0); // 0..1
+            float c   = dot(dirUnit, ax);           // cos Δ
+            float cos2 = 2.0 * c * c - 1.0;         // cos(2Δ): +1 along ±axis, -1 at sides
 
-            // raw signed stretch
-            float sRaw = front * _DirFrontGain - back * _DirBackGain;
+            // 1) Symmetric ellipse: front+back elongated, sides compressed.
+            //    This already has zero mean over the circle, so area is preserved by construction.
+            float sEllipse = cos2 * (_DeformAmt * 0.5);  // 0.5 is a good starting gain
 
-            // remove the average bias so the blob doesn't "grow" when gains differ
-            // (the mean of max(dot,0) around the circle ~ 0.318; 0.32 is a good practical constant)
-            float meanCorr = 0.32 * (_DirFrontGain - _DirBackGain);
-            float sZeroMean = sRaw - _AreaKeep * meanCorr;
+            // 2) Asymmetric teardrop: front vs back bias layered on top.
+            float front = max(c, 0.0);
+            float back  = max(-c, 0.0);
+            float sRaw  = front * _DirFrontGain - back * _DirBackGain;
 
-            return _DeformAmt * sZeroMean;
+            // Remove average bias from the asymmetric part only,
+            // so we don't inflate the whole blob when front/back gains differ.
+            float meanCorr   = 0.32 * (_DirFrontGain - _DirBackGain);
+            float sZeroMean  = sRaw - _AreaKeep * meanCorr;
+            float sTeardrop  = _DeformAmt * sZeroMean;
+
+            return sEllipse + sTeardrop;
         }
+
 
         // unified radius used by DEPTH/FILL/RING (keeps fill & ring perfectly tight)
         float expectedRadius(float ang)

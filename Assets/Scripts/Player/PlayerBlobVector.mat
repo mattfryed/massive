@@ -61,19 +61,24 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
+    - _AreaKeep: 1
     - _BumpScale: 1
     - _Cutoff: 0.5
-    - _DeformAmt: 3.016692e-21
+    - _DeformAmt: 0
     - _DetailNormalMapScale: 1
+    - _DirBackGain: 0.06
+    - _DirFrontGain: 2
     - _DstBlend: 0
     - _GlossMapScale: 1
     - _Glossiness: 0.5
     - _GlossyReflections: 1
+    - _HitAngle: 0
     - _HitImpulse: 0
-    - _IdleWobble: 0.25
+    - _HitTime: 0
+    - _IdleWobble: 0
     - _Metallic: 0
     - _Mode: 0
-    - _NoisePhase: 251.13028
+    - _NoisePhase: 541.41675
     - _OcclusionStrength: 1
     - _OutlineHalf: 0.04
     - _Parallax: 0.02
