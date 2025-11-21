@@ -1,0 +1,151 @@
+// AttackTrail.compute
+
+#pragma kernel CSMain
+
+#include "UnityCG.cginc"
+
+struct AttackParticle
+{
+    float3 posWS;
+    float2 velXZ;
+    float  u0;
+    float  life;
+    float  maxLife;
+    float  size;
+    uint   state;
+};
+
+RWStructuredBuffer<AttackParticle> _Particles;
+
+float _Dt;
+int   _ParticleCount;
+int   _EmitCount;
+
+float3 _AttackOriginWS;
+float3 _AttackDirWS;
+
+float  _TrailLength;
+float  _BaseWidth;
+float  _TipWidth;
+
+float  _ForwardSpeed;
+float  _TrailDrag;
+
+float  _MinLife;
+float  _MaxLife;
+float  _SizeStart;
+float  _SizeEnd;
+
+float  _StageT;
+
+// Simple hash-based RNG (not amazing, but fine for this)
+uint Hash(uint x)
+{
+    x += (x << 10);
+    x ^= (x >> 6);
+    x += (x << 3);
+    x ^= (x >> 11);
+    x += (x << 15);
+    return x;
+}
+
+float Random01(uint seed, uint salt)
+{
+    return frac((Hash(seed ^ salt) / 65535.0));
+}
+
+// Generate a 2D unit vector angle from random
+float2 RandomCircle(uint seed, uint salt)
+{
+    float ang = Random01(seed, salt) * 6.2831853; // 2π
+    return float2(cos(ang), sin(ang));
+}
+
+// Generate u0 spaced along [0,1] but with some randomness
+float GenerateU0(int index, int total, uint seed)
+{
+    // Stratify by index
+    float base = (index + 0.5) / max((float)total, 1.0);
+    // Small jitter
+    float jitter = (Random01(seed, 37u) - 0.5) * (1.0 / max((float)total, 1.0));
+    return saturate(base + jitter);
+}
+
+[numthreads(64, 1, 1)]
+void CSMain(uint id : SV_DispatchThreadID)
+{
+    if (id >= (uint)_ParticleCount) return;
+
+    AttackParticle p = _Particles[id];
+
+    // 1) Kill / respawn logic
+    p.life += _Dt;
+    bool dead = (p.life >= p.maxLife);
+
+    // We treat first _EmitCount particles as emissions for this frame, rest continue existing
+    if (dead && (id < (uint)_EmitCount))
+    {
+        // Respawn particle for this frame
+        uint seed = id * 9781u + 143u; // arbitrary
+
+        float u0 = GenerateU0(id, _ParticleCount, seed);
+
+        float2 offsetDir = RandomCircle(seed, 11u);
+        // density bias toward center (we can refine later)
+        float radial = sqrt(Random01(seed, 23u));
+
+        float width = lerp(_BaseWidth, _TipWidth, u0);
+        float2 offsetLocal = offsetDir * radial * width;
+
+        float3 fwd = normalize(_AttackDirWS);
+        float3 right = normalize(cross(fwd, float3(0,1,0)));
+        float3 up    = float3(0,1,0); // vertical; we can also use blob orientation later
+
+        // Position along trail axis
+        float3 basePos = _AttackOriginWS + fwd * (u0 * _TrailLength);
+        float3 posWS = basePos + right * offsetLocal.x + up * offsetLocal.y;
+
+        // Initial velocity: forward with some spread
+        float2 velDir2 = normalize(float2(fwd.x, fwd.z));
+        float2 randOff = RandomCircle(seed, 29u);
+        float2 velXZ = lerp(velDir2, randOff, 0.25); // small angle spread
+
+        // Scale by forward speed
+        velXZ *= _ForwardSpeed;
+
+        // Lifetime
+        float lifeSpan = lerp(_MinLife, _MaxLife, Random01(seed, 53u));
+
+        p.posWS = posWS;
+        p.velXZ = velXZ;
+        p.u0    = u0;
+        p.life  = 0.0;
+        p.maxLife = lifeSpan;
+        p.size  = _SizeStart;
+        p.state = 1u;
+    }
+    else if (dead)
+    {
+        // Keep dead particle dormant until reused
+        p.size = 0.0;
+        p.state = 0u;
+    }
+    else
+    {
+        // 2) Alive: integrate motion + drag
+        float2 vel = p.velXZ;
+        float drag = exp(-_TrailDrag * _Dt);
+        vel *= drag;
+
+        float3 delta = float3(vel.x, 0, vel.y) * _Dt;
+
+        p.posWS += delta;
+        p.velXZ = vel;
+
+        // 3) Size over life (no opacity fade; shrink to zero)
+        float t = saturate(p.life / max(p.maxLife, 1e-4));
+        p.size = lerp(_SizeStart, _SizeEnd, t);
+    }
+
+    _Particles[id] = p;
+}

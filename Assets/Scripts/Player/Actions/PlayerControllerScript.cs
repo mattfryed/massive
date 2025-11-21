@@ -232,6 +232,44 @@ private void OnCollisionEnter(Collision collision)
     Debug.Log($"Collision with {collision.gameObject.name}, relSpeed={relSpeed}, hitStrength={hitStrength}");
 }
 
+private void OnCollisionStay(Collision collision)
+{
+    if (!visualsController) return;
+
+    // Filter if you only want walls here:
+    // if (!collision.gameObject.CompareTag("Wall")) return;
+
+    // Use max penetration-ish contact as “how much” we’re pressing
+    ContactPoint best = collision.GetContact(0);
+    float maxSep = best.separation;
+
+    for (int i = 1; i < collision.contactCount; i++)
+    {
+        var cp = collision.GetContact(i);
+        if (cp.separation < maxSep)  // more negative = deeper
+        {
+            maxSep = cp.separation;
+            best   = cp;
+        }
+    }
+
+    // Map separation (usually <= 0) to a 0..1 "press" value.
+    // 0 = just touching, 1 = deeply overlapped.
+    float press = 0f;
+    if (maxSep < 0f)
+    {
+        const float maxPenetration = 0.2f; // tune
+        press = Mathf.Clamp01(-maxSep / maxPenetration);
+    }
+
+    // Combine with impact-based info if you like, or keep it separate.
+    if (press > 0.01f)
+    {
+        visualsController.OnContact(best.point, best.normal, press);
+    }
+}
+
+
 
 
     public void Shrink(GameObject target)

@@ -45,7 +45,7 @@ namespace Massive.Player
 
         [Header("Scene References")]
         [SerializeField]
-        private Transform forwardReference = null;
+        public Transform forwardReference = null;
 
         [SerializeField]
         private Transform particleAnchor = null;
@@ -78,7 +78,7 @@ namespace Massive.Player
         public int CurrentStageIndex => currentStageIndex;
         public float StageNormalizedTime => currentStage != null ? Mathf.Clamp01(stageTimer / currentStage.Duration) : 0f;
 
-        private Transform ForwardReference => forwardReference != null ? forwardReference : transform;
+        public Transform ForwardReference => forwardReference != null ? forwardReference : transform;
         private Transform ParticleAnchor => particleAnchor != null ? particleAnchor : transform;
 
         private void Awake()

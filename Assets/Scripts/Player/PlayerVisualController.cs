@@ -9,6 +9,10 @@ public class PlayerVisualController : MonoBehaviour
     Material _blobMatInstance;
     float _hitAngle; // radians, blob-local angle of last impact
     float _hitTime;
+    // Contact / flatten state
+    float _contactStrength;    // 0..1, how hard we're pressing into something
+    float _contactAngle;       // radians, blob-local direction of contact
+    float _contactDecay = 5f;  // how quickly contact fades when leaving (tune)
 
     [Header("Rendering")]
     public bool vectorBlobMode = true;
@@ -27,7 +31,7 @@ public class PlayerVisualController : MonoBehaviour
     [Header("Wobble & Reactions")]
     [Range(0,1)] public float idleWobble = 0.25f;  // symmetric idle scallop (no sideways drift)
     public float maxWobble  = 0.12f;               // velocity wobble cap
-    public float hitImpulseDecay = 3.0f;
+    public float hitImpulseDecay = 1.0f;
 
     [Header("Directional Stretch")]
     [Range(0f,2f)] public float dirFrontGain = 1.0f;
@@ -189,6 +193,9 @@ public class PlayerVisualController : MonoBehaviour
         _hit    = Mathf.Max(0, _hit - hitImpulseDecay * Time.deltaTime);
         _hitTime += Time.deltaTime; 
 
+        // Contact decays when we're not refreshing it
+        _contactStrength = Mathf.Max(0f, _contactStrength - _contactDecay * Time.deltaTime);
+
         // Nuggets stay flat on XZ & get fed world planar velocity
         if (nuggetsGPU)
         {
@@ -227,6 +234,26 @@ public class PlayerVisualController : MonoBehaviour
 
         }
     }
+    public void OnContact(Vector3 worldContactPoint, Vector3 worldContactNormal, float strength)
+{
+    // strength is 0..1, from your collision logic
+    if (strength <= 0.001f) return;
+
+    _contactStrength = Mathf.Clamp01(Mathf.Max(_contactStrength, strength));
+
+    if (visuals)
+    {
+        // Convert the *contact normal* into blob-local axis
+        // We want the direction "into the blob" from the wall
+        Vector3 localNormal = visuals.InverseTransformDirection(-worldContactNormal); // minus: from wall into blob
+        Vector2 dir = new Vector2(localNormal.x, localNormal.z);
+        if (dir.sqrMagnitude > 1e-5f)
+        {
+            _contactAngle = Mathf.Atan2(dir.y, dir.x); // -pi..pi
+        }
+    }
+}
+
 
     void ApplyBlobUniforms(float deformAmt, Vector2 deformDirLocal)
     {
@@ -253,6 +280,9 @@ public class PlayerVisualController : MonoBehaviour
         blobMat.SetFloat("_NoisePhase",   _noise);
         blobMat.SetFloat("_HitAngle",     _hitAngle);
         blobMat.SetFloat("_HitTime",      _hitTime); 
+
+        blobMat.SetFloat("_ContactStrength", _contactStrength);
+        blobMat.SetFloat("_ContactAngle",    _contactAngle);
 
 
     }

@@ -20,6 +20,10 @@ Shader "MASSIVE/PlayerBlobVector"
         _Stretch      ("Uniform Y scale", Float) = 1.0
         _HitAngle   ("Hit Angle", Float) = 0.0
         _HitTime   ("Hit Time", Float) = 0.0
+
+        _ContactStrength ("Contact Strength", Float) = 0.0
+        _ContactAngle    ("Contact Angle", Float)    = 0.0
+
     }
 
     SubShader
@@ -39,6 +43,7 @@ Shader "MASSIVE/PlayerBlobVector"
         float4   _OutlineColor, _FillColor;
         float    _Radius, _OutlineHalf, _IdleWobble, _DeformAmt, _DirFrontGain, _DirBackGain, _AreaKeep, _HitImpulse, _NoisePhase, _Stretch, _HitAngle, _HitTime;
         float4   _DeformDir;
+        float    _ContactStrength, _ContactAngle;
 
 
         // -------- helpers
@@ -60,38 +65,60 @@ Shader "MASSIVE/PlayerBlobVector"
             return a - PI;
         }
 
+        // Impact-driven ripple: dent at hit, waves strongest mid-way around the rim.
         float hitRipple(float ang)
         {
             if (_HitImpulse <= 1e-5) return 0.0;
 
-            // Angle relative to impact direction
-            float da = wrapToPi(ang - _HitAngle);
-
-            // Time since hit
             float t = _HitTime;
+            float da0 = wrapToPi(ang - _HitAngle);   // relative angle to impact
 
-            // 1) Local indentation at impact (inward dent), decaying fairly quickly
-            float indentWidth = 0.45;         // angular width of initial dent
-            float indentFallT = 2.0;          // how fast the dent relaxes
-            float indent = -exp(- (da * da) / (2.0 * indentWidth * indentWidth))
+            // --- 1) Local inward dent right at impact ---
+            float indentWidth = 0.45;   // rad (~25° each side)
+            float indentFallT = 2.0;    // how fast dent relaxes
+            float indent = -exp(-(da0 * da0) / (2.0 * indentWidth * indentWidth))
                         * exp(-t * indentFallT);
 
-            // 2) Traveling ring: wave center moves away from impact along circumference
-            float waveSpeed   = 3.5;          // radians per second along the circle
-            float waveK       = 8.0;          // ripple frequency
-            float waveDecay   = 1.5;          // angular decay away from ring center
-            float timeDecay   = 1.0;          // overall time decay
+            // --- 2) Two traveling waves (CW + CCW) along the rim ---
+            float waveSpeed = 13.0;      // radians / second
+            float waveK     = 3.0;      // spatial frequency of ripples
+            float waveDecay = 0.3;      // how localized each wave center is
+            float timeDecay = 1.0;      // global time decay for waves
 
-            // Wavefront position measured in angle-space
-            float travel      = da - waveSpeed * t;
-            float travelEnv   = exp(-abs(travel) * waveDecay);
-            float ripple      = sin(travel * waveK) * travelEnv * exp(-t * timeDecay);
+            // Wave centers sweep away from impact in both directions
+            float center1 = _HitAngle + waveSpeed * t; // CCW
+            float center2 = _HitAngle - waveSpeed * t; // CW
 
-            // Combine: dent + weaker traveling ring
-            float combined = indent + 0.7 * ripple;
+            float d1 = wrapToPi(ang - center1);
+            float d2 = wrapToPi(ang - center2);
 
-            // Scale by hit impulse and a global gain
-            return _HitImpulse * combined * 0.25;
+            float env1 = exp(-abs(d1) * waveDecay);
+            float env2 = exp(-abs(d2) * waveDecay);
+
+            float w1 = cos(d1 * waveK) * env1;
+            float w2 = cos(d2 * waveK) * env2;
+            float waves = (w1 + w2) * exp(-t * timeDecay);
+
+            // --- 3) Shape wave amplitude vs distance from impact ---
+            // We want: 0 at impact, peak at mid-distance, then down again.
+            float distFromImpact = abs(da0);  // 0..pi
+
+            // Define "full travel" as half the circle for amplitude shaping.
+            const float PI = 3.14159265;
+            float fullSpan = PI * 1.3f;              // from impact (0) to opposite side (π)
+            float midNorm  = saturate(distFromImpact / fullSpan); // 0 at hit, 1 at opposite
+
+            // Simple hump: 0 at 0, 1 at 0.5, 0 at 1 (bell-shaped)
+            float hump = 4.0 * midNorm * (1.0 - midNorm);
+            // (At dist=0 and dist=π -> 0; peak at dist=π/2.)
+
+            float wavesShaped = waves * hump;
+
+            // --- 4) Combine dent + shaped waves ---
+            float combined = indent + 0.7 * wavesShaped;
+
+            // Scale by overall hit strength and a global gain
+            return _HitImpulse * combined * 0.3;
         }
 
 
@@ -122,14 +149,46 @@ Shader "MASSIVE/PlayerBlobVector"
             return sEllipse + sTeardrop;
         }
 
+        float contactFlatten(float ang)
+        {
+            if (_ContactStrength <= 1e-5) return 0.0;
+
+            // Angle difference from contact
+            float da = ang - _ContactAngle;
+            const float PI = 3.14159265;
+            // wrap to [-pi, pi]
+            da = fmod(da + PI, 2.0 * PI);
+            if (da < 0.0) da += 2.0 * PI;
+            da -= PI;
+
+            // How wide is the flattened region (in radians)?
+            float width = 0.7; // ~40 degrees each side; tune
+
+            // Envelope: strongest at contact, blends out away from it
+            float norm = abs(da) / width;
+            float flatAmt = saturate(1.0 - norm); // simple triangular falloff
+
+            // Flatten amount scales with contact strength.
+            // Negative: pull radius inward.
+            return -_ContactStrength * flatAmt * 0.4; // 0.4 is how deep the flatten can be, tune
+        }
+
+
 
         // unified radius used by DEPTH/FILL/RING (keeps fill & ring perfectly tight)
         float expectedRadius(float ang)
         {
             float2 dir = float2(cos(ang), sin(ang));
             float sSym = 1.0 + symIdle(ang) + hitRipple(ang);  // symmetric wobble
-            float sDir = dirStretch(dir);                      // signed, zero-mean lurch
-            return _Radius * (sSym + sDir);
+            float sDir = dirStretch(dir);        
+            float sContact = contactFlatten(ang);
+
+            float scale = sSym + sDir + sContact;
+
+            // Optional safety: don't let scale go below some minimum
+            scale = max(scale, 0.2); // avoids collapsing past center
+             // signed, zero-mean lurch
+            return _Radius * scale;
         }
 
         struct v2f_fill { float4 pos : SV_POSITION; };
