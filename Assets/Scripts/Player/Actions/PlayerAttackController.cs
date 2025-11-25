@@ -47,12 +47,6 @@ namespace Massive.Player
         [SerializeField]
         public Transform forwardReference = null;
 
-        [SerializeField]
-        private Transform particleAnchor = null;
-
-        [SerializeField]
-        private Animator animator = null;
-
         [Header("Events (internal)")]
         [SerializeField]
         private AttackStageUnityEvent onStageStarted = new AttackStageUnityEvent();
@@ -70,8 +64,6 @@ namespace Massive.Player
         private bool comboQueued;
         private float lastAttackPressTime = float.NegativeInfinity;
         private int swipeDirection = 1;
-        private ParticleSystem activeParticleInstance;
-        private Coroutine particleCleanupRoutine;
 
         public bool IsAttacking => isAttacking;
         public AttackStage CurrentStage => currentStage;
@@ -79,7 +71,6 @@ namespace Massive.Player
         public float StageNormalizedTime => currentStage != null ? Mathf.Clamp01(stageTimer / currentStage.Duration) : 0f;
 
         public Transform ForwardReference => forwardReference != null ? forwardReference : transform;
-        private Transform ParticleAnchor => particleAnchor != null ? particleAnchor : transform;
 
         private void Awake()
         {
@@ -96,10 +87,7 @@ namespace Massive.Player
                 }
             }
 
-            if (animator == null)
-            {
-                animator = GetComponentInChildren<Animator>();
-            }
+
         }
 
 
@@ -197,6 +185,9 @@ namespace Massive.Player
             if (fwd.sqrMagnitude < 0.0001f) fwd = Vector3.forward;
             return fwd.normalized;
         }
+
+        public Vector3 CurrentAttackDirectionWS => GetAttackDirection();
+
 
 
 
@@ -320,9 +311,8 @@ namespace Massive.Player
             isAttacking = true;
 
             DetermineSwipeDirection();
-            PlayStageAnimation(stage);
-            PlayStageParticles(stage);
 
+            // GPU VFX (AttackTrailGPU) are driven by OnStageStarted
             onStageStarted.Invoke(stage);
         }
 
@@ -367,91 +357,10 @@ namespace Massive.Player
             return direction > 0f ? 1 : -1;
         }
 
-        private void PlayStageAnimation(AttackStage stage)
-        {
-            if (animator == null || string.IsNullOrEmpty(stage.AnimationStateName))
-                return;
 
-            animator.CrossFade(stage.AnimationStateName, stage.AnimationTransitionDuration, 0, 0f);
-        }
-
-        private void PlayStageParticles(AttackStage stage)
-        {
-            if (stage.ParticlePrefab == null)
-                return;
-
-            if (particleCleanupRoutine != null)
-            {
-                StopCoroutine(particleCleanupRoutine);
-                particleCleanupRoutine = null;
-            }
-
-            if (activeParticleInstance != null)
-            {
-                Destroy(activeParticleInstance.gameObject);
-                activeParticleInstance = null;
-            }
-
-            activeParticleInstance = Instantiate(stage.ParticlePrefab, ParticleAnchor.position, ParticleAnchor.rotation, ParticleAnchor);
-            activeParticleInstance.Play(true);
-            particleCleanupRoutine = StartCoroutine(CleanupParticleInstance(activeParticleInstance));
-        }
-
-        private IEnumerator CleanupParticleInstance(ParticleSystem particle)
-        {
-            if (particle == null)
-            {
-                particleCleanupRoutine = null;
-                yield break;
-            }
-
-            var main = particle.main;
-            if (main.loop)
-            {
-                particleCleanupRoutine = null;
-                yield break;
-            }
-
-            float maxLifetime;
-            if (main.startLifetime.mode == ParticleSystemCurveMode.Constant)
-            {
-                maxLifetime = main.startLifetime.constant;
-            }
-            else
-            {
-                maxLifetime = main.startLifetime.constantMax;
-            }
-
-            float delay = main.duration + Mathf.Max(0f, maxLifetime);
-            yield return new WaitForSeconds(delay);
-
-            if (particle != null)
-            {
-                Destroy(particle.gameObject);
-            }
-
-            if (ReferenceEquals(activeParticleInstance, particle))
-            {
-                activeParticleInstance = null;
-            }
-
-            particleCleanupRoutine = null;
-        }
 
         private void EndAttackSequence()
         {
-            if (particleCleanupRoutine != null)
-            {
-                StopCoroutine(particleCleanupRoutine);
-                particleCleanupRoutine = null;
-            }
-
-            if (activeParticleInstance != null)
-            {
-                Destroy(activeParticleInstance.gameObject);
-                activeParticleInstance = null;
-            }
-
             currentStage = null;
             currentStageIndex = -1;
             stageTimer = 0f;

@@ -51,6 +51,8 @@ public class AttackTrailGPU : MonoBehaviour
     int  _allocatedCount = -1;
 
     float _emitAccumulator;
+    float _currentStageDuration = 0.4f; // fallback
+
     bool  _isStageActive;
     AttackStageType _currentStageType;
 
@@ -220,51 +222,43 @@ public class AttackTrailGPU : MonoBehaviour
         Vector3 origin = GetTrailOriginWS();
         Vector3 fwdWS;
 
+        // Prefer the attack controller's notion of attack direction
         if (attackController != null && attackController.IsAttacking && attackController.CurrentStage != null)
         {
-            Vector2 move2D = attackController.ExternalMoveInput;
-            if (move2D.sqrMagnitude > 0.0001f)
-            {
-                fwdWS = new Vector3(move2D.x, 0f, move2D.y).normalized;
-            }
-            else if (controller && controller.visuals)
-            {
-                fwdWS = controller.visuals.forward;
-                fwdWS.y = 0f;
-                if (fwdWS.sqrMagnitude < 0.0001f) fwdWS = Vector3.forward;
-                fwdWS.Normalize();
-            }
-            else
-            {
-                fwdWS = transform.forward;
-                fwdWS.y = 0f;
-                if (fwdWS.sqrMagnitude < 0.0001f) fwdWS = Vector3.forward;
-                fwdWS.Normalize();
-            }
+            fwdWS = attackController.CurrentAttackDirectionWS;
+        }
+        else if (controller && controller.visuals)
+        {
+            // Fallback: blob facing
+            fwdWS = controller.visuals.right; // local +X is blob front
         }
         else
         {
-            fwdWS = transform.forward;
-            fwdWS.y = 0f;
-            if (fwdWS.sqrMagnitude < 0.0001f) fwdWS = Vector3.forward;
-            fwdWS.Normalize();
+            fwdWS = transform.right; // blob front default
         }
 
+        // Ensure flat XZ and normalized
+        fwdWS.y = 0f;
+        if (fwdWS.sqrMagnitude < 0.0001f) fwdWS = Vector3.right;
+        fwdWS.Normalize();
 
-        // Emission
-        _emitAccumulator += (_isStageActive ? emissionRate : 0f) * dt;
-        int emitCount = Mathf.FloorToInt(_emitAccumulator);
-        _emitAccumulator -= emitCount;
-        emitCount = Mathf.Clamp(emitCount, 0, particleCount);
+
 
         // Stage time 0..1
         float stageT = (attackController != null && attackController.IsAttacking && attackController.CurrentStage != null)
             ? attackController.StageNormalizedTime
             : 0f;
 
+        // Emit at a constant rate during the stage; let u0-tip bias handle shape.
+        _emitAccumulator += (_isStageActive ? emissionRate : 0f) * dt;
+        int emitCount = Mathf.FloorToInt(_emitAccumulator);
+        _emitAccumulator -= emitCount;
+        emitCount = Mathf.Clamp(emitCount, 0, particleCount);
+
         // Set compute params
         sim.SetInt("_ParticleCount", particleCount);
         sim.SetInt("_EmitCount", emitCount);
+        sim.SetInt("_StageActive", _isStageActive ? 1 : 0);
         sim.SetFloat("_Dt", dt);
         sim.SetVector("_AttackOriginWS", origin);
         sim.SetVector("_AttackDirWS", fwdWS);
@@ -278,6 +272,8 @@ public class AttackTrailGPU : MonoBehaviour
         sim.SetFloat("_SizeStart", sizeStart);
         sim.SetFloat("_SizeEnd", sizeEnd);
         sim.SetFloat("_StageT", stageT);
+        sim.SetFloat("_StageDuration", _currentStageDuration);
+
 
         // Bind buffer
         sim.SetBuffer(_kUpdate, "_Particles", _particles);
@@ -319,6 +315,7 @@ public class AttackTrailGPU : MonoBehaviour
     {
         _isStageActive   = true;
         _currentStageType = stage.StageType;
+        _currentStageDuration = stage.Duration; // tie to profile
 
         // Optionally adjust trailLength / forwardSpeed per stage type
         // e.g. if (_currentStageType == AttackStageType.ComboSwipe) trailLength = shorterValue;
