@@ -40,6 +40,8 @@ float  _SizeEnd;
 float  _StageT;   // 0..1
 float _StageDuration; // seconds
 
+float3 _CamForwardWS;
+
 // --- basic RNG helpers ---
 
 uint Hash(uint x)
@@ -70,96 +72,167 @@ void CSMain(uint id : SV_DispatchThreadID)
     
     if (id >= (uint)_ParticleCount) return;
 
-    AttackParticle p = _Particles[id];
+AttackParticle p = _Particles[id];
 
-    // advance life
-    p.life += _Dt;
-    bool dead = (p.life >= p.maxLife) || (p.state == 0u);
+// advance life
+p.life += _Dt;
+bool dead = (p.life >= p.maxLife) || (p.state == 0u);
 
-    
+// respawn logic: only while stage is meaningfully active
+bool canSpawn = (_StageT >= 0.02f);  // stage has started extending
 
-    // If the current stage hasn't really started extending yet, don't spawn.
-    if (_StageT < 0.02f)  // tweak threshold as needed
-    {
-        if (dead)
-        {
-            // keep particle dormant
-            p.size  = 0.0;
-            p.state = 0u;
-        }
-        _Particles[id] = p;
-        return;
-    }
+if (dead && (id < (uint)_EmitCount) && canSpawn)
+{
+    // define seed for this particle
+uint base = id * 9781u + 143u;
 
-    // respawn logic: first _EmitCount dead particles this frame
-    if (dead && (id < (uint)_EmitCount))
-    {
-        uint seed = id * 9781u + 143u;
-        
+// independent seeds for u0 and side distribution
+uint uSeed    = Hash(base ^ 0x1234u);
+uint sideSeed = Hash(base ^ 0xBEEF5678u);
+uint lifeSeed = Hash(base ^ 0x89ABu); // optional for lifetime
 
-        // position along trail [0..StageT]; if StageT==0, keep them near origin
-        float uMax = saturate(_StageT);
-        float u0;
+// ---- u0 along trail (tip-biased) ----
+float uMax = saturate(_StageT);
+float tipWindow = 0.2;
+float uMin      = max(0.0, uMax - tipWindow);
 
-        float tipWindow = 0.2;                  // last 20% of current reach
-        float uMin = max(0.0, uMax - tipWindow);
+// bias toward tip
+float t  = pow(Random01(uSeed, 0u), 2.0); // salt now irrelevant; we already hashed
+float u0 = lerp(uMin, uMax, t);
 
-        // Bias toward tip
-        float t  = pow(Random01(seed, 13u), 2.0);
-        u0 = lerp(uMin, uMax, t);
+// ---- width scale ----
+float widthScale = saturate(_StageT * 3.0);
 
-        // width scale now safe
-        float widthScale = saturate(_StageT * 3.0);
+// Attack direction (3D), normalized
+float3 fwd = _AttackDirWS;
+if (dot(fwd,fwd) < 1e-6) fwd = float3(1,0,0);
+fwd = normalize(fwd);
 
-        // all motion on XZ plane
-        float3 fwd = _AttackDirWS;
-        fwd.y = 0.0;
-        if (dot(fwd,fwd) < 1e-6) fwd = float3(1,0,0);
-        fwd = normalize(fwd);
+// Camera forward
+float3 camFwd = _CamForwardWS;
+if (dot(camFwd, camFwd) < 1e-6) camFwd = float3(0,1,0);
+camFwd = normalize(camFwd);
 
-        // 2D perpendicular in XZ
-        float2 fwd2   = normalize(float2(fwd.x, fwd.z));
-        float2 right2 = float2(-fwd2.y, fwd2.x); // perp
-        float3 right  = float3(right2.x, 0, right2.y);
+// Side axis: perpendicular to both camera forward and attack direction
+float3 sideWS = cross(camFwd, fwd);
+if (dot(sideWS, sideWS) < 1e-6)
+{
+    sideWS = cross(float3(0,1,0), fwd);
+}
+sideWS = normalize(sideWS);
 
-        // width & side offset
-        float width = lerp(_BaseWidth, _TipWidth, u0) * widthScale;
+// 2D forward for velocity
+float2 fwdXZ = normalize(float2(fwd.x, fwd.z));
+if (dot(fwdXZ, fwdXZ) < 1e-6) fwdXZ = float2(1,0);
 
-        // Strong bias toward center: pow(rand, k) with k > 1
-        float r   = Random01(seed, 47u);
-        float radial = sqrt(r);   // mild center bias
+// Base width
+float width = lerp(_BaseWidth, _TipWidth, u0) * widthScale;
 
-        // Centered around 0, not strictly ±width extremes
-        float side = (Random01(seed, 31u) - 0.5) * 2.0 * width * radial;
-        // -width..width but most values near 0
+// ---- CORE + HALO distribution with sideSeed ----
+float bandRoll = Random01(sideSeed, 0u);
+float coreFrac = 0.7;
+float coreBand = 0.2;
+float sideNorm;
 
-        float3 basePos = _AttackOriginWS + fwd * (u0 * _TrailLength);
-        float3 posWS   = basePos + right * side;
+if (bandRoll < coreFrac)
+{
+    // CORE
+    float coreRand   = Random01(sideSeed, 1u);      // different salt
+    float coreOffset = (coreRand - 0.5) * 2.0 * coreBand;
+    sideNorm = coreOffset;
+}
+else
+{
+    // HALO: favor positions near the coreBand, fewer at outer edge
+    float sign = (Random01(sideSeed, 2u) < 0.5) ? -1.0 : 1.0;
+
+    // sample u in [0,1], then bias toward 0 with pow(u, k)
+    float uHalo = pow(Random01(sideSeed, 3u), 2.0);  // k=2 → more near 0
+    float mag   = lerp(coreBand, 1.0, uHalo);        // coreBand..1, denser near coreBand
+
+    sideNorm = sign * mag;
+}
+
+float side = sideNorm * width;
+
+// Position
+float3 basePos = _AttackOriginWS + fwd * (u0 * _TrailLength);
+float3 posWS   = basePos + sideWS * side;
 
 
-        // initial velocity: strictly forward along the thrust axis
-        float2 velXZ = fwd2 * _ForwardSpeed;
+
+// ---- VELOCITY: forward + outward with per-particle variation ----
+
+// Jitter forward speed per particle (0.8x .. 1.2x)
+float forwardJitter = lerp(0.4, 1.8, Random01(lifeSeed, 1u));
+float forwardSpeed  = _ForwardSpeed * forwardJitter;
+
+// Jitter outward strength per particle (0.5x .. 1.5x)
+float outwardBase   = 0.8; // base fraction of forward speed for halo
+float outwardJitter = lerp(0.5, 1.5, Random01(lifeSeed, 2u));
+float outwardScale  = outwardBase * outwardJitter;
+
+float2 sideXZ = normalize(float2(sideWS.x, sideWS.z));
+if (dot(sideXZ, sideXZ) < 1e-6) sideXZ = float2(0,1);
+
+// forward component: always exists
+float2 velXZ = fwdXZ * forwardSpeed;
+
+// outward push based on sideNorm (center -> 0, halo -> outward)
+velXZ += sideXZ * (sideNorm * forwardSpeed * outwardScale);
 
 
-        // lifetime
-        float baseSpan = lerp(_MinLife, _MaxLife, Random01(seed, 59u));
 
-        // don't let a particle live longer than the stage
-        float span = min(baseSpan, _StageDuration);
+// ---- LIFETIME / SIZE ----
+float baseSpan = lerp(_MinLife, _MaxLife, Random01(lifeSeed, 0u));
+// Let particles live naturally (no stageDuration clamp)
+float span = baseSpan;
 
-        p.posWS   = posWS;
-        p.velXZ   = velXZ;
-        p.u0      = u0;
-        p.life    = 0.0f;
-        p.maxLife = span;
-        p.size    = _SizeStart;
-        p.state   = 1u;
-    }
+// Larger size in the core, smaller in halo
+float coreSizeScale = lerp(1.0, 0.5, saturate(abs(sideNorm) / 1.0));
+float a = abs(sideNorm);
+
+// core region: |sideNorm| <= coreBand → full size
+if (a <= coreBand)
+{
+    coreSizeScale = 1.0;
+}
+else
+{
+    // halo region: fade size from 1.0 at coreBand to 0.0 at outer edge
+    float haloT = saturate((a - coreBand) / (1.0 - coreBand + 1e-4));
+    coreSizeScale = 1.0 - haloT;  // 1 → 0 as we go out
+}
+
+float size0 = _SizeStart * coreSizeScale;
+
+// Commit
+p.posWS   = posWS;
+p.velXZ   = velXZ;
+p.u0      = u0;
+p.life    = 0.0f;
+p.maxLife = span;
+p.size    = size0;
+p.state   = 1u;
+
+}
+
+
+
+
+
     else if (dead)
     {
         p.size  = 0.0;
         p.state = 0u;
     }
+
+
+
+
+
+
+
     else
     {
         // alive: integrate 2D motion in XZ
@@ -167,7 +240,29 @@ void CSMain(uint id : SV_DispatchThreadID)
         float drag = exp(-_TrailDrag * _Dt);
         vel *= drag;
 
-        // --- NEW: gently align velocity toward current attack direction ---
+
+
+    // small per-step lateral noise for crackle ---
+    {
+        // Use life to drive a simple phase; quantize so noise changes occasionally, not every frame
+        float  lifePhase = p.life * 20.0;              // 20 Hz-ish
+        uint   lifeStep  = (uint)floor(lifePhase);
+        uint   base      = (uint)id * 9781u + 143u;
+        uint   noiseSeed = Hash(base ^ (lifeStep * 23u));
+
+        float  n = Random01(noiseSeed, 0u) * 2.0 - 1.0; // -1..1
+        float2 normalDir = float2(-vel.y, vel.x);       // perp to vel
+        if (dot(normalDir, normalDir) > 1e-6)
+        {
+            normalDir = normalize(normalDir);
+            float noiseStrength = 0.5;                 // tweak: how “kinky” it is
+            vel += normalDir * (n * noiseStrength * _Dt);
+        }
+    }
+
+
+
+        // --- gently align velocity toward current attack direction ---
         float2 fwd2 = float2(_AttackDirWS.x, _AttackDirWS.z);
         if (dot(fwd2, fwd2) > 1e-6)
         {

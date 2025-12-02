@@ -15,9 +15,13 @@ public class PlayerNuggetsGPU : MonoBehaviour
     [Tooltip("Compute shader for nugget simulation (NuggetsSim.compute)")]
     public ComputeShader sim;                                // assign in Inspector or place in Resources/NuggetsSim
 
-    [Header("Sim Params")]
-    public int dotCount = 256;
+[Header("Sim Params (controlled by PlayerController)")]
+[HideInInspector] public int dotCount = 256;
     public float dotRadius = 0.03f;
+
+[Header("Nugget Count Limits")]
+public int minDots = 5;
+public int maxDots = 300;
 
     // legacy names kept for compatibility (compute sets will ignore extras safely)
     // public float wallBias = 28f;
@@ -60,6 +64,14 @@ public class PlayerNuggetsGPU : MonoBehaviour
     public float dirFrontGain = 1.2f, dirBackGain = 0.6f, areaKeep = 0.85f;
     public float hitImpulse = 0f, noisePhase = 0f;
     public float stretchY = 1.0f;
+
+    [Range(0f, 2f)]
+    public float teardropK1 = 1.1f;
+
+    [Range(0f, 2f)]
+    public float teardropK2 = 0.6f;
+
+    
 
 
     // runtime
@@ -120,11 +132,14 @@ void HandlePreCull(Camera cam)
         if (!controller) controller = GetComponentInParent<PlayerVisualController>();
         if (!playerController) playerController = GetComponentInParent<PlayerControllerScript>();
 
+    // Always clamp
+    dotCount = Mathf.Clamp(dotCount, minDots, maxDots);
+
         if (Application.isPlaying)
         {
-            if (dotCount != _allocatedCount 
-            || !Mathf.Approximately(centerDensity, _lastCenterDensity)
-            || !Mathf.Approximately(baseRadius,    _lastBaseRadius))
+            // if (dotCount != _allocatedCount 
+            // || !Mathf.Approximately(centerDensity, _lastCenterDensity)
+            // || !Mathf.Approximately(baseRadius,    _lastBaseRadius))
                 _needRebuild = true;
         }
     }
@@ -257,6 +272,9 @@ else if (controller && controller.TryGetComponent(out Rigidbody rb2))
         sim.SetFloat("_IdleWobble",  idleWobble);
         sim.SetFloat("_DeformAmt",   deformAmt);
         sim.SetFloats("_DeformDir",  deformDir.x, deformDir.y);
+        sim.SetFloat("_TeardropK1",  teardropK1);
+        sim.SetFloat("_TeardropK2",  teardropK2);
+
         sim.SetFloat("_DirFrontGain", dirFrontGain);
         sim.SetFloat("_DirBackGain",  dirBackGain);
         sim.SetFloat("_AreaKeep",     areaKeep);
@@ -294,6 +312,8 @@ else if (controller && controller.TryGetComponent(out Rigidbody rb2))
         sim.SetBuffer(_kUpdate, "_Seed",    _seed);
 
         // Dispatch
+        if (dotCount <= 0) return;
+
         int groups = Mathf.CeilToInt(dotCount / 128f);
         sim.Dispatch(_kUpdate, Mathf.Max(1, groups), 1, 1);
 
@@ -336,8 +356,15 @@ else if (controller && controller.TryGetComponent(out Rigidbody rb2))
         // call this whenever dotCount changes (OnValidate + play)
     void RebuildSeedsAndBuffers()
     {
+
+        // Clamp and skip if zero
+        dotCount = Mathf.Clamp(dotCount, minDots, maxDots);
+        if (dotCount <= 0) return;
+
         // dispose old
         _pos?.Dispose(); _prev?.Dispose(); _vel?.Dispose(); _seed?.Dispose(); _args?.Dispose();
+
+        
 
         // buffers
         _pos = new ComputeBuffer(dotCount, sizeof(float) * 3);
@@ -369,14 +396,43 @@ else if (controller && controller.TryGetComponent(out Rigidbody rb2))
 
 
     // controller → GPU feed (you already call this from PlayerVisualController)
-    public void FeedFromController(
-        float _idle, float _deform, Vector2 _dir, float _front, float _back, float _keep, float _hit, float _noise,
-        float _baseR, float _outline, float _stretch)
-    {
-        idleWobble = _idle; deformAmt = _deform; deformDir = _dir;
-        dirFrontGain = _front; dirBackGain = _back; areaKeep = _keep;
-        hitImpulse = _hit; noisePhase = _noise; baseRadius = _baseR; outlineHalf = _outline; stretchY = _stretch;
-    }
+
+    public void SetDotCount(int newCount)
+{
+    // Clamp and avoid zero-length buffers
+    newCount = Mathf.Clamp(newCount, minDots, maxDots);
+
+    if (newCount == dotCount) return;
+
+    dotCount = newCount;
+    _needRebuild = true; // triggers RebuildSeedsAndBuffers in LateUpdate
+}
+public void FeedFromController(
+    float _idle, float _deform, Vector2 _dir,
+    float _front, float _back, float _keep,
+    float _hit, float _noise,
+    float _baseR, float _outline, float _stretch,
+    float _k1, float _k2)
+{
+    idleWobble   = _idle;
+    deformAmt    = _deform;     // interpreted as teardrop strength 0..1 in the compute
+    deformDir    = _dir;
+
+    dirFrontGain = _front;
+    dirBackGain  = _back;
+    areaKeep     = _keep;
+
+    hitImpulse   = _hit;
+    noisePhase   = _noise;
+
+    baseRadius   = _baseR;
+    outlineHalf  = _outline;
+    stretchY     = _stretch;
+
+    teardropK1   = _k1;
+    teardropK2   = _k2;
+}
+
 
     // convenience for old calls
     public void SetDotColor(Color c)

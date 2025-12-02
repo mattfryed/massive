@@ -62,18 +62,26 @@ Material:
     m_Ints: []
     m_Floats:
     - _AreaKeep: 1
+    - _BulletAreaScale: 3
     - _BumpScale: 1
+    - _ContactAngle: 0
+    - _ContactStrength: 1
     - _Cutoff: 0.5
     - _DeformAmt: 0
+    - _DeformAmtHead: 0
+    - _DeformAmtTail: 4.79
+    - _DeformLerp: 1
     - _DetailNormalMapScale: 1
-    - _DirBackGain: 0.06
-    - _DirFrontGain: 2
+    - _DirBackGain: 1.6
+    - _DirFrontGain: 0
     - _DstBlend: 0
     - _GlossMapScale: 1
     - _Glossiness: 0.5
     - _GlossyReflections: 1
+    - _HeadOffset: 0.914
+    - _HeadScale: 1.152
     - _HitAngle: 0
-    - _HitImpulse: 0
+    - _HitImpulse: 4.94
     - _HitTime: 0
     - _IdleWobble: 0
     - _Metallic: 0
@@ -87,6 +95,11 @@ Material:
     - _SpecularHighlights: 1
     - _SrcBlend: 1
     - _Stretch: 1
+    - _TailBulletLag: 1
+    - _TailOffset: 0.938
+    - _TailScale: 0.3
+    - _TeardropK1: 0.7
+    - _TeardropK2: 0.3
     - _UVSec: 0
     - _ZWrite: 1
     m_Colors:

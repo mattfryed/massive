@@ -4,6 +4,7 @@ Shader "MASSIVE/AttackTrailInstanced"
     {
         _Team1Color   ("Team 1 Color", Color) = (1,1,1,1)
         _Team2Color   ("Team 2 Core",  Color) = (0,0,0,1)
+        _SizeScale ("Size Scale", Float) = 1.0
     }
 
     SubShader
@@ -34,6 +35,7 @@ Shader "MASSIVE/AttackTrailInstanced"
         float4 _Team1Color;
         float4 _Team2Color;
         float  _IsTeam2;
+            float  _SizeScale;
 
         float3 _CamRightWS;
         float3 _CamUpWS;
@@ -67,7 +69,7 @@ Shader "MASSIVE/AttackTrailInstanced"
             float2 quad = v.vertex.xy * 2.0;
 
             float3 center = p.posWS;
-            float  radius = p.size;
+            float  radius = p.size * _SizeScale;
 
             float3 right = normalize(_CamRightWS);
             float3 up    = normalize(_CamUpWS);

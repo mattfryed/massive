@@ -7,6 +7,7 @@ using Massive.Player; // <-- new: for PlayerAttackController
 public class PlayerControllerScript : MonoBehaviour
 {
     private Rewired.Player player;
+    
 
     [Header("Identity")]
     public int playerID;
@@ -55,6 +56,30 @@ public class PlayerControllerScript : MonoBehaviour
     private float minScale = .5f;
     private float timeToReturn = 5f;
 
+    // Amount of “massScore” to gain/lose per hit
+[SerializeField] private float massGainPerHit  = 0.08f; // tweak to taste
+[SerializeField] private float massLossPerHit  = 0.08f;
+
+    [Header("Mass → Nuggets")]
+[Range(0f, 1f)]
+public float massScore = 0.5f;       // 0 = min, 0.5 = start, 1 = max
+
+public float massScoreMin = 0f;
+public float massScoreMax = 1f;
+
+// Visual nugget anchors
+public int minNuggets = 5;
+public int midNuggets = 50;
+public int maxNuggets = 300;
+
+// Movement slowdown: how much heavier you get at max mass
+public float baseRBMass = 1f;        // mass at 0
+public float extraRBMassAtMax = 2f;  // so mass goes 1 → 3
+
+[SerializeField] private PlayerNuggetsGPU nuggetsGPU; // assign in Inspector or via GetComponentInChildren
+
+
+
     [Header("State & Activity")]
     private GameObject dm;
     public bool isActive = true;
@@ -82,6 +107,10 @@ public class PlayerControllerScript : MonoBehaviour
         player = Rewired.ReInput.players.GetPlayer(playerID);
         lastActivityTime = Time.time;
         gameplayObjects = GameObject.FindWithTag("GameplayObjects");
+
+
+    // Keep visual scale constant
+    transform.localScale = Vector3.one;
     }
 
     void Start()
@@ -93,6 +122,10 @@ public class PlayerControllerScript : MonoBehaviour
         stunEffect = transform.Find("StunnedEffect")?.gameObject;
 
         goalZone = (teamID == 1) ? GameObject.Find("TEAM 1") : GameObject.Find("TEAM 2");
+
+    // Starting “life” at 50% → 50 nuggets
+    massScore = 0.5f;
+    UpdateMassAndNuggets();
 
         // Sanity checks
         if (!attackController)
@@ -177,11 +210,12 @@ public class PlayerControllerScript : MonoBehaviour
             shieldSlowdownFactor = .4f;
 
             // Continuous tiny drain while shielding
-            if (transform.localScale.x > minScale)
-            {
-                transform.localScale -= Vector3.one * (sizeChangeOnGoalHit / 6f);
-                rb.mass -= massRemovedOnGoalShrink / 6f;
-            }
+
+if (massScore > massScoreMin)
+{
+    massScore -= massRemovedOnGoalShrink / 6f; // small drain per frame
+    UpdateMassAndNuggets();
+}
         }
         else
         {
@@ -272,45 +306,49 @@ private void OnCollisionStay(Collision collision)
 
 
 
-    public void Shrink(GameObject target)
+public void Shrink(GameObject hitSource)
+{
+    if (Time.time - timeOfLastShrink <= timeUntilNextShrink)
+        return;
+
+    // Defender loses mass
+    massScore -= massLossPerHit;
+    UpdateMassAndNuggets();
+
+    // Existing visuals / blob ejections
+    if (hitSource != null)
     {
-        if (Time.time - timeOfLastShrink <= timeUntilNextShrink) return;
-
-        transform.localScale -= Vector3.one * sizeChangeOnShrink;
-        rb.mass -= massRemovedOnShrink;
-
-        if (target != null)
-        {
-            for (int i = 0; i < 5; i++) EjectBlob(target);
-        }
-
-        if (transform.localScale.x < minScale)
-        {
-            // Temporary elimination
-            temporarilyEliminated = true;
-
-            if (explosionPrefab)
-            {
-                var exp = Instantiate(explosionPrefab);
-                exp.transform.position = transform.position;
-            }
-
-            playSFX("diedSFX");
-            transform.localScale = Vector3.one;
-            rb.mass = 1f;
-
-            RespawnEffect();
-            Invoke(nameof(Return), timeToReturn);
-
-            // Move offstage
-            transform.position = new Vector3(1200f, 1200f, 1200f);
-
-            // Notify scoring zone
-            goalZone.BroadcastMessage("LoseScore", teamID);
-        }
-
-        timeOfLastShrink = Time.time;
+        for (int i = 0; i < 5; i++)
+            EjectBlob(hitSource);
     }
+
+    // “Death” condition
+    if (massScore <= massScoreMin)
+    {
+        temporarilyEliminated = true;
+
+        if (explosionPrefab)
+        {
+            var exp = Instantiate(explosionPrefab);
+            exp.transform.position = transform.position;
+        }
+
+        playSFX("diedSFX");
+
+        // Reset mass for next life
+        massScore = 0.5f;
+        UpdateMassAndNuggets();
+
+        RespawnEffect();
+        Invoke(nameof(Return), timeToReturn);
+
+        transform.position = new Vector3(1200f, 1200f, 1200f);
+
+        if (goalZone) goalZone.BroadcastMessage("LoseScore", teamID);
+    }
+
+    timeOfLastShrink = Time.time;
+}
 
     void RespawnEffect()
     {
@@ -355,35 +393,75 @@ private void OnCollisionStay(Collision collision)
         rb.AddForce(direction * 200f);
     }
 
-    public void ShrinkSlow(GameObject target)
-    {
-        if (transform.localScale.x <= minScale) return;
+public void ShrinkSlow(GameObject target)
+{
+    if (massScore <= massScoreMin) return;
 
-        transform.localScale -= Vector3.one * sizeChangeOnGoalHit;
-        rb.mass -= massRemovedOnGoalShrink;
-        EjectBlob(target);
+    massScore -= massRemovedOnGoalShrink;
+    UpdateMassAndNuggets();
+    EjectBlob(target);
+}
+
+public bool GoalShrink()
+{
+    if (massScore <= massScoreMin) return false;
+
+    massScore -= massRemovedOnGoalShrink;
+    UpdateMassAndNuggets();
+
+    var scoreSphere = goalZone.transform.Find("Score Sphere");
+    if (scoreSphere) EjectBlob(scoreSphere.gameObject);
+
+    return true;
+}
+
+public void Grow()
+{
+    if (massScore >= massScoreMax) return;
+
+    // Attacker gains mass
+    massScore += massGainPerHit;
+    UpdateMassAndNuggets();
+}
+
+    void UpdateMassAndNuggets()
+{
+    // Clamp score
+    massScore = Mathf.Clamp(massScore, massScoreMin, massScoreMax);
+
+    float t = (massScoreMax <= massScoreMin)
+        ? 0f
+        : Mathf.Clamp01((massScore - massScoreMin) / (massScoreMax - massScoreMin));
+
+    // 1) Map to Rigidbody mass: base → base+extra
+    if (rb)
+    {
+        float targetMass = baseRBMass + t * extraRBMassAtMax;
+        rb.mass = targetMass;
     }
 
-    public bool GoalShrink()
+    // 2) Map to nugget count with mid anchor
+    int nuggetCount;
+    if (t <= 0.5f)
     {
-        if (transform.localScale.x <= minScale) return false;
-
-        transform.localScale -= Vector3.one * sizeChangeOnGoalHit;
-        rb.mass -= massRemovedOnGoalShrink;
-
-        var scoreSphere = goalZone.transform.Find("Score Sphere");
-        if (scoreSphere) EjectBlob(scoreSphere.gameObject);
-
-        return true;
+        // 0 → minNuggets, 0.5 → midNuggets
+        float tt = t / 0.5f;
+        nuggetCount = Mathf.RoundToInt(Mathf.Lerp(minNuggets, midNuggets, tt));
+    }
+    else
+    {
+        // 0.5 → midNuggets, 1.0 → maxNuggets
+        float tt = (t - 0.5f) / 0.5f;
+        nuggetCount = Mathf.RoundToInt(Mathf.Lerp(midNuggets, maxNuggets, tt));
     }
 
-    public void Grow()
-    {
-        if (transform.localScale.x >= maxScale) return;
+    nuggetCount = Mathf.Clamp(nuggetCount, minNuggets, maxNuggets);
 
-        transform.localScale += Vector3.one * sizeChangeOnGrow;
-        rb.mass += massAddedOnGrow;
-    }
+    if (nuggetsGPU)
+        nuggetsGPU.SetDotCount(nuggetCount);
+}
+
+
 
     void EjectBlob(GameObject newTarget)
     {

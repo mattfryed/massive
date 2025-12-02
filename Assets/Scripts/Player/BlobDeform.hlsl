@@ -25,6 +25,61 @@ float DirStretch(float deformAmt, float2 deformDir, float frontGain, float backG
     return deformAmt * sZeroMean;
 }
 
+float TeardropRadius(
+    float baseR,
+    float theta,      // angle around deformation axis, 0 = forward
+    float strength,   // 0..1
+    float k1,         // front/back gain
+    float k2          // UNUSED for now
+)
+{
+    float s = saturate(strength);
+    float d = s * k1;
+
+    float rRaw = 1.0 + d * cos(theta);
+
+    float avgFactor = 1.0 + 0.5 * (d * d);
+    float scale     = rsqrt(avgFactor);
+
+    return baseR * rRaw * scale;
+}
+
+// Teardrop-flavoured expected radius with idle wobble
+// (deformAmt is interpreted as a 0..1 teardrop strength here)
+float ExpectedRadiusTeardrop(
+    float baseR,
+    float idleWobble,
+    float deformAmt,
+    float2 deformDir,
+    float k1,
+    float k2,
+    float hitImpulse,
+    float noisePhase,
+    float ang)
+{
+    float2 dir = float2(cos(ang), sin(ang));
+
+    // Forward axis
+    float2 ax = NormSafe(deformDir);
+    float cosTheta = clamp(dot(dir, ax), -1.0, 1.0);
+    float theta    = acos(cosTheta);
+
+    // Signed angle around axis (mainly for extension/future tweaks)
+    float2 axPerp = float2(-ax.y, ax.x);
+    if (dot(dir, axPerp) < 0.0)
+        theta = -theta;
+
+    float rBase = TeardropRadius(baseR, theta, deformAmt, k1, k2);
+
+    // Same idle wobble + hit ripple as before
+    float sSym = 1.0
+        + SymIdle(idleWobble, noisePhase, ang)
+        + HitRipple(hitImpulse, noisePhase, ang);
+
+    return rBase * sSym;
+}
+
+
 float ExpectedRadius(
     float baseR, float idleWobble, float deformAmt, float2 deformDir,
     float frontGain, float backGain, float areaKeep,

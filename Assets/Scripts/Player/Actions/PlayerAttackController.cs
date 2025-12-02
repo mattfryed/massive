@@ -38,6 +38,11 @@ namespace Massive.Player
             }
         }
 
+        [Header("Cooldown")]
+        [SerializeField]
+        private float attackCooldown = 0.25f;  // seconds, tweak in inspector
+
+        private float lastAttackEndTime = -Mathf.Infinity;
 
         [Header("Combo Tuning")]
         [SerializeField, Min(0f)]
@@ -64,6 +69,7 @@ namespace Massive.Player
         private bool comboQueued;
         private float lastAttackPressTime = float.NegativeInfinity;
         private int swipeDirection = 1;
+        private Vector3 stageAttackDirectionWS = Vector3.right;
 
         public bool IsAttacking => isAttacking;
         public AttackStage CurrentStage => currentStage;
@@ -135,6 +141,10 @@ namespace Massive.Player
             if (isAttacking || attackProfile == null || attackProfile.Stages.Count == 0)
                 return;
 
+            // cooldown gate
+            if (Time.time < lastAttackEndTime + attackCooldown)
+                return;
+
             StartStage(0);
         }
 
@@ -163,31 +173,39 @@ namespace Massive.Player
             }
         }
 
-        private Vector3 GetAttackDirection()
-        {
-            // 1) If there's live stick input, use that
-            if (externalMoveInput.sqrMagnitude > 0.001f)
-            {
-                var dir = new Vector3(externalMoveInput.x, 0f, externalMoveInput.y);
-                return dir.sqrMagnitude > 0.0001f ? dir.normalized : Vector3.forward;
-            }
+        private Vector3 ComputeAttackDirectionFromInput()
+{
+    // same logic as your old GetAttackDirection, but without using stageAttackDirection
+    if (externalMoveInput.sqrMagnitude > 0.001f)
+    {
+        var dir = new Vector3(externalMoveInput.x, 0f, externalMoveInput.y);
+        if (dir.sqrMagnitude > 0.0001f) return dir.normalized;
+    }
 
-            // 2) If we have a remembered direction, use that (last facing)
-            if (lastNonZeroMoveDir.sqrMagnitude > 0.0001f)
-            {
-                var dir = new Vector3(lastNonZeroMoveDir.x, 0f, lastNonZeroMoveDir.y);
-                return dir.normalized;
-            }
+    if (lastNonZeroMoveDir.sqrMagnitude > 0.0001f)
+    {
+        var dir = new Vector3(lastNonZeroMoveDir.x, 0f, lastNonZeroMoveDir.y);
+        if (dir.sqrMagnitude > 0.0001f) return dir.normalized;
+    }
 
-            // 3) Fallback to forward reference, then world forward
-            Vector3 fwd = ForwardReference.forward;
-            fwd.y = 0f;
-            if (fwd.sqrMagnitude < 0.0001f) fwd = Vector3.forward;
-            return fwd.normalized;
-        }
+    Vector3 fwd = ForwardReference.forward;
+    fwd.y = 0f;
+    if (fwd.sqrMagnitude < 0.0001f) fwd = Vector3.forward;
+    return fwd.normalized;
+}
 
-        public Vector3 CurrentAttackDirectionWS => GetAttackDirection();
 
+private Vector3 GetAttackDirection()
+{
+    // NEW: while attacking, use the locked direction for this stage
+    if (isAttacking && currentStage != null)
+        return stageAttackDirectionWS;
+
+    // otherwise, compute from input
+    return ComputeAttackDirectionFromInput();
+}
+
+public Vector3 CurrentAttackDirectionWS => GetAttackDirection();
 
 
 
@@ -310,11 +328,16 @@ namespace Massive.Player
             comboQueued = false;
             isAttacking = true;
 
+            // lock attack direction for this stage
+            stageAttackDirectionWS = ComputeAttackDirectionFromInput();
+
             DetermineSwipeDirection();
 
             // GPU VFX (AttackTrailGPU) are driven by OnStageStarted
             onStageStarted.Invoke(stage);
         }
+
+        
 
         private void DetermineSwipeDirection()
         {
@@ -368,6 +391,7 @@ namespace Massive.Player
             previousNormalizedTime = 0f;
             comboQueued = false;
             isAttacking = false;
+            lastAttackEndTime = Time.time;
         }
 
         public void CancelAttack(bool signalComplete = false)

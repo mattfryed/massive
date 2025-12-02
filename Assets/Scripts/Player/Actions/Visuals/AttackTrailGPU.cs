@@ -278,6 +278,14 @@ public class AttackTrailGPU : MonoBehaviour
         // Bind buffer
         sim.SetBuffer(_kUpdate, "_Particles", _particles);
 
+
+var cam = Camera.main != null ? Camera.main : Camera.current;
+if (cam != null)
+{
+    sim.SetVector("_CamForwardWS", cam.transform.forward);
+}
+
+
         // Dispatch
         int groups = Mathf.CeilToInt(particleCount / (float)THREAD_GROUP_SIZE);
         sim.Dispatch(_kUpdate, Mathf.Max(1, groups), 1, 1);
@@ -287,21 +295,24 @@ public class AttackTrailGPU : MonoBehaviour
         _drawBounds.extents = Vector3.one * (trailLength + 5f);
     }
 
-    void HandlePreCull(Camera cam)
+void HandlePreCull(Camera cam)
+{
+    if (sim == null || trailMat == null || quadMesh == null || _args == null || _particles == null) return;
+
+    if (!trailMat.enableInstancing) trailMat.enableInstancing = true;
+
+    bool team2 = playerController ? playerController.teamID != 1 : false;
+
+    // per-camera basis (same as nuggets)
+    _mpb.SetVector("_CamRightWS", cam.transform.right);
+    _mpb.SetVector("_CamUpWS",    cam.transform.up);
+    _mpb.SetBuffer("_Particles",  _particles);
+
+    if (!team2)
     {
-        if (sim == null || trailMat == null || quadMesh == null || _args == null || _particles == null) return;
-
-        if (!trailMat.enableInstancing) trailMat.enableInstancing = true;
-
-        // per-camera basis (same as nuggets)
-        _mpb.SetVector("_CamRightWS", cam.transform.right);
-        _mpb.SetVector("_CamUpWS",    cam.transform.up);
-
-        // team color / outline logic similar to nuggets
-        bool team2 = playerController ? playerController.teamID != 1 : false;
-        _mpb.SetFloat("_IsTeam2", team2 ? 1f : 0f);
-
-        _mpb.SetBuffer("_Particles", _particles);
+        // TEAM 1: single pass, solid white
+        _mpb.SetFloat("_IsTeam2", 0f);
+        _mpb.SetFloat("_SizeScale", 1.0f);
 
         Graphics.DrawMeshInstancedIndirect(
             quadMesh, 0, trailMat, _drawBounds, _args,
@@ -310,6 +321,32 @@ public class AttackTrailGPU : MonoBehaviour
             LightProbeUsage.Off
         );
     }
+    else
+    {
+        // TEAM 2: union outline trick (two passes)
+
+        // PASS 1: slightly larger white silhouette (outline)
+        _mpb.SetFloat("_IsTeam2", 0f);          // use Team1Color as outline color (white)
+        _mpb.SetFloat("_SizeScale", 1.5f);     // inflate radius ~8% (tune this)
+        Graphics.DrawMeshInstancedIndirect(
+            quadMesh, 0, trailMat, _drawBounds, _args,
+            0, _mpb,
+            ShadowCastingMode.Off, false, gameObject.layer, cam,
+            LightProbeUsage.Off
+        );
+
+        // PASS 2: normal black trail on top
+        _mpb.SetFloat("_IsTeam2", 1f);          // use Team2Color (black)
+        _mpb.SetFloat("_SizeScale", 1.0f);      // normal size
+
+        Graphics.DrawMeshInstancedIndirect(
+            quadMesh, 0, trailMat, _drawBounds, _args,
+            0, _mpb,
+            ShadowCastingMode.Off, false, gameObject.layer, cam,
+            LightProbeUsage.Off
+        );
+    }
+}
 
     void OnStageStarted(AttackStage stage)
     {

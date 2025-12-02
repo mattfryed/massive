@@ -15,7 +15,7 @@ MonoBehaviour:
   stages:
   - stageName: 0
     stageType: 0
-    duration: 0.4
+    duration: 0.3
     activationFrameStart: 3
     activationFrameEnd: 16
     animationFrameRate: 60
@@ -48,8 +48,6 @@ MonoBehaviour:
     rotationArc: 0
     animationStateName: Thrust
     animationTransitionDuration: 0
-    particlePrefab: {fileID: -8667301366183544761, guid: d662672285064944d9732d857f691845,
-      type: 3}
   - stageName: 1
     stageType: 1
     duration: 0.3
@@ -85,4 +83,3 @@ MonoBehaviour:
     rotationArc: 180
     animationStateName: 
     animationTransitionDuration: 0
-    particlePrefab: {fileID: 0}
