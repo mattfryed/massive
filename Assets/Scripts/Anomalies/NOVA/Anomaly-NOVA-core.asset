@@ -14,20 +14,22 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 
   displayName: 
-  shortDescription: 
+  shortDescription: ENTER STAR TO POSTPONE CORE COLLAPSE
   spaceMode: 1
-  arenaMode: 2
-  minStartDelay: 10
-  maxStartDelay: 30
-  minDuration: 8
-  maxDuration: 15
+  arenaMode: 1
+  minStartDelay: 0
+  maxStartDelay: 0
+  minDuration: 22
+  maxDuration: 22
   selectionWeight: 1
   participantSelection: 0
   preferredTeamIndex: -1
-  minigameLogicPrefab: {fileID: 0}
+  minigameLogicPrefab: {fileID: 3069076931512185714, guid: a37c6af163c887b4d93beb6ffb7ebf3d,
+    type: 3}
   warningIcon: {fileID: 0}
   controlIconA: {fileID: 0}
   controlIconB: {fileID: 0}
+  uiCopyOverride: {fileID: 11400000, guid: 775eac4e2b2e1934aa12c0825af254d1, type: 2}
   instructionText: 
   rewardsOnSuccess: []
   rewardsOnFail: []

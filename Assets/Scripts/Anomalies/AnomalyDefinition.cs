@@ -31,6 +31,8 @@ public enum ParticipantSelection
     HighestMassPlayer
 }
 
+
+
 [CreateAssetMenu(menuName = "MASSIVE/Anomaly Definition")]
 public class AnomalyDefinition : ScriptableObject
 {
@@ -76,6 +78,9 @@ public class AnomalyDefinition : ScriptableObject
     public Sprite warningIcon;
     public Sprite controlIconA;
     public Sprite controlIconB;
+
+    [Header("UI Copy")]
+public AnomalyUICopy uiCopyOverride;
 
     [TextArea]
     [Tooltip("Short instructions that appear in the lower third while the anomaly is active.")]

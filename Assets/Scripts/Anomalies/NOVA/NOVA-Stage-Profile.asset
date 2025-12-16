@@ -16,4 +16,5 @@ MonoBehaviour:
   displayName: NOVA
   globalMinInterval: 15
   globalMaxInterval: 35
-  anomalyPool: []
+  anomalyPool:
+  - {fileID: 11400000, guid: d703087558df04a08ae0d686e659250b, type: 2}

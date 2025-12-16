@@ -111,6 +111,7 @@ public class AnomalyManager : MonoBehaviour
         {
             _scheduleRoutine = StartCoroutine(ScheduleLoop());
         }
+        
     }
 
     void OnDestroy()
@@ -183,22 +184,22 @@ public class AnomalyManager : MonoBehaviour
     IEnumerator RunAnomalyRoutine(AnomalyDefinition def)
     {
         // 1. Warning / telegraph
-        if (ui != null)
-            ui.ShowWarning(def);
-
-        SpawnWorldTelegraph(def); // e.g. portal, grid flare, etc.
-
         float warningDelay = def.GetRandomStartDelay();
+        if (ui != null)
+            ui.ShowWarning(def, warningDelay);
+
+        SpawnWorldTelegraph(def);
         yield return new WaitForSeconds(warningDelay);
 
         // 2. Activate
+        // Duration for the minigame
+        float duration = _forcedDuration.HasValue ? _forcedDuration.Value : def.GetRandomDuration();
+
         if (ui != null)
-            ui.ShowActiveBanner(def);
+           // ui.ShowActiveBanner(def, duration);
 
         ApplyArenaMode(def.arenaMode);
 
-        // If a caller supplied a custom duration, use that; otherwise use the definition.
-        float duration = _forcedDuration.HasValue ? _forcedDuration.Value : def.GetRandomDuration();
         var context = BuildContextFor(def, duration, _forcedParticipants);
 
         if (def.minigameLogicPrefab == null)
@@ -219,6 +220,8 @@ public class AnomalyManager : MonoBehaviour
         GameObject go = Instantiate(def.minigameLogicPrefab, ui.minigameContentRoot);
         _currentMinigame = go.GetComponent<AnomalyMinigameBase>();
 
+        
+
         if (_currentMinigame == null)
         {
             Debug.LogError($"Minigame prefab '{def.minigameLogicPrefab.name}' does not have an AnomalyMinigameBase component.");
@@ -228,12 +231,45 @@ public class AnomalyManager : MonoBehaviour
         }
 
         _currentMinigame.Init(context);
+        
+
+        
+        // Begin minigame lifecycle so it can exist, but keep gameplay disabled
         _currentMinigame.OnCompleted += HandleMinigameCompleted;
-
-        if (ui != null)
-            ui.ShowLowerThird(def); // instructions + controls + content root visible
-
         _currentMinigame.Begin();
+
+                // find transition on the minigame root
+        var transition = go.GetComponent<NovaMinigameTransition>();
+
+        
+if (transition != null && ui != null)
+{
+var seq =
+    ui.GetComponent<AnomalyUISequencer>() ??
+    ui.GetComponentInParent<AnomalyUISequencer>() ??
+    FindFirstObjectByType<AnomalyUISequencer>(FindObjectsInactive.Include);
+
+transition.BindUISequencer(seq);
+}
+        if (ui != null)
+            ui.ShowLowerThird(def);
+
+        if (transition != null)
+        {
+            // Intro animation runs here
+            yield return StartCoroutine(transition.PlayIntro());
+        }
+
+        // NOW start the in-minigame countdown (gameplay time only)
+        if (ui != null)
+            ui.ShowActiveBanner(def, duration);
+
+
+            
+
+
+
+
 
         // Wait until the minigame signals completion.
         while (_currentMinigame != null && !_currentMinigame.IsFinished)
@@ -246,6 +282,15 @@ public class AnomalyManager : MonoBehaviour
 
     void HandleMinigameCompleted(AnomalyResult result)
     {
+
+        // If the minigame has a transition component, play outro before finalizing.
+        var transition = _currentMinigame != null ? _currentMinigame.GetComponent<NovaMinigameTransition>() : null;
+        if (transition != null)
+        {
+            StartCoroutine(FinalizeAfterOutro(transition, result));
+            return;
+        }
+
         // Prevent double handling if Complete() is somehow called twice.
         if (!IsAnomalyRunning && _currentDef == null)
             return;
@@ -278,6 +323,51 @@ public class AnomalyManager : MonoBehaviour
         _forcedDuration = null;
         DespawnWorldTelegraph();
     }
+
+        void HandleMinigameCompleted_NoOutro(AnomalyResult result)
+    {
+        // Prevent double handling if Complete() is somehow called twice.
+        if (!IsAnomalyRunning && _currentDef == null)
+            return;
+
+        ApplyArenaMode(ArenaModeDuringAnomaly.Unchanged);
+
+        if (ui != null)
+        {
+            ui.HideActiveBanner();
+            ui.HideLowerThird();
+            ui.ShowResult(_currentDef, result);
+        }
+
+        ApplyRewards(result);
+
+        // Fire completion event so NovaAnomalyAdapter (and any other
+        // systems) can react.
+        OnAnomalyCompleted?.Invoke(_currentDef, result);
+
+        if (_currentMinigame != null)
+        {
+            _currentMinigame.OnCompleted -= HandleMinigameCompleted_NoOutro;
+            _currentMinigame.OnCompleted -= HandleMinigameCompleted;
+
+            Destroy(_currentMinigame.gameObject);
+            _currentMinigame = null;
+        }
+
+        _currentParticipants.Clear();
+        _currentDef = null;
+        _forcedParticipants = null;
+        _forcedDuration = null;
+        DespawnWorldTelegraph();
+    }
+
+    IEnumerator FinalizeAfterOutro(NovaMinigameTransition transition, AnomalyResult result)
+{
+    yield return StartCoroutine(transition.PlayOutro());
+    // proceed with your existing cleanup path
+    HandleMinigameCompleted_NoOutro(result);
+}
+
 
     void ApplyArenaMode(ArenaModeDuringAnomaly mode)
     {

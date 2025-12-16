@@ -41,6 +41,14 @@ public class NovaStarController : MonoBehaviour
     [Tooltip("Visual ring object that appears during the entry window.")]
     public GameObject entryRingVisual;
 
+    [Header("Eject Settings")]
+    [Tooltip("How far from the star center players are pushed when ejected after the minigame.")]
+    public float ejectDistance = 5f;
+
+    [Tooltip("Impulse applied outward when players are ejected.")]
+    public float ejectImpulse = 8f;
+
+
     [Header("Bounce Damage Model")]
     [Tooltip("Baseline damage/intensity of each bounce (arbitrary units).")]
     public float baseBounceIntensity = 1f;
@@ -183,11 +191,12 @@ public class NovaStarController : MonoBehaviour
         // Notify listeners that the entry window has closed, with the final entrants list
         OnEntryWindowClosed?.Invoke(new List<PlayerControllerScript>(_currentEntrants));
 
+        // Always hide ring when the entry window ends (minigame begins if entrants>0)
+        if (entryRingVisual != null)
+            entryRingVisual.SetActive(false);
+
         if (!hasEntrants)
         {
-            // No one entered: turn off ring and bounce immediately.
-            if (entryRingVisual != null)
-                entryRingVisual.SetActive(false);
 
             TriggerBounce();
             _bounceCount++;
@@ -270,14 +279,56 @@ public class NovaStarController : MonoBehaviour
         if (entryRingVisual != null)
             entryRingVisual.SetActive(false);
 
-        // TODO: visually eject entrants from the star (animation, knockback, etc.).
-        // For now, this is purely logical; you can handle visuals in a separate script.
+        // Eject entrants outward from the star so they don't immediately re-enter
+        // on the next entry window.
+        if (_currentEntrants != null && _currentEntrants.Count > 0)
+        {
+            foreach (var pcs in _currentEntrants)
+            {
+                if (pcs == null) continue;
 
+                var rb = pcs.GetComponent<Rigidbody>();
+                if (rb == null) continue;
+
+                Vector3 starPos = transform.position;
+                Vector3 playerPos = rb.position;
+
+                // Direction from star to player in XZ plane
+                Vector3 dir = playerPos - starPos;
+                dir.y = 0f;
+                if (dir.sqrMagnitude < 0.0001f)
+                {
+                    // If they're exactly at the center, pick a random direction
+                    dir = UnityEngine.Random.onUnitSphere;
+                    dir.y = 0f;
+                }
+                dir.Normalize();
+
+                // Reposition and push
+                rb.position = starPos + dir * ejectDistance;
+    #if UNITY_6000_0_OR_NEWER
+                rb.linearVelocity = dir * ejectImpulse;
+    #else
+                rb.velocity = dir * ejectImpulse;
+    #endif
+            }
+        }
+
+        // Now do the bounce
         TriggerBounce();
         _bounceCount++;
         _currentEntrants.Clear();
         _waitingForMinigame = false;
+
+        if (maxBounces > 0 && _bounceCount >= maxBounces)
+{
+    OnFinalSupernova?.Invoke();
+    // optionally: disable this component or stop the bounce loop
+    enabled = false;
+}
+
     }
+
 
     private void TriggerBounce()
     {
