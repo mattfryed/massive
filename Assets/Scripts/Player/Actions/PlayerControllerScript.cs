@@ -476,4 +476,39 @@ public void Grow()
     // ===== Flags retained for compatibility =====
     public bool gamepadMode = false;
     public bool temporarilyEliminated = false;
+
+    public void ApplyExternalMassDelta(float delta, bool allowDeath = true)
+{
+    if (temporarilyEliminated) return;
+
+    massScore += delta;
+    UpdateMassAndNuggets();
+
+    if (allowDeath && massScore <= massScoreMin)
+    {
+        temporarilyEliminated = true;
+
+        if (explosionPrefab)
+        {
+            var exp = Instantiate(explosionPrefab);
+            exp.transform.position = transform.position;
+        }
+
+        playSFX("diedSFX");
+
+        // Reset mass for next life
+        massScore = 0.5f;
+        UpdateMassAndNuggets();
+
+        RespawnEffect();
+        Invoke(nameof(Return), timeToReturn);
+
+        transform.position = new Vector3(1200f, 1200f, 1200f);
+
+        if (goalZone) goalZone.BroadcastMessage("LoseScore", teamID);
+    }
 }
+
+}
+
+
