@@ -62,3 +62,8 @@ sysinfo.txt
 crashlytics-build.properties
 
 .DS_Store
+/Packages
+Packages/manifest.json
+Packages/packages-lock.json
+UserSettings/EditorUserSettings.asset
+UserSettings/Layouts/CurrentMaximizeLayout.dwlt
