@@ -294,6 +294,9 @@ public class VectorField3D : MonoBehaviour
             if (s != _lastSeedHash) BuildSeeds();
         }
 
+        if (_seedsBuf == null || _segBuf == null) return;
+
+
         float tNow = Application.isPlaying ? Time.time : 0f;
 
         // Determine stable moment axis (MODEL space)
@@ -411,6 +414,11 @@ public class VectorField3D : MonoBehaviour
 
         // Dispatch
         int groups = Mathf.CeilToInt(seedCount / 64.0f);
+        // Unity can drop bindings after .compute recompiles (common in ExecuteAlways while iterating).
+        fieldCS.SetBuffer(_kIntegrate, _SeedsID, _seedsBuf);
+        fieldCS.SetBuffer(_kIntegrate, _SegmentsID, _segBuf);
+
+
         fieldCS.Dispatch(_kIntegrate, Mathf.Max(1, groups), 1, 1);
 
         // Build indirect args from append count

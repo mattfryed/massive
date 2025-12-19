@@ -7,8 +7,8 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: NovaCoreInstanced
-  m_Shader: {fileID: 4800000, guid: 7ebd49badb7c6884ca9c34027deacb05, type: 3}
+  m_Name: MASSIVE_MagnetosphereParticle
+  m_Shader: {fileID: 4800000, guid: 7df02b5d6213b454d879e3bfdf521dee, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []
@@ -25,9 +25,10 @@ Material:
     m_TexEnvs: []
     m_Ints: []
     m_Floats:
-    - _ParticleSize: 0.03794305
-    - _Softness: 0
+    - _GlowIntensity: 2
+    - _ParticleSize: 0.02
     m_Colors:
-    - _Color: {r: 0, g: 0, b: 0, a: 0.003938198}
+    - _NegativeColor: {r: 0.3, g: 0.5, b: 1, a: 1}
+    - _PositiveColor: {r: 1, g: 0.3, b: 0.3, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1

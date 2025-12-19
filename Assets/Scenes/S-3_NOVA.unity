@@ -6944,7 +6944,7 @@ MeshFilter:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 323243037}
-  m_Mesh: {fileID: 1410840694}
+  m_Mesh: {fileID: 1433437571}
 --- !u!4 &323243041
 Transform:
   m_ObjectHideFlags: 0
@@ -7240,7 +7240,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &392204903
 Transform:
   m_ObjectHideFlags: 0
@@ -10017,7 +10017,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!114 &894107622
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -10413,9 +10413,9 @@ ParticleSystem:
   lengthInSec: 2
   simulationSpeed: 1
   stopAction: 0
-  cullingMode: 3
-  ringBufferMode: 2
-  ringBufferLoopRange: {x: 0.4, y: 0.5}
+  cullingMode: 0
+  ringBufferMode: 0
+  ringBufferLoopRange: {x: 0, y: 0.01}
   emitterVelocityMode: 0
   looping: 1
   prewarm: 1
@@ -10484,9 +10484,9 @@ ParticleSystem:
     enabled: 1
     startLifetime:
       serializedVersion: 2
-      minMaxState: 0
-      scalar: 5
-      minScalar: 5
+      minMaxState: 3
+      scalar: 8
+      minScalar: 4
       maxCurve:
         serializedVersion: 2
         m_Curve:
@@ -10537,9 +10537,9 @@ ParticleSystem:
         m_RotationOrder: 4
     startSpeed:
       serializedVersion: 2
-      minMaxState: 0
-      scalar: 0.005
-      minScalar: 5
+      minMaxState: 3
+      scalar: 0.06
+      minScalar: 0.04
       maxCurve:
         serializedVersion: 2
         m_Curve:
@@ -10655,9 +10655,9 @@ ParticleSystem:
         m_NumAlphaKeys: 2
     startSize:
       serializedVersion: 2
-      minMaxState: 0
-      scalar: 0.015
-      minScalar: 1
+      minMaxState: 3
+      scalar: 0.04
+      minScalar: 0.02
       maxCurve:
         serializedVersion: 2
         m_Curve:
@@ -10708,7 +10708,7 @@ ParticleSystem:
         m_RotationOrder: 4
     startSizeY:
       serializedVersion: 2
-      minMaxState: 0
+      minMaxState: 3
       scalar: 1
       minScalar: 1
       maxCurve:
@@ -10761,7 +10761,7 @@ ParticleSystem:
         m_RotationOrder: 4
     startSizeZ:
       serializedVersion: 2
-      minMaxState: 0
+      minMaxState: 3
       scalar: 1
       minScalar: 1
       maxCurve:
@@ -10973,7 +10973,7 @@ ParticleSystem:
         m_RotationOrder: 4
     randomizeRotationDirection: 0
     gravitySource: 0
-    maxNumParticles: 20000
+    maxNumParticles: 21000
     customEmitterVelocity: {x: 0, y: 0, z: 0}
     size3D: 0
     rotation3D: 0
@@ -11120,7 +11120,7 @@ ParticleSystem:
     sphericalDirectionAmount: 0
     randomPositionAmount: 0
     radius:
-      value: 1.7317872
+      value: 1.8
       mode: 0
       spread: 0
       speed:
@@ -11239,7 +11239,7 @@ ParticleSystem:
     rateOverTime:
       serializedVersion: 2
       minMaxState: 0
-      scalar: 2300
+      scalar: 3200
       minScalar: 10
       maxCurve:
         serializedVersion: 2
@@ -11355,7 +11355,7 @@ ParticleSystem:
         serializedVersion: 2
         m_Curve:
         - serializedVersion: 3
-          time: 0.35337472
+          time: 0.8390925
           value: 1
           inSlope: -0.31503415
           outSlope: -0.31503415
@@ -13058,7 +13058,7 @@ ParticleSystem:
     strength:
       serializedVersion: 2
       minMaxState: 0
-      scalar: 1
+      scalar: 0.4
       minScalar: 1
       maxCurve:
         serializedVersion: 2
@@ -13217,7 +13217,7 @@ ParticleSystem:
     separateAxes: 0
     frequency: 0.52
     damping: 1
-    octaves: 4
+    octaves: 2
     octaveMultiplier: 0.19
     octaveScale: 2
     quality: 2
@@ -14320,9 +14320,9 @@ ParticleSystem:
     ratio: 1
     lifetime:
       serializedVersion: 2
-      minMaxState: 0
-      scalar: 0.2
-      minScalar: 1
+      minMaxState: 3
+      scalar: 0.22
+      minScalar: 0.2
       maxCurve:
         serializedVersion: 2
         m_Curve:
@@ -14371,7 +14371,7 @@ ParticleSystem:
         m_PreInfinity: 2
         m_PostInfinity: 2
         m_RotationOrder: 4
-    minVertexDistance: 0.02
+    minVertexDistance: 0.03
     textureMode: 0
     textureScale: {x: 1, y: 1}
     ribbonCount: 1
@@ -14451,7 +14451,7 @@ ParticleSystem:
         m_NumAlphaKeys: 2
     widthOverTrail:
       serializedVersion: 2
-      minMaxState: 0
+      minMaxState: 1
       scalar: 1
       minScalar: 1
       maxCurve:
@@ -14464,17 +14464,17 @@ ParticleSystem:
           outSlope: 0
           tangentMode: 0
           weightedMode: 0
-          inWeight: 0.33333334
-          outWeight: 0.33333334
+          inWeight: 0
+          outWeight: 0
         - serializedVersion: 3
-          time: 1
-          value: 1
+          time: 0.9862034
+          value: 0
           inSlope: 0
           outSlope: 0
           tangentMode: 0
           weightedMode: 0
-          inWeight: 0.33333334
-          outWeight: 0.33333334
+          inWeight: 0
+          outWeight: 0
         m_PreInfinity: 2
         m_PostInfinity: 2
         m_RotationOrder: 4
@@ -14506,7 +14506,7 @@ ParticleSystem:
       serializedVersion: 2
       minMaxState: 0
       minColor: {r: 1, g: 1, b: 1, a: 1}
-      maxColor: {r: 1, g: 1, b: 1, a: 0.39607844}
+      maxColor: {r: 1, g: 1, b: 1, a: 1}
       maxGradient:
         serializedVersion: 2
         key0: {r: 1, g: 1, b: 1, a: 1}
@@ -15408,7 +15408,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!114 &984432099
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -21615,7 +21615,7 @@ MonoBehaviour:
   darkTeamCountText: {fileID: 1161828208}
   indicatorFlashSeconds: 0.6
   indicatorFlashHz: 6
---- !u!43 &1410840694
+--- !u!43 &1433437571
 Mesh:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -30025,7 +30025,7 @@ ParticleSystem:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1979944758}
   serializedVersion: 8
-  lengthInSec: 1
+  lengthInSec: 2
   simulationSpeed: 1
   stopAction: 0
   cullingMode: 0
@@ -30099,9 +30099,9 @@ ParticleSystem:
     enabled: 1
     startLifetime:
       serializedVersion: 2
-      minMaxState: 0
-      scalar: 2
-      minScalar: 5
+      minMaxState: 3
+      scalar: 3
+      minScalar: 1
       maxCurve:
         serializedVersion: 2
         m_Curve:
@@ -30735,7 +30735,7 @@ ParticleSystem:
     sphericalDirectionAmount: 0.82
     randomPositionAmount: 0
     radius:
-      value: 1.7317872
+      value: 1.8
       mode: 0
       spread: 0
       speed:
@@ -30854,7 +30854,7 @@ ParticleSystem:
     rateOverTime:
       serializedVersion: 2
       minMaxState: 0
-      scalar: 9500
+      scalar: 4500
       minScalar: 10
       maxCurve:
         serializedVersion: 2
@@ -30970,22 +30970,22 @@ ParticleSystem:
         serializedVersion: 2
         m_Curve:
         - serializedVersion: 3
-          time: 0.7180445
-          value: 1
-          inSlope: -2
-          outSlope: -2
+          time: 0.014596224
+          value: 0.04615396
+          inSlope: 6.157377
+          outSlope: 6.157377
           tangentMode: 0
           weightedMode: 0
           inWeight: 0
-          outWeight: 0
+          outWeight: 0.048175924
         - serializedVersion: 3
           time: 1
           value: 0.013511658
-          inSlope: 0
-          outSlope: 0
+          inSlope: -1.4771855
+          outSlope: -1.4771855
           tangentMode: 0
           weightedMode: 0
-          inWeight: 0
+          inWeight: 0.032993954
           outWeight: 0
         m_PreInfinity: 2
         m_PostInfinity: 2
@@ -33987,10 +33987,10 @@ ParticleSystem:
         m_PostInfinity: 2
         m_RotationOrder: 4
     minVertexDistance: 0.2
-    textureMode: 0
+    textureMode: 2
     textureScale: {x: 1, y: 1}
     ribbonCount: 1
-    shadowBias: 0.5
+    shadowBias: 0
     worldSpace: 0
     dieWithParticles: 1
     sizeAffectsWidth: 1
@@ -41635,6 +41635,11 @@ PrefabInstance:
         type: 3}
       propertyPath: ShapeModule.radius.value
       value: 24
+      objectReference: {fileID: 0}
+    - target: {fileID: 9015369085779747217, guid: 18761c972c6104c768b7b26af03fed9b,
+        type: 3}
+      propertyPath: m_Materials.Array.size
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 9015369085779747217, guid: 18761c972c6104c768b7b26af03fed9b,
         type: 3}

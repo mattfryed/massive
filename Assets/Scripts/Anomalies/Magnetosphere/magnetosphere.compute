@@ -1,0 +1,245 @@
+// Magnetosphere Particle Simulation Compute Shader
+#pragma kernel InitParticles
+#pragma kernel UpdateParticles
+#pragma kernel ApplyStorm
+
+struct Particle
+{
+    float3 position;
+    float3 velocity;
+    float charge; // 1.0 or -1.0
+    float energy;
+    float lifetime;
+    float maxLifetime;
+};
+
+RWStructuredBuffer<Particle> particles;
+
+// Magnetosphere parameters
+float3 dipolePosition;
+float dipoleMoment;
+float magnetosphereRadius;
+float time;
+float deltaTime;
+
+// Storm parameters
+float3 stormDirection;
+float stormIntensity;
+float stormActive;
+
+// Simulation parameters
+int particleCount;
+float particleDamping;
+float velocityLimit;
+
+// Random number generation
+float rand(float2 co)
+{
+    return frac(sin(dot(co.xy, float2(12.9898, 78.233))) * 43758.5453);
+}
+
+float3 rand3(float3 co)
+{
+    return float3(
+        rand(co.xy),
+        rand(co.yz),
+        rand(co.zx)
+    );
+}
+
+// NEW: Dipole axis (world space, normalized in shader)
+float3 dipoleAxis;
+
+// Build an orthonormal basis where "axis" is the local +Y
+void BuildAxisBasis(float3 axis, out float3 bX, out float3 bZ)
+{
+    axis = normalize(axis);
+    float3 tmp = (abs(axis.y) < 0.99) ? float3(0,1,0) : float3(1,0,0);
+    bX = normalize(cross(tmp, axis));
+    bZ = cross(axis, bX);
+}
+
+// Convert a vector in "dipole local space" (where local Y = dipole axis) to world space
+float3 DipoleLocalToWorld(float3 vLocal)
+{
+    float3 bX, bZ;
+    float3 axis = normalize(dipoleAxis);
+    BuildAxisBasis(axis, bX, bZ);
+    return vLocal.x * bX + vLocal.y * axis + vLocal.z * bZ;
+}
+
+
+// Dipole magnetic field calculation
+float3 CalculateDipoleField(float3 pos)
+{
+    float3 r = pos - dipolePosition;
+    float rMag = length(r);
+    if (rMag < 0.01) return float3(0,0,0);
+
+    float3 m = normalize(dipoleAxis) * dipoleMoment; // was hard-coded (0, dipoleMoment, 0)
+
+    float3 rHat = r / rMag;
+    float mDotR = dot(m, rHat);
+    float3 field = (3.0 * mDotR * rHat - m) / (rMag * rMag * rMag);
+    return field;
+}
+
+
+// Check if particle is inside magnetosphere boundary
+bool IsInsideMagnetosphere(float3 pos)
+{
+    float3 r = pos - dipolePosition;
+    float distXZ = length(float2(r.x, r.z));
+    
+    // Elongated tail on negative storm direction side
+    float3 toSun = -stormDirection;
+    float alignmentWithSun = dot(normalize(r), toSun);
+    
+    // Day side: compressed, Night side: elongated tail
+    float boundaryRadius = magnetosphereRadius;
+    if (alignmentWithSun > 0)
+    {
+        // Day side compression
+        boundaryRadius *= lerp(0.6, 1.0, 1.0 - alignmentWithSun);
+    }
+    else
+    {
+        // Night side elongation (tail)
+        boundaryRadius *= lerp(1.0, 3.0, -alignmentWithSun);
+    }
+    
+    return length(r) < boundaryRadius;
+}
+
+[numthreads(256, 1, 1)]
+void InitParticles(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint)particleCount) return;
+    
+    Particle p = particles[id.x];
+    
+    // Random position on sphere around magnetosphere
+    float theta = rand(float2(id.x, time)) * 6.28318;
+    float phi = rand(float2(id.x + 1000, time)) * 3.14159;
+    float r = magnetosphereRadius * (2.0 + rand(float2(id.x + 2000, time)) * 2.0);
+    
+float flatten = 0.3;
+
+// local Y is along dipole axis
+float3 localOffset = float3(
+    r * sin(phi) * cos(theta),
+    r * cos(phi) * flatten,
+    r * sin(phi) * sin(theta)
+);
+
+p.position = dipolePosition + DipoleLocalToWorld(localOffset);
+
+    
+    // Initial velocity toward magnetosphere
+    p.velocity = normalize(dipolePosition - p.position) * (0.5 + rand(float2(id.x + 3000, time)));
+    
+    // Random charge
+    p.charge = rand(float2(id.x + 4000, time)) > 0.5 ? 1.0 : -1.0;
+    
+    p.energy = 0.5 + rand(float2(id.x + 5000, time)) * 0.5;
+    p.maxLifetime = 10.0 + rand(float2(id.x + 6000, time)) * 10.0;
+    p.lifetime = 0;
+    
+    particles[id.x] = p;
+}
+
+[numthreads(256, 1, 1)]
+void UpdateParticles(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint)particleCount) return;
+    
+    Particle p = particles[id.x];
+    
+    p.lifetime += deltaTime;
+    
+    // Respawn if lifetime exceeded
+    if (p.lifetime > p.maxLifetime)
+    {
+        float theta = rand(float2(id.x, time + p.lifetime)) * 6.28318;
+        float phi = rand(float2(id.x + 1000, time + p.lifetime)) * 3.14159;
+        float r = magnetosphereRadius * (2.5 + rand(float2(id.x + 2000, time + p.lifetime)) * 2.0);
+        
+float flatten = 0.3;
+
+// local Y is along dipole axis
+float3 localOffset = float3(
+    r * sin(phi) * cos(theta),
+    r * cos(phi) * flatten,
+    r * sin(phi) * sin(theta)
+);
+
+p.position = dipolePosition + DipoleLocalToWorld(localOffset);
+
+        
+        p.velocity = normalize(dipolePosition - p.position) * (0.5 + rand(float2(id.x + 3000, time + p.lifetime)));
+        p.lifetime = 0;
+        p.energy = 0.5 + rand(float2(id.x + 5000, time + p.lifetime)) * 0.5;
+    }
+    
+    // Calculate magnetic field
+    float3 B = CalculateDipoleField(p.position);
+    
+    // Lorentz force: F = q(v × B)
+    float3 lorentzForce = p.charge * cross(p.velocity, B);
+    
+    // Solar wind pressure (background flow)
+    float3 solarWindForce = stormDirection * 0.1;
+    
+    // Total acceleration
+    float3 acceleration = (lorentzForce + solarWindForce) * p.energy;
+    
+    // Update velocity
+    p.velocity += acceleration * deltaTime;
+    
+    // Apply damping
+    p.velocity *= (1.0 - particleDamping * deltaTime);
+    
+    // Limit velocity
+    float speed = length(p.velocity);
+    if (speed > velocityLimit)
+    {
+        p.velocity = normalize(p.velocity) * velocityLimit;
+    }
+    
+    // Update position
+    p.position += p.velocity * deltaTime;
+    
+    // Boundary reflection (weak to allow some escape)
+    float3 fromCenter = p.position - dipolePosition;
+    float distFromCenter = length(fromCenter);
+    
+    if (distFromCenter > magnetosphereRadius * 4.0)
+    {
+        // Too far - respawn
+        p.lifetime = p.maxLifetime + 1.0;
+    }
+    
+    particles[id.x] = p;
+}
+
+[numthreads(256, 1, 1)]
+void ApplyStorm(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint)particleCount) return;
+    if (stormActive < 0.5) return;
+    
+    Particle p = particles[id.x];
+    
+    // Add storm impulse to particles facing the storm
+    float3 toParticle = normalize(p.position - dipolePosition);
+    float alignment = dot(toParticle, stormDirection);
+    
+    if (alignment > 0.3)
+    {
+        // Add storm velocity
+        p.velocity += stormDirection * stormIntensity * (alignment - 0.3) * 2.0;
+        p.energy = min(p.energy + stormIntensity * 0.5, 2.0);
+    }
+    
+    particles[id.x] = p;
+}

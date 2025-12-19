@@ -222,12 +222,26 @@ void IntegrateCS(uint3 tid : SV_DispatchThreadID)
 
     float3 windAxisL = WindAxisLocal();
 
-    // If magnetopause enabled: skip seeds that start outside (prevents “random half-lines”).
-    if (_MPEnable > 0.5)
+// Seed clamp: if storms compress the boundary and a seed starts outside,
+// push it inward instead of returning nothing (keeps core density coherent).
+if (_MPEnable > 0.5)
+{
+    float3 pl = seed - _Center;
+    float fSeed = MagnetopauseF_Local(pl, windAxisL);
+
+    if (fSeed > 1.0)
     {
-        float3 plSeed = seed - _Center;
-        if (MagnetopauseF_Local(plSeed, windAxisL) > 1.0) return;
+        [unroll] for (int k = 0; k < 3; k++)
+        {
+            float f = MagnetopauseF_Local(pl, windAxisL);
+            if (f <= 1.0001) break;
+            pl *= rsqrt(max(f, 1e-6)); // pull toward boundary
+        }
+
+        seed = _Center + pl;
     }
+}
+
 
     float3 mAxis = normalize(_Moment0);
 
@@ -279,12 +293,17 @@ void IntegrateCS(uint3 tid : SV_DispatchThreadID)
                     {
                         float3 plHit = MagnetopauseIntersect_Local(pl0, pl1, windAxisL);
                         float3 pHit = _Center + plHit;
-                        Segment clipSeg; clipSeg.a = prev; clipSeg.b = pHit; clipSeg.mag = mag;
+
+                        Segment clipSeg;
+                        clipSeg.a = prev;
+                        clipSeg.b = pHit;
+                        clipSeg.mag = mag;
                         _Segments.Append(clipSeg);
                     }
                     break;
                 }
             }
+
 
             if (mag < _MinMag) break;
 

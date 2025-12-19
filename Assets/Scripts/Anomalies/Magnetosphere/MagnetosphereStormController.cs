@@ -582,21 +582,21 @@ public class MagnetosphereStormController : MonoBehaviour
 
     // -------------------- VectorField3D overrides --------------------
 
-    void SetStormWindDirOnMagnetosphere()
-    {
-        if (!magnetosphere || !grid) return;
+void SetStormWindDirOnMagnetosphere()
+{
+    if (!magnetosphere || !grid) return;
 
-        // Convert grid-local storm direction to world, then into magnetosphere model space.
-        Vector3 worldDir = grid.transform.TransformDirection(new Vector3(_stormDirLocal.x, _stormDirLocal.y, 0f));
-        if (worldDir.sqrMagnitude < 1e-6f) worldDir = Vector3.right;
-        worldDir.Normalize();
+    // Convert grid-local storm direction to WORLD.
+    Vector3 worldDir = grid.transform.TransformDirection(new Vector3(_stormDirLocal.x, _stormDirLocal.y, 0f));
+    if (worldDir.sqrMagnitude < 1e-6f) worldDir = Vector3.right;
 
-        Vector3 modelDir = magnetosphere.transform.InverseTransformDirection(worldDir);
-        if (modelDir.sqrMagnitude < 1e-6f) modelDir = Vector3.right;
-        modelDir.Normalize();
+    // Force storms to be XZ-only (top-down readability).
+    worldDir = Vector3.ProjectOnPlane(worldDir, Vector3.up);
+    if (worldDir.sqrMagnitude < 1e-6f) worldDir = Vector3.right;
 
-        magnetosphere.windDir = modelDir;
-    }
+    magnetosphere.SetWindDirWorldPlanar(worldDir.normalized, Vector3.up);
+}
+
 
     void ApplyMagnetosphereOverrides(float intensity01)
     {
