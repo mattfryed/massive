@@ -1,4 +1,3 @@
-// Magnetosphere Particle Simulation Compute Shader
 #pragma kernel InitParticles
 #pragma kernel UpdateParticles
 #pragma kernel ApplyStorm
@@ -7,239 +6,372 @@ struct Particle
 {
     float3 position;
     float3 velocity;
-    float charge; // 1.0 or -1.0
-    float energy;
-    float lifetime;
-    float maxLifetime;
+    float  charge;
+    float  energy;
+    float  lifetime;
+    float  maxLifetime;
 };
 
 RWStructuredBuffer<Particle> particles;
 
-// Magnetosphere parameters
+int    particleCount;
+float  time;
+float  deltaTime;
+
+float  particleDamping;
+float  velocityLimit;
+
+float  dipoleMoment;
+float  magnetosphereRadius;
+float  planetRadius;
 float3 dipolePosition;
-float dipoleMoment;
-float magnetosphereRadius;
-float time;
-float deltaTime;
-
-// Storm parameters
-float3 stormDirection;
-float stormIntensity;
-float stormActive;
-
-// Simulation parameters
-int particleCount;
-float particleDamping;
-float velocityLimit;
-
-// Random number generation
-float rand(float2 co)
-{
-    return frac(sin(dot(co.xy, float2(12.9898, 78.233))) * 43758.5453);
-}
-
-float3 rand3(float3 co)
-{
-    return float3(
-        rand(co.xy),
-        rand(co.yz),
-        rand(co.zx)
-    );
-}
-
-// NEW: Dipole axis (world space, normalized in shader)
 float3 dipoleAxis;
 
-// Build an orthonormal basis where "axis" is the local +Y
-void BuildAxisBasis(float3 axis, out float3 bX, out float3 bZ)
+float3 solarWindDirection;     // downstream direction
+float  solarWindStrength;
+
+float  daysideCompression;
+float  nightsideStretch;
+float  tailFieldStrength;
+
+float  turbulenceStrength;
+float  turbulenceScale;
+float  turbulenceSpeed;
+
+float  stormIntensity;
+float  stormActive;
+float  stormEnvelope;
+
+float  stormWarpScale;
+float  stormTurbulenceScale;
+
+float  stormFrontCenterS;
+float  stormFrontThickness;
+float  stormWakeLength;
+float  stormFrontFeather;
+
+static const float PI = 3.14159265359;
+
+uint Hash(uint x)
 {
-    axis = normalize(axis);
-    float3 tmp = (abs(axis.y) < 0.99) ? float3(0,1,0) : float3(1,0,0);
-    bX = normalize(cross(tmp, axis));
-    bZ = cross(axis, bX);
+    x ^= x >> 16;
+    x *= 0x7feb352d;
+    x ^= x >> 15;
+    x *= 0x846ca68b;
+    x ^= x >> 16;
+    return x;
 }
 
-// Convert a vector in "dipole local space" (where local Y = dipole axis) to world space
-float3 DipoleLocalToWorld(float3 vLocal)
+float Rand01(uint seed)
 {
-    float3 bX, bZ;
-    float3 axis = normalize(dipoleAxis);
-    BuildAxisBasis(axis, bX, bZ);
-    return vLocal.x * bX + vLocal.y * axis + vLocal.z * bZ;
+    return (Hash(seed) & 0x00FFFFFF) / 16777216.0;
 }
 
+float3 RandUnit(uint seed)
+{
+    float u = Rand01(seed);
+    float v = Rand01(seed + 17);
+    float z = v * 2.0 - 1.0;
+    float a = u * 2.0 * PI;
+    float r = sqrt(max(0.0, 1.0 - z * z));
+    return float3(r * cos(a), z, r * sin(a));
+}
 
-// Dipole magnetic field calculation
-float3 CalculateDipoleField(float3 pos)
+float Smooth01(float x)
+{
+    x = saturate(x);
+    return x * x * (3.0 - 2.0 * x);
+}
+
+float Smoothstep01(float edge0, float edge1, float x)
+{
+    if (edge1 <= edge0) return (x < edge0) ? 0.0 : 1.0;
+    float t = saturate((x - edge0) / (edge1 - edge0));
+    return t * t * (3.0 - 2.0 * t);
+}
+
+// Basis local Y = dipoleAxis
+void BuildBasis(float3 axis, out float3 bX, out float3 bY, out float3 bZ)
+{
+    bY = normalize(axis);
+    float3 tmp = (abs(bY.y) < 0.99) ? float3(0, 1, 0) : float3(1, 0, 0);
+    bX = normalize(cross(tmp, bY));
+    bZ = cross(bY, bX);
+}
+
+float3 LocalToWorld(float3 vLocal)
+{
+    float3 bX, bY, bZ;
+    BuildBasis(dipoleAxis, bX, bY, bZ);
+    return vLocal.x * bX + vLocal.y * bY + vLocal.z * bZ;
+}
+
+float3 CurlNoise(float3 p, float t)
+{
+    float3 f1 = float3(1.31, 2.17, 0.91);
+    float3 f2 = float3(-1.73, 0.63, 2.41);
+    float3 f3 = float3(2.27, -1.11, 1.53);
+
+    float p1 = dot(p, f1) + t * 1.1;
+    float p2 = dot(p, f2) + t * 0.9;
+    float p3 = dot(p, f3) + t * 1.3;
+
+    float3 da = cos(p1) * f1;
+    float3 db = cos(p2) * f2;
+    float3 dc = cos(p3) * f3;
+
+    return float3(dc.y - db.z, da.z - dc.x, db.x - da.y);
+}
+
+void StormMaskAt(float3 pos, float3 w, out float frontCore, out float wake)
+{
+    frontCore = 0.0;
+    wake = 0.0;
+    if (stormActive <= 0.5) return;
+
+    float3 r = pos - dipolePosition;
+    float along = dot(r, w);
+    float dist = along - stormFrontCenterS;
+
+    float half = stormFrontThickness * 0.5;
+    float feather = lerp(0.05, 2.0, saturate(stormFrontFeather));
+
+    float ad = abs(dist);
+    float core = 1.0 - Smoothstep01(half, half * feather, ad);
+
+    float wk = 0.0;
+    if (stormWakeLength > 1e-4 && dist > 0.0)
+    {
+        float u = saturate(dist / stormWakeLength);
+        wk = 1.0 - Smooth01(u);
+    }
+
+    frontCore = core * stormEnvelope;
+    wake = wk * stormEnvelope;
+}
+
+float3 DipoleField(float3 pos)
 {
     float3 r = pos - dipolePosition;
     float rMag = length(r);
-    if (rMag < 0.01) return float3(0,0,0);
-
-    float3 m = normalize(dipoleAxis) * dipoleMoment; // was hard-coded (0, dipoleMoment, 0)
+    if (rMag < 1e-4) return float3(0,0,0);
 
     float3 rHat = r / rMag;
+    float3 m = normalize(dipoleAxis) * dipoleMoment;
+
     float mDotR = dot(m, rHat);
-    float3 field = (3.0 * mDotR * rHat - m) / (rMag * rMag * rMag);
-    return field;
+    return (3.0 * mDotR * rHat - m) / (rMag * rMag * rMag);
 }
 
-
-// Check if particle is inside magnetosphere boundary
-bool IsInsideMagnetosphere(float3 pos)
+float3 WarpPositionForWind(float3 pos, float3 w, float windStrengthNow)
 {
+    if (windStrengthNow <= 1e-4) return pos;
+
+    float3 toSun = -w;
+
     float3 r = pos - dipolePosition;
-    float distXZ = length(float2(r.x, r.z));
-    
-    // Elongated tail on negative storm direction side
-    float3 toSun = -stormDirection;
-    float alignmentWithSun = dot(normalize(r), toSun);
-    
-    // Day side: compressed, Night side: elongated tail
-    float boundaryRadius = magnetosphereRadius;
-    if (alignmentWithSun > 0)
+    float rMag = max(1e-4, length(r));
+    float3 rHat = r / rMag;
+
+    float day = saturate(dot(rHat, toSun));
+    float night = saturate(dot(rHat, w));
+
+    float comp = daysideCompression * windStrengthNow;
+    float stretch = nightsideStretch * windStrengthNow;
+    float flare = tailFieldStrength * windStrengthNow;
+
+    float dayAlongFactor  = clamp(1.0 - 0.55 * comp, 0.65, 1.0);
+    float tailAlongFactor = clamp(1.0 + 1.10 * stretch, 1.0, 7.0);
+
+    float dayPerpFactor  = clamp(1.0 - 0.10 * comp, 0.75, 1.2);
+    float tailPerpFactor = clamp(1.0 + 0.20 * flare, 1.0, 2.2);
+
+    float along = dot(r, w);
+    float3 perp = r - w * along;
+
+    float alongFactor = 1.0;
+    float perpFactor = 1.0;
+
+    if (along < 0.0)
     {
-        // Day side compression
-        boundaryRadius *= lerp(0.6, 1.0, 1.0 - alignmentWithSun);
+        alongFactor = lerp(1.0, dayAlongFactor, day);
+        perpFactor  = lerp(1.0, dayPerpFactor, day);
     }
     else
     {
-        // Night side elongation (tail)
-        boundaryRadius *= lerp(1.0, 3.0, -alignmentWithSun);
+        alongFactor = lerp(1.0, tailAlongFactor, night);
+        perpFactor  = lerp(1.0, tailPerpFactor, night);
     }
-    
-    return length(r) < boundaryRadius;
+
+    return dipolePosition + w * (along * alongFactor) + perp * perpFactor;
+}
+
+float3 TotalField(float3 pos)
+{
+    float3 w = normalize(solarWindDirection);
+
+    float frontCore, wake;
+    StormMaskAt(pos, w, frontCore, wake);
+
+    float stormWarp = stormIntensity * frontCore * stormWarpScale;
+    float windStrengthLocal = solarWindStrength + stormWarp;
+
+    float3 warped = WarpPositionForWind(pos, w, windStrengthLocal);
+    float3 B = DipoleField(warped);
+
+    float3 r = pos - dipolePosition;
+    float rMag = max(1e-4, length(r));
+    float boundaryW = Smooth01((rMag - magnetosphereRadius * 0.55) / (magnetosphereRadius * 0.55));
+
+    float stormTurb = stormIntensity * (frontCore * 1.0 + wake * 0.6) * stormTurbulenceScale;
+    float turbAmp = turbulenceStrength * (0.15 + 0.85 * boundaryW) * (1.0 + 0.25 * stormTurb);
+
+    if (turbAmp > 0.0)
+    {
+        float3 n = CurlNoise(pos * (1.0 / max(1e-4, turbulenceScale)), time * turbulenceSpeed);
+        B += n * turbAmp;
+    }
+
+    return B;
+}
+
+float DirectionalBoundary(float3 pos, float windStrengthNow, float3 w)
+{
+    float3 r = pos - dipolePosition;
+    float rMag = max(1e-4, length(r));
+    float3 rHat = r / rMag;
+
+    float3 toSun = -w;
+
+    float day = saturate(dot(rHat, toSun));
+    float night = saturate(dot(rHat, w));
+
+    float comp = daysideCompression * windStrengthNow;
+    float stretch = nightsideStretch * windStrengthNow;
+
+    float dayScale = clamp(1.0 - 0.55 * comp, 0.65, 1.0);
+    float nightScale = clamp(1.0 + 1.10 * stretch, 1.0, 9.0);
+
+    float boundaryScale = 1.0 + night * (nightScale - 1.0) + day * (dayScale - 1.0);
+    return magnetosphereRadius * boundaryScale * 1.10;
 }
 
 [numthreads(256, 1, 1)]
 void InitParticles(uint3 id : SV_DispatchThreadID)
 {
-    if (id.x >= (uint)particleCount) return;
-    
-    Particle p = particles[id.x];
-    
-    // Random position on sphere around magnetosphere
-    float theta = rand(float2(id.x, time)) * 6.28318;
-    float phi = rand(float2(id.x + 1000, time)) * 3.14159;
-    float r = magnetosphereRadius * (2.0 + rand(float2(id.x + 2000, time)) * 2.0);
-    
-float flatten = 0.3;
+    uint idx = id.x;
+    if (idx >= (uint)particleCount) return;
 
-// local Y is along dipole axis
-float3 localOffset = float3(
-    r * sin(phi) * cos(theta),
-    r * cos(phi) * flatten,
-    r * sin(phi) * sin(theta)
-);
+    Particle p;
 
-p.position = dipolePosition + DipoleLocalToWorld(localOffset);
+    uint seed = Hash(idx * 9781u + (uint)(time * 1000.0));
 
-    
-    // Initial velocity toward magnetosphere
-    p.velocity = normalize(dipolePosition - p.position) * (0.5 + rand(float2(id.x + 3000, time)));
-    
-    // Random charge
-    p.charge = rand(float2(id.x + 4000, time)) > 0.5 ? 1.0 : -1.0;
-    
-    p.energy = 0.5 + rand(float2(id.x + 5000, time)) * 0.5;
-    p.maxLifetime = 10.0 + rand(float2(id.x + 6000, time)) * 10.0;
-    p.lifetime = 0;
-    
-    particles[id.x] = p;
-}
+    float3 dir = RandUnit(seed + 1);
+    float rr = pow(Rand01(seed + 2), 1.0 / 3.0) * magnetosphereRadius;
 
-[numthreads(256, 1, 1)]
-void UpdateParticles(uint3 id : SV_DispatchThreadID)
-{
-    if (id.x >= (uint)particleCount) return;
-    
-    Particle p = particles[id.x];
-    
-    p.lifetime += deltaTime;
-    
-    // Respawn if lifetime exceeded
-    if (p.lifetime > p.maxLifetime)
-    {
-        float theta = rand(float2(id.x, time + p.lifetime)) * 6.28318;
-        float phi = rand(float2(id.x + 1000, time + p.lifetime)) * 3.14159;
-        float r = magnetosphereRadius * (2.5 + rand(float2(id.x + 2000, time + p.lifetime)) * 2.0);
-        
-float flatten = 0.3;
+    float flatten = 0.30;
+    float3 localPos = float3(dir.x * rr, dir.y * rr * flatten, dir.z * rr);
 
-// local Y is along dipole axis
-float3 localOffset = float3(
-    r * sin(phi) * cos(theta),
-    r * cos(phi) * flatten,
-    r * sin(phi) * sin(theta)
-);
+    p.position = dipolePosition + LocalToWorld(localPos);
 
-p.position = dipolePosition + DipoleLocalToWorld(localOffset);
+    float3 axis = normalize(dipoleAxis);
+    float3 rVec = p.position - dipolePosition;
+    float3 tang = cross(axis, normalize(rVec + 1e-4));
+    p.velocity = tang * (Rand01(seed + 3) * 0.75);
 
-        
-        p.velocity = normalize(dipolePosition - p.position) * (0.5 + rand(float2(id.x + 3000, time + p.lifetime)));
-        p.lifetime = 0;
-        p.energy = 0.5 + rand(float2(id.x + 5000, time + p.lifetime)) * 0.5;
-    }
-    
-    // Calculate magnetic field
-    float3 B = CalculateDipoleField(p.position);
-    
-    // Lorentz force: F = q(v × B)
-    float3 lorentzForce = p.charge * cross(p.velocity, B);
-    
-    // Solar wind pressure (background flow)
-    float3 solarWindForce = stormDirection * 0.1;
-    
-    // Total acceleration
-    float3 acceleration = (lorentzForce + solarWindForce) * p.energy;
-    
-    // Update velocity
-    p.velocity += acceleration * deltaTime;
-    
-    // Apply damping
-    p.velocity *= (1.0 - particleDamping * deltaTime);
-    
-    // Limit velocity
-    float speed = length(p.velocity);
-    if (speed > velocityLimit)
-    {
-        p.velocity = normalize(p.velocity) * velocityLimit;
-    }
-    
-    // Update position
-    p.position += p.velocity * deltaTime;
-    
-    // Boundary reflection (weak to allow some escape)
-    float3 fromCenter = p.position - dipolePosition;
-    float distFromCenter = length(fromCenter);
-    
-    if (distFromCenter > magnetosphereRadius * 4.0)
-    {
-        // Too far - respawn
-        p.lifetime = p.maxLifetime + 1.0;
-    }
-    
-    particles[id.x] = p;
+    p.charge = (Rand01(seed + 4) > 0.5) ? 1.0 : -1.0;
+    p.energy = Rand01(seed + 5);
+    p.lifetime = 0.0;
+    p.maxLifetime = 3.0 + Rand01(seed + 6) * 5.0;
+
+    particles[idx] = p;
 }
 
 [numthreads(256, 1, 1)]
 void ApplyStorm(uint3 id : SV_DispatchThreadID)
 {
-    if (id.x >= (uint)particleCount) return;
-    if (stormActive < 0.5) return;
-    
-    Particle p = particles[id.x];
-    
-    // Add storm impulse to particles facing the storm
-    float3 toParticle = normalize(p.position - dipolePosition);
-    float alignment = dot(toParticle, stormDirection);
-    
-    if (alignment > 0.3)
+    // Optional: particles get a gentle push in the front region (not required for your line-only mode)
+    uint idx = id.x;
+    if (idx >= (uint)particleCount) return;
+    if (stormActive <= 0.5) return;
+
+    Particle p = particles[idx];
+
+    float3 w = normalize(solarWindDirection);
+    float frontCore, wake;
+    StormMaskAt(p.position, w, frontCore, wake);
+
+    float local = frontCore; // only in core
+    float kick = stormIntensity * local * 0.10;
+
+    p.velocity += w * kick * deltaTime;
+    p.energy = saturate(p.energy + kick * 0.03);
+
+    particles[idx] = p;
+}
+
+[numthreads(256, 1, 1)]
+void UpdateParticles(uint3 id : SV_DispatchThreadID)
+{
+    uint idx = id.x;
+    if (idx >= (uint)particleCount) return;
+
+    Particle p = particles[idx];
+
+    p.lifetime += deltaTime;
+
+    float3 w = normalize(solarWindDirection);
+
+    float frontCore, wake;
+    StormMaskAt(p.position, w, frontCore, wake);
+    float stormWarp = stormIntensity * frontCore * stormWarpScale;
+    float windStrengthLocal = solarWindStrength + stormWarp;
+
+    float boundary = DirectionalBoundary(p.position, windStrengthLocal, w);
+
+    float3 r = p.position - dipolePosition;
+    float rMag = length(r);
+
+    if (rMag < planetRadius || rMag > boundary * 1.15 || p.lifetime > p.maxLifetime)
     {
-        // Add storm velocity
-        p.velocity += stormDirection * stormIntensity * (alignment - 0.3) * 2.0;
-        p.energy = min(p.energy + stormIntensity * 0.5, 2.0);
+        uint seed = Hash(idx * 9781u + (uint)(time * 1000.0));
+
+        float3 dir = RandUnit(seed + 11);
+        float rr = pow(Rand01(seed + 12), 1.0 / 3.0) * magnetosphereRadius;
+
+        float flatten = 0.30;
+        float3 localPos = float3(dir.x * rr, dir.y * rr * flatten, dir.z * rr);
+
+        p.position = dipolePosition + LocalToWorld(localPos);
+
+        float3 axis = normalize(dipoleAxis);
+        float3 rVec = p.position - dipolePosition;
+        float3 tang = cross(axis, normalize(rVec + 1e-4));
+        p.velocity = tang * (Rand01(seed + 13) * 0.75);
+
+        p.charge = (Rand01(seed + 14) > 0.5) ? 1.0 : -1.0;
+        p.energy = Rand01(seed + 15);
+        p.lifetime = 0.0;
+        p.maxLifetime = 3.0 + Rand01(seed + 16) * 5.0;
+
+        particles[idx] = p;
+        return;
     }
-    
-    particles[id.x] = p;
+
+    float3 B = TotalField(p.position);
+
+    float3 accel = p.charge * cross(p.velocity, B) * 0.18;
+
+    p.velocity += accel * deltaTime;
+
+    float damp = exp(-particleDamping * deltaTime);
+    p.velocity *= damp;
+
+    float speed = length(p.velocity);
+    if (speed > velocityLimit)
+        p.velocity = (p.velocity / max(1e-4, speed)) * velocityLimit;
+
+    p.position += p.velocity * deltaTime;
+
+    particles[idx] = p;
 }
