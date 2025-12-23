@@ -1,0 +1,394 @@
+// MagnetosphereFieldLinesGPU2D.compute
+#pragma kernel IntegrateCS
+#pragma kernel BuildArgsCS
+
+struct Segment { float3 a; float3 b; float mag; };
+
+StructuredBuffer<float3> _Seeds;
+AppendStructuredBuffer<Segment> _Segments;
+
+// Count buffer filled via ComputeBuffer.CopyCount(_Segments, _SegCount, 0)
+StructuredBuffer<uint> _SegCount;
+RWStructuredBuffer<uint> _Args;
+
+// Integration params
+int   _SeedCount;
+int   _MaxSteps;
+float _Step;
+float _MinMag;
+
+// World / dipole
+float3 _Center;
+float  _PlanetRadius;
+float  _MagnetosphereRadius;
+float3 _DipoleAxis;     // normalized, XZ only
+float  _DipoleMoment;
+
+// Wind / global envelope
+float3 _WindDir;        // normalized, XZ only (downstream tail direction)
+float  _SolarWindStrength;
+float  _GlobalWindStrength;
+
+float  _DaysideCompression;
+float  _NightsideStretch;
+float  _TailFieldStrength;
+
+float  _PressureGain;
+float  _UseSquaredPressure;
+
+float  _DaysideResponseExp;
+float  _TailResponseExp;
+float  _TailPerpResponseExp;
+
+float  _MagnetopauseBlendWidth;
+float  _DayPerpCompressionRatio;
+float  _TailPerpFlareRatio;
+
+float  _MinDaysideAlongScale;
+float  _MinDaysidePerpScale;
+float  _StormDaysideCompressionBoost;
+
+float  _FlankPinchStrength;
+float  _MinFlankPerpScale;
+float  _FlankPinchWidth;
+float  _FlankPinchResponseExp;
+
+// Storm
+float _StormIntensity;
+float _StormWarpScale;
+float _StormEnvelope;
+
+float _StormFrontCenterS;
+float _StormFrontThickness;
+float _StormWakeLength;
+float _StormFrontFeather;
+float _StormFrontLocalWarpAmount;
+float _StormGlobalWarpShare;
+
+// -------------------- Helpers --------------------
+float Smooth01(float x) { x = saturate(x); return x * x * (3.0 - 2.0 * x); }
+
+float Smoothstep01(float edge0, float edge1, float x)
+{
+    if (edge1 <= edge0) return (x < edge0) ? 0.0 : 1.0;
+    float t = saturate((x - edge0) / (edge1 - edge0));
+    return t * t * (3.0 - 2.0 * t);
+}
+
+float3 NormalizeXZ(float3 v)
+{
+    v.y = 0.0;
+    float m2 = dot(v, v);
+    if (m2 < 1e-10) return float3(1,0,0);
+    return v * rsqrt(m2);
+}
+
+// Dipole field (unwarped)
+float3 DipoleField(float3 p)
+{
+    float3 r = p - _Center;
+    r.y = 0.0;
+    float r2 = dot(r, r);
+    if (r2 < 1e-10) return 0;
+
+    float rMag = sqrt(r2);
+    float3 rHat = r / rMag;
+    float3 m = NormalizeXZ(_DipoleAxis) * _DipoleMoment;
+
+    float mDotR = dot(m, rHat);
+    return (3.0 * mDotR * rHat - m) / (rMag * rMag * rMag);
+}
+
+// -------------------- Storm front mask --------------------
+void StormMaskAt(float3 p, out float frontCore, out float wake)
+{
+    frontCore = 0.0;
+    wake = 0.0;
+
+    if (_StormEnvelope <= 1e-5) return;
+
+    float3 w = NormalizeXZ(_WindDir);
+    float3 r = p - _Center;
+    r.y = 0.0;
+
+    float along = dot(r, w);
+    float dist = along - _StormFrontCenterS;
+
+    float halfT = _StormFrontThickness * 0.5;
+    float feather = lerp(0.05, 2.0, saturate(_StormFrontFeather));
+
+    float ad = abs(dist);
+    float core = 1.0 - Smoothstep01(halfT, halfT * feather, ad);
+
+    float wk = 0.0;
+    if (_StormWakeLength > 1e-4 && dist > 0.0)
+    {
+        float u = saturate(dist / _StormWakeLength);
+        wk = 1.0 - Smooth01(u);
+    }
+
+    frontCore = core * _StormEnvelope;
+    wake = wk * _StormEnvelope;
+}
+
+// -------------------- Envelope model --------------------
+void GetLocalEnvelope(float windStrength, float along, out float a, out float b, out float alongScale, out float perpScale)
+{
+    float R = max(0.001, _MagnetosphereRadius);
+
+    float bw = (_MagnetopauseBlendWidth > 0.001) ? _MagnetopauseBlendWidth : (R * 0.35);
+    float tTail = Smoothstep01(-bw, bw, along); // 0 day, 1 tail
+
+    float w = max(0.0, windStrength);
+    float x = (_UseSquaredPressure > 0.5) ? (w * w) : w;
+
+    // Make pow() base provably non-negative for Unity
+    float pressure01 = 1.0 - exp(-x * max(1e-4, _PressureGain));
+    pressure01 = saturate(pressure01);
+    pressure01 = max(pressure01, 1e-6);
+
+    float pDay  = pow(pressure01, max(0.01, _DaysideResponseExp));
+    float pTail = pow(pressure01, max(0.01, _TailResponseExp));
+    float pPerp = pow(pressure01, max(0.01, _TailPerpResponseExp));
+
+    float comp    = _DaysideCompression * pDay;
+    float stretch = _NightsideStretch * pTail;
+    float flare   = _TailFieldStrength * pPerp;
+
+    float stormMaxDrive = max(1e-4, _StormIntensity * _StormWarpScale);
+    float stormContribution = max(0.0, windStrength - _SolarWindStrength);
+    float stormLevel01 = saturate(stormContribution / stormMaxDrive);
+    comp *= (1.0 + _StormDaysideCompressionBoost * stormLevel01);
+
+    float dayAlong = 1.0 / (1.0 + comp);
+    float dayPerp  = 1.0 / (1.0 + comp * _DayPerpCompressionRatio);
+
+    float tailAlong = 1.0 + stretch;
+    float tailPerp  = 1.0 + flare * _TailPerpFlareRatio;
+
+    dayAlong  = clamp(dayAlong, _MinDaysideAlongScale, 1.0);
+    dayPerp   = clamp(dayPerp,  _MinDaysidePerpScale,  1.25);
+    tailAlong = clamp(tailAlong, 1.0, 18.0);
+    tailPerp  = clamp(tailPerp,  1.0, 6.0);
+
+    alongScale = lerp(dayAlong, tailAlong, tTail);
+    perpScale  = lerp(dayPerp,  tailPerp,  tTail);
+
+    float fw = (_FlankPinchWidth > 0.001) ? _FlankPinchWidth : bw;
+    fw = max(0.001, fw);
+
+    float flankW = exp(-(along * along) / (fw * fw));
+    float pFlank = pow(pressure01, max(0.01, _FlankPinchResponseExp));
+    float pinch01 = saturate(_FlankPinchStrength * pFlank);
+
+    float targetPerp = lerp(perpScale, max(0.001, perpScale * _MinFlankPerpScale), pinch01);
+    perpScale = lerp(perpScale, targetPerp, flankW);
+
+    a = R * alongScale;
+    b = R * perpScale;
+}
+
+float EnvelopeQ(float3 p, float windStrength)
+{
+    float3 w = NormalizeXZ(_WindDir);
+    float3 r = p - _Center;
+    r.y = 0.0;
+
+    float along = dot(r, w);
+    float3 perp = r - along * w;
+    float perp2 = dot(perp, perp);
+
+    float a, b, sa, sp;
+    GetLocalEnvelope(windStrength, along, a, b, sa, sp);
+
+    float q2 = (along * along) / (a * a) + perp2 / (b * b);
+    return sqrt(max(0.0, q2));
+}
+
+float3 ClampToEnvelope(float3 p, float windStrength)
+{
+    float3 w = NormalizeXZ(_WindDir);
+    float3 r = p - _Center;
+    r.y = 0.0;
+
+    float along = dot(r, w);
+    float3 perp = r - along * w;
+    float perpMag = sqrt(max(0.0, dot(perp, perp)));
+
+    float a, b, sa, sp;
+    GetLocalEnvelope(windStrength, along, a, b, sa, sp);
+
+    float q = sqrt((along * along) / (a * a) + (perpMag * perpMag) / (b * b));
+    if (q > 1.0)
+    {
+        float inv = 1.0 / q;
+        float3 outP = _Center + w * (along * inv) + perp * inv;
+        outP.y = _Center.y;
+        return outP;
+    }
+    p.y = _Center.y;
+    return p;
+}
+
+float3 WarpVisual(float3 pBase, float windStrength)
+{
+    float3 w = NormalizeXZ(_WindDir);
+    float3 r = pBase - _Center;
+    r.y = 0.0;
+
+    float along0 = dot(r, w);
+    float3 perp0 = r - along0 * w;
+
+    float a0, b0, sa, sp;
+    GetLocalEnvelope(windStrength, along0, a0, b0, sa, sp);
+
+    float perp0Mag2 = dot(perp0, perp0);
+    float q0 = sqrt((along0 * along0) / (a0 * a0) + perp0Mag2 / (b0 * b0));
+
+    float3 offset = w * (along0 * sa) + perp0 * sp;
+    float3 pWarp = _Center + offset;
+    pWarp.y = _Center.y;
+
+    float qWarp = EnvelopeQ(pWarp, windStrength);
+    float f = (qWarp > 1e-6) ? (q0 / qWarp) : 1.0;
+    pWarp = _Center + offset * f;
+    pWarp.y = _Center.y;
+
+    return ClampToEnvelope(pWarp, windStrength);
+}
+
+float3 ClipToEnvelope(float3 p0Base, float3 p1Base, float windStrength)
+{
+    float t0 = 0.0, t1 = 1.0;
+    [unroll] for (int k = 0; k < 10; k++)
+    {
+        float tm = 0.5 * (t0 + t1);
+        float3 pmBase = lerp(p0Base, p1Base, tm);
+        float3 pmWarp = WarpVisual(pmBase, windStrength);
+        if (EnvelopeQ(pmWarp, windStrength) > 1.0) t1 = tm;
+        else t0 = tm;
+    }
+    return lerp(p0Base, p1Base, t1);
+}
+
+float3 SnapToPlanetPole(float3 p)
+{
+    float3 r = p - _Center;
+    r.y = 0.0;
+    float rm = sqrt(max(0.0, dot(r, r)));
+    if (rm < 1e-6) r = float3(0,0,1);
+
+    float3 rDir = r / max(1e-6, rm);
+    float3 axis = NormalizeXZ(_DipoleAxis);
+
+    float sgn = (dot(rDir, axis) >= 0.0) ? 1.0 : -1.0;
+    float3 poleDir = axis * sgn;
+
+    float3 footDir = normalize(lerp(rDir, poleDir, 1.0));
+    float3 outP = _Center + footDir * _PlanetRadius;
+    outP.y = _Center.y;
+    return outP;
+}
+
+// -------------------- Kernels --------------------
+[numthreads(64,1,1)]
+void IntegrateCS(uint3 tid : SV_DispatchThreadID)
+{
+    uint id = tid.x;
+    if (id >= (uint)_SeedCount) return;
+
+    float3 seed = _Seeds[id];
+    seed.y = _Center.y;
+
+    float frontCore, wake;
+    StormMaskAt(seed, frontCore, wake);
+
+    float localExtra = _StormIntensity * _StormWarpScale * _StormFrontLocalWarpAmount * frontCore * (1.0 - _StormGlobalWarpShare);
+    float strength = _GlobalWindStrength + localExtra;
+
+    float3 seedWarp = WarpVisual(seed, strength);
+    float qSeed = EnvelopeQ(seedWarp, strength);
+    if (qSeed > 1.0)
+    {
+        float3 r = seed - _Center; r.y = 0.0;
+        seed = _Center + r / qSeed;
+        seed.y = _Center.y;
+    }
+
+    [unroll] for (int traceDirIdx = 0; traceDirIdx < 2; traceDirIdx++)
+    {
+        float dirSign = (traceDirIdx == 0) ? -1.0 : 1.0;
+
+        float3 p = seed;
+        float3 prevBase = p;
+
+        for (int s = 0; s < _MaxSteps; s++)
+        {
+            float3 rp = p - _Center; rp.y = 0.0;
+            float r2 = dot(rp, rp);
+            if (r2 <= (_PlanetRadius * _PlanetRadius) * 1.3)
+            {
+                float3 foot = SnapToPlanetPole(p);
+                float3 aW = WarpVisual(prevBase, strength);
+                float3 bW = WarpVisual(foot, strength);
+                Segment seg; seg.a = aW; seg.b = bW; seg.mag = 1.0;
+                _Segments.Append(seg);
+                break;
+            }
+
+            float3 B = DipoleField(p); B.y = 0.0;
+            float mag = length(B);
+            if (mag < _MinMag) break;
+
+            float3 dir = B / max(1e-6, mag); dir.y = 0.0;
+            float3 next = p + dir * (_Step * dirSign);
+            next.y = _Center.y;
+
+            float3 prevWarp = WarpVisual(p, strength);
+            float3 nextWarp = WarpVisual(next, strength);
+
+            float q0 = EnvelopeQ(prevWarp, strength);
+            float q1 = EnvelopeQ(nextWarp, strength);
+
+            if (q0 <= 1.0 && q1 > 1.0)
+            {
+                float3 hitBase = ClipToEnvelope(p, next, strength);
+                float3 hitWarp = WarpVisual(hitBase, strength);
+
+                Segment clipSeg;
+                clipSeg.a = prevWarp;
+                clipSeg.b = hitWarp;
+                clipSeg.mag = mag;
+                _Segments.Append(clipSeg);
+                break;
+            }
+            else if (q0 > 1.0)
+            {
+                break;
+            }
+            else
+            {
+                Segment seg;
+                seg.a = prevWarp;
+                seg.b = nextWarp;
+                seg.mag = mag;
+                _Segments.Append(seg);
+            }
+
+            prevBase = p;
+            p = next;
+        }
+    }
+}
+
+[numthreads(1,1,1)]
+void BuildArgsCS(uint3 tid : SV_DispatchThreadID)
+{
+    uint segCount = _SegCount[0];
+    uint vtxCount = segCount * 2u;
+
+    _Args[0] = vtxCount;
+    _Args[1] = 1u;
+    _Args[2] = 0u;
+    _Args[3] = 0u;
+}
