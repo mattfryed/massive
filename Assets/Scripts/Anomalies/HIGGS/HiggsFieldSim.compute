@@ -1,0 +1,276 @@
+#pragma kernel InitBubbles
+#pragma kernel UpdateBubbles
+#pragma kernel RasterizeHeight
+
+struct Bubble
+{
+    float2 posUV;      // 0..1
+    float2 velUV;      // UV/sec
+    float  amp;        // contribution amp (computed each update)
+    float  radius;     // world units
+    float  phase;      // anim phase
+    float  exciteT;    // seconds remaining of excitation
+    float2 pad;        // alignment padding
+};
+
+RWStructuredBuffer<Bubble> _Bubbles;
+
+RWTexture2D<float> _HiggsHeight;
+RWTexture2D<float> _HiggsExcite;
+RWTexture2D<float> _HiggsHeightBase;
+
+
+int   _MaxBubbles;
+int   _ActiveBubbles;
+
+float  _DT;
+float  _Time;
+
+float  _NoiseScale;
+float  _DriftSpeedUV;
+float  _VelDamping;
+
+float2 _AmpMinMax;
+float2 _RadiusMinMax;
+float  _BaseOffset;
+
+// Excitation
+float  _ExciteChancePerSecond;
+float  _ExciteAmp;
+float  _ExciteRadiusMul;
+float  _ExciteDuration;
+
+// NEW: smooth excitation
+float  _ExciteFadeTime;
+
+// NEW: border buffer for excitation triggering (world units)
+float  _ExciteBorderWorld;
+
+// NEW: phase speed range
+float2 _PhaseSpeedMinMax;
+
+// NEW: amp noise wobble (slow, smooth)
+float  _AmpNoiseStrength;     // 0..?
+float  _AmpNoiseSpeed;        // time speed
+float  _AmpNoiseSpatialScale; // spatial frequency
+
+float2 _WorldSizeXZ;
+int    _TexSize;
+
+// ------------------------------------------------------------
+// Hash / noise helpers (deterministic, cheap)
+// ------------------------------------------------------------
+uint Hash(uint x)
+{
+    x ^= x >> 16;
+    x *= 0x7feb352d;
+    x ^= x >> 15;
+    x *= 0x846ca68b;
+    x ^= x >> 16;
+    return x;
+}
+
+float Rand01(uint seed)
+{
+    return (Hash(seed) & 0x00FFFFFFu) / 16777216.0;
+}
+
+float2 Rand2(uint seed)
+{
+    return float2(Rand01(seed), Rand01(seed ^ 0xA5A5A5A5u));
+}
+
+// Cell noise (0..1)
+float NoiseCell01(int2 ip)
+{
+    uint h = Hash((uint)(ip.x * 73856093) ^ (uint)(ip.y * 19349663));
+    return (h & 0x00FFFFFFu) / 16777216.0;
+}
+
+// Smooth-ish value noise (0..1)
+float SmoothNoise01(float2 p)
+{
+    int2 i = (int2)floor(p);
+    float2 f = frac(p);
+    float a = NoiseCell01(i);
+    float b = NoiseCell01(i + int2(1,0));
+    float c = NoiseCell01(i + int2(0,1));
+    float d = NoiseCell01(i + int2(1,1));
+    float2 u = f * f * (3.0 - 2.0 * f);
+    return lerp(lerp(a, b, u.x), lerp(c, d, u.x), u.y);
+}
+
+// Direction field for drift
+float2 DriftDir(float2 p, float t, float scale)
+{
+    float n1 = SmoothNoise01(p * scale + t * 0.11);
+    float n2 = SmoothNoise01((p + 37.2) * scale + t * 0.13);
+    float a = (n1 + n2) * 6.2831853;
+    return float2(cos(a), sin(a));
+}
+
+// Excitation smooth envelope 0..1 (fade in/out)
+float ExciteEnvelope(float exciteT, float exciteDuration, float fadeTime)
+{
+    if (exciteT <= 0.0) return 0.0;
+
+    float age  = exciteDuration - exciteT;      // seconds since triggered
+    float fade = max(0.0001, fadeTime);
+
+    float wIn  = smoothstep(0.0, fade, age);
+    float wOut = smoothstep(0.0, fade, exciteT); // near end, goes to 0
+    return wIn * wOut;
+}
+
+// ------------------------------------------------------------
+
+[numthreads(64, 1, 1)]
+void InitBubbles(uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x;
+    if (i >= (uint)_MaxBubbles) return;
+
+    uint seed = Hash(i * 9781u + 12345u);
+
+    Bubble b;
+    b.posUV = Rand2(seed);
+    b.velUV = (Rand2(seed ^ 0xBADC0FFEu) - 0.5) * _DriftSpeedUV;
+    b.amp = lerp(_AmpMinMax.x, _AmpMinMax.y, Rand01(seed ^ 0x11111111u));
+    b.radius = lerp(_RadiusMinMax.x, _RadiusMinMax.y, Rand01(seed ^ 0x22222222u));
+    b.phase = Rand01(seed ^ 0x33333333u) * 6.2831853;
+    b.exciteT = 0.0;
+    b.pad = 0;
+
+    _Bubbles[i] = b;
+}
+
+[numthreads(64, 1, 1)]
+void UpdateBubbles(uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x;
+    if (i >= (uint)_MaxBubbles) return;
+
+    Bubble b = _Bubbles[i];
+
+    bool isActive = (i < (uint)_ActiveBubbles);
+
+    // Always advance phase (prevents popping when bubble becomes active)
+    {
+        float phaseRand = Rand01(Hash(i * 911u + 73u));
+        float phaseSpeed = lerp(_PhaseSpeedMinMax.x, _PhaseSpeedMinMax.y, phaseRand);
+        b.phase += _DT * phaseSpeed;
+    }
+
+    if (isActive)
+    {
+        // Drift
+        float2 dir = DriftDir(b.posUV, _Time, _NoiseScale);
+        b.velUV = b.velUV * _VelDamping + dir * (_DriftSpeedUV * (1.0 - _VelDamping));
+        b.posUV += b.velUV * _DT;
+        b.posUV = frac(b.posUV); // wrap
+
+        // Excitation countdown / trigger
+        if (b.exciteT > 0.0)
+        {
+            b.exciteT = max(0.0, b.exciteT - _DT);
+        }
+        else
+        {
+            // Border buffer (world units -> UV)
+            float2 marginUV = float2(
+                (_WorldSizeXZ.x <= 1e-5) ? 0.0 : (_ExciteBorderWorld / _WorldSizeXZ.x),
+                (_WorldSizeXZ.y <= 1e-5) ? 0.0 : (_ExciteBorderWorld / _WorldSizeXZ.y)
+            );
+
+            bool inside =
+                (b.posUV.x > marginUV.x) && (b.posUV.x < (1.0 - marginUV.x)) &&
+                (b.posUV.y > marginUV.y) && (b.posUV.y < (1.0 - marginUV.y));
+
+            if (inside)
+            {
+                // per-bubble chance per second (stable-ish)
+                uint seed = Hash(i * 97531u + (uint)floor(_Time * 60.0));
+                float r = Rand01(seed);
+                if (r < (_ExciteChancePerSecond * _DT))
+                {
+                    b.exciteT = _ExciteDuration;
+                }
+            }
+        }
+
+        // Base amp (sin)
+        float w = (sin(b.phase) * 0.5 + 0.5);
+        float baseAmp = lerp(_AmpMinMax.x, _AmpMinMax.y, w);
+
+        // NEW: slow smooth “noise wobble” added on top (clamped to min/max)
+        if (_AmpNoiseStrength > 0.0)
+        {
+            // per-bubble offset so they don't all wobble together
+            float2 o = float2((float)i * 0.173, (float)i * 0.311);
+            float2 p = b.posUV * _AmpNoiseSpatialScale + o +
+                       float2(_Time * _AmpNoiseSpeed, _Time * _AmpNoiseSpeed * 0.73);
+
+            float n = SmoothNoise01(p);                 // 0..1
+            float wobble = (n - 0.5) * 2.0;            // -1..1
+            baseAmp = clamp(baseAmp + wobble * _AmpNoiseStrength, _AmpMinMax.x, _AmpMinMax.y);
+        }
+
+        // Excitation envelope
+        float exciteW = ExciteEnvelope(b.exciteT, _ExciteDuration, _ExciteFadeTime);
+
+// store for raster (pad is unused)
+b.pad.x = baseAmp;   // base amplitude (no excite)
+b.pad.y = exciteW;   // excite envelope
+
+        // Smoothly push amp toward excite amp
+        b.amp = lerp(baseAmp, _ExciteAmp, exciteW);
+    }
+
+    _Bubbles[i] = b;
+}
+
+[numthreads(8, 8, 1)]
+void RasterizeHeight(uint3 id : SV_DispatchThreadID)
+{
+    uint x = id.x;
+    uint y = id.y;
+    if (x >= (uint)_TexSize || y >= (uint)_TexSize) return;
+
+    float2 uv = (float2(x + 0.5, y + 0.5) / (float)_TexSize);
+
+float h = _BaseOffset;
+float hBase = _BaseOffset;
+float e = 0.0;
+
+for (int i = 0; i < _ActiveBubbles; i++)
+{
+    Bubble b = _Bubbles[i];
+
+    float2 d = uv - b.posUV;
+    d -= round(d);
+
+    float2 dWorld = float2(d.x * _WorldSizeXZ.x, d.y * _WorldSizeXZ.y);
+    float d2 = dot(dWorld, dWorld);
+
+    float baseAmp = b.pad.x;
+    float exciteW = b.pad.y;
+
+    // Base (no excite): base radius + base amp
+    float sigma2Base = max(0.0001, b.radius * b.radius);
+    float gBase = exp(-d2 / (2.0 * sigma2Base));
+    hBase += baseAmp * gBase;
+
+    // Excited: smooth radius + blended amp already in b.amp
+    float radiusExc = lerp(b.radius, b.radius * _ExciteRadiusMul, exciteW);
+    float sigma2Exc = max(0.0001, radiusExc * radiusExc);
+    float gExc = exp(-d2 / (2.0 * sigma2Exc));
+    h += b.amp * gExc;
+
+    e = max(e, gExc * exciteW);
+}
+
+_HiggsHeight[int2(x,y)] = h;
+_HiggsHeightBase[int2(x,y)] = hBase;
+_HiggsExcite[int2(x,y)] = e;
+
+}

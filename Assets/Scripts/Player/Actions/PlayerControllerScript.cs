@@ -2,12 +2,12 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using Rigidbody = UnityEngine.Rigidbody;
-using Massive.Player; // <-- new: for PlayerAttackController
+using Massive.Player;      // PlayerAttackController
+using Massive.PowerUps;    // PlayerPowerUpController + PowerUpInputState
 
 public class PlayerControllerScript : MonoBehaviour
 {
     private Rewired.Player player;
-    
 
     [Header("Identity")]
     public int playerID;
@@ -39,6 +39,9 @@ public class PlayerControllerScript : MonoBehaviour
     [Tooltip("New combo/attack driver. Required for melee.")]
     public PlayerAttackController attackController;
 
+    [Header("Power-Ups")]
+    public PlayerPowerUpController powerUps; // assign or auto-find
+
     [Header("Mass & Size Tuning")]
     private float timeUntilNextShrink = .1f;
     private float timeOfLastShrink = 0f;
@@ -57,28 +60,26 @@ public class PlayerControllerScript : MonoBehaviour
     private float timeToReturn = 5f;
 
     // Amount of “massScore” to gain/lose per hit
-[SerializeField] private float massGainPerHit  = 0.08f; // tweak to taste
-[SerializeField] private float massLossPerHit  = 0.08f;
+    [SerializeField] private float massGainPerHit = 0.08f; // tweak to taste
+    [SerializeField] private float massLossPerHit = 0.08f;
 
     [Header("Mass → Nuggets")]
-[Range(0f, 1f)]
-public float massScore = 0.5f;       // 0 = min, 0.5 = start, 1 = max
+    [Range(0f, 1f)]
+    public float massScore = 0.5f;       // 0 = min, 0.5 = start, 1 = max
 
-public float massScoreMin = 0f;
-public float massScoreMax = 1f;
+    public float massScoreMin = 0f;
+    public float massScoreMax = 1f;
 
-// Visual nugget anchors
-public int minNuggets = 5;
-public int midNuggets = 50;
-public int maxNuggets = 300;
+    // Visual nugget anchors
+    public int minNuggets = 5;
+    public int midNuggets = 50;
+    public int maxNuggets = 300;
 
-// Movement slowdown: how much heavier you get at max mass
-public float baseRBMass = 1f;        // mass at 0
-public float extraRBMassAtMax = 2f;  // so mass goes 1 → 3
+    // Movement slowdown: how much heavier you get at max mass
+    public float baseRBMass = 1f;        // mass at 0
+    public float extraRBMassAtMax = 2f;  // so mass goes 1 → 3
 
-[SerializeField] private PlayerNuggetsGPU nuggetsGPU; // assign in Inspector or via GetComponentInChildren
-
-
+    [SerializeField] private PlayerNuggetsGPU nuggetsGPU; // assign in Inspector or via GetComponentInChildren
 
     [Header("State & Activity")]
     private GameObject dm;
@@ -102,15 +103,25 @@ public float extraRBMassAtMax = 2f;  // so mass goes 1 → 3
     public Vector2 CurrentPlanarVelocity => rb ? new Vector2(rb.linearVelocity.x, rb.linearVelocity.z) : Vector2.zero;
     public Vector2 CurrentFacing => (CurrentInput2D.sqrMagnitude > 0.0001f) ? CurrentInput2D.normalized : CurrentPlanarVelocity.normalized;
 
+    // ---- External stun (power-ups, etc) ----
+    private float externalStunUntil = -Mathf.Infinity;
+    public bool IsExternallyStunned => Time.time < externalStunUntil;
+
+    public void ExternalStun(float seconds)
+    {
+        externalStunUntil = Mathf.Max(externalStunUntil, Time.time + Mathf.Max(0f, seconds));
+    }
+
     private void Awake()
     {
         player = Rewired.ReInput.players.GetPlayer(playerID);
         lastActivityTime = Time.time;
         gameplayObjects = GameObject.FindWithTag("GameplayObjects");
 
+        // Keep visual scale constant
+        transform.localScale = Vector3.one;
 
-    // Keep visual scale constant
-    transform.localScale = Vector3.one;
+        if (!powerUps) powerUps = GetComponent<PlayerPowerUpController>();
     }
 
     void Start()
@@ -123,9 +134,9 @@ public float extraRBMassAtMax = 2f;  // so mass goes 1 → 3
 
         goalZone = (teamID == 1) ? GameObject.Find("TEAM 1") : GameObject.Find("TEAM 2");
 
-    // Starting “life” at 50% → 50 nuggets
-    massScore = 0.5f;
-    UpdateMassAndNuggets();
+        // Starting “life” at 50% → 50 nuggets
+        massScore = 0.5f;
+        UpdateMassAndNuggets();
 
         // Sanity checks
         if (!attackController)
@@ -138,10 +149,16 @@ public float extraRBMassAtMax = 2f;  // so mass goes 1 → 3
     {
         // Rewired input
         moveHorizontal = player.GetAxis("MoveH");
-        moveVertical   = player.GetAxis("MoveV");
-        movement       = new Vector3(moveHorizontal, 0f, moveVertical);
-        shieldOn       = player.GetButton("Shield");
-        didPlayerTapActionThisFrame = player.GetButtonDown("Sword");
+        moveVertical = player.GetAxis("MoveV");
+        movement = new Vector3(moveHorizontal, 0f, moveVertical);
+
+        shieldOn = player.GetButton("Shield");
+
+        bool swordDown = player.GetButtonDown("Sword");
+        bool swordHeld = player.GetButton("Sword");
+        bool swordUp = player.GetButtonUp("Sword");
+
+        didPlayerTapActionThisFrame = swordDown;
 
         // Visuals bridge (for trails, facing, etc.)
         if (visualsController != null)
@@ -151,30 +168,59 @@ public float extraRBMassAtMax = 2f;  // so mass goes 1 → 3
             if (rb != null) visualsController.velocityWS = new Vector2(rb.linearVelocity.x, rb.linearVelocity.z);
         }
 
-        if (attackController != null) {
-        // Feed stick to attack system for swipe direction
-        attackController.ExternalMoveInput = new Vector2(movement.x, movement.z);
+        if (attackController != null)
+        {
+            // Feed stick to attack system for swipe direction
+            attackController.ExternalMoveInput = new Vector2(movement.x, movement.z);
         }
 
+        // ---- Power-up input routing (can consume Sword) ----
+        bool consumedAttack = false;
 
-        // Attack trigger: hand off to new attack system (no manual sword toggling / dash)
+        if (powerUps != null)
+        {
+            Vector3 aimDir = movement;
+            if (aimDir.sqrMagnitude < 0.0001f && rb != null)
+                aimDir = new Vector3(rb.linearVelocity.x, 0f, rb.linearVelocity.z);
 
-        if (didPlayerTapActionThisFrame && attackController != null) {
+            if (aimDir.sqrMagnitude < 0.0001f)
+                aimDir = transform.forward;
+
+            aimDir.y = 0f;
+            if (aimDir.sqrMagnitude > 0.0001f) aimDir.Normalize();
+
+            var puInput = new PowerUpInputState
+            {
+                shieldHeld = shieldOn,
+                attackDown = swordDown,
+                attackHeld = swordHeld,
+                attackUp = swordUp,
+                moveInput = new Vector2(movement.x, movement.z),
+                aimDirWS = aimDir
+            };
+
+            consumedAttack = powerUps.HandleInput(puInput);
+        }
+
+        // ---- Attack trigger: hand off to attack system (only if not consumed by power-up) ----
+        if (!consumedAttack && swordDown && attackController != null)
+        {
             // Always tell the attack system about the press (for combo buffering)
             attackController.RegisterAttackPress();
 
             // Start an attack if we're not shielding and not already mid-attack
-            if (!shieldOn && !attackController.IsAttacking) {
+            if (!shieldOn && !attackController.IsAttacking)
+            {
                 attackController.BeginAttack();
             }
+
             lastActivityTime = Time.time;
         }
 
-
         // Basic mass sanity
-        if (rb.mass < .1f) rb.mass = 1f;
+        if (rb != null && rb.mass < .1f) rb.mass = 1f;
 
-        if (didPlayerTapActionThisFrame || shieldOn)
+        if (swordDown || shieldOn || swordHeld)
             lastActivityTime = Time.time;
 
         timeSinceLastActivity = Time.time - lastActivityTime;
@@ -183,20 +229,26 @@ public float extraRBMassAtMax = 2f;  // so mass goes 1 → 3
 
     void FixedUpdate()
     {
-        if (isStunned || temporarilyEliminated) return;
+        if (isStunned || IsExternallyStunned || temporarilyEliminated) return;
 
         // Movement force (scaled if attacking)
         float attackScale = (attackController != null && attackController.IsAttacking) ? attackingMoveScale : 1f;
-        float speedScale  = shieldSlowdownFactor;
+        float speedScale = shieldSlowdownFactor;
 
-        // Apply steering (reduced when shield is held; additional reduction while attacking)
+        float puMoveMul = 1f;
+        if (powerUps != null)
+            puMoveMul = powerUps.MovementMultiplier * powerUps.MovementMultiplierWhileCharging;
+
+        // Apply steering (reduced when shield is held; additional reduction while attacking; plus power-up multipliers)
         if (Mathf.Abs(movement.magnitude) > .15f)
         {
-            rb.AddForce(movement * movePower * speedScale * attackScale);
+            rb.AddForce(movement * movePower * speedScale * attackScale * puMoveMul);
         }
 
-        // Shield behavior (can’t raise while attacking)
-        if (shieldOn && !(attackController != null && attackController.IsAttacking))
+        // Shield behavior (can’t raise while attacking; also disabled while externally stunned)
+        if (shieldOn &&
+            !(attackController != null && attackController.IsAttacking) &&
+            !IsExternallyStunned)
         {
             if (movement != Vector3.zero)
                 lookRotation = Quaternion.LookRotation(movement.normalized);
@@ -210,12 +262,11 @@ public float extraRBMassAtMax = 2f;  // so mass goes 1 → 3
             shieldSlowdownFactor = .4f;
 
             // Continuous tiny drain while shielding
-
-if (massScore > massScoreMin)
-{
-    massScore -= massRemovedOnGoalShrink / 6f; // small drain per frame
-    UpdateMassAndNuggets();
-}
+            if (massScore > massScoreMin)
+            {
+                massScore -= massRemovedOnGoalShrink / 6f; // small drain per frame
+                UpdateMassAndNuggets();
+            }
         }
         else
         {
@@ -232,123 +283,113 @@ if (massScore > massScoreMin)
         else Debug.Log("SFX Module not found");
     }
 
-private void OnCollisionEnter(Collision collision)
-{
-    if (!visualsController) return;
-
-    float relSpeed = collision.relativeVelocity.magnitude;
-
-    const float minImpulseSpeed = 0.1f;
-    const float maxImpulseSpeed = 8f;
-
-    float velImpulse = Mathf.InverseLerp(minImpulseSpeed, maxImpulseSpeed, relSpeed);
-
-    // Extra impulse from attack stage, independent of physics velocity
-    float attackImpulse = 0f;
-    if (attackController && attackController.IsAttacking && attackController.CurrentStage != null)
+    private void OnCollisionEnter(Collision collision)
     {
-        var s = attackController.CurrentStage;
-        float baseDashSpeed = (s.Duration > 0.001f) ? (s.TravelDistance / s.Duration) : 0f;
-        const float dashRefSpeed = 8f; // tune to taste
-        attackImpulse = Mathf.Clamp01(baseDashSpeed / dashRefSpeed);
-    }
+        if (!visualsController) return;
 
-    // Combine, then clamp
-    float hitStrength = Mathf.Clamp01(velImpulse + attackImpulse);
+        float relSpeed = collision.relativeVelocity.magnitude;
 
-    if (hitStrength > 0.01f)
-    {
-        // Use contact point so we can drive directional ripples later
-        var contact = (collision.contactCount > 0) ? collision.GetContact(0) : default;
-        visualsController.OnHit(hitStrength, contact.point);
-    }
+        const float minImpulseSpeed = 0.1f;
+        const float maxImpulseSpeed = 8f;
 
-    Debug.Log($"Collision with {collision.gameObject.name}, relSpeed={relSpeed}, hitStrength={hitStrength}");
-}
+        float velImpulse = Mathf.InverseLerp(minImpulseSpeed, maxImpulseSpeed, relSpeed);
 
-private void OnCollisionStay(Collision collision)
-{
-    if (!visualsController) return;
-
-    // Filter if you only want walls here:
-    // if (!collision.gameObject.CompareTag("Wall")) return;
-
-    // Use max penetration-ish contact as “how much” we’re pressing
-    ContactPoint best = collision.GetContact(0);
-    float maxSep = best.separation;
-
-    for (int i = 1; i < collision.contactCount; i++)
-    {
-        var cp = collision.GetContact(i);
-        if (cp.separation < maxSep)  // more negative = deeper
+        // Extra impulse from attack stage, independent of physics velocity
+        float attackImpulse = 0f;
+        if (attackController && attackController.IsAttacking && attackController.CurrentStage != null)
         {
-            maxSep = cp.separation;
-            best   = cp;
+            var s = attackController.CurrentStage;
+            float baseDashSpeed = (s.Duration > 0.001f) ? (s.TravelDistance / s.Duration) : 0f;
+            const float dashRefSpeed = 8f; // tune to taste
+            attackImpulse = Mathf.Clamp01(baseDashSpeed / dashRefSpeed);
+        }
+
+        // Combine, then clamp
+        float hitStrength = Mathf.Clamp01(velImpulse + attackImpulse);
+
+        if (hitStrength > 0.01f)
+        {
+            // Use contact point so we can drive directional ripples later
+            var contact = (collision.contactCount > 0) ? collision.GetContact(0) : default;
+            visualsController.OnHit(hitStrength, contact.point);
+        }
+
+        Debug.Log($"Collision with {collision.gameObject.name}, relSpeed={relSpeed}, hitStrength={hitStrength}");
+    }
+
+    private void OnCollisionStay(Collision collision)
+    {
+        if (!visualsController) return;
+
+        ContactPoint best = collision.GetContact(0);
+        float maxSep = best.separation;
+
+        for (int i = 1; i < collision.contactCount; i++)
+        {
+            var cp = collision.GetContact(i);
+            if (cp.separation < maxSep)  // more negative = deeper
+            {
+                maxSep = cp.separation;
+                best = cp;
+            }
+        }
+
+        float press = 0f;
+        if (maxSep < 0f)
+        {
+            const float maxPenetration = 0.2f; // tune
+            press = Mathf.Clamp01(-maxSep / maxPenetration);
+        }
+
+        if (press > 0.01f)
+        {
+            visualsController.OnContact(best.point, best.normal, press);
         }
     }
 
-    // Map separation (usually <= 0) to a 0..1 "press" value.
-    // 0 = just touching, 1 = deeply overlapped.
-    float press = 0f;
-    if (maxSep < 0f)
+    public void Shrink(GameObject hitSource)
     {
-        const float maxPenetration = 0.2f; // tune
-        press = Mathf.Clamp01(-maxSep / maxPenetration);
-    }
+        if (Time.time - timeOfLastShrink <= timeUntilNextShrink)
+            return;
 
-    // Combine with impact-based info if you like, or keep it separate.
-    if (press > 0.01f)
-    {
-        visualsController.OnContact(best.point, best.normal, press);
-    }
-}
-
-
-
-
-public void Shrink(GameObject hitSource)
-{
-    if (Time.time - timeOfLastShrink <= timeUntilNextShrink)
-        return;
-
-    // Defender loses mass
-    massScore -= massLossPerHit;
-    UpdateMassAndNuggets();
-
-    // Existing visuals / blob ejections
-    if (hitSource != null)
-    {
-        for (int i = 0; i < 5; i++)
-            EjectBlob(hitSource);
-    }
-
-    // “Death” condition
-    if (massScore <= massScoreMin)
-    {
-        temporarilyEliminated = true;
-
-        if (explosionPrefab)
-        {
-            var exp = Instantiate(explosionPrefab);
-            exp.transform.position = transform.position;
-        }
-
-        playSFX("diedSFX");
-
-        // Reset mass for next life
-        massScore = 0.5f;
+        // Defender loses mass
+        massScore -= massLossPerHit;
         UpdateMassAndNuggets();
 
-        RespawnEffect();
-        Invoke(nameof(Return), timeToReturn);
+        // Existing visuals / blob ejections
+        if (hitSource != null)
+        {
+            for (int i = 0; i < 5; i++)
+                EjectBlob(hitSource);
+        }
 
-        transform.position = new Vector3(1200f, 1200f, 1200f);
+        // “Death” condition
+        if (massScore <= massScoreMin)
+        {
+            temporarilyEliminated = true;
 
-        if (goalZone) goalZone.BroadcastMessage("LoseScore", teamID);
+            if (explosionPrefab)
+            {
+                var exp = Instantiate(explosionPrefab);
+                exp.transform.position = transform.position;
+            }
+
+            playSFX("diedSFX");
+
+            // Reset mass for next life
+            massScore = 0.5f;
+            UpdateMassAndNuggets();
+
+            RespawnEffect();
+            Invoke(nameof(Return), timeToReturn);
+
+            transform.position = new Vector3(1200f, 1200f, 1200f);
+
+            if (goalZone) goalZone.BroadcastMessage("LoseScore", teamID);
+        }
+
+        timeOfLastShrink = Time.time;
     }
-
-    timeOfLastShrink = Time.time;
-}
 
     void RespawnEffect()
     {
@@ -378,7 +419,7 @@ public void Shrink(GameObject hitSource)
         rb.AddForce(knockDirection.normalized * movePower * 30f);
 
         if (shield) shield.SetActive(false);
-        if (sword)  sword.SetActive(false); // purely visual; collider is managed by PlayerMelee
+        if (sword) sword.SetActive(false); // purely visual; collider is managed by PlayerMelee
 
         isStunned = true;
         if (stunEffect) stunEffect.GetComponent<ParticleSystem>()?.Play();
@@ -387,81 +428,76 @@ public void Shrink(GameObject hitSource)
 
     public void SwordClash()
     {
-        // Small knockback away from the sword's visual position (if assigned)
         Vector3 from = sword ? sword.transform.position : (transform.position - transform.forward);
         Vector3 direction = transform.position - from;
         rb.AddForce(direction * 200f);
     }
 
-public void ShrinkSlow(GameObject target)
-{
-    if (massScore <= massScoreMin) return;
+    public void ShrinkSlow(GameObject target)
+    {
+        if (massScore <= massScoreMin) return;
 
-    massScore -= massRemovedOnGoalShrink;
-    UpdateMassAndNuggets();
-    EjectBlob(target);
-}
+        massScore -= massRemovedOnGoalShrink;
+        UpdateMassAndNuggets();
+        EjectBlob(target);
+    }
 
-public bool GoalShrink()
-{
-    if (massScore <= massScoreMin) return false;
+    public bool GoalShrink()
+    {
+        if (massScore <= massScoreMin) return false;
 
-    massScore -= massRemovedOnGoalShrink;
-    UpdateMassAndNuggets();
+        massScore -= massRemovedOnGoalShrink;
+        UpdateMassAndNuggets();
 
-    var scoreSphere = goalZone.transform.Find("Score Sphere");
-    if (scoreSphere) EjectBlob(scoreSphere.gameObject);
+        var scoreSphere = goalZone.transform.Find("Score Sphere");
+        if (scoreSphere) EjectBlob(scoreSphere.gameObject);
 
-    return true;
-}
+        return true;
+    }
 
-public void Grow()
-{
-    if (massScore >= massScoreMax) return;
+    public void Grow()
+    {
+        if (massScore >= massScoreMax) return;
 
-    // Attacker gains mass
-    massScore += massGainPerHit;
-    UpdateMassAndNuggets();
-}
+        // Attacker gains mass
+        massScore += massGainPerHit;
+        UpdateMassAndNuggets();
+    }
 
     void UpdateMassAndNuggets()
-{
-    // Clamp score
-    massScore = Mathf.Clamp(massScore, massScoreMin, massScoreMax);
-
-    float t = (massScoreMax <= massScoreMin)
-        ? 0f
-        : Mathf.Clamp01((massScore - massScoreMin) / (massScoreMax - massScoreMin));
-
-    // 1) Map to Rigidbody mass: base → base+extra
-    if (rb)
     {
-        float targetMass = baseRBMass + t * extraRBMassAtMax;
-        rb.mass = targetMass;
+        // Clamp score
+        massScore = Mathf.Clamp(massScore, massScoreMin, massScoreMax);
+
+        float t = (massScoreMax <= massScoreMin)
+            ? 0f
+            : Mathf.Clamp01((massScore - massScoreMin) / (massScoreMax - massScoreMin));
+
+        // 1) Map to Rigidbody mass: base → base+extra
+        if (rb)
+        {
+            float targetMass = baseRBMass + t * extraRBMassAtMax;
+            rb.mass = targetMass;
+        }
+
+        // 2) Map to nugget count with mid anchor
+        int nuggetCount;
+        if (t <= 0.5f)
+        {
+            float tt = t / 0.5f;
+            nuggetCount = Mathf.RoundToInt(Mathf.Lerp(minNuggets, midNuggets, tt));
+        }
+        else
+        {
+            float tt = (t - 0.5f) / 0.5f;
+            nuggetCount = Mathf.RoundToInt(Mathf.Lerp(midNuggets, maxNuggets, tt));
+        }
+
+        nuggetCount = Mathf.Clamp(nuggetCount, minNuggets, maxNuggets);
+
+        if (nuggetsGPU)
+            nuggetsGPU.SetDotCount(nuggetCount);
     }
-
-    // 2) Map to nugget count with mid anchor
-    int nuggetCount;
-    if (t <= 0.5f)
-    {
-        // 0 → minNuggets, 0.5 → midNuggets
-        float tt = t / 0.5f;
-        nuggetCount = Mathf.RoundToInt(Mathf.Lerp(minNuggets, midNuggets, tt));
-    }
-    else
-    {
-        // 0.5 → midNuggets, 1.0 → maxNuggets
-        float tt = (t - 0.5f) / 0.5f;
-        nuggetCount = Mathf.RoundToInt(Mathf.Lerp(midNuggets, maxNuggets, tt));
-    }
-
-    nuggetCount = Mathf.Clamp(nuggetCount, minNuggets, maxNuggets);
-
-    if (nuggetsGPU)
-        nuggetsGPU.SetDotCount(nuggetCount);
-}
-
-
 
     void EjectBlob(GameObject newTarget)
     {
@@ -478,37 +514,34 @@ public void Grow()
     public bool temporarilyEliminated = false;
 
     public void ApplyExternalMassDelta(float delta, bool allowDeath = true)
-{
-    if (temporarilyEliminated) return;
-
-    massScore += delta;
-    UpdateMassAndNuggets();
-
-    if (allowDeath && massScore <= massScoreMin)
     {
-        temporarilyEliminated = true;
+        if (temporarilyEliminated) return;
 
-        if (explosionPrefab)
-        {
-            var exp = Instantiate(explosionPrefab);
-            exp.transform.position = transform.position;
-        }
-
-        playSFX("diedSFX");
-
-        // Reset mass for next life
-        massScore = 0.5f;
+        massScore += delta;
         UpdateMassAndNuggets();
 
-        RespawnEffect();
-        Invoke(nameof(Return), timeToReturn);
+        if (allowDeath && massScore <= massScoreMin)
+        {
+            temporarilyEliminated = true;
 
-        transform.position = new Vector3(1200f, 1200f, 1200f);
+            if (explosionPrefab)
+            {
+                var exp = Instantiate(explosionPrefab);
+                exp.transform.position = transform.position;
+            }
 
-        if (goalZone) goalZone.BroadcastMessage("LoseScore", teamID);
+            playSFX("diedSFX");
+
+            // Reset mass for next life
+            massScore = 0.5f;
+            UpdateMassAndNuggets();
+
+            RespawnEffect();
+            Invoke(nameof(Return), timeToReturn);
+
+            transform.position = new Vector3(1200f, 1200f, 1200f);
+
+            if (goalZone) goalZone.BroadcastMessage("LoseScore", teamID);
+        }
     }
 }
-
-}
-
-
