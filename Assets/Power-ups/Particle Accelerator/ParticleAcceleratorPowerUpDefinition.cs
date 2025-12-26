@@ -37,5 +37,7 @@ namespace Massive.PowerUps
         [Header("Aim Assist / Movement")]
         public float selfSlowWhileCharging = 0.55f; // 1 = no slow
         public float aimLockTurnSpeed = 999f; // optional later
+
+        public override PowerUpType Type => PowerUpType.ParticleAccelerator;
     }
 }

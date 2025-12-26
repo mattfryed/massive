@@ -7,10 +7,6 @@ namespace Massive.PowerUps
     {
         public PowerUpDefinition definition;
 
-        [Header("Collision")]
-        public string playerTag = "Player";
-        public float pickupRadius = 0.75f;
-
         private float _deathTime;
 
         private void OnEnable()
@@ -26,11 +22,18 @@ namespace Massive.PowerUps
 
         private void OnTriggerEnter(Collider other)
         {
-            if (!other.CompareTag(playerTag)) return;
+Debug.Log($"[PowerUpPickup] Triggered by {other.name} root={other.transform.root.name}", this);
 
-            var p = other.GetComponent<PlayerPowerUpController>();
+var p = other.GetComponentInParent<PlayerPowerUpController>();
+Debug.Log($"[PowerUpPickup] Found PlayerPowerUpController? {(p != null)}", this);
             if (!p) p = other.GetComponentInParent<PlayerPowerUpController>();
-            if (!p || definition == null) return;
+            if (!p) return;
+
+            if (definition == null)
+            {
+                Debug.LogWarning($"[{name}] PowerUpPickup hit player but definition is NULL.");
+                return;
+            }
 
             p.Equip(definition);
             Destroy(gameObject);

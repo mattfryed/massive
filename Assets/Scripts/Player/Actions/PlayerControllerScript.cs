@@ -238,6 +238,9 @@ public class PlayerControllerScript : MonoBehaviour
         float puMoveMul = 1f;
         if (powerUps != null)
             puMoveMul = powerUps.MovementMultiplier * powerUps.MovementMultiplierWhileCharging;
+            
+            if (powerUps != null && powerUps.HasActive)
+    Debug.Log($"[PU] mul={powerUps.MovementMultiplier}", this);
 
         // Apply steering (reduced when shield is held; additional reduction while attacking; plus power-up multipliers)
         if (Mathf.Abs(movement.magnitude) > .15f)

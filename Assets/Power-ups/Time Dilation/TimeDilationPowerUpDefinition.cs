@@ -7,5 +7,7 @@ namespace Massive.PowerUps
     {
         [Header("Tuning")]
         public float moveSpeedMultiplier = 1.45f;
+
+        public override PowerUpType Type => PowerUpType.TimeDilation;
     }
 }

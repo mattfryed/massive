@@ -1,6 +1,7 @@
 using System.Collections;
 using UnityEngine;
-using Massive.Player; // for PlayerAttackController / AttackStage
+using Massive.Player;     // for PlayerAttackController / AttackStage
+using Massive.PowerUps;   // for PlayerPowerUpController (Decoherence intercept)
 
 /// <summary>
 /// Event-driven melee hitbox for the player's weapon.
@@ -34,16 +35,13 @@ public class PlayerMelee : MonoBehaviour
     {
         hitbox = GetComponent<Collider>();
         if (hitbox) hitbox.isTrigger = true;
-        // Try to resolve common references
-        if (!owner) owner = GetComponentInParent<PlayerControllerScript>();
-        if (!attackController) attackController = GetComponentInParent<PlayerAttackController>();
     }
 
     private void Awake()
     {
-        if (!hitbox) hitbox = GetComponent<Collider>();
         if (!owner) owner = GetComponentInParent<PlayerControllerScript>();
         if (!attackController) attackController = GetComponentInParent<PlayerAttackController>();
+        if (!hitbox) hitbox = GetComponent<Collider>();
 
         if (hitbox) hitbox.isTrigger = true;
     }
@@ -66,11 +64,13 @@ public class PlayerMelee : MonoBehaviour
             attackController.OnStageStarted.RemoveListener(OnStageStarted);
             attackController.OnStageCompleted.RemoveListener(OnStageCompleted);
         }
+
         if (gateRoutine != null)
         {
             StopCoroutine(gateRoutine);
             gateRoutine = null;
         }
+
         if (hitbox) hitbox.enabled = false;
     }
 
@@ -78,16 +78,19 @@ public class PlayerMelee : MonoBehaviour
 
     private void OnStageStarted(AttackStage stage)
     {
-        if (!gateHitboxToActivationWindow || hitbox == null || attackController == null || stage == null)
-            return;
+        if (!gateHitboxToActivationWindow || hitbox == null) return;
 
         if (gateRoutine != null) StopCoroutine(gateRoutine);
-        gateRoutine = StartCoroutine(GateHitbox(stage));
+        gateRoutine = StartCoroutine(GateHitboxRoutine(stage));
     }
 
     private void OnStageCompleted(AttackStage stage)
     {
-        if (hitbox) hitbox.enabled = false;
+        if (!gateHitboxToActivationWindow || hitbox == null) return;
+
+        // Hard shut-off on stage end
+        hitbox.enabled = false;
+
         if (gateRoutine != null)
         {
             StopCoroutine(gateRoutine);
@@ -95,19 +98,22 @@ public class PlayerMelee : MonoBehaviour
         }
     }
 
-    private IEnumerator GateHitbox(AttackStage stage)
+    private IEnumerator GateHitboxRoutine(AttackStage stage)
     {
-        // Wait until we reach the stage's activation start
-        while (attackController.CurrentStage == stage &&
+        // Wait until activation window opens
+        while (attackController != null &&
+               attackController.CurrentStage == stage &&
                attackController.StageNormalizedTime < stage.ActivationStartNormalized)
         {
             yield return null;
         }
 
-        if (attackController.CurrentStage == stage && hitbox) hitbox.enabled = true;
+        if (attackController != null && attackController.CurrentStage == stage && hitbox)
+            hitbox.enabled = true;
 
         // Keep enabled through the activation window
-        while (attackController.CurrentStage == stage &&
+        while (attackController != null &&
+               attackController.CurrentStage == stage &&
                attackController.StageNormalizedTime <= stage.ActivationEndNormalized)
         {
             yield return null;
@@ -139,9 +145,22 @@ public class PlayerMelee : MonoBehaviour
             return;
         }
 
-        // Sword vs Shield (stun attacker)
+        // Sword vs Shield
+        // Default: attacker gets stunned.
+        // Power-up override: defender can "Decohere" while shielding, letting attacker phase through + get briefly stunned.
         if (other.CompareTag(shieldTag))
         {
+            var defenderPU = other.GetComponentInParent<PlayerPowerUpController>();
+            if (defenderPU != null)
+            {
+                Vector3 dir = (attackController != null) ? attackController.CurrentAttackDirectionWS : owner.transform.forward;
+                dir.y = 0f;
+                if (dir.sqrMagnitude < 0.0001f) dir = owner.transform.forward;
+
+                if (defenderPU.TryHandleShieldImpact(owner, other, dir))
+                    return; // handled (Decoherence success)
+            }
+
             owner.Stun(other.transform.position);
             return;
         }
@@ -154,8 +173,8 @@ public class PlayerMelee : MonoBehaviour
 
             if (!victim.shieldOn)
             {
-                owner.Grow();                           // Attacker grows
-                victim.Shrink(owner.gameObject);        // Victim shrinks + blob eject to attacker
+                owner.Grow();                    // Attacker grows
+                victim.Shrink(owner.gameObject); // Victim shrinks + blob eject to attacker
                 victim.playSFX("struckSFX");
             }
         }

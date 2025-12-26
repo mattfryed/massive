@@ -25,7 +25,7 @@ public class PlayerVisualController : MonoBehaviour
 
 
     [Header("Blob Shape")]
-    public float baseRadius = 0.65f;
+    public float baseRadius = 0.5f;
     public float outlineHalf = 0.03f;
 
     [Header("Wobble & Reactions")]

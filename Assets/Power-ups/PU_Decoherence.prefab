@@ -14,6 +14,7 @@ GameObject:
   - component: {fileID: 2888585822920388456}
   - component: {fileID: 3133667860691980274}
   - component: {fileID: 1916919567801656676}
+  - component: {fileID: -7847268438442591824}
   m_Layer: 0
   m_Name: PU_Decoherence
   m_TagString: Untagged
@@ -147,3 +148,16 @@ SphereCollider:
   serializedVersion: 3
   m_Radius: 0.5
   m_Center: {x: 0, y: 0, z: 0}
+--- !u!114 &-7847268438442591824
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4270921612713813033}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f33b992b4d5b542fca8d3ac38c480e46, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  definition: {fileID: 11400000, guid: 9bb81ee17f3bf4d9f81a360bcc1a08f6, type: 2}

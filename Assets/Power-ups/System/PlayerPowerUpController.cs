@@ -142,22 +142,19 @@ namespace Massive.PowerUps
 
     internal static class PowerUpAbilityFactory
     {
-        public static IPowerUpAbility Create(PowerUpDefinition def, PlayerControllerScript owner, PlayerPowerUpController host)
-        {
-            switch (def.type)
-            {
-                case PowerUpType.TimeDilation:
-                    return new TimeDilationAbility((TimeDilationPowerUpDefinition)def, owner, host);
+public static IPowerUpAbility Create(PowerUpDefinition def, PlayerControllerScript owner, PlayerPowerUpController host)
+{
+    if (def is TimeDilationPowerUpDefinition td)
+        return new TimeDilationAbility(td, owner, host);
 
-                case PowerUpType.ParticleAccelerator:
-                    return new ParticleAcceleratorAbility((ParticleAcceleratorPowerUpDefinition)def, owner, host);
+    if (def is ParticleAcceleratorPowerUpDefinition pa)
+        return new ParticleAcceleratorAbility(pa, owner, host);
 
-                case PowerUpType.Decoherence:
-                    return new DecoherenceAbility((DecoherencePowerUpDefinition)def, owner, host);
+    if (def is DecoherencePowerUpDefinition dc)
+        return new DecoherenceAbility(dc, owner, host);
 
-                default:
-                    return null;
-            }
-        }
+    Debug.LogError($"PowerUpDefinition has unknown concrete type: {def.GetType().Name}", def);
+    return null;
+}
     }
 }

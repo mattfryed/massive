@@ -20,5 +20,7 @@ namespace Massive.PowerUps
 
         [Tooltip("How long to ignore collisions between attacker/defender after success.")]
         public float ignoreCollisionSeconds = 0.25f;
+
+        public override PowerUpType Type => PowerUpType.Decoherence;
     }
 }
