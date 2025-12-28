@@ -1853,6 +1853,13 @@ MonoBehaviour:
         _modifierKey1: 0
         _modifierKey2: 0
         _modifierKey3: 0
+    - id: 4
+      categoryId: 1
+      layoutId: 0
+      name: 
+      hardwareGuidString: 
+      customControllerUid: 0
+      actionElementMaps: []
     mouseMaps: []
     customControllerMaps: []
     customControllers: []
@@ -1868,7 +1875,7 @@ MonoBehaviour:
     mouseLayoutIdCounter: 1
     customControllerLayoutIdCounter: 1
     joystickMapIdCounter: 5
-    keyboardMapIdCounter: 4
+    keyboardMapIdCounter: 5
     mouseMapIdCounter: 0
     customControllerMapIdCounter: 0
     customControllerIdCounter: 1

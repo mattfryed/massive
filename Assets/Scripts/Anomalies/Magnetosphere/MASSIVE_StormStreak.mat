@@ -30,7 +30,7 @@ Material:
     - _FlowRippleFreq: 6
     - _FlowRippleSpeed: 8.02
     - _HeadBoost: 1.2
-    - _Intensity: 0
+    - _Intensity: 0.1
     - _StormBrightMul: 2.43
     - _StormWidthMul: 1.64
     - _TailFadePow: 1.8

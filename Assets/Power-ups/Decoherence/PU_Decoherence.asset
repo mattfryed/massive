@@ -12,8 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: bbeb542d9f49745c5a64ac6bb277e9e0, type: 3}
   m_Name: PU_Decoherence
   m_EditorClassIdentifier: 
-  type: 0
-  displayName: PowerUp
+  displayName: Decoherence
   spawnWeight: 1
   pickupPrefab: {fileID: 4270921612713813033, guid: 335549c2a3c5a45ffae53340f955b7bd,
     type: 3}

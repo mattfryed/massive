@@ -14,6 +14,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   levelNumber: 2
   levelTitle: HIGGS
-  sceneName: S-2_HIGGS
+  gameplayScene:
+    sceneName: S-9_HIGGS
+    sceneAsset: {fileID: 102900000, guid: f9546f79ca44a4a25be7bd405f75b046, type: 3}
   iconPrefab: {fileID: 7087981260614280204, guid: 6a48154ced8df422b9ec7be3569f10da,
     type: 3}

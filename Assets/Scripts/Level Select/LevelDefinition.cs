@@ -7,10 +7,19 @@ public class LevelDefinition : ScriptableObject
     public int levelNumber = 1;
     public string levelTitle = "SUPERNOVA";
 
-    [Header("Scene Flow")]
-    [Tooltip("The gameplay scene name to load after instructions.")]
-    public string sceneName = "S-1_SUPERNOVA";
+    [Header("Gameplay Scene")]
+    public SceneReference gameplayScene = new SceneReference();
 
     [Header("Level Select Visual")]
     public GameObject iconPrefab;
+
+    public string SceneName => gameplayScene != null ? gameplayScene.SceneName : null;
+
+#if UNITY_EDITOR
+    private void OnValidate()
+    {
+        if (gameplayScene != null)
+            gameplayScene.SyncFromAsset();
+    }
+#endif
 }

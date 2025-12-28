@@ -19,10 +19,19 @@ namespace Massive.PowerUps
         [Tooltip("Always added to cooldown so quick taps can't spam.")]
         public float baseRechargeDelay = 0.35f;
 
+        [Header("Recoil")]
+public float recoilVelocityMin = 0.0f;
+public float recoilVelocityMax = 2.5f;
+
+
         [Header("Beam / Projectile")]
+public float beamVisualMinLength = 2.5f; // visual length at tap / low charge
+public float beamVisualMaxLength = 6.0f; // visual length at full charge
+
         public float beamThicknessMin = 0.18f;
         public float beamThicknessMax = 0.45f;
         public float beamSpeed = 18.0f;
+        
 
         [Header("Damage / Mass")]
         public float massRemovedMin = 0.06f;
@@ -37,6 +46,16 @@ namespace Massive.PowerUps
         [Header("Aim Assist / Movement")]
         public float selfSlowWhileCharging = 0.55f; // 1 = no slow
         public float aimLockTurnSpeed = 999f; // optional later
+
+        [Header("VFX")]
+        public GameObject vfxModulePrefab;
+
+        [Header("Telegraph")]
+        public float preFireTelegraphSeconds = 0.15f;
+
+        [Header("Blocking")]
+        public LayerMask blockMask; // set this to your NOVA star + walls layer(s)
+
 
         public override PowerUpType Type => PowerUpType.ParticleAccelerator;
     }

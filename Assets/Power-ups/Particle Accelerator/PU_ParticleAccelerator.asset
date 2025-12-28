@@ -12,25 +12,35 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: cef0353429d8849ff886e50f36f57dca, type: 3}
   m_Name: PU_ParticleAccelerator
   m_EditorClassIdentifier: 
-  type: 0
-  displayName: PowerUp
+  displayName: Particle Accelerator
   spawnWeight: 1
   pickupPrefab: {fileID: 1305589374316551868, guid: b8be357cf873d46ebadf8060e1559a61,
     type: 3}
   worldLifetimeSeconds: 12
-  effectDurationSeconds: 8
+  effectDurationSeconds: 999
   activateInputName: Sword
-  chargeToMaxSeconds: 1.25
+  chargeToMaxSeconds: 2
   minDistanceOnTap: 2
-  maxDistance: 10
+  maxDistance: 20
   rechargeMultiplier: 1.1
   baseRechargeDelay: 0.35
-  beamThicknessMin: 0.18
-  beamThicknessMax: 0.45
-  beamSpeed: 18
+  recoilVelocityMin: 0.2
+  recoilVelocityMax: 3
+  beamVisualMinLength: 2.5
+  beamVisualMaxLength: 22
+  beamThicknessMin: 0.28
+  beamThicknessMax: 0.35
+  beamSpeed: 22
   massRemovedMin: 0.06
   massRemovedMax: 0.16
   transferMassToShooter: 1
-  beamProjectilePrefab: {fileID: 0}
-  selfSlowWhileCharging: 0.55
+  beamProjectilePrefab: {fileID: 2729370454382667784, guid: 4d8350eed08b3db479d57c1aa9c52f24,
+    type: 3}
+  selfSlowWhileCharging: 0.35
   aimLockTurnSpeed: 999
+  vfxModulePrefab: {fileID: 4728341221358630308, guid: 7fec382975ea01a41b418b3559198041,
+    type: 3}
+  preFireTelegraphSeconds: 0.35
+  blockMask:
+    serializedVersion: 2
+    m_Bits: 0

@@ -79,15 +79,15 @@ Shader "MASSIVE/MetaballSDF"
                 return d;
             }
 
-            float3 sceneNormal(float3 pOS)
+            float3 sceneNormal(float3 pOS, float epsOS)
             {
-                // central differences
-                float e = max(_SurfaceEps * 0.5, 0.0005);
+                float e = max(epsOS * 0.5, 1e-5);
                 float dx = sceneSDF(pOS + float3(e,0,0)) - sceneSDF(pOS - float3(e,0,0));
                 float dy = sceneSDF(pOS + float3(0,e,0)) - sceneSDF(pOS - float3(0,e,0));
                 float dz = sceneSDF(pOS + float3(0,0,e)) - sceneSDF(pOS - float3(0,0,e));
                 return normalize(float3(dx,dy,dz));
             }
+
 
             bool intersectAABB(float3 ro, float3 rd, float3 bmin, float3 bmax, out float tmin, out float tmax)
             {
@@ -103,13 +103,47 @@ Shader "MASSIVE/MetaballSDF"
 
             fixed4 frag(v2f i) : SV_Target
             {
-                // Ray in world space
-                float3 roWS = _WorldSpaceCameraPos;
-                float3 rdWS = normalize(i.worldPos - roWS);
+            // Ray in world space (handle ortho correctly)
+            float isOrtho = unity_OrthoParams.w; // 1 = orthographic, 0 = perspective
+
+            // Camera forward in world space (Unity camera forward is +Z in camera local)
+            float3 camFwdWS = normalize(mul((float3x3)unity_CameraToWorld, float3(0,0,1)));
+
+            float3 roWS;
+            float3 rdWS;
+
+            if (isOrtho > 0.5)
+            {
+                // For ortho: rays are parallel; origin must vary per-fragment.
+                // Start far "behind" the fragment along -rd so we definitely begin outside the volume.
+                rdWS = camFwdWS;
+                roWS = i.worldPos - rdWS * 1000.0;
+            }
+            else
+            {
+                // Perspective: rays emanate from camera position.
+                roWS = _WorldSpaceCameraPos;
+                rdWS = normalize(i.worldPos - roWS);
+            }
+
 
                 // Transform to object space (our SDF lives in object space)
                 float3 roOS = mul(unity_WorldToObject, float4(roWS, 1)).xyz;
                 float3 rdOS = normalize(mul((float3x3)unity_WorldToObject, rdWS));
+
+                // Approx uniform object scale (average of basis vectors)
+float3 ax = float3(unity_ObjectToWorld._m00, unity_ObjectToWorld._m10, unity_ObjectToWorld._m20);
+float3 ay = float3(unity_ObjectToWorld._m01, unity_ObjectToWorld._m11, unity_ObjectToWorld._m21);
+float3 az = float3(unity_ObjectToWorld._m02, unity_ObjectToWorld._m12, unity_ObjectToWorld._m22);
+float scaleW = (length(ax) + length(ay) + length(az)) / 3.0;
+scaleW = max(scaleW, 1e-6);
+
+// Treat _SurfaceEps as WORLD units, convert to object space
+float epsOS = max(_SurfaceEps / scaleW, 1e-4);
+
+
+
+
 
                 // Our bounding mesh should be a unit cube centered at origin
                 float tEnter, tExit;
@@ -117,7 +151,6 @@ Shader "MASSIVE/MetaballSDF"
                     discard;
 
                 float t = tEnter;
-                float distTravel = 0.0;
                 bool hit = false;
                 float3 pHitOS = 0;
 
@@ -127,7 +160,7 @@ Shader "MASSIVE/MetaballSDF"
                     float3 pOS = roOS + rdOS * t;
                     float d = sceneSDF(pOS);
 
-                    if (d < _SurfaceEps)
+                    if (d < epsOS)
                     {
                         hit = true;
                         pHitOS = pOS;
@@ -135,13 +168,13 @@ Shader "MASSIVE/MetaballSDF"
                     }
 
                     t += d;
-                    distTravel += d;
-                    if (t > tExit || distTravel > _MaxDistance) break;
+                    if (t > tExit) break;  // AABB exit is sufficient
                 }
+
 
                 if (!hit) discard;
 
-                float3 nOS = sceneNormal(pHitOS);
+                float3 nOS = sceneNormal(pHitOS, epsOS);
 
                 // Quantized (binary) lighting — no gradients
                 float3 L = normalize(float3(0.35, 0.75, 0.55)); // fixed “studio” light in object space

@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 21ca3be30c364439b954124aa2be92de, type: 3}
   m_Name: PU_TimeDilation
   m_EditorClassIdentifier: 
-  displayName: PowerUp
+  displayName: Time Dilation
   spawnWeight: 1
   pickupPrefab: {fileID: 6081105414855409227, guid: a89c8037d9aa34c1db9e669f6375f003,
     type: 3}

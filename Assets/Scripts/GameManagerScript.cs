@@ -1,6 +1,4 @@
-﻿using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
+﻿using UnityEngine;
 
 public class GameManagerScript : MonoBehaviour
 {
@@ -9,129 +7,123 @@ public class GameManagerScript : MonoBehaviour
     public float finalScore_1;
     public float finalScore_2;
     public float winScale = 10.9f;
+
     public string levelName = "NOVA";
-    private bool isGameOver = false;
     public string levelNumber = "003";
-    private GameObject dm;
+
+    private bool isGameOver = false;
+
     private GameObject gmm;
     public GameObject sss;
     private GameObject gameplayObjects;
     private GameObject deathSphere;
-    private bool is2v2;
 
-    // Start is called before the first frame update
+    private PlayerRosterController roster;
+
+    private PlayerControllerScript p1c, p2c, p3c, p4c;
+
     void Start()
     {
-        dm = GameObject.FindWithTag("DataManager");
+        GameFlowContext.EnsureExists();
+
         gmm = GameObject.FindWithTag("GameMusicManager");
         deathSphere = GameObject.FindWithTag("DeathSphere");
         gameplayObjects = GameObject.FindWithTag("GameplayObjects");
-      //  sss = GameObject.FindWithTag("sss");
 
-        DontDestroyOnLoad(gmm);
-        DontDestroyOnLoad(gameObject.transform);
-
-        if (dm != null)
-        {
-            // deactivate players based on dm setting
-            if (!dm.GetComponent<DataManagerScript>().is2v2)
-            {
-                is2v2 = dm.GetComponent<DataManagerScript>().is2v2;
-                GameObject p2 = GameObject.Find("Players/Player 2");
-                GameObject p4 = GameObject.Find("Players/Player 4");
-                p2.SetActive(false);
-                p4.SetActive(false);
-            }
-            Destroy(dm);
-        }
+        roster = FindFirstObjectByType<PlayerRosterController>();
+        CachePlayerControllers();
     }
 
-    // Update is called once per frame
+    private void CachePlayerControllers()
+    {
+        if (roster == null)
+        {
+            Debug.LogWarning("[GameManagerScript] No PlayerRosterController found. Falling back to scene find once.");
+            var p1 = GameObject.Find("Players/Player 1");
+            var p2 = GameObject.Find("Players/Player 2");
+            var p3 = GameObject.Find("Players/Player 3");
+            var p4 = GameObject.Find("Players/Player 4");
+
+            p1c = p1 != null ? p1.GetComponent<PlayerControllerScript>() : null;
+            p2c = p2 != null ? p2.GetComponent<PlayerControllerScript>() : null;
+            p3c = p3 != null ? p3.GetComponent<PlayerControllerScript>() : null;
+            p4c = p4 != null ? p4.GetComponent<PlayerControllerScript>() : null;
+            return;
+        }
+
+        p1c = roster.P1 != null ? roster.P1.GetComponent<PlayerControllerScript>() : null;
+        p2c = roster.P2 != null ? roster.P2.GetComponent<PlayerControllerScript>() : null;
+        p3c = roster.P3 != null ? roster.P3.GetComponent<PlayerControllerScript>() : null;
+        p4c = roster.P4 != null ? roster.P4.GetComponent<PlayerControllerScript>() : null;
+    }
+
     void Update()
     {
-        if (!isGameOver)
-        {
-            // check for inactive players
-            CheckForInactivePlayers();
-            if (Score_1.transform.localScale.x >= winScale || Score_1.transform.localScale.x <= 0f || Score_2.transform.localScale.x >= winScale || Score_2.transform.localScale.x <= 0f)
-            {
-                Debug.Log("Game is now over");
-                isGameOver = true;
-                StoreFinalScores();
-                // Game over
-               
-              
-            }
+        if (isGameOver) return;
 
+        CheckForInactivePlayers();
+
+        if (Score_1.transform.localScale.x >= winScale ||
+            Score_1.transform.localScale.x <= 0f ||
+            Score_2.transform.localScale.x >= winScale ||
+            Score_2.transform.localScale.x <= 0f)
+        {
+            Debug.Log("Game is now over");
+            isGameOver = true;
+            StoreFinalScores();
         }
     }
 
-    public void CheckForInactivePlayers()
+    private void CheckForInactivePlayers()
     {
-        GameObject p1 = GameObject.Find("Players/Player 1");
-        GameObject p2 = GameObject.Find("Players/Player 2");
-        GameObject p3 = GameObject.Find("Players/Player 3");
-        GameObject p4 = GameObject.Find("Players/Player 4");
-    //    Debug.Log("Checking for inactive players");
+        bool is2v2 = GameFlowContext.Instance.IsTwoVTwo;
+
         if (!is2v2)
         {
-            if (!p1.GetComponent<PlayerControllerScript>().isActive && !p3.GetComponent<PlayerControllerScript>().isActive)
-            {
-                // end the game prematurely!
+            if (p1c != null && p3c != null && !p1c.isActive && !p3c.isActive)
                 EndGamePrematurely();
-            }
         }
         else
         {
-            if (!p1.GetComponent<PlayerControllerScript>().isActive && !p2.GetComponent<PlayerControllerScript>().isActive && !p3.GetComponent<PlayerControllerScript>().isActive && !p4.GetComponent<PlayerControllerScript>().isActive)
-            {
+            if (p1c != null && p2c != null && p3c != null && p4c != null &&
+                !p1c.isActive && !p2c.isActive && !p3c.isActive && !p4c.isActive)
                 EndGamePrematurely();
-            }
         }
     }
 
     public void EndGame()
     {
-        //Application.LoadLevel("levelendnewscene");
-        //activate death sphere!
-        deathSphere.GetComponent<DSScript>().Engage();
-        //gameplayObjects.SetActive(false);
-        //sss.SetActive(true);
+        if (deathSphere != null)
+            deathSphere.GetComponent<DSScript>().Engage();
     }
 
     public void ShowEndScreen()
     {
-        gameplayObjects.SetActive(false);
-        sss.SetActive(true);
-        deathSphere.GetComponent<DSScript>().ScrollOff();
+        if (gameplayObjects != null) gameplayObjects.SetActive(false);
+        if (sss != null) sss.SetActive(true);
 
+        if (deathSphere != null)
+            deathSphere.GetComponent<DSScript>().ScrollOff();
     }
+
     public void EndGamePrematurely()
-
     {
-        //Debug.Log("Ending game prematurely");
-        //StoreFinalScores();
-        //Application.LoadLevel(0);
-
+        // (kept empty as your original)
     }
 
     public void StoreFinalScores()
     {
-        isGameOver = true; 
+        isGameOver = true;
 
         finalScore_1 = Score_1.transform.localScale.x;
         finalScore_2 = Score_2.transform.localScale.x;
 
-        gmm.GetComponent<MusicManagerScript>().StopMusic();
-        if (finalScore_1 < 0f)
-        {
-            finalScore_1 = 0f;
-        }
+        if (gmm != null)
+            gmm.GetComponent<MusicManagerScript>()?.StopMusic();
 
-        if (finalScore_2 < 0f)
-        {
-            finalScore_2 = 0f;
-        }
+        if (finalScore_1 < 0f) finalScore_1 = 0f;
+        if (finalScore_2 < 0f) finalScore_2 = 0f;
+
         EndGame();
     }
 }

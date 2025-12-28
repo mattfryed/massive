@@ -1,8 +1,8 @@
 ﻿<Solution>
   <Project Path="AmplifyShaderEditor.csproj" />
-  <Project Path="Assembly-CSharp-Editor.csproj" />
   <Project Path="Assembly-CSharp.csproj" />
   <Project Path="ShapesRuntime.csproj" />
+  <Project Path="Assembly-CSharp-Editor.csproj" />
   <Project Path="ShapesSamples.csproj" />
   <Project Path="OEBIF.csproj" />
   <Project Path="ShapesEditor.csproj" />

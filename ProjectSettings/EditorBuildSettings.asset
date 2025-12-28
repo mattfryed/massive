@@ -5,12 +5,6 @@ EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
   m_Scenes:
-  - enabled: 0
-    path: 
-    guid: 00000000000000000000000000000000
-  - enabled: 0
-    path: 
-    guid: b0e1ba4522ae1438399a919811408ae0
   - enabled: 1
     path: Assets/Scenes/S-0_ATTRACT.unity
     guid: 221eefdd02185479ca215f39b425661b
@@ -30,9 +24,16 @@ EditorBuildSettings:
     path: Assets/Scenes/S-6_STARDUST-CLOUD.unity
     guid: 3891defdec8f649daac8b10665004cda
   - enabled: 1
-    path: Assets/Scenes/S-0_LEVEL-SELECT.unity
-    guid: 8ff558f2eea7b489c8973f9a0054f56e
-  - enabled: 1
     path: Assets/Scenes/S-0_INSTRUCTIONS.unity
     guid: 306edb7a04b3d4e45b050f9888bcb57e
+  - enabled: 1
+    path: Assets/Scenes/S-0_LEVEL-SELECT NEW.unity
+    guid: 142b2796430a443fc9c54dc83af0e941
+  - enabled: 1
+    path: Assets/Scenes/S-9_HIGGS.unity
+    guid: f9546f79ca44a4a25be7bd405f75b046
+  - enabled: 1
+    path: Assets/Scenes/S-8_MAGNETOSPHERE.unity
+    guid: 042e78f8522eeb045b414fcf7ec1b63c
   m_configObjects: {}
+  m_UseUCBPForAssetBundles: 0

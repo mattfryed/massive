@@ -42,6 +42,11 @@ public class PlayerControllerScript : MonoBehaviour
     [Header("Power-Ups")]
     public PlayerPowerUpController powerUps; // assign or auto-find
 
+    [Header("Aim")]
+[SerializeField, Range(0.05f, 0.6f)] private float aimDeadzone = 0.18f;
+private Vector3 lastStickAimWS = Vector3.right; // X+ default
+
+
     [Header("Mass & Size Tuning")]
     private float timeUntilNextShrink = .1f;
     private float timeOfLastShrink = 0f;
@@ -143,6 +148,15 @@ public class PlayerControllerScript : MonoBehaviour
             Debug.LogWarning($"[{name}] PlayerAttackController not assigned. Attacks will not trigger.");
         if (!shield)
             Debug.LogWarning($"[{name}] Shield reference not assigned.");
+
+        // Initialize aim to current visual facing if available (otherwise keep X+)
+        if (visualsController != null && visualsController.visuals != null)
+        {
+            var f = visualsController.visuals.right;
+            f.y = 0f;
+            if (f.sqrMagnitude > 0.0001f) lastStickAimWS = f.normalized;
+        }
+
     }
 
     private void Update()
@@ -151,6 +165,13 @@ public class PlayerControllerScript : MonoBehaviour
         moveHorizontal = player.GetAxis("MoveH");
         moveVertical = player.GetAxis("MoveV");
         movement = new Vector3(moveHorizontal, 0f, moveVertical);
+
+        float dz2 = aimDeadzone * aimDeadzone;
+        if (movement.sqrMagnitude >= dz2)
+        {
+            lastStickAimWS = movement.normalized;
+        }
+
 
         shieldOn = player.GetButton("Shield");
 
@@ -174,33 +195,34 @@ public class PlayerControllerScript : MonoBehaviour
             attackController.ExternalMoveInput = new Vector2(movement.x, movement.z);
         }
 
-        // ---- Power-up input routing (can consume Sword) ----
-        bool consumedAttack = false;
+// ---- Power-up input routing (can consume Sword) ----
+bool consumedAttack = false;
 
-        if (powerUps != null)
-        {
-            Vector3 aimDir = movement;
-            if (aimDir.sqrMagnitude < 0.0001f && rb != null)
-                aimDir = new Vector3(rb.linearVelocity.x, 0f, rb.linearVelocity.z);
+if (powerUps != null)
+{
+    // Aim is ALWAYS the last meaningful joystick direction.
+    // This prevents 1-frame snaps caused by deadzone noise or velocity fallback.
+    Vector3 aimDir = lastStickAimWS;
+    aimDir.y = 0f;
 
-            if (aimDir.sqrMagnitude < 0.0001f)
-                aimDir = transform.forward;
+    if (aimDir.sqrMagnitude < 0.0001f)
+        aimDir = Vector3.right;
+    else
+        aimDir.Normalize();
 
-            aimDir.y = 0f;
-            if (aimDir.sqrMagnitude > 0.0001f) aimDir.Normalize();
+    var puInput = new PowerUpInputState
+    {
+        shieldHeld = shieldOn,
+        attackDown = swordDown,
+        attackHeld = swordHeld,
+        attackUp   = swordUp,
+        moveInput  = new Vector2(movement.x, movement.z),
+        aimDirWS   = aimDir
+    };
 
-            var puInput = new PowerUpInputState
-            {
-                shieldHeld = shieldOn,
-                attackDown = swordDown,
-                attackHeld = swordHeld,
-                attackUp = swordUp,
-                moveInput = new Vector2(movement.x, movement.z),
-                aimDirWS = aimDir
-            };
+    consumedAttack = powerUps.HandleInput(puInput);
+}
 
-            consumedAttack = powerUps.HandleInput(puInput);
-        }
 
         // ---- Attack trigger: hand off to attack system (only if not consumed by power-up) ----
         if (!consumedAttack && swordDown && attackController != null)

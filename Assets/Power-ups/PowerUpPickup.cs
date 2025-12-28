@@ -22,11 +22,11 @@ namespace Massive.PowerUps
 
         private void OnTriggerEnter(Collider other)
         {
-Debug.Log($"[PowerUpPickup] Triggered by {other.name} root={other.transform.root.name}", this);
+            Debug.Log($"[PowerUpPickup] Triggered by {other.name} root={other.transform.root.name}", this);
 
-var p = other.GetComponentInParent<PlayerPowerUpController>();
-Debug.Log($"[PowerUpPickup] Found PlayerPowerUpController? {(p != null)}", this);
-            if (!p) p = other.GetComponentInParent<PlayerPowerUpController>();
+            var p = other.GetComponentInParent<PlayerPowerUpController>();
+            Debug.Log($"[PowerUpPickup] Found PlayerPowerUpController? {(p != null)}", this);
+
             if (!p) return;
 
             if (definition == null)
@@ -35,7 +35,13 @@ Debug.Log($"[PowerUpPickup] Found PlayerPowerUpController? {(p != null)}", this)
                 return;
             }
 
+            // Equip first (so gameplay state is correct)
             p.Equip(definition);
+
+            // Spawn world toast above THIS pickup’s position
+            if (PowerUpPickupToastSystem.Instance != null)
+                PowerUpPickupToastSystem.Instance.Show(definition, transform.position);
+
             Destroy(gameObject);
         }
     }
