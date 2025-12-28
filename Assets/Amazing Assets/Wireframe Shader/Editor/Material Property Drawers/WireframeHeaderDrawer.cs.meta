@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: ee869b01531f63b4ba9fe7712c16d03b
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 181386
+  packageName: Wireframe Shader
+  packageVersion: 2025.5
+  assetPath: Assets/Amazing Assets/Wireframe Shader/Editor/Material Property Drawers/WireframeHeaderDrawer.cs
+  uploadId: 836360

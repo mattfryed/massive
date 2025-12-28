@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: f89a3fe9988c1fa428d2f80708a9490e
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 181386
+  packageName: Wireframe Shader
+  packageVersion: 2025.5
+  assetPath: Assets/Amazing Assets/Wireframe Shader/Editor/Material Property Drawers/WireframeBumpODLDrawer.cs
+  uploadId: 836360

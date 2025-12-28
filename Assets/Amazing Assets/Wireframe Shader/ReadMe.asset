@@ -1,0 +1,41 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b2ccb0d2d5a21dc409fa2401441c1203, type: 3}
+  m_Name: ReadMe
+  m_EditorClassIdentifier: 
+  logo: {fileID: 0}
+  sections:
+  - heading: 
+    text: 
+    linkText: 
+    url: 
+    urlType: 0
+  - heading: Documentation
+    text: 
+    linkText: Open online documentation
+    url: https://amazing-assets.gitbook.io/wireframe-shader
+    urlType: 0
+  - heading: Forum
+    text: 
+    linkText: Get answers
+    url: https://forum.unity.com/threads/wireframe-shader-the-amazing-wireframe-shader.251143/
+    urlType: 0
+  - heading: Support and bug report
+    text: 
+    linkText: Submit a report
+    url: support@amazingassets.world
+    urlType: 1
+  - heading: More Assets
+    text: 
+    linkText: Open publisher page
+    url: https://assetstore.unity.com/publishers/1295
+    urlType: 0

@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 1cb50bce32464a54ca9e490279adbe4e
+ShaderImporter:
+  externalObjects: {}
+  defaultTextures: []
+  nonModifiableTextures: []
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 152318
+  packageName: Procedural Primitives
+  packageVersion: 2.3
+  assetPath: Assets/Ice Pond/Procedural Primitives/Demo/WireframeRenderer/WireframeBarycentricCoordinatesNoCull.shader
+  uploadId: 655671

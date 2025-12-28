@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: f8dede9c7dd814d44a59522ff56076c8
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 152318
+  packageName: Procedural Primitives
+  packageVersion: 2.3
+  assetPath: Assets/Ice Pond/Procedural Primitives/Demo/Materials/DemoMat.mat
+  uploadId: 655671

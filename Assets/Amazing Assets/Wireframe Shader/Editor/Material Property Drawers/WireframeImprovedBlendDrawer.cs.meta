@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: f673f250c79a3bf4bae0714b90f8d939
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 181386
+  packageName: Wireframe Shader
+  packageVersion: 2025.5
+  assetPath: Assets/Amazing Assets/Wireframe Shader/Editor/Material Property Drawers/WireframeImprovedBlendDrawer.cs
+  uploadId: 836360

@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: b34eac4f325086d4cb160dad4a146f71
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 152318
+  packageName: Procedural Primitives
+  packageVersion: 2.3
+  assetPath: Assets/Ice Pond/Procedural Primitives/Demo/Scripts/DemoBox.cs
+  uploadId: 655671

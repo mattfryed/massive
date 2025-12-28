@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: a894d6a14e3cf31468fc7ae7f5ecf526
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 181386
+  packageName: Wireframe Shader
+  packageVersion: 2025.5
+  assetPath: Assets/Amazing Assets/Wireframe Shader/Editor/Shader GUI/WireframeStandardShaderGUI.cs
+  uploadId: 836360

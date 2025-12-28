@@ -101,7 +101,14 @@ Shader "MASSIVE/MetaballSDF"
                 return tmax >= max(tmin, 0.0);
             }
 
-            fixed4 frag(v2f i) : SV_Target
+            struct FragOut
+{
+    fixed4 col   : SV_Target;
+    float  depth : SV_Depth;
+};
+
+
+            FragOut frag(v2f i)
             {
             // Ray in world space (handle ortho correctly)
             float isOrtho = unity_OrthoParams.w; // 1 = orthographic, 0 = perspective
@@ -187,7 +194,26 @@ float epsOS = max(_SurfaceEps / scaleW, 1e-4);
                 float silhouette = 1.0 - abs(dot(nOS, vOS)); // 0 front-facing, 1 at silhouette
                 float isOutline = step(_OutlineThreshold, silhouette);
 
-                return lerp(fill, _OutlineColor, isOutline);
+                FragOut o;
+
+fixed4 finalCol = lerp(fill, _OutlineColor, isOutline);
+
+// Convert hit point to world space
+float3 pHitWS = mul(unity_ObjectToWorld, float4(pHitOS, 1)).xyz;
+
+// Convert to clip space and output depth for the hit point
+float4 pHitCS = UnityWorldToClipPos(pHitWS);
+float depth = pHitCS.z / pHitCS.w;
+
+// (Optional) OpenGL-style NDC depth fix (harmless on D3D, helpful if you ever switch platforms)
+#if defined(SHADER_API_OPENGL) || defined(SHADER_API_GLES) || defined(SHADER_API_GLES3)
+depth = depth * 0.5 + 0.5;
+#endif
+
+o.col = finalCol;
+o.depth = saturate(depth);
+return o;
+
             }
             ENDHLSL
         }

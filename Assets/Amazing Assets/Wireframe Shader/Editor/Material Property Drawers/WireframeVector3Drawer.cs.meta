@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: d548f0481c7322e4dafcfd4ceb999c0c
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 181386
+  packageName: Wireframe Shader
+  packageVersion: 2025.5
+  assetPath: Assets/Amazing Assets/Wireframe Shader/Editor/Material Property Drawers/WireframeVector3Drawer.cs
+  uploadId: 836360
