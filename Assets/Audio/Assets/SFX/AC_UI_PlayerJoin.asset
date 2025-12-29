@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4fa138d0899564dd1903212c71796bf3, type: 3}
+  m_Name: AC_UI_PlayerJoin
+  m_EditorClassIdentifier: 
+  clips: []
+  output: {fileID: 0}
+  volume: 1
+  volumeJitter: {x: 0.95, y: 1.05}
+  pitchJitter: {x: 0.98, y: 1.02}
+  cooldownSeconds: 0.05
+  maxSimultaneous: 8
+  spatialBlend: 1
+  minDistance: 2
+  maxDistance: 20

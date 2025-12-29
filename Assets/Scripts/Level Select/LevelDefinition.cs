@@ -13,6 +13,9 @@ public class LevelDefinition : ScriptableObject
     [Header("Level Select Visual")]
     public GameObject iconPrefab;
 
+    [Header("Audio")]
+    public LevelAudioProfile audioProfile;   // ✅ new
+
     public string SceneName => gameplayScene != null ? gameplayScene.SceneName : null;
 
 #if UNITY_EDITOR

@@ -9,93 +9,82 @@ public class LevelCarouselController : MonoBehaviour
     public enum RotationAxis { X, Y, Z }
 
     [Header("Content")]
-    [SerializeField] private LevelCatalog catalog; // assign a LevelCatalog asset here
-    [SerializeField] private Transform carouselRoot;
+    [SerializeField] private LevelCatalog catalog;      // assign a LevelCatalog asset here
+    [SerializeField] private Transform carouselRoot;    // optional; defaults to this.transform
 
     [Header("Layout")]
     [SerializeField] private RotationAxis rotationAxis = RotationAxis.Z;
     [SerializeField] private float radius = 6f;
-    [SerializeField] private float axisOffset = 0f;
-    [SerializeField] private float angleOffsetDegrees = 0f;
+    [SerializeField] private float iconHeight = 0f;
 
-    [Header("Front Alignment")]
-    [SerializeField] private Transform frontReference;
-    [SerializeField] private Transform cameraTransform;
+    [Tooltip("Flip this to reverse the visual spin direction without changing stage order.")]
+    [SerializeField] private int rotationDirectionSign = 1; // +1 or -1
 
-    [Header("Rotation")]
-    [SerializeField] private float rotateSeconds = 0.35f;
+    [Header("Rotation Feel")]
+    [SerializeField] private float rotateDurationSeconds = 0.18f;
     [SerializeField] private AnimationCurve rotateEase = AnimationCurve.EaseInOut(0, 0, 1, 1);
-    [SerializeField] private bool useUnscaledTime = true;
-
-    [Tooltip("Flip this to reverse the visual spin direction WITHOUT changing stage order.")]
-    [SerializeField] private int rotationDirectionSign = +1; // +/- 1
 
     [Header("Selection")]
     [SerializeField] private int startIndex = 0;
 
-    [Header("Optional legacy CW/CCW stepping (not used by StepNext/Prev)")]
-    [SerializeField] private int clockwiseIndexDirection = -1;
-
+    // Runtime state
     public event Action<LevelDefinition, int> OnSelectionChanged;
 
     public int SelectedIndex => _selectedIndex;
+    public LevelDefinition SelectedLevel => (_levels != null && _selectedIndex >= 0 && _selectedIndex < _levels.Count)
+        ? _levels[_selectedIndex]
+        : null;
 
-    public LevelDefinition SelectedLevel
-    {
-        get
-        {
-            if (catalog == null) return null;
-            if (_selectedIndex < 0 || _selectedIndex >= catalog.Count) return null;
-            return catalog.Levels[_selectedIndex];
-        }
-    }
+    private readonly List<LevelDefinition> _levels = new();
+    private readonly List<Transform> _spawnedIcons = new();
 
-    private readonly List<GameObject> _spawned = new(); // index-aligned with catalog.Levels
-    private int _selectedIndex;
-    private bool _hasConfirmed;
-    private bool _isRotating;
-    private float _stepAngle;
+    private int _selectedIndex = 0;
+    private float _stepAngleDeg = 0f;
 
-    private Quaternion _baseRootRotation;
-    private float _currentRootAngleDeg;
+    // This is the key to preventing “wrong-way shortcut”:
+    // we accumulate the root angle as a scalar we control, rather than using shortest-path angle lerp.
+    private float _currentRootAngleDeg = 0f;
     private Coroutine _rotateRoutine;
+
+    private bool _hasConfirmed = false;
 
     private void Awake()
     {
-        if (carouselRoot == null) carouselRoot = transform;
-        if (cameraTransform == null && Camera.main != null) cameraTransform = Camera.main.transform;
+        if (carouselRoot == null)
+            carouselRoot = transform;
 
-        rotationDirectionSign = rotationDirectionSign >= 0 ? +1 : -1;
+        rotationDirectionSign = rotationDirectionSign >= 0 ? 1 : -1;
+    }
 
-        _baseRootRotation = carouselRoot.localRotation;
+    private void Start()
+    {
+        RebuildFromCatalog();
 
-        int count = catalog != null ? catalog.Count : 0;
-        _selectedIndex = Mathf.Clamp(startIndex, 0, Mathf.Max(0, count - 1));
+        if (_levels.Count == 0)
+            return;
 
-        Rebuild();
-
-        _selectedIndex = CoerceToValidIndex(_selectedIndex, preferDir: +1);
-
+        _selectedIndex = Wrap(startIndex, _levels.Count);
         SnapToSelection();
-        ApplySelectionVisuals(instant: true);
-        FireSelectionChanged();
+
+        // Fire initial selection event so UI labels can update on scene start
+        OnSelectionChanged?.Invoke(SelectedLevel, _selectedIndex);
     }
 
     // ============================================================
-    // Public API
+    // Public API (called by input script)
     // ============================================================
 
     public void StepNextStage() => StepByIndex(+1);
     public void StepPrevStage() => StepByIndex(-1);
 
-    // Optional older semantics
-    public void StepClockwise() => StepByIndex(clockwiseIndexDirection);
-    public void StepCounterClockwise() => StepByIndex(-clockwiseIndexDirection);
-
     public void ConfirmSelection()
     {
         if (_hasConfirmed) return;
         _hasConfirmed = true;
+
+        // UI Confirm SFX (meaningful action point)
+        if (AudioSystem.I != null)
+            AudioSystem.I.Play2D(AudioEventId.UI_Confirm);
 
         var def = SelectedLevel;
         if (def == null) return;
@@ -106,335 +95,182 @@ public class LevelCarouselController : MonoBehaviour
         SceneFlow.GoToInstructions();
     }
 
-    public void Rebuild()
-    {
-        ClearSpawned();
-
-        int n = (catalog != null) ? catalog.Count : 0;
-        _stepAngle = (n <= 0) ? 0f : 360f / n;
-
-        _selectedIndex = Mathf.Clamp(_selectedIndex, 0, Mathf.Max(0, n - 1));
-        if (n <= 0) return;
-
-        for (int i = 0; i < n; i++)
-        {
-            var def = catalog.Levels[i];
-            if (def == null || def.iconPrefab == null)
-            {
-                _spawned.Add(null);
-                continue;
-            }
-
-            GameObject icon = Instantiate(def.iconPrefab, carouselRoot);
-            icon.name = $"LevelIcon_{i:00}_{def.levelTitle}";
-            _spawned.Add(icon);
-        }
-
-        LayoutIcons();
-    }
-
     // ============================================================
-    // Layout
-    // ============================================================
-
-    private void ClearSpawned()
-    {
-        for (int i = 0; i < _spawned.Count; i++)
-        {
-            if (_spawned[i] != null) Destroy(_spawned[i]);
-        }
-        _spawned.Clear();
-    }
-
-    private void LayoutIcons()
-    {
-        int n = _spawned.Count;
-        if (n <= 0) return;
-
-        Vector3 axis = GetAxisLocalUnsigned();
-        GetPlaneBasisLocal(out Vector3 baseDir, out Vector3 orthoDir);
-
-        for (int i = 0; i < n; i++)
-        {
-            if (_spawned[i] == null) continue;
-
-            float ang = (angleOffsetDegrees + i * _stepAngle) * Mathf.Deg2Rad;
-            Vector3 radial = (Mathf.Cos(ang) * baseDir + Mathf.Sin(ang) * orthoDir) * radius;
-            _spawned[i].transform.localPosition = radial + axis * axisOffset;
-        }
-    }
-
-    // ============================================================
-    // Stepping
+    // Core selection + rotation logic
     // ============================================================
 
     private void StepByIndex(int dir)
     {
-        if (_hasConfirmed) return;
-        if (_isRotating) return;
-        if (catalog == null || catalog.Count == 0) return;
+        if (_levels.Count == 0) return;
 
-        int n = catalog.Count;
         int cur = _selectedIndex;
+        int next = Wrap(cur + dir, _levels.Count);
 
-        int next = FindNextSelectable(Wrap(cur + dir, n), dir);
         if (next == cur) return;
 
-        int steps = CountSteps(cur, next, dir);
-        if (steps <= 0) steps = 1;
+        // UI Navigate SFX (meaningful action point)
+        if (AudioSystem.I != null)
+            AudioSystem.I.Play2D(AudioEventId.UI_Navigate);
 
-        ApplySelectionIndex(next);
+        _selectedIndex = next;
 
-        float targetAngle = _currentRootAngleDeg + (-dir) * _stepAngle * steps;
-        StartAngleRotation(targetAngle);
+        // Rotate root by exactly one step delta (no shortest-path shortcuts)
+        float delta = -dir * _stepAngleDeg * rotationDirectionSign;
+        float targetAngle = _currentRootAngleDeg + delta;
+
+        StartRotateTo(targetAngle);
+
+        OnSelectionChanged?.Invoke(SelectedLevel, _selectedIndex);
     }
 
-    private void ApplySelectionIndex(int newIndex)
+    private void StartRotateTo(float targetAngleDeg)
     {
-        _selectedIndex = newIndex;
-        ApplySelectionVisuals(instant: false);
-        FireSelectionChanged();
+        if (_rotateRoutine != null)
+            StopCoroutine(_rotateRoutine);
+
+        _rotateRoutine = StartCoroutine(RotateToRoutine(targetAngleDeg));
     }
 
-    private void StartAngleRotation(float targetAngleDeg)
+    private IEnumerator RotateToRoutine(float targetAngleDeg)
     {
-        if (_rotateRoutine != null) StopCoroutine(_rotateRoutine);
-        _isRotating = true;
-        _rotateRoutine = StartCoroutine(RotateAngleRoutine(targetAngleDeg));
-    }
-
-    private IEnumerator RotateAngleRoutine(float targetAngleDeg)
-    {
-        float a = _currentRootAngleDeg;
-        float b = targetAngleDeg;
-
-        if (rotateSeconds <= 0f)
-        {
-            _currentRootAngleDeg = b;
-            ApplyRootAngleNow(_currentRootAngleDeg);
-            _isRotating = false;
-            yield break;
-        }
-
+        float start = _currentRootAngleDeg;
         float t = 0f;
+
         while (t < 1f)
         {
-            float dt = useUnscaledTime ? Time.unscaledDeltaTime : Time.deltaTime;
-            t += dt / rotateSeconds;
+            t += (rotateDurationSeconds <= 0f) ? 1f : (Time.deltaTime / rotateDurationSeconds);
+            float eased = rotateEase != null ? rotateEase.Evaluate(Mathf.Clamp01(t)) : Mathf.Clamp01(t);
 
-            float e = (rotateEase != null) ? rotateEase.Evaluate(Mathf.Clamp01(t)) : Mathf.SmoothStep(0f, 1f, t);
+            float angle = Mathf.Lerp(start, targetAngleDeg, eased);
+            ApplyRootAngleNow(angle);
 
-            float ang = Mathf.Lerp(a, b, e);
-            ApplyRootAngleNow(ang);
             yield return null;
         }
 
-        _currentRootAngleDeg = b;
-        ApplyRootAngleNow(_currentRootAngleDeg);
-
-        _isRotating = false;
+        ApplyRootAngleNow(targetAngleDeg);
+        _rotateRoutine = null;
     }
-
-    private void ApplyRootAngleNow(float angleDeg)
-    {
-        Vector3 axisSigned = GetRotationAxisLocalSigned();
-        carouselRoot.localRotation = _baseRootRotation * Quaternion.AngleAxis(angleDeg, axisSigned);
-    }
-
-    // ============================================================
-    // Snap
-    // ============================================================
 
     private void SnapToSelection()
     {
+        // Place selection “front” by directly setting accumulated angle
         _currentRootAngleDeg = ComputeRootAngleForIndex(_selectedIndex);
         ApplyRootAngleNow(_currentRootAngleDeg);
     }
 
     private float ComputeRootAngleForIndex(int index)
     {
-        Vector3 axisSigned = GetRotationAxisLocalSigned();
-        GetPlaneBasisLocal(out Vector3 baseDirLocal, out _);
-
-        Vector3 desiredDirParent = GetDesiredFrontDirInParentSpace();
-        if (desiredDirParent.sqrMagnitude < 0.0001f)
-            desiredDirParent = GetDefaultFrontInParentSpace();
-
-        Vector3 desiredDirLocal = Quaternion.Inverse(_baseRootRotation) * desiredDirParent;
-        desiredDirLocal = Vector3.ProjectOnPlane(desiredDirLocal, axisSigned);
-        if (desiredDirLocal.sqrMagnitude < 0.0001f)
-            desiredDirLocal = baseDirLocal;
-
-        desiredDirLocal.Normalize();
-
-        float iconAngle = angleOffsetDegrees + index * _stepAngle;
-        float targetAngle = Vector3.SignedAngle(baseDirLocal, desiredDirLocal, axisSigned);
-
-        return targetAngle - iconAngle;
+        // Since icons are placed at (i * stepAngle) around the ring in local space,
+        // we rotate root so selected index ends up at the “front” (angle 0).
+        // rootAngle = -index * stepAngle * rotationDirectionSign
+        return -index * _stepAngleDeg * rotationDirectionSign;
     }
 
-    private Vector3 GetDesiredFrontDirInParentSpace()
+    private void ApplyRootAngleNow(float angleDeg)
     {
-        Vector3 axisWorld = GetAxisWorldUnsigned();
+        _currentRootAngleDeg = angleDeg;
 
-        if (frontReference != null)
+        Vector3 axisLocal = GetRotationAxisLocalSigned();
+        carouselRoot.localRotation = Quaternion.AngleAxis(_currentRootAngleDeg, axisLocal);
+    }
+
+    // ============================================================
+    // Build / layout
+    // ============================================================
+
+    private void RebuildFromCatalog()
+    {
+        ClearSpawned();
+
+        _levels.Clear();
+        if (catalog == null || catalog.Levels == null) return;
+
+        foreach (var def in catalog.Levels)
         {
-            Vector3 dWorld = frontReference.position - carouselRoot.position;
-            dWorld = Vector3.ProjectOnPlane(dWorld, axisWorld);
-            if (dWorld.sqrMagnitude < 0.0001f) return Vector3.zero;
-            return WorldDirToParentLocal(dWorld.normalized);
+            if (def != null)
+                _levels.Add(def);
         }
 
-        if (cameraTransform != null)
-        {
-            Vector3 dWorld = -cameraTransform.up; // down the screen
-            dWorld = Vector3.ProjectOnPlane(dWorld, axisWorld);
-            if (dWorld.sqrMagnitude < 0.0001f) return Vector3.zero;
-            return WorldDirToParentLocal(dWorld.normalized);
-        }
+        int n = _levels.Count;
+        if (n == 0) return;
 
-        return Vector3.zero;
-    }
+        _stepAngleDeg = 360f / n;
 
-    private Vector3 GetDefaultFrontInParentSpace()
-    {
-        GetPlaneBasisLocal(out Vector3 baseDirLocal, out _);
-        Vector3 baseDirParent = _baseRootRotation * baseDirLocal;
-        return baseDirParent.normalized;
-    }
-
-    private Vector3 WorldDirToParentLocal(Vector3 worldDir)
-    {
-        Transform parent = carouselRoot.parent;
-        return (parent == null) ? worldDir : parent.InverseTransformDirection(worldDir);
-    }
-
-    // ============================================================
-    // Selection visuals
-    // ============================================================
-
-    private void ApplySelectionVisuals(bool instant)
-    {
-        for (int i = 0; i < _spawned.Count; i++)
-        {
-            if (_spawned[i] == null) continue;
-            var icon = _spawned[i].GetComponentInChildren<LevelIcon>();
-            if (icon != null) icon.ApplySelected(i == _selectedIndex, instant);
-        }
-    }
-
-    private void FireSelectionChanged()
-    {
-        OnSelectionChanged?.Invoke(SelectedLevel, _selectedIndex);
-    }
-
-    // ============================================================
-    // Selectability
-    // ============================================================
-
-    private bool IsSelectable(int index)
-    {
-        if (catalog == null) return false;
-        if (index < 0 || index >= catalog.Count) return false;
-
-        var def = catalog.Levels[index];
-        if (def == null) return false;
-        if (string.IsNullOrEmpty(def.SceneName)) return false;
-        if (def.iconPrefab == null) return false;
-
-        return true;
-    }
-
-    private int CoerceToValidIndex(int index, int preferDir)
-    {
-        if (catalog == null || catalog.Count == 0) return 0;
-
-        index = Wrap(index, catalog.Count);
-        if (IsSelectable(index)) return index;
-
-        int a = FindNextSelectable(index, preferDir);
-        if (IsSelectable(a)) return a;
-
-        int b = FindNextSelectable(index, -preferDir);
-        if (IsSelectable(b)) return b;
-
-        return _selectedIndex;
-    }
-
-    private int FindNextSelectable(int start, int dir)
-    {
-        if (catalog == null || catalog.Count == 0) return 0;
-
-        int n = catalog.Count;
-        int idx = Wrap(start, n);
-
+        // Spawn icons
         for (int i = 0; i < n; i++)
         {
-            if (IsSelectable(idx)) return idx;
-            idx = Wrap(idx + dir, n);
+            var def = _levels[i];
+            if (def == null || def.iconPrefab == null)
+                continue;
+
+            var icon = Instantiate(def.iconPrefab, carouselRoot);
+            icon.name = $"LevelIcon_{i:00}_{def.name}";
+            _spawnedIcons.Add(icon.transform);
         }
 
-        return _selectedIndex;
+        LayoutIcons();
     }
 
-    private int CountSteps(int from, int to, int dir)
+    private void LayoutIcons()
     {
-        if (catalog == null || catalog.Count == 0) return 0;
-        if (from == to) return 0;
+        int n = _levels.Count;
+        if (n == 0) return;
 
-        int n = catalog.Count;
-        int steps = 0;
-        int idx = from;
+        // Choose a local “base” direction and an orthogonal direction to define the ring plane
+        GetPlaneBasisLocal(out Vector3 baseDir, out Vector3 orthoDir);
 
-        while (idx != to && steps <= n)
+        // Place icons around the ring in local space
+        // Icon i is at angle i * stepAngle
+        for (int i = 0; i < _spawnedIcons.Count; i++)
         {
-            idx = Wrap(idx + dir, n);
-            steps++;
-        }
+            Transform icon = _spawnedIcons[i];
+            if (icon == null) continue;
 
-        return steps;
+            float angle = i * _stepAngleDeg * Mathf.Deg2Rad;
+
+            Vector3 localPos =
+                (baseDir * Mathf.Cos(angle) + orthoDir * Mathf.Sin(angle)) * radius;
+
+            localPos += Vector3.forward * iconHeight; // This is “local forward” height; can adjust if needed
+            icon.localPosition = localPos;
+
+            // Optional: face inward toward center (nice for 3D icons)
+            Vector3 toCenter = -new Vector3(localPos.x, localPos.y, localPos.z);
+            if (toCenter.sqrMagnitude > 0.0001f)
+                icon.localRotation = Quaternion.LookRotation(Vector3.forward, toCenter.normalized);
+        }
     }
 
-    private static int Wrap(int v, int n)
+    private void ClearSpawned()
     {
-        if (n <= 0) return 0;
-        v %= n;
-        if (v < 0) v += n;
-        return v;
+        for (int i = 0; i < _spawnedIcons.Count; i++)
+        {
+            if (_spawnedIcons[i] != null)
+                Destroy(_spawnedIcons[i].gameObject);
+        }
+        _spawnedIcons.Clear();
     }
 
     // ============================================================
-    // Axis / basis
+    // Helpers: axis + basis
     // ============================================================
-
-    private Vector3 GetAxisLocalUnsigned()
-    {
-        return rotationAxis switch
-        {
-            RotationAxis.X => Vector3.right,
-            RotationAxis.Y => Vector3.up,
-            _ => Vector3.forward // Z
-        };
-    }
 
     private Vector3 GetRotationAxisLocalSigned()
     {
-        return GetAxisLocalUnsigned() * rotationDirectionSign;
-    }
+        Vector3 axis = rotationAxis switch
+        {
+            RotationAxis.X => Vector3.right,
+            RotationAxis.Y => Vector3.up,
+            _ => Vector3.forward, // Z
+        };
 
-    private Vector3 GetAxisWorldUnsigned()
-    {
-        Vector3 axisLocal = GetAxisLocalUnsigned();
-        Vector3 axisParent = _baseRootRotation * axisLocal;
-
-        Transform parent = carouselRoot.parent;
-        if (parent == null) return axisParent.normalized;
-
-        return parent.TransformDirection(axisParent).normalized;
+        return axis; // sign handled in accumulated angle and delta
     }
 
     private void GetPlaneBasisLocal(out Vector3 baseDir, out Vector3 orthoDir)
     {
+        // Defines the ring plane perpendicular to rotationAxis.
+        // For Z-axis rotation (top-down), we use up/right for ring placement (XY plane).
         switch (rotationAxis)
         {
             case RotationAxis.X:
@@ -452,5 +288,13 @@ public class LevelCarouselController : MonoBehaviour
                 orthoDir = Vector3.right;
                 break;
         }
+    }
+
+    private static int Wrap(int i, int n)
+    {
+        if (n <= 0) return 0;
+        i %= n;
+        if (i < 0) i += n;
+        return i;
     }
 }
