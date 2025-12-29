@@ -42,6 +42,12 @@ public class ParametricPolyhedronWire : ImmediateModeShapeDrawer
     [Min(0.0001f)] public float thickness = 0.05f;
     public Color color = Color.white;
 
+    [Header("Build Animation")]
+[Range(0f, 1f)] public float foldProgress = 1f; // 0 = flattened, 1 = full 3D
+[Range(0f, 1f)] public float drawProgress = 1f; // 0 = no edges, 1 = all edges
+public Vector3 foldAxis = Vector3.up;           // axis to "flatten" along
+
+
     struct Edge { public int a, b; public Edge(int A, int B) { a = A; b = B; } }
 
     // Cached geometry (so we don't rebuild heavy stuff every frame)
@@ -70,11 +76,52 @@ public class ParametricPolyhedronWire : ImmediateModeShapeDrawer
             Draw.Thickness = thickness;
             Draw.Color = color;
 
-            for (int i = 0; i < _edges.Count; i++)
+            float fp = Mathf.Clamp01(foldProgress);
+            float dp = Mathf.Clamp01(drawProgress);
+
+            Vector3 axis = (foldAxis.sqrMagnitude < 1e-6f) ? Vector3.up : foldAxis.normalized;
+
+            Vector3 Fold(Vector3 v)
             {
-                var e = _edges[i];
-                Draw.Line(_verts[e.a], _verts[e.b]);
+                if (fp >= 0.9999f) return v;
+                float d = Vector3.Dot(v, axis);
+                Vector3 flat = v - axis * d;              // removes component along axis (flatten)
+                return Vector3.LerpUnclamped(flat, v, fp); // fold back into 3D
             }
+
+            int edgeCount = _edges.Count;
+            if (edgeCount == 0 || dp <= 0f) return;
+
+            if (dp >= 0.9999f)
+            {
+                for (int i = 0; i < edgeCount; i++)
+                {
+                    var e = _edges[i];
+                    Draw.Line(Fold(_verts[e.a]), Fold(_verts[e.b]));
+                }
+            }
+            else
+            {
+                float edgeF = dp * edgeCount;
+                int fullEdges = Mathf.Clamp(Mathf.FloorToInt(edgeF), 0, edgeCount);
+                float frac = Mathf.Clamp01(edgeF - fullEdges);
+
+                for (int i = 0; i < fullEdges; i++)
+                {
+                    var e = _edges[i];
+                    Draw.Line(Fold(_verts[e.a]), Fold(_verts[e.b]));
+                }
+
+                // draw the “current” edge partially so it feels like it’s being drawn
+                if (fullEdges < edgeCount && frac > 0f)
+                {
+                    var e = _edges[fullEdges];
+                    Vector3 a = Fold(_verts[e.a]);
+                    Vector3 b = Fold(_verts[e.b]);
+                    Draw.Line(a, Vector3.Lerp(a, b, frac));
+                }
+            }
+
         }
     }
 

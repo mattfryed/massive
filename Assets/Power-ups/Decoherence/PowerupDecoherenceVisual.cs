@@ -1,6 +1,8 @@
 using UnityEngine;
 
 [RequireComponent(typeof(MetaballSDFInstance))]
+[RequireComponent(typeof(MetaballManifest))]
+
 public class PowerupDecoherenceVisual : MonoBehaviour
 {
     [Header("Timing")]
@@ -29,6 +31,8 @@ public class PowerupDecoherenceVisual : MonoBehaviour
 
     private float _tCycle;
 
+    private MetaballManifest _manifest;
+
     private static Vector3 RandomDirectionXZ()
 {
     float a = Random.value * Mathf.PI * 2f;
@@ -38,6 +42,7 @@ public class PowerupDecoherenceVisual : MonoBehaviour
     private void Awake()
     {
         _sdf = GetComponent<MetaballSDFInstance>();
+    _manifest = GetComponent<MetaballManifest>();
 _dirCurrent = RandomDirectionXZ();
 _dirNext = RandomDirectionXZ();
     }
@@ -57,35 +62,34 @@ _dirNext = RandomDirectionXZ();
         float sep01 = Separation01(_tCycle, snapBackPortion);
         float sep = maxSeparation * sep01;
 
-// Two split blobs
-Vector3 a = _dirCurrent * (sep * 0.5f);
-Vector3 b = -_dirCurrent * (sep * 0.5f);
+        // Two split blobs
+        Vector3 a = _dirCurrent * (sep * 0.5f);
+        Vector3 b = -_dirCurrent * (sep * 0.5f);
 
-float lobeR = Mathf.Lerp(baseRadius, splitRadius, sep01);
+        float lobeR = Mathf.Lerp(baseRadius, splitRadius, sep01);
 
-_sdf.Clear();
-_sdf.AddBall(a, lobeR);
-_sdf.AddBall(b, lobeR);
+        _manifest.Clear();
+        _manifest.AddBall(a, lobeR);
+        _manifest.AddBall(b, lobeR);
 
-// Connector chain between a and b
-int n = Mathf.Clamp(connectorCount, 1, MetaballSDFInstance.MaxBalls - 2);
-for (int i = 1; i <= n; i++)
-{
-    float u = i / (float)(n + 1);                 // 0..1 along the line
-    Vector3 p = Vector3.Lerp(a, b, u);
+        int n = Mathf.Clamp(connectorCount, 1, MetaballSDFInstance.MaxBalls - 2);
+        for (int i = 1; i <= n; i++)
+        {
+            float u = i / (float)(n + 1);
+            Vector3 p = Vector3.Lerp(a, b, u);
 
-    // "Neck" profile: largest near ends, smallest at center
-    float mid = 1f - Mathf.Abs(2f * u - 1f);      // 0 at ends, 1 at center
-    float neck = Mathf.SmoothStep(0f, 1f, mid);
+            float mid = 1f - Mathf.Abs(2f * u - 1f);
+            float neck = Mathf.SmoothStep(0f, 1f, mid);
 
-    // Thin more under stress (sep01)
-    float r = Mathf.Lerp(connectorRadiusNearLobe, connectorRadiusMid, neck);
-    r *= Mathf.Lerp(1f, 1f - connectorStress, sep01);  // stress thinning
+            float r = Mathf.Lerp(connectorRadiusNearLobe, connectorRadiusMid, neck);
+            r *= Mathf.Lerp(1f, 1f - connectorStress, sep01);
 
-    _sdf.AddBall(p, r);
-}
+            _manifest.AddBall(p, r);
+        }
 
-_sdf.Apply();
+        _manifest.Apply();
+
+
     }
 
     // Ease out to max, then snap back quickly

@@ -1,6 +1,8 @@
 using UnityEngine;
 
 [RequireComponent(typeof(MetaballSDFInstance))]
+[RequireComponent(typeof(MetaballManifest))]
+
 public class PowerupParticleAcceleratorVisual : MonoBehaviour
 {
     [Header("Coil")]
@@ -39,10 +41,12 @@ public class PowerupParticleAcceleratorVisual : MonoBehaviour
     [SerializeField] private float coilHeight = 0.06f;
 
     private MetaballSDFInstance _sdf;
+    private MetaballManifest _manifest;
 
     private void Awake()
     {
         _sdf = GetComponent<MetaballSDFInstance>();
+    _manifest = GetComponent<MetaballManifest>();
     }
 
     private void Update()
@@ -75,7 +79,7 @@ public class PowerupParticleAcceleratorVisual : MonoBehaviour
             desiredStream = Mathf.Min(desiredStream, streamPossible);
         }
 
-        _sdf.Clear();
+        _manifest.Clear();
 
         // ---- Coil metaballs around a ring (local XZ plane) ----
         // waveCenter in "segment index space"
@@ -98,12 +102,12 @@ public class PowerupParticleAcceleratorVisual : MonoBehaviour
             float w = Mathf.Exp(-(diff * diff) / (2f * waveWidth * waveWidth));
             float r = ringBallRadius + (w * waveAmp * charge01);
 
-            _sdf.AddBall(p, r);
+            _manifest.AddBall(p, r);
         }
 
         // ---- Center particle ----
         Vector3 centerPos = new Vector3(0f, centerYOffset, 0f);
-        _sdf.AddBall(centerPos, centerRadius + centerPulseAmp * charge01);
+        _manifest.AddBall(centerPos, centerRadius + centerPulseAmp * charge01);
 
         // ---- Orbiting “charge dots” (XZ) ----
         for (int j = 0; j < desiredOrbiters; j++)
@@ -111,7 +115,7 @@ public class PowerupParticleAcceleratorVisual : MonoBehaviour
             float aj = (j / (float)desiredOrbiters) * Mathf.PI * 2f + t * orbitSpeed;
             Vector3 op = new Vector3(Mathf.Cos(aj), 0f, Mathf.Sin(aj)) * orbitRadius;
             op += centerPos;
-            _sdf.AddBall(op, orbitBallRadius);
+            _manifest.AddBall(op, orbitBallRadius);
         }
 
         // ---- Output stream ----
@@ -129,14 +133,14 @@ public class PowerupParticleAcceleratorVisual : MonoBehaviour
             float s = -len + i * streamSpacing + travel;
             s = Mathf.Repeat(s + len, total) - len;
 
-            _sdf.AddBall(centerPos + dir * s, r);
+            _manifest.AddBall(centerPos + dir * s, r);
 
             if (streamBothDirections)
-                _sdf.AddBall(centerPos - dir * s, r);
+                _manifest.AddBall(centerPos - dir * s, r);
         }
 
         // APPLY MUST BE LAST (after all balls added)
-        _sdf.Apply();
+        _manifest.Apply();
 
         // Optional: slow rotation for “device” read (mostly around Y for top-down)
         transform.localRotation = Quaternion.Euler(0f, t * 35f, 0f);

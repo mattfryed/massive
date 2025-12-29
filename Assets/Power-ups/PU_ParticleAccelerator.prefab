@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 7237627949296322057}
   - component: {fileID: 7204339864282010906}
   - component: {fileID: 5312010071645467571}
+  - component: {fileID: 6541325201822493786}
   m_Layer: 0
   m_Name: PU_ParticleAccelerator
   m_TagString: Untagged
@@ -88,6 +89,74 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   definition: {fileID: 11400000, guid: cf546f2d5151e48fabe4746097dacf06, type: 2}
+--- !u!114 &6541325201822493786
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1305589374316551868}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 70fc707f874daca4694c76ac7198c801, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  controller: {fileID: 0}
+  wire: {fileID: 9188106780683735045}
+  metaballs:
+  - {fileID: 2867861969701077733}
+  useUnscaledTime: 1
+  wireInDuration: 0.35
+  wireOutDuration: 0.25
+  afterWireBeforeMetas: 0.02
+  drawEase:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  foldEase:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
 --- !u!1 &6803144882289965747
 GameObject:
   m_ObjectHideFlags: 0
@@ -101,6 +170,7 @@ GameObject:
   - component: {fileID: 443306603266912032}
   - component: {fileID: 5619202307299620394}
   - component: {fileID: 3907260969867312878}
+  - component: {fileID: 2867861969701077733}
   m_Layer: 0
   m_Name: PU_ParticleAccelerator Viz
   m_TagString: Untagged
@@ -225,6 +295,26 @@ MonoBehaviour:
   streamBothDirections: 0
   windings: 4
   coilHeight: 0.06
+--- !u!114 &2867861969701077733
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6803144882289965747}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5d2b9ecb16e2519468bede9d8f73920e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  useUnscaledTime: 1
+  inDuration: 0.3
+  outDuration: 0.22
+  stagger: 0.03
+  jitter: 0.015
+  reverseOrderOnOut: 1
+  overshoot: 1.15
+  minRadiusToEmit: 0.0005
 --- !u!1 &7265484354302522088
 GameObject:
   m_ObjectHideFlags: 0
@@ -282,3 +372,6 @@ MonoBehaviour:
   thicknessSpace: 0
   thickness: 0.02
   color: {r: 1, g: 1, b: 1, a: 1}
+  foldProgress: 1
+  drawProgress: 1
+  foldAxis: {x: 0, y: 1, z: 0}

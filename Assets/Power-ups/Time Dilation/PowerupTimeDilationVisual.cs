@@ -1,6 +1,8 @@
 using UnityEngine;
 
 [RequireComponent(typeof(MetaballSDFInstance))]
+[RequireComponent(typeof(MetaballManifest))]
+
 public class PowerupTimeDilationVisual : MonoBehaviour
 {
     [Header("Dash Motion")]
@@ -19,12 +21,14 @@ public class PowerupTimeDilationVisual : MonoBehaviour
     [SerializeField] private float sampleInterval = 0.015f;
 
     private MetaballSDFInstance _sdf;
+    private MetaballManifest _manifest;
     private Vector3[] _history;
     private float _sampleTimer;
 
     private void Awake()
     {
         _sdf = GetComponent<MetaballSDFInstance>();
+    _manifest = GetComponent<MetaballManifest>();
         _history = new Vector3[Mathf.Max(1, ghostCount)];
         for (int i = 0; i < _history.Length; i++) _history[i] = Vector3.zero;
         dashAxis = dashAxis.sqrMagnitude < 0.0001f ? Vector3.right : dashAxis.normalized;
@@ -60,20 +64,20 @@ dashAxis.Normalize();
             _history[0] = current;
         }
 
-        _sdf.Clear();
+        _manifest.Clear();
 
         // Main particle
-        _sdf.AddBall(current, mainRadius);
+        _manifest.AddBall(current, mainRadius);
 
         // Ghosts (hard falloff, still crisp)
         for (int g = 0; g < _history.Length; g++)
         {
             float k = (g + 1f) / (_history.Length + 1f);
             float r = Mathf.Lerp(mainRadius, mainRadius * ghostRadiusFalloff, k);
-            _sdf.AddBall(_history[g], r);
+            _manifest.AddBall(_history[g], r);
         }
 
-        _sdf.Apply();
+        _manifest.Apply();
 
         // Optional: tiny spin to keep it “alive”
         transform.localRotation = Quaternion.Euler(t * 20f, t * 60f, 0f);
