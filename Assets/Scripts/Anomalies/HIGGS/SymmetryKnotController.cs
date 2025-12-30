@@ -5,18 +5,29 @@ using UnityEngine;
 [RequireComponent(typeof(SymmetryKnotVisual))]
 public class SymmetryKnotController : MonoBehaviour
 {
-    [Header("Lifetime")]
+    [Header("Lifetime (fallback)")]
     [SerializeField] private float lifetimeSeconds = 12f;
+
+    [Tooltip("Knot outro duration (seconds). This is NOT part of Unclaimed/Claimed seconds.")]
     [SerializeField] private float despawnFadeSeconds = 1.0f;
+
+    [Header("Excitation-driven Timing (preferred)")]
+    [SerializeField] private bool useExcitationDrivenLifetime = true;
+
+    [Tooltip("Stable time (seconds) AFTER the knot has fully animated in, BEFORE outro starts.")]
+    [SerializeField] private float unclaimedSeconds = 4.0f;
+
+    [Tooltip("Stable time (seconds) AFTER claim, BEFORE outro starts (only extends if longer than remaining).")]
+    [SerializeField] private float claimedSeconds = 10.0f;
+
+    [Tooltip("Seconds AFTER knot outro completes before the excitation dies (tail).")]
+    [SerializeField] private float excitationTailSeconds = 0.75f;
 
     [Header("Capture Zone")]
     [SerializeField] private float captureRadius = 3.0f;
     [SerializeField] private LayerMask playerLayerMask = ~0;
     [SerializeField] private QueryTriggerInteraction triggerInteraction = QueryTriggerInteraction.Ignore;
-
-    [Tooltip("If no hits are found with Ignore, try again with Collide (useful if player hitboxes are triggers).")]
     [SerializeField] private bool fallbackToTriggerCollide = true;
-
     [SerializeField] private bool ignoreEliminatedPlayers = true;
     [SerializeField] private bool ignoreInactivePlayers = true;
 
@@ -27,21 +38,29 @@ public class SymmetryKnotController : MonoBehaviour
 
     [Header("Goal Mouths")]
     [SerializeField] private List<SymmetryKnotGoalMouth> goalMouths = new();
-
-    [Tooltip("If list is empty, auto-find all SymmetryKnotGoalMouths in the scene on Start.")]
     [SerializeField] private bool autoFindGoalMouthsIfEmpty = true;
 
     [Header("Messaging")]
     [SerializeField] private string goalMouthMessage = "OnSymmetryKnotMass";
 
+    // Runtime
     private SymmetryKnotVisual visual;
     private Vector3 sourcePos;
-    private float startTime;
     private bool initialized;
 
     private int ownerTeamID = -1;
     private bool isContested;
     private float ownerHoldTime;
+
+    // Excitation binding
+    public int ExcitationId { get; private set; } = -1;
+    private float excitationEndTime = float.PositiveInfinity;   // absolute world time
+    private float despawnStartTime = float.PositiveInfinity;    // absolute world time (outro begins)
+    private bool despawnTriggered;
+
+    private HiggsFieldGPU higgsField; // to extend excitation lifetime
+    private float spawnTime;
+    private float spawnInSeconds;
 
     private readonly Collider[] overlap = new Collider[64];
     private readonly Dictionary<int, int> teamCounts = new Dictionary<int, int>(8);
@@ -49,12 +68,65 @@ public class SymmetryKnotController : MonoBehaviour
     public void Initialize(Vector3 sourceWorldPos)
     {
         sourcePos = sourceWorldPos;
-        startTime = Time.time;
+        transform.position = sourceWorldPos;
+
         initialized = true;
 
         visual = GetComponent<SymmetryKnotVisual>();
         visual.Initialize(sourcePos, captureRadius);
         visual.SetOwner(-1, null, contested: false, hold01: 0f);
+
+        spawnInSeconds = visual != null ? visual.SpawnFadeSeconds : 0f;
+
+        if (autoFindGoalMouthsIfEmpty && (goalMouths == null || goalMouths.Count == 0))
+            AutoPopulateGoalMouths();
+
+        // fallback schedule if not bound
+        if (despawnStartTime == float.PositiveInfinity)
+            despawnStartTime = Time.time + spawnInSeconds + lifetimeSeconds;
+    }
+
+    /// <summary>
+    /// Called by HiggsExcitationKnotManager when this knot is paired with a bubble excitation.
+    /// </summary>
+    public void BindToExcitation(
+        HiggsFieldGPU higgsField,
+        int excitationId,
+        float currentExcitationEndTime,
+        float unclaimedSeconds,
+        float claimedSeconds,
+        float excitationTailSeconds
+    )
+    {
+        this.higgsField = higgsField;
+
+        ExcitationId = excitationId;
+
+        // Never shrink from readback. Readback might be short early; we compute our own desired.
+        excitationEndTime = Mathf.Max(excitationEndTime, currentExcitationEndTime);
+
+        this.unclaimedSeconds = unclaimedSeconds;
+        this.claimedSeconds = claimedSeconds;
+        this.excitationTailSeconds = excitationTailSeconds;
+
+        useExcitationDrivenLifetime = true;
+
+        spawnTime = Time.time;
+        spawnInSeconds = (visual != null) ? visual.SpawnFadeSeconds : 0f;
+
+        // Stable window starts AFTER spawn-in completes
+        despawnStartTime = spawnTime + spawnInSeconds + this.unclaimedSeconds;
+
+        // Ensure the excitation outlives the knot timeline
+        RefreshExcitationHold();
+    }
+
+    /// <summary>
+    /// Called by manager readback. Only ever EXTENDS (never shrinks) to avoid jitter shortening your planned lifetime.
+    /// </summary>
+    public void UpdateExcitationEndTime(float newExcitationEndTime)
+    {
+        excitationEndTime = Mathf.Max(excitationEndTime, newExcitationEndTime);
     }
 
     private void Awake()
@@ -70,52 +142,118 @@ public class SymmetryKnotController : MonoBehaviour
 
     private void Update()
     {
-        // If user didn’t call Initialize, initialize once using current transform.
         if (!initialized)
             Initialize(transform.position);
 
-        // Lifetime
-        float age = Time.time - startTime;
-        if (age >= lifetimeSeconds)
+        // Keep capture center aligned if a manager ever moves the knot transform
+        sourcePos = transform.position;
+
+        bool excitationActive = (ExcitationId == -1) || (Time.time <= excitationEndTime);
+
+        // Evaluate capture while excitation is active and knot is alive
+        if (excitationActive && !despawnTriggered)
         {
-            visual.BeginDespawn(despawnFadeSeconds);
-            Destroy(gameObject, despawnFadeSeconds + 0.05f);
-            return;
-        }
+            EvaluateCapture(out int candidateOwner, out bool contestedNow);
 
-        // Capture evaluation
-        EvaluateCapture(out int candidateOwner, out bool contestedNow);
+            // Claim transition
+            if (!contestedNow && candidateOwner != ownerTeamID)
+            {
+                bool wasUnclaimed = (ownerTeamID == -1);
 
-        if (!contestedNow && candidateOwner != ownerTeamID)
-        {
-            ownerTeamID = candidateOwner;
-            ownerHoldTime = 0f;
-        }
+                ownerTeamID = candidateOwner;
+                ownerHoldTime = 0f;
 
-        isContested = contestedNow;
+                // First claim extends stable lifetime
+                if (useExcitationDrivenLifetime && wasUnclaimed && ownerTeamID != -1)
+                {
+                    // Extend stable phase from NOW (not counting any intro/outro)
+                    despawnStartTime = Mathf.Max(despawnStartTime, Time.time + claimedSeconds);
+                    RefreshExcitationHold();
+                }
+            }
 
-        float hold01 = 0f;
+            isContested = contestedNow;
 
-        // Award mass only when claimed and not contested (per your spec)
-        if (ownerTeamID != -1 && !(isContested && contestedPausesFlow))
-        {
-            ownerHoldTime += Time.deltaTime;
-            hold01 = (captureRampSeconds <= 0.001f) ? 1f : Mathf.Clamp01(ownerHoldTime / captureRampSeconds);
+            // Scoring only when claimed, not contested
+            float hold01 = 0f;
+            if (ownerTeamID != -1 && !(isContested && contestedPausesFlow))
+            {
+                if (autoFindGoalMouthsIfEmpty && (goalMouths == null || goalMouths.Count == 0))
+                    AutoPopulateGoalMouths();
 
-            float delta = (massPerSecond * hold01) * Time.deltaTime;
+                ownerHoldTime += Time.deltaTime;
+                hold01 = (captureRampSeconds <= 0.001f) ? 1f : Mathf.Clamp01(ownerHoldTime / captureRampSeconds);
 
-            var mouth = GetGoalMouth(ownerTeamID);
-            if (mouth != null && delta > 0f)
-                mouth.gameObject.SendMessage(goalMouthMessage, delta, SendMessageOptions.DontRequireReceiver);
+                float delta = (massPerSecond * hold01) * Time.deltaTime;
+
+                var mouth = GetGoalMouth(ownerTeamID);
+                if (mouth != null && delta > 0f)
+                    mouth.gameObject.SendMessage(goalMouthMessage, delta, SendMessageOptions.DontRequireReceiver);
+
+                visual.SetOwner(ownerTeamID, mouth ? mouth.transform : null, contested: isContested, hold01: hold01);
+            }
+            else
+            {
+                if (!(isContested && contestedPausesFlow))
+                    ownerHoldTime = 0f;
+
+                visual.SetOwner(ownerTeamID, GetGoalMouth(ownerTeamID)?.transform, contested: isContested, hold01: 0f);
+            }
         }
         else
         {
-            if (!(isContested && contestedPausesFlow))
+            // Excitation ended -> retract visuals / no flow
+            if (ownerTeamID != -1 || isContested)
+            {
+                ownerTeamID = -1;
+                isContested = false;
                 ownerHoldTime = 0f;
+            }
+            visual.SetOwner(-1, null, contested: false, hold01: 0f);
         }
 
-        var ownerMouth = GetGoalMouth(ownerTeamID);
-        visual.SetOwner(ownerTeamID, ownerMouth ? ownerMouth.transform : null, contested: isContested, hold01: hold01);
+        // Despawn check AFTER capture (so late entry can still extend)
+        if (!despawnTriggered && ShouldBeginDespawnNow())
+        {
+            despawnTriggered = true;
+            visual.BeginDespawn(despawnFadeSeconds);
+            Destroy(gameObject, despawnFadeSeconds + 0.05f);
+        }
+    }
+
+    /// <summary>
+    /// Ensures excitation outlives the full knot timeline:
+    /// knotOutro begins at despawnStartTime,
+    /// knot disappears at despawnStartTime + despawnFadeSeconds,
+    /// excitation dies after that + excitationTailSeconds.
+    /// </summary>
+    private void RefreshExcitationHold()
+    {
+        if (ExcitationId == -1)
+            return;
+
+        float desiredExcitationEnd = despawnStartTime + despawnFadeSeconds + excitationTailSeconds;
+
+        // Internal cap (knot logic uses this too)
+        excitationEndTime = Mathf.Max(excitationEndTime, desiredExcitationEnd);
+
+        // Drive the actual Higgs excitation lifetime (requires compute patch below)
+        if (higgsField != null)
+            higgsField.SetExcitationHoldUntil(ExcitationId, desiredExcitationEnd);
+    }
+
+    private bool ShouldBeginDespawnNow()
+    {
+        float start = despawnStartTime;
+
+        // If bound, ensure we do not start despawn so late that the knot would outlive excitation
+        if (useExcitationDrivenLifetime && ExcitationId != -1 && excitationEndTime < float.PositiveInfinity)
+        {
+            float capStart = excitationEndTime - (despawnFadeSeconds + excitationTailSeconds);
+            start = Mathf.Min(start, capStart);
+        }
+
+        return Time.time >= start;
     }
 
     private void AutoPopulateGoalMouths()
@@ -125,7 +263,8 @@ public class SymmetryKnotController : MonoBehaviour
 
     private SymmetryKnotGoalMouth GetGoalMouth(int teamID)
     {
-        if (goalMouths == null) return null;
+        if (teamID == -1) return null;
+        if (goalMouths == null || goalMouths.Count == 0) return null;
 
         for (int i = 0; i < goalMouths.Count; i++)
         {
@@ -141,7 +280,6 @@ public class SymmetryKnotController : MonoBehaviour
 
         int hitCount = Physics.OverlapSphereNonAlloc(sourcePos, captureRadius, overlap, playerLayerMask, triggerInteraction);
 
-        // If we ignored triggers and got nothing, try again including triggers (common setup)
         if (hitCount == 0 && fallbackToTriggerCollide && triggerInteraction == QueryTriggerInteraction.Ignore)
         {
             hitCount = Physics.OverlapSphereNonAlloc(sourcePos, captureRadius, overlap, playerLayerMask, QueryTriggerInteraction.Collide);
@@ -183,7 +321,7 @@ public class SymmetryKnotController : MonoBehaviour
             }
         }
 
-        candidateOwner = ownerTeamID; // keep last owner visually, but treat as contested
+        candidateOwner = ownerTeamID;
         contestedNow = true;
     }
 }

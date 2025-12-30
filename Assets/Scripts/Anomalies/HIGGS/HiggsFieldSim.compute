@@ -19,6 +19,9 @@ RWTexture2D<float> _HiggsHeight;
 RWTexture2D<float> _HiggsExcite;
 RWTexture2D<float> _HiggsHeightBase;
 
+StructuredBuffer<float> _ExciteHoldUntil;
+
+
 
 int   _MaxBubbles;
 int   _ActiveBubbles;
@@ -215,12 +218,21 @@ void UpdateBubbles(uint3 id : SV_DispatchThreadID)
             baseAmp = clamp(baseAmp + wobble * _AmpNoiseStrength, _AmpMinMax.x, _AmpMinMax.y);
         }
 
+        // External hold: keep excitation alive until an absolute world time
+// _ExciteHoldUntil contains "holdUntilWorldTime" per bubble index (0 if unused).
+float holdUntil = _ExciteHoldUntil[i];
+float holdT = holdUntil - _Time;
+if (holdT > b.exciteT)
+    b.exciteT = holdT;
+
+
         // Excitation envelope
         float exciteW = ExciteEnvelope(b.exciteT, _ExciteDuration, _ExciteFadeTime);
 
-// store for raster (pad is unused)
-b.pad.x = baseAmp;   // base amplitude (no excite)
-b.pad.y = exciteW;   // excite envelope
+
+        // store for raster (pad is unused)
+        b.pad.x = baseAmp;   // base amplitude (no excite)
+        b.pad.y = exciteW;   // excite envelope
 
         // Smoothly push amp toward excite amp
         b.amp = lerp(baseAmp, _ExciteAmp, exciteW);

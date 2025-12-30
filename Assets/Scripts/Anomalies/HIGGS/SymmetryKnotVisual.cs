@@ -129,8 +129,13 @@ public class SymmetryKnotVisual : MonoBehaviour
 [SerializeField] private float entryRingWiggleDegrees = 8f;
 [SerializeField] private float entryRingWiggleSpeed = 2.2f;
 
+[Header("Spawn Fade")]
+[SerializeField] private float spawnFadeSeconds = 0.25f;
+
+
 // cached base rotation for control/core rings (XZ alignment)
 private Quaternion _ringsBaseRot = Quaternion.identity;
+
 
 
     // ============================================================
@@ -167,6 +172,8 @@ private Quaternion _ringsBaseRot = Quaternion.identity;
     private Vector3 aimVelXZ;
 
     private float endRemoveTimer;
+    public float SpawnFadeSeconds => spawnFadeSeconds;
+
 
     public void Initialize(Vector3 sourceWorldPos, float captureRadiusWorld)
     {
@@ -193,7 +200,7 @@ private Quaternion _ringsBaseRot = Quaternion.identity;
             }
         }
 
-        fade = 1f;
+        fade = 0f;
         despawning = false;
 
         lockValue = 0f;
@@ -209,7 +216,7 @@ private Quaternion _ringsBaseRot = Quaternion.identity;
     public void BeginDespawn(float seconds)
     {
         despawning = true;
-        fadeSpeed = (seconds <= 0.001f) ? 999f : (1f / seconds);
+        // fadeSpeed = (seconds <= 0.001f) ? 999f : (1f / seconds);
     }
 
     public void SetOwner(int teamID, Transform goalMouth, bool contested, float hold01)
@@ -233,12 +240,21 @@ private Quaternion _ringsBaseRot = Quaternion.identity;
 
     private void Update()
     {
-        // Fade out when despawning (affects both ends)
-        fade = despawning
-            ? Mathf.MoveTowards(fade, 0f, Time.deltaTime * fadeSpeed)
-            : Mathf.MoveTowards(fade, 1f, Time.deltaTime * 6f);
 
-            float despawn01 = despawning ? Mathf.Clamp01(1f - fade) : 0f;
+
+// Update fade ONCE (spawn-in vs despawn-out)
+if (despawning)
+{
+    fade = Mathf.MoveTowards(fade, 0f, Time.deltaTime * fadeSpeed);
+}
+else
+{
+    float k = (spawnFadeSeconds <= 0.001f) ? 999f : (1f / spawnFadeSeconds);
+    fade = Mathf.MoveTowards(fade, 1f, Time.deltaTime * k);
+}
+
+float despawn01 = despawning ? Mathf.Clamp01(1f - fade) : 0f;
+
 
 // Optional: collapse the outer dashed ring + inner rings on despawn
 if (collapseEntryRingsToo && despawning)
@@ -305,21 +321,7 @@ if (collapseEntryRingsToo && despawning)
             aimDirXZ.Normalize();
         }
 
-        // End knot removal timing:
-        // When fully unlocked and not despawning, start a timer then destroy.
-        if (!wantsLock && Mathf.Abs(lockValue) <= 0.01f && !despawning)
-        {
-            endRemoveTimer += Time.deltaTime;
-            if (endRoot != null && endRemoveTimer >= endKnotRemoveDelay)
-            {
-                DestroyEndKnot();
-                lastGoalMouth = null;
-            }
-        }
-        else
-        {
-            endRemoveTimer = 0f;
-        }
+
 
         // Pick color
         Color c = unclaimedColor;
