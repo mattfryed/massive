@@ -338,6 +338,7 @@ MonoBehaviour:
   collapseEntryRingsToo: 1
   entryRingWiggleDegrees: 8
   entryRingWiggleSpeed: 2.2
+  spawnFadeSeconds: 0.25
 --- !u!114 &785276665162863248
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -352,6 +353,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   lifetimeSeconds: 44
   despawnFadeSeconds: 1
+  useExcitationDrivenLifetime: 1
+  unclaimedSeconds: 4
+  claimedSeconds: 10
+  excitationTailSeconds: 0.75
   captureRadius: 1.5
   playerLayerMask:
     serializedVersion: 2

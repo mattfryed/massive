@@ -43,16 +43,22 @@ public class HiggsExcitationKnotManager : MonoBehaviour
     [SerializeField] private bool logSpawnEvents = false;
 
     [StructLayout(LayoutKind.Sequential)]
-    private struct BubbleGPU
-    {
-        public Vector2 posUV;
-        public Vector2 velUV;
-        public float amp;
-        public float radius;
-        public float phase;
-        public float exciteT;
-        public Vector2 pad;
-    }
+
+private struct BubbleGPU
+{
+    public Vector2 posUV;
+    public Vector2 velUV;
+    public float amp;
+    public float radius;
+    public float phase;
+    public float exciteT;
+
+    // NEW (matches compute)
+    public float exciteAge;
+    public float pad0;
+
+    public Vector2 pad;
+}
 
     private struct Excitation
     {

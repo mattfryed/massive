@@ -130,17 +130,23 @@ public class HiggsFieldGPU : MonoBehaviour
     // GPU Data + Internals
     // ============================================================
 
-    [StructLayout(LayoutKind.Sequential)]
-    private struct Bubble
-    {
-        public Vector2 posUV;   // 0..1
-        public Vector2 velUV;   // UV/sec
-        public float amp;       // current amp (computed in compute)
-        public float radius;    // world units
-        public float phase;     // phase accumulator
-        public float exciteT;   // seconds remaining (compute)
-        public Vector2 pad;     // (used in compute for baseAmp/exciteW)
-    }
+[StructLayout(LayoutKind.Sequential)]
+private struct Bubble
+{
+    public Vector2 posUV;
+    public Vector2 velUV;
+    public float amp;
+    public float radius;
+    public float phase;
+    public float exciteT;
+
+    // NEW: must match compute shader
+    public float exciteAge;
+    public float pad0;
+
+    // still used for baseAmp/exciteW storage in compute
+    public Vector2 pad;
+}
 
     private ComputeBuffer bubbleBuffer;
 
@@ -209,28 +215,48 @@ public class HiggsFieldGPU : MonoBehaviour
     private static readonly int MID_HeightTex = Shader.PropertyToID("_HiggsHeight");
     private static readonly int MID_ExciteTex = Shader.PropertyToID("_HiggsExcite");
 
+
+/// <summary>
+/// Ensures a given bubble's excitation stays alive until an absolute world time.
+/// If multiple callers set it, the latest (max) wins.
+/// Time base must match compute (_Time), which we set to Time.time.
+/// </summary>
+public void SetExcitationHoldUntil(int bubbleIndex, float holdUntilWorldTime)
+{
+    if (bubbleIndex < 0 || bubbleIndex >= maxBubbles)
+        return;
+
+    EnsureHoldBuffer();
+
+    // Only extend (never shrink)
+    if (holdUntilWorldTime > exciteHoldUntilCPU[bubbleIndex] + 0.0001f)
+    {
+        exciteHoldUntilCPU[bubbleIndex] = holdUntilWorldTime;
+        exciteHoldDirty = true;
+    }
+}
+
+private void EnsureHoldBuffer()
+{
+    if (exciteHoldUntilCPU == null || exciteHoldUntilCPU.Length != maxBubbles)
+    {
+        exciteHoldUntilCPU = new float[maxBubbles];
+        exciteHoldDirty = true;
+    }
+
+    if (exciteHoldUntilBuffer == null || exciteHoldUntilBuffer.count != maxBubbles)
+    {
+        exciteHoldUntilBuffer?.Release();
+        exciteHoldUntilBuffer = new ComputeBuffer(maxBubbles, sizeof(float), ComputeBufferType.Structured);
+        exciteHoldDirty = true;
+    }
+}
+
     // ============================================================
     // Public API for gameplay systems
     // ============================================================
 
-    /// <summary>
-    /// Keep the given bubble's excitation alive until an absolute time (Time.time seconds).
-    /// You can call this every frame; the buffer upload is batched.
-    /// </summary>
-    public void SetExciteHoldUntil(int bubbleIndex, float absoluteWorldTimeSeconds)
-    {
-        if (bubbleIndex < 0 || bubbleIndex >= maxBubbles)
-            return;
 
-        EnsureHoldBuffer();
-
-        // If multiple callers extend the same excitation, keep the furthest-out time.
-        if (absoluteWorldTimeSeconds > exciteHoldUntilCPU[bubbleIndex])
-        {
-            exciteHoldUntilCPU[bubbleIndex] = absoluteWorldTimeSeconds;
-            exciteHoldDirty = true;
-        }
-    }
 
     /// <summary>Clear hold for a single bubble.</summary>
     public void ClearExciteHold(int bubbleIndex)
@@ -300,6 +326,14 @@ public class HiggsFieldGPU : MonoBehaviour
                 return;
         }
 
+        EnsureHoldBuffer();
+
+if (exciteHoldDirty)
+{
+    exciteHoldUntilBuffer.SetData(exciteHoldUntilCPU);
+    exciteHoldDirty = false;
+}
+
         // If anyone called SetExciteHoldUntil(), upload the CPU array once (cheap: max 256 floats).
         if (exciteHoldDirty && exciteHoldUntilCPU != null && exciteHoldUntilBuffer != null)
         {
@@ -360,6 +394,7 @@ public class HiggsFieldGPU : MonoBehaviour
         higgsCompute.SetTexture(kRaster, PID_HeightTex, heightRT);
         higgsCompute.SetTexture(kRaster, PID_HeightBaseTex, heightBaseRT);
         higgsCompute.SetTexture(kRaster, PID_ExciteTex, exciteRT);
+        
 
         // ---- Dispatch ----
         int tgBubbles = Mathf.CeilToInt(maxBubbles / 64f);
@@ -419,24 +454,7 @@ public class HiggsFieldGPU : MonoBehaviour
         higgsCompute.Dispatch(kInit, tgBubbles, 1, 1);
     }
 
-    /// <summary>
-    /// Ensure the hold buffer exists and matches maxBubbles.
-    /// </summary>
-    private void EnsureHoldBuffer()
-    {
-        // CPU array
-        if (exciteHoldUntilCPU == null || exciteHoldUntilCPU.Length != maxBubbles)
-            exciteHoldUntilCPU = new float[maxBubbles];
 
-        // GPU buffer
-        if (exciteHoldUntilBuffer == null || exciteHoldUntilBuffer.count != maxBubbles)
-        {
-            exciteHoldUntilBuffer?.Release();
-            exciteHoldUntilBuffer = new ComputeBuffer(maxBubbles, sizeof(float), ComputeBufferType.Structured);
-            exciteHoldUntilBuffer.SetData(exciteHoldUntilCPU);
-            exciteHoldDirty = false;
-        }
-    }
 
     private RenderTexture CreateRFloatRT(string name)
     {

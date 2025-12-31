@@ -10,7 +10,14 @@ struct Bubble
     float  radius;     // world units
     float  phase;      // anim phase
     float  exciteT;    // seconds remaining of excitation
-    float2 pad;        // alignment padding
+
+    // NEW: time since excitation began (for stable fade-in even if we extend exciteT)
+    float  exciteAge;  // seconds since excitation triggered
+
+    // padding so float2 pad stays aligned
+    float  pad0;
+
+    float2 pad;        // x=baseAmp, y=exciteW (used by raster)
 };
 
 RWStructuredBuffer<Bubble> _Bubbles;
@@ -113,15 +120,13 @@ float2 DriftDir(float2 p, float t, float scale)
 }
 
 // Excitation smooth envelope 0..1 (fade in/out)
-float ExciteEnvelope(float exciteT, float exciteDuration, float fadeTime)
+float ExciteEnvelope(float exciteAge, float exciteT, float fadeTime)
 {
     if (exciteT <= 0.0) return 0.0;
 
-    float age  = exciteDuration - exciteT;      // seconds since triggered
     float fade = max(0.0001, fadeTime);
-
-    float wIn  = smoothstep(0.0, fade, age);
-    float wOut = smoothstep(0.0, fade, exciteT); // near end, goes to 0
+    float wIn  = smoothstep(0.0, fade, exciteAge);
+    float wOut = smoothstep(0.0, fade, exciteT);   // fades out near the end
     return wIn * wOut;
 }
 
@@ -142,6 +147,8 @@ void InitBubbles(uint3 id : SV_DispatchThreadID)
     b.radius = lerp(_RadiusMinMax.x, _RadiusMinMax.y, Rand01(seed ^ 0x22222222u));
     b.phase = Rand01(seed ^ 0x33333333u) * 6.2831853;
     b.exciteT = 0.0;
+    b.exciteAge = 0.0;
+    b.pad0 = 0.0;
     b.pad = 0;
 
     _Bubbles[i] = b;
@@ -172,33 +179,37 @@ void UpdateBubbles(uint3 id : SV_DispatchThreadID)
         b.posUV += b.velUV * _DT;
         b.posUV = frac(b.posUV); // wrap
 
+
         // Excitation countdown / trigger
         if (b.exciteT > 0.0)
         {
             b.exciteT = max(0.0, b.exciteT - _DT);
+            b.exciteAge += _DT;              // NEW
         }
         else
         {
-            // Border buffer (world units -> UV)
-            float2 marginUV = float2(
-                (_WorldSizeXZ.x <= 1e-5) ? 0.0 : (_ExciteBorderWorld / _WorldSizeXZ.x),
-                (_WorldSizeXZ.y <= 1e-5) ? 0.0 : (_ExciteBorderWorld / _WorldSizeXZ.y)
-            );
+            b.exciteAge = 0.0;               // NEW (reset when not excited)
 
-            bool inside =
-                (b.posUV.x > marginUV.x) && (b.posUV.x < (1.0 - marginUV.x)) &&
-                (b.posUV.y > marginUV.y) && (b.posUV.y < (1.0 - marginUV.y));
-
+            // ... your existing border buffer + chance trigger logic ...
             if (inside)
             {
-                // per-bubble chance per second (stable-ish)
                 uint seed = Hash(i * 97531u + (uint)floor(_Time * 60.0));
                 float r = Rand01(seed);
                 if (r < (_ExciteChancePerSecond * _DT))
                 {
                     b.exciteT = _ExciteDuration;
+                    b.exciteAge = 0.0;       // NEW
                 }
             }
+        }
+
+        // ---- External hold: keep excitation alive until an absolute world time ----
+        // IMPORTANT FIX: index with i (uint), not id (uint3)
+        float holdRem = _ExciteHoldUntil[i] - _Time;
+        if (holdRem > b.exciteT)
+        {
+            // extend remaining time without resetting exciteAge (prevents popping)
+            b.exciteT = holdRem;
         }
 
         // Base amp (sin)
@@ -233,6 +244,7 @@ if (holdT > b.exciteT)
         // store for raster (pad is unused)
         b.pad.x = baseAmp;   // base amplitude (no excite)
         b.pad.y = exciteW;   // excite envelope
+        b.amp = lerp(baseAmp, _ExciteAmp, exciteW);
 
         // Smoothly push amp toward excite amp
         b.amp = lerp(baseAmp, _ExciteAmp, exciteW);
