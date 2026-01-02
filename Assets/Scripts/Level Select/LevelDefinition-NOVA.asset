@@ -13,9 +13,12 @@ MonoBehaviour:
   m_Name: LevelDefinition-NOVA
   m_EditorClassIdentifier: 
   levelNumber: 1
-  levelTitle: SUPERNOVA
+  levelTitle: NOVA
   gameplayScene:
     sceneName: S-3_NOVA
     sceneAsset: {fileID: 102900000, guid: 9e16f8f76bac04dc0a485433977d0359, type: 3}
   iconPrefab: {fileID: 6718998717813906176, guid: 1a788a1dbddc24bb3b45a31ba5d3f3ba,
     type: 3}
+  instructionsPanelPrefab: {fileID: 7889573251582337184, guid: b57924630d048d54e9fba77a4d36915f,
+    type: 3}
+  audioProfile: {fileID: 0}

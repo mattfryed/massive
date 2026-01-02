@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 7b1c8cd7b46ba0d4b8b07bb2401209db
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 310749
+  packageName: Rhythm Timeline 2 - Rhythm Game Framework & Editor
+  packageVersion: 2.1.1
+  assetPath: Assets/Dypsloom/RhythmTimeline/Demos/OSU/Prefabs/OSUHoldEffects.prefab
+  uploadId: 803332

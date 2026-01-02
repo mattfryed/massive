@@ -1,0 +1,10 @@
+﻿fileFormatVersion: 2
+guid: 2fae432735e845c1b3261f7bbb4c9628
+timeCreated: 1613582509
+AssetOrigin:
+  serializedVersion: 1
+  productId: 310749
+  packageName: Rhythm Timeline 2 - Rhythm Game Framework & Editor
+  packageVersion: 2.1.1
+  assetPath: Assets/Dypsloom/RhythmTimeline/Scripts/Core/Playables/Tempo/TempoMarker.cs
+  uploadId: 803332

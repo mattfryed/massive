@@ -174,8 +174,13 @@ void CSMain (uint3 id3 : SV_DispatchThreadID)
         if (any(n != 0))
         {
             float dOut = dot(dir.xy, n);
-            if (dOut > 0.0)                   // pointing outward → reflect
-                dir.xy = dir.xy - 2.0 * dOut * n;
+if (dOut > 0.0)
+{
+    dir.xy -= dOut * n; // remove outward component (slide)
+    float len = length(dir.xy);
+    if (len > 1e-5) dir.xy /= len;
+}
+
         }
 
         // Apply edge force fade (prevents seam kinks)
@@ -210,37 +215,52 @@ void CSMain (uint3 id3 : SV_DispatchThreadID)
     // Integrate
     pos += vel * _DeltaTime;
 
-    // ------------------------------------------------------------------------
-    // NEW: project back inside & bounce at wall (prevents outward "leak")
-    // ------------------------------------------------------------------------
-    if (_ProjectAtEdge != 0 && _FeatherCells > 0)
+// ------------------------------------------------------------------------
+// Project back inside & bounce at wall (true wall clamp)
+// ------------------------------------------------------------------------
+if (_ProjectAtEdge != 0)
+{
+    // get wall coordinates from the pinned border
+    float xMin = _OrigPos[y * gx + 0].x;
+    float xMax = _OrigPos[y * gx + (gx - 1)].x;
+    float yMin = _OrigPos[0 * gx + x].y;
+    float yMax = _OrigPos[(gy - 1) * gx + x].y;
+
+    float allow = _EdgeAllowance;
+
+    // X walls
+    if (pos.x < xMin - allow)
     {
-        float2 n = float2(0,0);
-        if      (x < _FeatherCells)               n = float2(-1,  0);
-        else if (x > gx - 1 - _FeatherCells)      n = float2( 1,  0);
-        else if (y < _FeatherCells)               n = float2( 0, -1);
-        else if (y > gy - 1 - _FeatherCells)      n = float2( 0,  1);
-
-        if (any(n != 0))
-        {
-            float2 d = pos.xy - _OrigPos[id].xy;   // displacement from rest
-            float outMag = dot(d, n);
-            float exceed = max(0.0, outMag - _EdgeAllowance);
-
-            if (exceed > 0.0)
-            {
-                // Project position back inside
-                pos.xy -= n * exceed;
-
-                // Reflect outward velocity component with restitution
-                float vOut = dot(vel.xy, n);
-                if (vOut > 0.0)
-                {
-                    vel.xy -= n * ((1.0 + _Restitution) * vOut); // v' = v - (1+e)(v·n)n
-                }
-            }
-        }
+        pos.x = xMin - allow;
+        float2 n = float2(-1, 0);
+        float vOut = dot(vel.xy, n);
+        if (vOut > 0.0) vel.xy -= n * ((1.0 + _Restitution) * vOut);
     }
+    else if (pos.x > xMax + allow)
+    {
+        pos.x = xMax + allow;
+        float2 n = float2(1, 0);
+        float vOut = dot(vel.xy, n);
+        if (vOut > 0.0) vel.xy -= n * ((1.0 + _Restitution) * vOut);
+    }
+
+    // Y walls
+    if (pos.y < yMin - allow)
+    {
+        pos.y = yMin - allow;
+        float2 n = float2(0, -1);
+        float vOut = dot(vel.xy, n);
+        if (vOut > 0.0) vel.xy -= n * ((1.0 + _Restitution) * vOut);
+    }
+    else if (pos.y > yMax + allow)
+    {
+        pos.y = yMax + allow;
+        float2 n = float2(0, 1);
+        float vOut = dot(vel.xy, n);
+        if (vOut > 0.0) vel.xy -= n * ((1.0 + _Restitution) * vOut);
+    }
+}
+
 
     _Vel[id] = vel;
     _Pos[id] = pos;

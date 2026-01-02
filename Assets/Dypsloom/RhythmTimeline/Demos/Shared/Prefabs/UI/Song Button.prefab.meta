@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: f5662f5c9f3d0a34980373cbc79054b1
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 310749
+  packageName: Rhythm Timeline 2 - Rhythm Game Framework & Editor
+  packageVersion: 2.1.1
+  assetPath: Assets/Dypsloom/RhythmTimeline/Demos/Shared/Prefabs/UI/Song Button.prefab
+  uploadId: 803332

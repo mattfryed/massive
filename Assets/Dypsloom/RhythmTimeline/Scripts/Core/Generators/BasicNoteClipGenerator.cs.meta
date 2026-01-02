@@ -1,0 +1,10 @@
+﻿fileFormatVersion: 2
+guid: 662bb5f382404e638b4fa5ab8a403b95
+timeCreated: 1739450274
+AssetOrigin:
+  serializedVersion: 1
+  productId: 310749
+  packageName: Rhythm Timeline 2 - Rhythm Game Framework & Editor
+  packageVersion: 2.1.1
+  assetPath: Assets/Dypsloom/RhythmTimeline/Scripts/Core/Generators/BasicNoteClipGenerator.cs
+  uploadId: 803332

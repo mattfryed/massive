@@ -76,14 +76,14 @@ MonoBehaviour:
   thickness: 0.03
   thicknessSpace: 0
   arcEndCaps: 0
-  matchDashSpacingToSize: 1
+  matchDashSpacingToSize: 0
   dashed: 1
   dashStyle:
     type: 2
     space: -2
     snap: 1
-    size: 16
-    spacing: 0.5
+    size: 64
+    spacing: 0.7
     offset: 0
     shapeModifier: 1
 --- !u!33 &5551222475388784749
@@ -251,6 +251,7 @@ GameObject:
   - component: {fileID: 1338257443861209174}
   - component: {fileID: 785276665162863248}
   - component: {fileID: 206864617395595538}
+  - component: {fileID: 2323851706224470444}
   m_Layer: 0
   m_Name: PF_SymmetryKnot
   m_TagString: Untagged
@@ -313,12 +314,12 @@ MonoBehaviour:
   endSliceCount: 9
   endEmitLen: 1.1
   endCurvePull: 1.6
-  meetGap: 0.25
+  meetGap: 0.5
   wiggleAmplitude: 0.08
   wiggleFrequency: 1.4
   wiggleSpeed: 1.2
   wiggleEndInfluence: 0.15
-  breatheAmplitude: 0.06
+  breatheAmplitude: 0.15
   breatheSpeed: 1.1
   sliceRadiusStart: 0.55
   sliceRadiusEnd: 0.18
@@ -330,7 +331,7 @@ MonoBehaviour:
   claimedColor: {r: 1, g: 1, b: 1, a: 1}
   contestedColor: {r: 1, g: 1, b: 1, a: 1}
   endEmitByWorldXSide: 1
-  fadeSpeed: 4
+  fadeSpeed: 2
   entryDespawnStagger: 0.35
   entryDespawnSliceWindow: 0.3
   entryDespawnWiggleDegrees: 18
@@ -338,7 +339,7 @@ MonoBehaviour:
   collapseEntryRingsToo: 1
   entryRingWiggleDegrees: 8
   entryRingWiggleSpeed: 2.2
-  spawnFadeSeconds: 0.25
+  spawnFadeSeconds: 1
 --- !u!114 &785276665162863248
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -351,21 +352,21 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 977b9f172e88ddc4d9368dccafee51d1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  lifetimeSeconds: 44
+  lifetimeSeconds: 9
   despawnFadeSeconds: 1
   useExcitationDrivenLifetime: 1
   unclaimedSeconds: 4
   claimedSeconds: 10
-  excitationTailSeconds: 0.75
-  captureRadius: 1.5
+  excitationTailSeconds: 0.15
+  captureRadius: 1.15
   playerLayerMask:
     serializedVersion: 2
     m_Bits: 4294967295
   triggerInteraction: 2
   fallbackToTriggerCollide: 1
   ignoreEliminatedPlayers: 1
-  ignoreInactivePlayers: 1
-  massPerSecond: 0.06
+  ignoreInactivePlayers: 0
+  massPerSecond: 0.005
   captureRampSeconds: 2
   contestedPausesFlow: 1
   goalMouths: []
@@ -400,6 +401,24 @@ MonoBehaviour:
   fitPaddingWorld: 0.75
   fitMinSizeWorld: 1
   logCountsEverySecond: 1
+--- !u!114 &2323851706224470444
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5779289540348393202}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ae83262a00c5a448991e2930e5fb7a6b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  grid: {fileID: 0}
+  profile: {fileID: 11400000, guid: 590dd14bdac464c469b42cc1fd943aa5, type: 2}
+  overridesEnabled: 0
+  overrideRadius: -1
+  overrideStrength: -1
+  overrideInnerFrac: -1
 --- !u!1 &7596797856722640318
 GameObject:
   m_ObjectHideFlags: 0

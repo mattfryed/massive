@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 96f9abb4ac86e004bbeed9da8429af89, type: 3}
+  m_Name: OSUTapNote
+  m_EditorClassIdentifier: 
+  m_NotePrefab: {fileID: 3114862973358934936, guid: 80c0e931b2a4a7c4a9adc67ab2b5c39b,
+    type: 3}
+  m_ClipDuration: 4
+  m_ScaledCrochetValue: 1.2
+  m_RhythmClipEditorSettings:
+    m_Left: {fileID: 0}
+    m_Center: {fileID: 2800000, guid: 214ae79f3617629409ed49a220df2a32, type: 3}
+    m_Right: {fileID: 0}
+    m_Color: {r: 0.06915272, g: 0.6981132, b: 0.57643646, a: 1}

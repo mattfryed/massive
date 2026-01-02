@@ -1,38 +1,67 @@
+using System;
 using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using Rigidbody = UnityEngine.Rigidbody;
 using Massive.Player;      // PlayerAttackController
 using Massive.PowerUps;    // PlayerPowerUpController + PowerUpInputState
 
+/// <summary>
+/// Optional hook component for death/respawn presentation (GPU-driven dissolve, etc).
+/// Assign a MonoBehaviour that implements this interface to `lifeFx`.
+/// </summary>
+public interface IPlayerLifeFx
+{
+    IEnumerator PlayDeath(PlayerControllerScript player, float duration);
+    IEnumerator PlayRespawn(PlayerControllerScript player, float duration);
+
+    /// <summary>
+    /// Force a hard visible/hidden state (used at the end of dissolve).
+    /// Implementations may enable/disable render drivers here.
+    /// </summary>
+    void SetVisibleInstant(PlayerControllerScript player, bool visible);
+}
+
+[DisallowMultipleComponent]
 public class PlayerControllerScript : MonoBehaviour
 {
-    private Rewired.Player player;
+    private Rewired.Player rewiredPlayer;
 
     [Header("Identity")]
     public int playerID;
     public int teamID;
 
     [Header("Movement")]
-    public float movePower = 10f;
-    private Rigidbody rb;
-    private Vector3 startingPosition;
+    [SerializeField] private float movePower = 10f;
 
     [Tooltip("Scale movement while an attack stage is active (1 = no slowdown).")]
-    [Range(0.1f, 1.0f)] public float attackingMoveScale = 0.6f;
+    [SerializeField, Range(0.1f, 1.0f)] private float attackingMoveScale = 0.6f;
+
+    [Tooltip("Ignore tiny stick noise before applying force.")]
+    [SerializeField, Range(0.05f, 0.6f)] private float moveDeadzone = 0.15f;
+
+    [Tooltip("Movement multiplier while shielding.")]
+    [SerializeField, Range(0.05f, 1f)] private float shieldMoveMultiplier = 0.4f;
+
+    private Rigidbody rb;
+    private Vector3 spawnAnchorWS;
 
     [Header("Scene / Refs")]
+    [Tooltip("Leave empty to auto-find TEAM 1 / TEAM 2 objects by name.")]
     public GameObject goalZone;
-    private GameObject sm; // SFX module
-    public GameObject massBlobPrefab;
-    public GameObject explosionPrefab;
-    public GameObject respawnPrefab;
-    public PlayerVisualController visualsController; // assign in inspector
 
-    [Tooltip("Optional: visual sword root (not used to gate gameplay anymore).")]
+    [Tooltip("Small mass blob projectile used for hit/score VFX (NOT the player blob).")]
+    public GameObject massBlobPrefab;
+
+    public PlayerVisualController visualsController; // assign in inspector
+    [SerializeField] private PlayerNuggetsGPU nuggetsGPU; // assign or auto-find
+
+    [Tooltip("Optional: visual sword root (melee is handled elsewhere).")]
     public GameObject sword;
 
+    [Tooltip("Shield GameObject (rotated + toggled by this controller).")]
     public GameObject shield;
+
+    private GameObject sm; // SFX module
     private GameObject stunEffect;
 
     [Header("Attack System")]
@@ -42,114 +71,152 @@ public class PlayerControllerScript : MonoBehaviour
     [Header("Power-Ups")]
     public PlayerPowerUpController powerUps; // assign or auto-find
 
-    [Header("Aim")]
-[SerializeField, Range(0.05f, 0.6f)] private float aimDeadzone = 0.18f;
-private Vector3 lastStickAimWS = Vector3.right; // X+ default
+    [Header("Aim (Power-up routing)")]
+    [SerializeField, Range(0.05f, 0.6f)] private float aimDeadzone = 0.18f;
+    private Vector3 lastStickAimWS = Vector3.right;
 
-
-    [Header("Mass & Size Tuning")]
-    private float timeUntilNextShrink = .1f;
-    private float timeOfLastShrink = 0f;
-    private float shieldSlowdownFactor = .3f;
-    private float massAddedOnGrow = .1f;
-    private float massRemovedOnShrink = .05f;
-    private float massRemovedOnGoalShrink = .0045f;
-    private float sizeChangeOnHit = .15f;
-    private float sizeChangeOnGrow = .2f;
-    private float sizeChangeOnShrink = .15f;
-    private float sizeChangeOnGoalHit = .01f;
-    private float maxScale = 3.0f;
-    public float stunTime = 1.25f;
-    private bool isStunned = false;
-    private float minScale = .5f;
-    private float timeToReturn = 5f;
-
-    // Amount of “massScore” to gain/lose per hit
-    [SerializeField] private float massGainPerHit = 0.08f; // tweak to taste
-    [SerializeField] private float massLossPerHit = 0.08f;
-
-    [Header("Mass → Nuggets")]
+    [Header("Mass v2 (Carry Cap + Overflow → Team Score)")]
     [Range(0f, 1f)]
-    public float massScore = 0.5f;       // 0 = min, 0.5 = start, 1 = max
+    public float massScore = 0.5f;
 
     public float massScoreMin = 0f;
     public float massScoreMax = 1f;
 
-    // Visual nugget anchors
+    [SerializeField, Range(0f, 1f)] private float spawnMassScore01 = 0.5f;
+
+    [Tooltip("Mass gained by attacker per melee hit (0..1 massScore space).")]
+    [SerializeField] private float massGainPerHit = 0.08f;
+
+    [Tooltip("Mass lost by victim per melee hit (0..1 massScore space).")]
+    [SerializeField] private float massLossPerHit = 0.08f;
+
+    [Tooltip("Continuous drain while shield is held (massScore units per second).")]
+    [SerializeField] private float shieldDrainPerSecond01 = 0.004f;
+
+    [Tooltip("Minimum seconds between valid Shrink() applications (prevents multi-hit spam).")]
+    [SerializeField] private float hitShrinkCooldownSeconds = 0.10f;
+
+    [Header("Mass → Nuggets")]
     public int minNuggets = 5;
     public int midNuggets = 50;
     public int maxNuggets = 300;
 
-    // Movement slowdown: how much heavier you get at max mass
-    public float baseRBMass = 1f;        // mass at 0
-    public float extraRBMassAtMax = 2f;  // so mass goes 1 → 3
+    [Header("Overflow Scoring")]
+    [SerializeField] private bool overflowScoresToTeam = true;
 
-    [SerializeField] private PlayerNuggetsGPU nuggetsGPU; // assign in Inspector or via GetComponentInChildren
+    [Tooltip("Team score (0..1) gained per 1.0 overflow mass. Example: overflow 0.08 with k=0.25 => +0.02 score.")]
+    [SerializeField, Range(0f, 2f)] private float overflowScorePerMass = 0.25f;
 
-    [Header("State & Activity")]
-    private GameObject dm;
+    [Header("Overflow VFX")]
+    [SerializeField] private bool spawnOverflowScoreVFX = true;
+    [SerializeField, Range(0, 10)] private int overflowVfxMaxBlobsPerEvent = 3;
+
+    [Header("Legacy Deposit Helpers (kept for compatibility; ScoreSphere legacy mode should be OFF)")]
+    [SerializeField] private float legacyGoalShrink01 = 0.0045f;
+
+    [Header("Life FX Hook")]
+    [Tooltip("Assign PlayerLifeFx_DissolveGPU (or any IPlayerLifeFx).")]
+    [SerializeField] private MonoBehaviour lifeFx;
+    private IPlayerLifeFx _lifeFx;
+
+    [Header("Respawn")]
+    [SerializeField] private Transform respawnPointOverride;
+    [SerializeField] private float deathFxSeconds = 0.25f;
+    [SerializeField] private float respawnDelaySeconds = 0.5f;
+    [SerializeField] private float respawnFxSeconds = 0.25f;
+
+    [Tooltip("After respawn, ignore Shrink() hits for this many seconds.")]
+    [SerializeField] private float respawnInvulnSeconds = 0.6f;
+
+    [Tooltip("Helps avoid respawning on top of someone.")]
+    [SerializeField] private float respawnCheckRadius = 1.0f;
+
+    [SerializeField] private LayerMask respawnBlockMask = ~0;
+
+    // ===== State =====
+    [Header("Stun")]
+    public float stunTime = 1.25f;
+    private bool isStunned = false;
+
     public bool isActive = true;
-    private float idleTime = 60f;
+    [SerializeField] private float idleTime = 60f;
     public float timeSinceLastActivity;
     public float lastActivityTime;
 
-    // Input snapshots
+    // Input snapshots (legacy exposed)
     public float moveHorizontal;
     public float moveVertical;
     public Vector3 movement;
-    private Quaternion lookRotation;
     public bool didPlayerTapActionThisFrame = false;
     public bool shieldOn = false;
 
-    private GameObject gameplayObjects;
+    public bool temporarilyEliminated = false;
 
-    // Convenience properties
-    public Vector2 CurrentInput2D => new Vector2(moveHorizontal, moveVertical);
-    public Vector2 CurrentPlanarVelocity => rb ? new Vector2(rb.linearVelocity.x, rb.linearVelocity.z) : Vector2.zero;
-    public Vector2 CurrentFacing => (CurrentInput2D.sqrMagnitude > 0.0001f) ? CurrentInput2D.normalized : CurrentPlanarVelocity.normalized;
-
-    // ---- External stun (power-ups, etc) ----
     private float externalStunUntil = -Mathf.Infinity;
     public bool IsExternallyStunned => Time.time < externalStunUntil;
-
     public void ExternalStun(float seconds)
     {
         externalStunUntil = Mathf.Max(externalStunUntil, Time.time + Mathf.Max(0f, seconds));
     }
 
+    // Team score refs
+    private ScoreSphereScript _teamScoreSphere;
+    private GameObject _teamScoreTarget;
+
+    // Colliders cache
+    private Collider[] _allColliders;
+
+    // Timers
+    private float _invulnUntil = -Mathf.Infinity;
+    private float _timeOfLastShrink = -999f;
+
+    private Coroutine _deathRoutine;
+
+    // Events
+    public event Action<PlayerControllerScript> DeathStarted;
+    public event Action<PlayerControllerScript> DeathHidden;
+    public event Action<PlayerControllerScript> RespawnStarted;
+    public event Action<PlayerControllerScript> RespawnCompleted;
+
+    public bool IsInvulnerable => Time.time < _invulnUntil;
+
     private void Awake()
     {
-        player = Rewired.ReInput.players.GetPlayer(playerID);
-        lastActivityTime = Time.time;
-        gameplayObjects = GameObject.FindWithTag("GameplayObjects");
+        rewiredPlayer = Rewired.ReInput.players.GetPlayer(playerID);
 
-        // Keep visual scale constant
-        transform.localScale = Vector3.one;
-
-        if (!powerUps) powerUps = GetComponent<PlayerPowerUpController>();
-    }
-
-    void Start()
-    {
         rb = GetComponent<Rigidbody>();
-        startingPosition = transform.position;
-        dm = GameObject.FindWithTag("GameManager");
+        if (!rb) Debug.LogWarning($"[{name}] No Rigidbody found on Player root.", this);
+
         sm = transform.Find("SfxModule")?.gameObject;
         stunEffect = transform.Find("StunnedEffect")?.gameObject;
 
-        goalZone = (teamID == 1) ? GameObject.Find("TEAM 1") : GameObject.Find("TEAM 2");
+        if (!powerUps) powerUps = GetComponent<PlayerPowerUpController>();
+        if (!visualsController) visualsController = GetComponent<PlayerVisualController>();
+        if (!nuggetsGPU) nuggetsGPU = GetComponentInChildren<PlayerNuggetsGPU>(true);
 
-        // Starting “life” at 50% → 50 nuggets
-        massScore = 0.5f;
-        UpdateMassAndNuggets();
+        if (lifeFx == null) lifeFx = GetComponent<PlayerLifeFx_DissolveGPU>();
+        _lifeFx = lifeFx as IPlayerLifeFx;
 
-        // Sanity checks
-        if (!attackController)
-            Debug.LogWarning($"[{name}] PlayerAttackController not assigned. Attacks will not trigger.");
-        if (!shield)
-            Debug.LogWarning($"[{name}] Shield reference not assigned.");
+        _allColliders = GetComponentsInChildren<Collider>(true);
 
-        // Initialize aim to current visual facing if available (otherwise keep X+)
+        lastActivityTime = Time.time;
+
+        // Safety warning for the exact mistake you hit earlier:
+        if (massBlobPrefab != null && massBlobPrefab.GetComponent<PlayerVisualController>() != null)
+            Debug.LogWarning($"[{name}] massBlobPrefab looks like a Player blob object. Assign the SmallMassBlob prefab instead.", this);
+    }
+
+    private void Start()
+    {
+        // Determine respawn anchor. If you assign respawnPointOverride, that becomes authoritative.
+        spawnAnchorWS = respawnPointOverride ? respawnPointOverride.position : transform.position;
+
+        if (goalZone == null)
+            goalZone = (teamID == 1) ? GameObject.Find("TEAM 1") : GameObject.Find("TEAM 2");
+
+        CacheTeamScoreRefs();
+
+        // Initialize aim from visual if possible
         if (visualsController != null && visualsController.visuals != null)
         {
             var f = visualsController.visuals.right;
@@ -157,355 +224,225 @@ private Vector3 lastStickAimWS = Vector3.right; // X+ default
             if (f.sqrMagnitude > 0.0001f) lastStickAimWS = f.normalized;
         }
 
+        // Spawn baseline
+        massScore = spawnMassScore01;
+        UpdateMassAndNuggets(forceRebuild: true);
+    }
+
+    private void CacheTeamScoreRefs()
+    {
+        _teamScoreSphere = null;
+        _teamScoreTarget = null;
+
+        if (!goalZone) return;
+
+        _teamScoreSphere = goalZone.GetComponentInChildren<ScoreSphereScript>(true);
+
+        var scoreSphereT = goalZone.transform.Find("Score Sphere");
+        _teamScoreTarget = scoreSphereT ? scoreSphereT.gameObject : null;
     }
 
     private void Update()
     {
-        // Rewired input
-        moveHorizontal = player.GetAxis("MoveH");
-        moveVertical = player.GetAxis("MoveV");
-        movement = new Vector3(moveHorizontal, 0f, moveVertical);
-
-        float dz2 = aimDeadzone * aimDeadzone;
-        if (movement.sqrMagnitude >= dz2)
+        if (temporarilyEliminated)
         {
-            lastStickAimWS = movement.normalized;
+            moveHorizontal = 0f;
+            moveVertical = 0f;
+            movement = Vector3.zero;
+            didPlayerTapActionThisFrame = false;
+            shieldOn = false;
+
+            timeSinceLastActivity = Time.time - lastActivityTime;
+            isActive = false;
+            return;
         }
 
+        // Input
+        moveHorizontal = rewiredPlayer.GetAxis("MoveH");
+        moveVertical = rewiredPlayer.GetAxis("MoveV");
+        movement = new Vector3(moveHorizontal, 0f, moveVertical);
 
-        shieldOn = player.GetButton("Shield");
+        // Aim memory for power-ups
+        float dz2 = aimDeadzone * aimDeadzone;
+        if (movement.sqrMagnitude >= dz2)
+            lastStickAimWS = movement.normalized;
 
-        bool swordDown = player.GetButtonDown("Sword");
-        bool swordHeld = player.GetButton("Sword");
-        bool swordUp = player.GetButtonUp("Sword");
+        shieldOn = rewiredPlayer.GetButton("Shield");
 
-        didPlayerTapActionThisFrame = swordDown;
+        bool attackDown = rewiredPlayer.GetButtonDown("Sword");
+        bool attackHeld = rewiredPlayer.GetButton("Sword");
+        bool attackUp   = rewiredPlayer.GetButtonUp("Sword");
 
-        // Visuals bridge (for trails, facing, etc.)
+        didPlayerTapActionThisFrame = attackDown;
+
+        // Visuals bridge
         if (visualsController != null)
         {
-            var stick = new Vector2(movement.x, movement.z);
-            visualsController.SetMoveInput(stick);
+            visualsController.SetMoveInput(new Vector2(movement.x, movement.z));
             if (rb != null) visualsController.velocityWS = new Vector2(rb.linearVelocity.x, rb.linearVelocity.z);
         }
 
+        // Feed stick to attack system for swipe direction
         if (attackController != null)
-        {
-            // Feed stick to attack system for swipe direction
             attackController.ExternalMoveInput = new Vector2(movement.x, movement.z);
+
+        // Power-up routing (can consume Sword)
+        bool consumedAttack = false;
+        if (powerUps != null)
+        {
+            Vector3 aimDir = lastStickAimWS;
+            aimDir.y = 0f;
+
+            if (aimDir.sqrMagnitude < 0.0001f) aimDir = Vector3.right;
+            else aimDir.Normalize();
+
+            var puInput = new PowerUpInputState
+            {
+                shieldHeld = shieldOn,
+                attackDown = attackDown,
+                attackHeld = attackHeld,
+                attackUp   = attackUp,
+                moveInput  = new Vector2(movement.x, movement.z),
+                aimDirWS   = aimDir
+            };
+
+            consumedAttack = powerUps.HandleInput(puInput);
         }
 
-// ---- Power-up input routing (can consume Sword) ----
-bool consumedAttack = false;
-
-if (powerUps != null)
-{
-    // Aim is ALWAYS the last meaningful joystick direction.
-    // This prevents 1-frame snaps caused by deadzone noise or velocity fallback.
-    Vector3 aimDir = lastStickAimWS;
-    aimDir.y = 0f;
-
-    if (aimDir.sqrMagnitude < 0.0001f)
-        aimDir = Vector3.right;
-    else
-        aimDir.Normalize();
-
-    var puInput = new PowerUpInputState
-    {
-        shieldHeld = shieldOn,
-        attackDown = swordDown,
-        attackHeld = swordHeld,
-        attackUp   = swordUp,
-        moveInput  = new Vector2(movement.x, movement.z),
-        aimDirWS   = aimDir
-    };
-
-    consumedAttack = powerUps.HandleInput(puInput);
-}
-
-
-        // ---- Attack trigger: hand off to attack system (only if not consumed by power-up) ----
-        if (!consumedAttack && swordDown && attackController != null)
+        // Attack trigger
+        if (!consumedAttack && attackDown && attackController != null)
         {
-            // Always tell the attack system about the press (for combo buffering)
             attackController.RegisterAttackPress();
 
-            // Start an attack if we're not shielding and not already mid-attack
             if (!shieldOn && !attackController.IsAttacking)
-            {
                 attackController.BeginAttack();
-            }
 
             lastActivityTime = Time.time;
         }
 
-        // Basic mass sanity
-        if (rb != null && rb.mass < .1f) rb.mass = 1f;
-
-        if (swordDown || shieldOn || swordHeld)
+        if (attackDown || shieldOn || attackHeld)
             lastActivityTime = Time.time;
 
         timeSinceLastActivity = Time.time - lastActivityTime;
         isActive = timeSinceLastActivity <= idleTime;
     }
 
-    void FixedUpdate()
+    private void FixedUpdate()
     {
-        if (isStunned || IsExternallyStunned || temporarilyEliminated) return;
+        if (temporarilyEliminated || isStunned || IsExternallyStunned) return;
+        if (!rb) return;
 
-        // Movement force (scaled if attacking)
-        float attackScale = (attackController != null && attackController.IsAttacking) ? attackingMoveScale : 1f;
-        float speedScale = shieldSlowdownFactor;
+        float moveMul = 1f;
 
-        float puMoveMul = 1f;
+        if (attackController != null && attackController.IsAttacking)
+            moveMul *= attackingMoveScale;
+
+        bool canShield = !(attackController != null && attackController.IsAttacking) && !IsExternallyStunned;
+        if (shieldOn && canShield)
+            moveMul *= shieldMoveMultiplier;
+
         if (powerUps != null)
-            puMoveMul = powerUps.MovementMultiplier * powerUps.MovementMultiplierWhileCharging;
-            
-            if (powerUps != null && powerUps.HasActive)
-    Debug.Log($"[PU] mul={powerUps.MovementMultiplier}", this);
+            moveMul *= powerUps.MovementMultiplier * powerUps.MovementMultiplierWhileCharging;
 
-        // Apply steering (reduced when shield is held; additional reduction while attacking; plus power-up multipliers)
-        if (Mathf.Abs(movement.magnitude) > .15f)
+        float dz2 = moveDeadzone * moveDeadzone;
+        if (movement.sqrMagnitude > dz2)
+            rb.AddForce(movement * movePower * moveMul, ForceMode.Force);
+
+        // Shield visuals + drain
+        if (shield != null)
         {
-            rb.AddForce(movement * movePower * speedScale * attackScale * puMoveMul);
-        }
-
-        // Shield behavior (can’t raise while attacking; also disabled while externally stunned)
-        if (shieldOn &&
-            !(attackController != null && attackController.IsAttacking) &&
-            !IsExternallyStunned)
-        {
-            if (movement != Vector3.zero)
-                lookRotation = Quaternion.LookRotation(movement.normalized);
-
-            if (shield != null)
+            if (shieldOn && canShield)
             {
-                shield.transform.rotation = lookRotation;
+                Vector3 face = (movement.sqrMagnitude > 0.001f) ? movement : lastStickAimWS;
+                face.y = 0f;
+                if (face.sqrMagnitude < 0.0001f) face = Vector3.right;
+
+                shield.transform.rotation = Quaternion.LookRotation(face.normalized, Vector3.up);
                 shield.SetActive(true);
+
+                if (shieldDrainPerSecond01 > 0f)
+                {
+                    float drain = shieldDrainPerSecond01 * Time.fixedDeltaTime;
+                    ApplyExternalMassDelta(-drain, allowDeath: true);
+                }
             }
-
-            shieldSlowdownFactor = .4f;
-
-            // Continuous tiny drain while shielding
-            if (massScore > massScoreMin)
+            else
             {
-                massScore -= massRemovedOnGoalShrink / 6f; // small drain per frame
-                UpdateMassAndNuggets();
+                shield.SetActive(false);
             }
-        }
-        else
-        {
-            shieldSlowdownFactor = 1f;
-            if (shield != null) shield.SetActive(false);
         }
     }
 
-    // ===== Gameplay Effects (called from PlayerMelee / collisions / goals) =====
-
+    // ===== SFX =====
     public void playSFX(string sfxName)
     {
         if (sm != null) sm.GetComponent<SfxPlayerScript>()?.SafePlay(sfxName);
-        else Debug.Log("SFX Module not found");
     }
 
-    private void OnCollisionEnter(Collision collision)
+    // ===== Mass / Score =====
+    private void GainMass_WithOverflowScore(float delta01, bool allowOverflowScore)
     {
-        if (!visualsController) return;
+        if (delta01 <= 0f) return;
 
-        float relSpeed = collision.relativeVelocity.magnitude;
+        float cap = Mathf.Max(massScoreMin, massScoreMax);
+        float before = massScore;
+        float after = before + delta01;
 
-        const float minImpulseSpeed = 0.1f;
-        const float maxImpulseSpeed = 8f;
+        float overflow = 0f;
 
-        float velImpulse = Mathf.InverseLerp(minImpulseSpeed, maxImpulseSpeed, relSpeed);
-
-        // Extra impulse from attack stage, independent of physics velocity
-        float attackImpulse = 0f;
-        if (attackController && attackController.IsAttacking && attackController.CurrentStage != null)
+        if (after > cap)
         {
-            var s = attackController.CurrentStage;
-            float baseDashSpeed = (s.Duration > 0.001f) ? (s.TravelDistance / s.Duration) : 0f;
-            const float dashRefSpeed = 8f; // tune to taste
-            attackImpulse = Mathf.Clamp01(baseDashSpeed / dashRefSpeed);
+            overflow = after - cap;
+            massScore = cap;
+        }
+        else
+        {
+            massScore = after;
         }
 
-        // Combine, then clamp
-        float hitStrength = Mathf.Clamp01(velImpulse + attackImpulse);
+        // Update only clamps + (optional) dotcount; safe during normal play
+        UpdateMassAndNuggets(forceRebuild: false);
 
-        if (hitStrength > 0.01f)
+        if (!allowOverflowScore || !overflowScoresToTeam || overflow <= 0f) return;
+
+        float scoreDelta01 = overflow * overflowScorePerMass;
+        if (!Mathf.Approximately(scoreDelta01, 0f))
         {
-            // Use contact point so we can drive directional ripples later
-            var contact = (collision.contactCount > 0) ? collision.GetContact(0) : default;
-            visualsController.OnHit(hitStrength, contact.point);
+            if (_teamScoreSphere != null) _teamScoreSphere.AddScore01(scoreDelta01);
+            else if (goalZone != null) goalZone.BroadcastMessage("AddScore01", scoreDelta01, SendMessageOptions.DontRequireReceiver);
         }
 
-        Debug.Log($"Collision with {collision.gameObject.name}, relSpeed={relSpeed}, hitStrength={hitStrength}");
+        if (spawnOverflowScoreVFX)
+            EmitOverflowScoreBlobs(overflow);
     }
 
-    private void OnCollisionStay(Collision collision)
+    private void EmitOverflowScoreBlobs(float overflowMass01)
     {
-        if (!visualsController) return;
+        if (!massBlobPrefab || _teamScoreTarget == null) return;
 
-        ContactPoint best = collision.GetContact(0);
-        float maxSep = best.separation;
+        float denom = Mathf.Max(0.0001f, massGainPerHit);
+        int count = Mathf.Clamp(Mathf.RoundToInt(overflowMass01 / denom), 1, overflowVfxMaxBlobsPerEvent);
 
-        for (int i = 1; i < collision.contactCount; i++)
-        {
-            var cp = collision.GetContact(i);
-            if (cp.separation < maxSep)  // more negative = deeper
-            {
-                maxSep = cp.separation;
-                best = cp;
-            }
-        }
-
-        float press = 0f;
-        if (maxSep < 0f)
-        {
-            const float maxPenetration = 0.2f; // tune
-            press = Mathf.Clamp01(-maxSep / maxPenetration);
-        }
-
-        if (press > 0.01f)
-        {
-            visualsController.OnContact(best.point, best.normal, press);
-        }
+        for (int i = 0; i < count; i++)
+            EjectBlob(_teamScoreTarget);
     }
 
-    public void Shrink(GameObject hitSource)
+    private void SyncNuggetsGeometryFromVisuals()
     {
-        if (Time.time - timeOfLastShrink <= timeUntilNextShrink)
-            return;
+        if (nuggetsGPU == null) return;
+        if (visualsController == null) return;
 
-        // Defender loses mass
-        massScore -= massLossPerHit;
-        UpdateMassAndNuggets();
-
-        // Existing visuals / blob ejections
-        if (hitSource != null)
-        {
-            for (int i = 0; i < 5; i++)
-                EjectBlob(hitSource);
-        }
-
-        // “Death” condition
-        if (massScore <= massScoreMin)
-        {
-            temporarilyEliminated = true;
-
-            if (explosionPrefab)
-            {
-                var exp = Instantiate(explosionPrefab);
-                exp.transform.position = transform.position;
-            }
-
-            playSFX("diedSFX");
-
-            // Reset mass for next life
-            massScore = 0.5f;
-            UpdateMassAndNuggets();
-
-            RespawnEffect();
-            Invoke(nameof(Return), timeToReturn);
-
-            transform.position = new Vector3(1200f, 1200f, 1200f);
-
-            if (goalZone) goalZone.BroadcastMessage("LoseScore", teamID);
-        }
-
-        timeOfLastShrink = Time.time;
+        // PlayerNuggetsGPU uses its own baseRadius/outlineHalf when rebuilding seeds/buffers.
+        nuggetsGPU.baseRadius = visualsController.baseRadius;
+        nuggetsGPU.outlineHalf = visualsController.outlineHalf;
     }
 
-    void RespawnEffect()
+    private int ComputeNuggetCountFromMass01()
     {
-        if (!respawnPrefab || !gameplayObjects) return;
-        var re = Instantiate(respawnPrefab, gameplayObjects.transform);
-        re.transform.position = startingPosition;
-    }
-
-    void Return()
-    {
-        transform.position = startingPosition;
-        temporarilyEliminated = false;
-    }
-
-    void UnStun()
-    {
-        isStunned = false;
-        if (stunEffect) stunEffect.GetComponent<ParticleSystem>()?.Stop();
-    }
-
-    public void Stun(Vector3 shieldPosition)
-    {
-        Debug.Log($"Player {playerID} stunned!");
-        playSFX("StunnedSFX");
-
-        Vector3 knockDirection = transform.position - shieldPosition;
-        rb.AddForce(knockDirection.normalized * movePower * 30f);
-
-        if (shield) shield.SetActive(false);
-        if (sword) sword.SetActive(false); // purely visual; collider is managed by PlayerMelee
-
-        isStunned = true;
-        if (stunEffect) stunEffect.GetComponent<ParticleSystem>()?.Play();
-        Invoke(nameof(UnStun), stunTime);
-    }
-
-    public void SwordClash()
-    {
-        Vector3 from = sword ? sword.transform.position : (transform.position - transform.forward);
-        Vector3 direction = transform.position - from;
-        rb.AddForce(direction * 200f);
-    }
-
-    public void ShrinkSlow(GameObject target)
-    {
-        if (massScore <= massScoreMin) return;
-
-        massScore -= massRemovedOnGoalShrink;
-        UpdateMassAndNuggets();
-        EjectBlob(target);
-    }
-
-    public bool GoalShrink()
-    {
-        if (massScore <= massScoreMin) return false;
-
-        massScore -= massRemovedOnGoalShrink;
-        UpdateMassAndNuggets();
-
-        var scoreSphere = goalZone.transform.Find("Score Sphere");
-        if (scoreSphere) EjectBlob(scoreSphere.gameObject);
-
-        return true;
-    }
-
-    public void Grow()
-    {
-        if (massScore >= massScoreMax) return;
-
-        // Attacker gains mass
-        massScore += massGainPerHit;
-        UpdateMassAndNuggets();
-    }
-
-    void UpdateMassAndNuggets()
-    {
-        // Clamp score
         massScore = Mathf.Clamp(massScore, massScoreMin, massScoreMax);
 
-        float t = (massScoreMax <= massScoreMin)
-            ? 0f
-            : Mathf.Clamp01((massScore - massScoreMin) / (massScoreMax - massScoreMin));
+        float t = (massScoreMax <= massScoreMin) ? 0f : Mathf.InverseLerp(massScoreMin, massScoreMax, massScore);
 
-        // 1) Map to Rigidbody mass: base → base+extra
-        if (rb)
-        {
-            float targetMass = baseRBMass + t * extraRBMassAtMax;
-            rb.mass = targetMass;
-        }
-
-        // 2) Map to nugget count with mid anchor
         int nuggetCount;
         if (t <= 0.5f)
         {
@@ -518,55 +455,322 @@ if (powerUps != null)
             nuggetCount = Mathf.RoundToInt(Mathf.Lerp(midNuggets, maxNuggets, tt));
         }
 
-        nuggetCount = Mathf.Clamp(nuggetCount, minNuggets, maxNuggets);
-
-        if (nuggetsGPU)
-            nuggetsGPU.SetDotCount(nuggetCount);
+        return Mathf.Clamp(nuggetCount, Mathf.Min(minNuggets, maxNuggets), Mathf.Max(minNuggets, maxNuggets));
     }
 
-    void EjectBlob(GameObject newTarget)
+    private void UpdateMassAndNuggets(bool forceRebuild)
     {
-        if (!massBlobPrefab) return;
+        massScore = Mathf.Clamp(massScore, massScoreMin, massScoreMax);
 
-        GameObject newBlob = Instantiate(massBlobPrefab);
-        newBlob.transform.position = transform.position;
-        var smb = newBlob.GetComponent<SmallMassBlobScript>();
-        if (smb) smb.target = newTarget;
+        int nuggetCount = ComputeNuggetCountFromMass01();
+
+        if (nuggetsGPU != null)
+        {
+            if (forceRebuild)
+            {
+                // Force a buffer rebuild even if the computed count happens to match,
+                // by toggling count briefly in the same frame.
+                int bump = (nuggetCount < maxNuggets) ? nuggetCount + 1 : nuggetCount - 1;
+                nuggetsGPU.SetDotCount(bump);
+            }
+
+            nuggetsGPU.SetDotCount(nuggetCount);
+        }
     }
 
-    // ===== Flags retained for compatibility =====
-    public bool gamepadMode = false;
-    public bool temporarilyEliminated = false;
+    // ===== Combat API (called by PlayerMelee / hazards) =====
+    public void Grow()
+    {
+        if (temporarilyEliminated) return;
+        GainMass_WithOverflowScore(massGainPerHit, allowOverflowScore: true);
+    }
+
+    public void Shrink(GameObject hitSource)
+    {
+        if (temporarilyEliminated) return;
+        if (IsInvulnerable) return;
+
+        if (Time.time - _timeOfLastShrink < hitShrinkCooldownSeconds)
+            return;
+
+        massScore -= massLossPerHit;
+        UpdateMassAndNuggets(forceRebuild: false);
+
+        if (hitSource != null)
+        {
+            for (int i = 0; i < 5; i++)
+                EjectBlob(hitSource);
+        }
+
+        if (massScore <= massScoreMin)
+            Die();
+
+        _timeOfLastShrink = Time.time;
+    }
 
     public void ApplyExternalMassDelta(float delta, bool allowDeath = true)
     {
         if (temporarilyEliminated) return;
 
+        if (delta >= 0f)
+        {
+            GainMass_WithOverflowScore(delta, allowOverflowScore: true);
+            return;
+        }
+
         massScore += delta;
-        UpdateMassAndNuggets();
+        UpdateMassAndNuggets(forceRebuild: false);
 
         if (allowDeath && massScore <= massScoreMin)
+            Die();
+    }
+
+    // Legacy deposit helpers (kept for compatibility)
+    public void ShrinkSlow(GameObject target)
+    {
+        if (temporarilyEliminated) return;
+        if (massScore <= massScoreMin) return;
+
+        massScore -= legacyGoalShrink01;
+        UpdateMassAndNuggets(forceRebuild: false);
+
+        if (target != null) EjectBlob(target);
+
+        if (massScore <= massScoreMin)
+            Die();
+    }
+
+    public bool GoalShrink()
+    {
+        if (temporarilyEliminated) return false;
+        if (massScore <= massScoreMin) return false;
+
+        massScore -= legacyGoalShrink01;
+        UpdateMassAndNuggets(forceRebuild: false);
+
+        var scoreSphere = goalZone ? goalZone.transform.Find("Score Sphere") : null;
+        if (scoreSphere) EjectBlob(scoreSphere.gameObject);
+
+        if (massScore <= massScoreMin)
+            Die();
+
+        return true;
+    }
+
+    // ===== Death / Respawn =====
+    private void Die()
+    {
+        if (temporarilyEliminated) return;
+        if (_deathRoutine != null) return;
+
+        temporarilyEliminated = true;
+        isActive = false;
+
+        CancelInvoke();
+        isStunned = false;
+        externalStunUntil = -Mathf.Infinity;
+
+        if (stunEffect) stunEffect.GetComponent<ParticleSystem>()?.Stop();
+
+        if (shield) shield.SetActive(false);
+        if (sword) sword.SetActive(false);
+
+        // Apply team respawn penalty (ScoreSphereScript clamps at 0)
+        if (_teamScoreSphere != null) _teamScoreSphere.LoseScore(teamID);
+        else if (goalZone != null) goalZone.BroadcastMessage("LoseScore", teamID, SendMessageOptions.DontRequireReceiver);
+
+        playSFX("diedSFX");
+
+        // Disable collisions immediately so we can't keep interacting while dissolving
+        SetCollidersEnabled(false);
+
+        // Freeze RB
+        if (rb != null)
         {
-            temporarilyEliminated = true;
-
-            if (explosionPrefab)
-            {
-                var exp = Instantiate(explosionPrefab);
-                exp.transform.position = transform.position;
-            }
-
-            playSFX("diedSFX");
-
-            // Reset mass for next life
-            massScore = 0.5f;
-            UpdateMassAndNuggets();
-
-            RespawnEffect();
-            Invoke(nameof(Return), timeToReturn);
-
-            transform.position = new Vector3(1200f, 1200f, 1200f);
-
-            if (goalZone) goalZone.BroadcastMessage("LoseScore", teamID);
+            rb.linearVelocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+            rb.isKinematic = true;
+            rb.Sleep();
         }
+
+        // Also prevent attack controller from continuing to apply motion during death/respawn
+        if (attackController != null) attackController.enabled = false;
+
+        _deathRoutine = StartCoroutine(DeathRespawnRoutine());
+    }
+
+    private IEnumerator DeathRespawnRoutine()
+    {
+        DeathStarted?.Invoke(this);
+
+        // --- Death FX (shrink/dissolve) ---
+        if (_lifeFx != null) yield return _lifeFx.PlayDeath(this, deathFxSeconds);
+        else if (deathFxSeconds > 0f) yield return new WaitForSeconds(deathFxSeconds);
+
+        // --- Hard hide (prevents the “tiny dot” artifact) ---
+        if (_lifeFx != null) _lifeFx.SetVisibleInstant(this, false);
+        else
+        {
+            if (visualsController) visualsController.enabled = false;
+            if (nuggetsGPU) nuggetsGPU.enabled = false;
+        }
+
+        DeathHidden?.Invoke(this);
+
+        // --- Respawn delay ---
+        if (respawnDelaySeconds > 0f)
+            yield return new WaitForSeconds(respawnDelaySeconds);
+
+        // --- Teleport while still hidden ---
+        Vector3 basePos = respawnPointOverride ? respawnPointOverride.position : spawnAnchorWS;
+        basePos.y = transform.position.y;
+
+        Vector3 respawnPos = FindSafeRespawnPosition(basePos);
+
+        TeleportTo(respawnPos);
+
+        // Critical: snap visuals child immediately so the first render frame is correct
+        if (visualsController != null && visualsController.visuals != null)
+            visualsController.visuals.position = respawnPos;
+
+        // Reset mass now (but rebuild nugget buffers AFTER form finishes)
+        massScore = spawnMassScore01;
+
+        RespawnStarted?.Invoke(this);
+
+        // --- Respawn FX (form) ---
+        if (_lifeFx != null) yield return _lifeFx.PlayRespawn(this, respawnFxSeconds);
+        else if (respawnFxSeconds > 0f) yield return new WaitForSeconds(respawnFxSeconds);
+
+        // Ensure nugget sim has sane geometry before rebuilding seed buffers
+        SyncNuggetsGeometryFromVisuals();
+
+        // Now rebuild nuggets for spawn mass with a healthy radius (prevents the “1 nugget” look)
+        UpdateMassAndNuggets(forceRebuild: true);
+
+        // Re-enable gameplay
+        if (rb != null)
+        {
+            rb.isKinematic = false;
+            rb.WakeUp();
+        }
+
+        SetCollidersEnabled(true);
+
+        temporarilyEliminated = false;
+        lastActivityTime = Time.time;
+        isActive = true;
+
+        _invulnUntil = Time.time + Mathf.Max(0f, respawnInvulnSeconds);
+
+        if (attackController != null) attackController.enabled = true;
+
+        RespawnCompleted?.Invoke(this);
+        _deathRoutine = null;
+    }
+
+    private void TeleportTo(Vector3 pos)
+    {
+        if (rb != null)
+        {
+            rb.position = pos;
+            rb.linearVelocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+            rb.Sleep();
+        }
+
+        transform.position = pos;
+        Physics.SyncTransforms();
+    }
+
+    private Vector3 FindSafeRespawnPosition(Vector3 basePos)
+    {
+        // First try the exact anchor
+        if (IsRespawnSpotClear(basePos))
+            return basePos;
+
+        // Otherwise search nearby
+        const int tries = 12;
+        const float searchRadius = 2.5f;
+
+        for (int i = 0; i < tries; i++)
+        {
+            Vector2 o = UnityEngine.Random.insideUnitCircle * searchRadius;
+            Vector3 p = basePos + new Vector3(o.x, 0f, o.y);
+
+            if (IsRespawnSpotClear(p))
+                return p;
+        }
+
+        return basePos;
+    }
+
+    private bool IsRespawnSpotClear(Vector3 pos)
+    {
+        var hits = Physics.OverlapSphere(pos, respawnCheckRadius, respawnBlockMask, QueryTriggerInteraction.Ignore);
+        foreach (var h in hits)
+        {
+            if (!h || !h.enabled) continue;
+            if (rb != null && h.attachedRigidbody == rb) continue; // self
+
+            if (h.CompareTag("Player"))
+                return false;
+
+            if (h.attachedRigidbody != null)
+                return false;
+        }
+        return true;
+    }
+
+    private void SetCollidersEnabled(bool enabled)
+    {
+        if (_allColliders == null) return;
+        foreach (var c in _allColliders)
+        {
+            if (c == null) continue;
+            c.enabled = enabled;
+        }
+    }
+
+    // ===== Mass blob VFX =====
+    private void EjectBlob(GameObject newTarget)
+    {
+        if (!massBlobPrefab) return;
+
+        GameObject newBlob = Instantiate(massBlobPrefab);
+        newBlob.transform.position = transform.position;
+
+        var smb = newBlob.GetComponent<SmallMassBlobScript>();
+        if (smb) smb.target = newTarget;
+    }
+
+    // ===== Stun =====
+    private void UnStun()
+    {
+        isStunned = false;
+        if (stunEffect) stunEffect.GetComponent<ParticleSystem>()?.Stop();
+    }
+
+    public void Stun(Vector3 shieldPosition)
+    {
+        if (temporarilyEliminated) return;
+        if (!rb) return;
+
+        playSFX("StunnedSFX");
+
+        Vector3 knockDirection = transform.position - shieldPosition;
+        knockDirection.y = 0f;
+
+        if (knockDirection.sqrMagnitude < 0.0001f)
+            knockDirection = Vector3.right;
+
+        rb.AddForce(knockDirection.normalized * movePower * 30f, ForceMode.Force);
+
+        if (shield) shield.SetActive(false);
+        if (sword) sword.SetActive(false);
+
+        isStunned = true;
+        if (stunEffect) stunEffect.GetComponent<ParticleSystem>()?.Play();
+        Invoke(nameof(UnStun), stunTime);
     }
 }

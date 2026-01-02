@@ -37,7 +37,17 @@ public class GridInteractor : MonoBehaviour
     void OnEnable()
     {
         // cache RB once
-        if (_rb == null) _rb = GetComponent<Rigidbody>();   // or Rigidbody2D if you use 2D
+        if (_rb == null) _rb = GetComponent<Rigidbody>();
+
+        // NEW: prefab-safe auto find
+        if (!grid)
+        {
+        #if UNITY_2022_2_OR_NEWER
+            grid = FindFirstObjectByType<VectorGridGPU>();
+        #else
+            grid = FindObjectOfType<VectorGridGPU>();
+        #endif
+        }
 
         // locate the mixer once (ok if null; mixer is optional)
     #if UNITY_2022_2_OR_NEWER
@@ -46,9 +56,9 @@ public class GridInteractor : MonoBehaviour
         _mixer = FindObjectOfType<GridTuningMixer>();
     #endif
 
-        // register with the batching system
         GridInteractionSystem.Register(this);
     }
+
 
     void OnDisable()
     {
@@ -87,7 +97,18 @@ public class GridInteractor : MonoBehaviour
     // Called by GridInteractionSystem once per frame
     public void EmitForces(List<VectorGridGPU.Force> outForces)
     {
-        if (!grid || !profile || profile.modules == null) return;
+        // NEW: lazy resolve
+        if (!grid)
+        {
+        #if UNITY_2022_2_OR_NEWER
+            grid = FindFirstObjectByType<VectorGridGPU>();
+        #else
+            grid = FindObjectOfType<VectorGridGPU>();
+        #endif
+            if (!grid) return;
+        }
+
+        if (!profile || profile.modules == null) return;
 
         Vector3 localPos = grid.transform.InverseTransformPoint(transform.position);
         Vector3 vel = GetVelocity(_rb);

@@ -11,6 +11,9 @@ using UnityEngine;
 /// NEW:
 /// - Supports per-bubble "ExciteHoldUntil" (absolute world time) so gameplay
 ///   systems can keep a given excitation alive long enough for knot lifetimes.
+/// - Supports a gameplay-controlled excitation spawn RATE (excitations/sec),
+///   converted internally into per-bubble chance so knot pacing is decoupled
+///   from bubble soup visuals.
 /// </summary>
 [DisallowMultipleComponent]
 public class HiggsFieldGPU : MonoBehaviour
@@ -96,8 +99,8 @@ public class HiggsFieldGPU : MonoBehaviour
     // Inspector: Excitations
     // ============================================================
 
-    [Header("Excitations (visual only, for now)")]
-    [Tooltip("Per-bubble probability per second to become a high peak (scaled by ramp).")]
+    [Header("Excitations (visual + gameplay trigger source)")]
+    [Tooltip("Per-bubble probability per second to become a high peak (scaled by ramp). Used when gameplay override is NOT set.")]
     [SerializeField] private Vector2 exciteChancePerSecond = new Vector2(0.02f, 0.16f);
 
     [Tooltip("Amplitude used while excited (strong positive peak).")]
@@ -113,6 +116,48 @@ public class HiggsFieldGPU : MonoBehaviour
 
     [Tooltip("World-units border padding where excitations cannot trigger.")]
     [SerializeField] private float exciteBorderWorld = 0.75f;
+
+    [Header("Excitations - Extra Smoothing")]
+[Tooltip("Shapes the excitation fade-in. 1 = normal. >1 = gentler/slower merge-in.")]
+[SerializeField] private float exciteInEasePower = 2.0f;
+
+
+    // ============================================================
+    // NEW: Gameplay pacing override
+    // ============================================================
+
+    [Header("Gameplay Excitation Pacing Override")]
+    [Tooltip("If >= 0, overrides excitation spawning with a target NEW excitations per second.\n" +
+             "This is converted into per-bubble chance internally, decoupling gameplay pacing from bubble count.\n" +
+             "Set from HiggsExcitationKnotManager.")]
+    [SerializeField] private float gameplayExcitationsPerSecondOverride = -1f;
+
+    [Tooltip("If true, compensates for excite border padding so the global rate stays closer to target.")]
+    [SerializeField] private bool compensateForBorderArea = true;
+
+    /// <summary>Last computed active bubble count (debug + for external systems).</summary>
+    public int ActiveBubblesLastFrame { get; private set; }
+
+    /// <summary>
+    /// Set target NEW excitations per second. (0 pauses new excitations; negative clears override)
+    /// </summary>
+    public void SetGameplayExcitationsPerSecond(float perSecond)
+    {
+        gameplayExcitationsPerSecondOverride = perSecond < 0f ? -1f : Mathf.Max(0f, perSecond);
+    }
+
+    /// <summary>Convenience helper: set target NEW excitations per minute.</summary>
+    public void SetGameplayExcitationsPerMinute(float perMinute)
+    {
+        if (perMinute < 0f) { gameplayExcitationsPerSecondOverride = -1f; return; }
+        gameplayExcitationsPerSecondOverride = Mathf.Max(0f, perMinute) / 60f;
+    }
+
+    /// <summary>Revert to inspector-driven exciteChancePerSecond (ramped) behavior.</summary>
+    public void ClearGameplayExcitationRateOverride()
+    {
+        gameplayExcitationsPerSecondOverride = -1f;
+    }
 
     // ============================================================
     // Inspector: Session ramp
@@ -130,28 +175,27 @@ public class HiggsFieldGPU : MonoBehaviour
     // GPU Data + Internals
     // ============================================================
 
-[StructLayout(LayoutKind.Sequential)]
-private struct Bubble
-{
-    public Vector2 posUV;
-    public Vector2 velUV;
-    public float amp;
-    public float radius;
-    public float phase;
-    public float exciteT;
+    [StructLayout(LayoutKind.Sequential)]
+    private struct Bubble
+    {
+        public Vector2 posUV;
+        public Vector2 velUV;
+        public float amp;
+        public float radius;
+        public float phase;
+        public float exciteT;
 
-    // NEW: must match compute shader
-    public float exciteAge;
-    public float pad0;
+        // Must match compute shader layout
+        public float exciteAge;
+        public float pad0;
 
-    // still used for baseAmp/exciteW storage in compute
-    public Vector2 pad;
-}
+        // Used for baseAmp/exciteW storage in compute
+        public Vector2 pad;
+    }
 
     private ComputeBuffer bubbleBuffer;
 
-    // NEW: per-bubble absolute "hold until" time (world Time.time seconds)
-    // Used by gameplay to keep excitations alive until knot outro completes.
+    // Per-bubble absolute "hold until" times (world seconds)
     private ComputeBuffer exciteHoldUntilBuffer;
     private float[] exciteHoldUntilCPU;
     private bool exciteHoldDirty;
@@ -165,7 +209,7 @@ private struct Bubble
     public RenderTexture HeightBaseTexture => heightBaseRT;
     public RenderTexture ExciteTexture => exciteRT;
 
-    // Optional: useful for your manager to avoid reflection.
+    // Optional useful access for manager/readback
     public ComputeBuffer BubbleBuffer => bubbleBuffer;
     public Vector2 WorldSizeXZ => worldSizeXZ;
     public int MaxBubbles => maxBubbles;
@@ -195,6 +239,8 @@ private struct Bubble
     private static readonly int PID_ExciteDuration = Shader.PropertyToID("_ExciteDuration");
     private static readonly int PID_ExciteFadeTime = Shader.PropertyToID("_ExciteFadeTime");
     private static readonly int PID_ExciteBorderWorld = Shader.PropertyToID("_ExciteBorderWorld");
+    private static readonly int PID_ExciteInEasePower = Shader.PropertyToID("_ExciteInEasePower");
+
 
     private static readonly int PID_PhaseSpeedMinMax = Shader.PropertyToID("_PhaseSpeedMinMax");
     private static readonly int PID_AmpNoiseStrength = Shader.PropertyToID("_AmpNoiseStrength");
@@ -208,55 +254,40 @@ private struct Bubble
     private static readonly int PID_HeightBaseTex = Shader.PropertyToID("_HiggsHeightBase");
     private static readonly int PID_ExciteTex = Shader.PropertyToID("_HiggsExcite");
 
-    // NEW: compute buffer binding for hold times (must match compute name exactly)
+    // Hold buffer binding
     private static readonly int PID_ExciteHoldUntil = Shader.PropertyToID("_ExciteHoldUntil");
 
     // ---- Material property IDs (match HiggsUnderlayTopo_URP.shader) ----
     private static readonly int MID_HeightTex = Shader.PropertyToID("_HiggsHeight");
     private static readonly int MID_ExciteTex = Shader.PropertyToID("_HiggsExcite");
 
+    private int _lastActiveBubbles;
+public int ActiveBubbles => _lastActiveBubbles;
 
-/// <summary>
-/// Ensures a given bubble's excitation stays alive until an absolute world time.
-/// If multiple callers set it, the latest (max) wins.
-/// Time base must match compute (_Time), which we set to Time.time.
-/// </summary>
-public void SetExcitationHoldUntil(int bubbleIndex, float holdUntilWorldTime)
-{
-    if (bubbleIndex < 0 || bubbleIndex >= maxBubbles)
-        return;
-
-    EnsureHoldBuffer();
-
-    // Only extend (never shrink)
-    if (holdUntilWorldTime > exciteHoldUntilCPU[bubbleIndex] + 0.0001f)
-    {
-        exciteHoldUntilCPU[bubbleIndex] = holdUntilWorldTime;
-        exciteHoldDirty = true;
-    }
-}
-
-private void EnsureHoldBuffer()
-{
-    if (exciteHoldUntilCPU == null || exciteHoldUntilCPU.Length != maxBubbles)
-    {
-        exciteHoldUntilCPU = new float[maxBubbles];
-        exciteHoldDirty = true;
-    }
-
-    if (exciteHoldUntilBuffer == null || exciteHoldUntilBuffer.count != maxBubbles)
-    {
-        exciteHoldUntilBuffer?.Release();
-        exciteHoldUntilBuffer = new ComputeBuffer(maxBubbles, sizeof(float), ComputeBufferType.Structured);
-        exciteHoldDirty = true;
-    }
-}
 
     // ============================================================
     // Public API for gameplay systems
     // ============================================================
 
+    /// <summary>
+    /// Ensures a given bubble's excitation stays alive until an absolute world time.
+    /// If multiple callers set it, the latest (max) wins.
+    /// Time base must match compute (_Time), which we set to Time.time.
+    /// </summary>
+    public void SetExcitationHoldUntil(int bubbleIndex, float holdUntilWorldTime)
+    {
+        if (bubbleIndex < 0 || bubbleIndex >= maxBubbles)
+            return;
 
+        EnsureHoldBuffer();
+
+        // Only extend (never shrink)
+        if (holdUntilWorldTime > exciteHoldUntilCPU[bubbleIndex] + 0.0001f)
+        {
+            exciteHoldUntilCPU[bubbleIndex] = holdUntilWorldTime;
+            exciteHoldDirty = true;
+        }
+    }
 
     /// <summary>Clear hold for a single bubble.</summary>
     public void ClearExciteHold(int bubbleIndex)
@@ -277,7 +308,6 @@ private void EnsureHoldBuffer()
     public void ClearAllExciteHolds()
     {
         EnsureHoldBuffer();
-
         Array.Clear(exciteHoldUntilCPU, 0, exciteHoldUntilCPU.Length);
         exciteHoldDirty = true;
     }
@@ -326,16 +356,9 @@ private void EnsureHoldBuffer()
                 return;
         }
 
+        // Upload hold times if needed (max 256 floats -> cheap)
         EnsureHoldBuffer();
-
-if (exciteHoldDirty)
-{
-    exciteHoldUntilBuffer.SetData(exciteHoldUntilCPU);
-    exciteHoldDirty = false;
-}
-
-        // If anyone called SetExciteHoldUntil(), upload the CPU array once (cheap: max 256 floats).
-        if (exciteHoldDirty && exciteHoldUntilCPU != null && exciteHoldUntilBuffer != null)
+        if (exciteHoldDirty)
         {
             exciteHoldUntilBuffer.SetData(exciteHoldUntilCPU);
             exciteHoldDirty = false;
@@ -353,7 +376,34 @@ if (exciteHoldDirty)
             1, maxBubbles
         );
 
-        float exciteChance = Mathf.Lerp(exciteChancePerSecond.x, exciteChancePerSecond.y, ramp01);
+        _lastActiveBubbles = activeBubbles;
+
+        // ------------------------------------------------------------
+        // Excitation spawn chance:
+        // - Default: inspector vector (min->max) ramped by session.
+        // - Override: gameplay provides "excitations per second" -> convert to chance/bubble/sec.
+        // ------------------------------------------------------------
+        float exciteChancePerBubblePerSecond;
+        if (gameplayExcitationsPerSecondOverride >= 0f)
+        {
+            float targetPerSecond = gameplayExcitationsPerSecondOverride;
+
+            // Convert global target into per-bubble chance
+            exciteChancePerBubblePerSecond = targetPerSecond / Mathf.Max(1, activeBubbles);
+
+            // Optional border compensation so global rate stays closer to target even with large margins.
+            if (compensateForBorderArea)
+            {
+                float insideFrac = ComputeInsideAreaFraction();
+                if (insideFrac > 0.0001f)
+                    exciteChancePerBubblePerSecond /= insideFrac;
+            }
+        }
+        else
+        {
+            // Old behavior: chance itself ramps with session (and is implicitly multiplied by bubble count).
+            exciteChancePerBubblePerSecond = Mathf.Lerp(exciteChancePerSecond.x, exciteChancePerSecond.y, ramp01);
+        }
 
         // ---- Push params to compute ----
         higgsCompute.SetInt(PID_MaxBubbles, maxBubbles);
@@ -369,12 +419,14 @@ if (exciteHoldDirty)
         higgsCompute.SetVector(PID_RadiusMinMax, radiusRange);
         higgsCompute.SetFloat(PID_BaseOffset, baseOffset);
 
-        higgsCompute.SetFloat(PID_ExciteChance, exciteChance);
+        higgsCompute.SetFloat(PID_ExciteChance, exciteChancePerBubblePerSecond);
         higgsCompute.SetFloat(PID_ExciteAmp, exciteAmp);
         higgsCompute.SetFloat(PID_ExciteRadiusMul, exciteRadiusMultiplier);
         higgsCompute.SetFloat(PID_ExciteDuration, exciteDuration);
         higgsCompute.SetFloat(PID_ExciteFadeTime, exciteFadeTime);
         higgsCompute.SetFloat(PID_ExciteBorderWorld, exciteBorderWorld);
+        higgsCompute.SetFloat(PID_ExciteInEasePower, exciteInEasePower);
+
 
         higgsCompute.SetVector(PID_PhaseSpeedMinMax, phaseSpeedRange);
         higgsCompute.SetFloat(PID_AmpNoiseStrength, ampNoiseStrength);
@@ -386,15 +438,12 @@ if (exciteHoldDirty)
 
         // ---- Bind resources ----
         higgsCompute.SetBuffer(kUpdate, PID_Bubbles, bubbleBuffer);
-
-        // NEW: bind hold buffer to Update kernel (so compute can read it)
         higgsCompute.SetBuffer(kUpdate, PID_ExciteHoldUntil, exciteHoldUntilBuffer);
 
         higgsCompute.SetBuffer(kRaster, PID_Bubbles, bubbleBuffer);
         higgsCompute.SetTexture(kRaster, PID_HeightTex, heightRT);
         higgsCompute.SetTexture(kRaster, PID_HeightBaseTex, heightBaseRT);
         higgsCompute.SetTexture(kRaster, PID_ExciteTex, exciteRT);
-        
 
         // ---- Dispatch ----
         int tgBubbles = Mathf.CeilToInt(maxBubbles / 64f);
@@ -406,6 +455,36 @@ if (exciteHoldDirty)
         // ---- Feed textures into underlay material ----
         higgsUnderlayMaterial.SetTexture(MID_HeightTex, heightRT);
         higgsUnderlayMaterial.SetTexture(MID_ExciteTex, exciteRT);
+    }
+
+    /// <summary>
+    /// Computes what fraction of UV space is eligible for excitation triggering,
+    /// given the exciteBorderWorld margin and the current worldSizeXZ.
+    /// </summary>
+    private float ComputeInsideAreaFraction()
+    {
+        float mu = (Mathf.Abs(worldSizeXZ.x) <= 0.0001f) ? 0f : (exciteBorderWorld / worldSizeXZ.x);
+        float mv = (Mathf.Abs(worldSizeXZ.y) <= 0.0001f) ? 0f : (exciteBorderWorld / worldSizeXZ.y);
+
+        float wu = Mathf.Clamp01(1f - 2f * Mathf.Abs(mu));
+        float wv = Mathf.Clamp01(1f - 2f * Mathf.Abs(mv));
+        return wu * wv;
+    }
+
+    private void EnsureHoldBuffer()
+    {
+        if (exciteHoldUntilCPU == null || exciteHoldUntilCPU.Length != maxBubbles)
+        {
+            exciteHoldUntilCPU = new float[maxBubbles];
+            exciteHoldDirty = true;
+        }
+
+        if (exciteHoldUntilBuffer == null || exciteHoldUntilBuffer.count != maxBubbles)
+        {
+            exciteHoldUntilBuffer?.Release();
+            exciteHoldUntilBuffer = new ComputeBuffer(maxBubbles, sizeof(float), ComputeBufferType.Structured);
+            exciteHoldDirty = true;
+        }
     }
 
     /// <summary>
@@ -427,7 +506,7 @@ if (exciteHoldDirty)
         bubbleBuffer?.Release();
         bubbleBuffer = new ComputeBuffer(maxBubbles, stride, ComputeBufferType.Structured);
 
-        // NEW: Hold buffer (float per bubble)
+        // Hold buffer (float per bubble)
         EnsureHoldBuffer();
 
         // Height RT (full)
@@ -453,8 +532,6 @@ if (exciteHoldDirty)
         int tgBubbles = Mathf.CeilToInt(maxBubbles / 64f);
         higgsCompute.Dispatch(kInit, tgBubbles, 1, 1);
     }
-
-
 
     private RenderTexture CreateRFloatRT(string name)
     {

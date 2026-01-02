@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 81f4ca18102962e4e9af8acfd7e00da6
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 310749
+  packageName: Rhythm Timeline 2 - Rhythm Game Framework & Editor
+  packageVersion: 2.1.1
+  assetPath: Assets/Dypsloom/RhythmTimeline/Demos/Shared/AccuracyPopup/Prefabs/BadAccuracyPopUp
+    Variant.prefab
+  uploadId: 803332

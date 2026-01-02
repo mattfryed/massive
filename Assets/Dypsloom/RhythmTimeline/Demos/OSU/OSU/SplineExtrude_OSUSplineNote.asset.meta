@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 8b0e7be39742b1048acfc6abbe656d40
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 4300000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 310749
+  packageName: Rhythm Timeline 2 - Rhythm Game Framework & Editor
+  packageVersion: 2.1.1
+  assetPath: Assets/Dypsloom/RhythmTimeline/Demos/OSU/OSU/SplineExtrude_OSUSplineNote.asset
+  uploadId: 803332

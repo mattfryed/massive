@@ -13,6 +13,10 @@ public class LevelDefinition : ScriptableObject
     [Header("Level Select Visual")]
     public GameObject iconPrefab;
 
+    [Header("Instructions (Optional)")]
+    public GameObject instructionsPanelPrefab;
+
+
     [Header("Audio")]
     public LevelAudioProfile audioProfile;   // ✅ new
 

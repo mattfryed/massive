@@ -1,59 +1,101 @@
-﻿using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
+﻿using UnityEngine;
 
 public class ScoreSphereScript : MonoBehaviour
 {
-    public float sizeChangeOnGoalHit = .01f;
-    public GameObject sphereGraphic;
-    private float maxSize = 11f;
-    public GameObject scoreboard;
-    public int teamID;
+    [Header("Identity")]
+    public int teamID = 1;
 
-    // Start is called before the first frame update
-    void Start()
+    [Header("Score State (0..1 = 0..100)")]
+    [SerializeField, Range(0f, 1f)] private float score01 = 0.5f;
+
+    [Header("Visuals")]
+    public GameObject sphereGraphic;   // the thing that scales
+    public GameObject scoreboard;      // has ScoreboardManagerScript
+    [SerializeField] private float maxSize = 11f; // “100%” size of the score graphic
+
+    [Header("Respawn Penalty")]
+    [SerializeField, Range(0f, 1f)]
+    private float respawnPenalty01 = 0.05f;
+
+    [Header("Legacy Deposit Mode (OFF for Mass v2)")]
+    [SerializeField] private bool enableGoalDeposit = false;
+
+    // old pacing knob retained so deposit feels identical if re-enabled later
+    [SerializeField] private float sizeChangeOnGoalHit = 0.01f;
+
+    public float Score01 => score01;
+    public float MaxSize => maxSize;
+
+    private void Start()
     {
-        
+        // Treat score01 as authoritative at runtime.
+        ApplyVisuals();
     }
 
-    // Update is called once per frame
-    void Update()
+    private void ApplyVisuals()
     {
-        
-    }
-
-    public void LoseScore(int whichTeam)
-    {
-        if (teamID == whichTeam)
+        if (sphereGraphic != null)
         {
-            sphereGraphic.GetComponent<RectTransform>().localScale -= new Vector3(1f, 1f, 1f);
-            scoreboard.GetComponent<ScoreboardManagerScript>().UpdateScoreboard(sphereGraphic.GetComponent<RectTransform>().localScale.x / maxSize);
-            if (sphereGraphic.GetComponent<RectTransform>().localScale.x < 0f)
-            {
-                sphereGraphic.GetComponent<RectTransform>().localScale = new Vector3(0f, 0f, 0f);
-            }
+            float s = score01 * maxSize;
+
+            if (sphereGraphic.TryGetComponent<RectTransform>(out var rt))
+                rt.localScale = new Vector3(s, s, s);
+            else
+                sphereGraphic.transform.localScale = new Vector3(s, s, s);
+        }
+
+        if (scoreboard != null)
+        {
+            var sb = scoreboard.GetComponent<ScoreboardManagerScript>();
+            if (sb != null) sb.UpdateScoreboard(score01);
         }
     }
 
+    public void SetScore01(float newScore01)
+    {
+        score01 = Mathf.Clamp01(newScore01);
+        ApplyVisuals();
+    }
+
+    public void AddScore01(float delta01)
+    {
+        if (Mathf.Approximately(delta01, 0f)) return;
+        SetScore01(score01 + delta01);
+    }
+
+    public void RemoveScore01(float delta01)
+    {
+        if (Mathf.Approximately(delta01, 0f)) return;
+        SetScore01(score01 - delta01);
+    }
+
+    // ---- Compatibility: PlayerControllerScript currently calls LoseScore(teamID) on death ----
+    public void LoseScore(int whichTeam)
+    {
+        if (teamID != whichTeam) return;
+        RemoveScore01(respawnPenalty01);
+    }
+
+    // Optional explicit penalty API (useful later)
+    public void LoseScore01(float penalty01)
+    {
+        RemoveScore01(penalty01);
+    }
+
+    // ---- Legacy deposit loop (disabled for Mass v2) ----
     private void OnTriggerStay(Collider other)
     {
-//        Debug.Log("something is happening. sumpin' is in the score sphere");
-        if (other.gameObject.tag == "Player" && other.gameObject.GetComponent<PlayerControllerScript>().teamID == teamID)
+        if (!enableGoalDeposit) return;
+        if (!other.CompareTag("Player")) return;
+
+        var pcs = other.GetComponent<PlayerControllerScript>();
+        if (pcs == null || pcs.teamID != teamID) return;
+
+        if (pcs.GoalShrink())
         {
-        //    Debug.Log("something is happening. A player is in the score sphere");
-            // TODO: Should probably check what team the player is on, but for now, just tell em to shrink and lets grow the score acceptor
-            if (other.gameObject.GetComponent<PlayerControllerScript>().GoalShrink())
-            {
-                if (sphereGraphic.GetComponent<RectTransform>().localScale.x < maxSize)
-                {
-                    sphereGraphic.GetComponent<RectTransform>().localScale += new Vector3(sizeChangeOnGoalHit, sizeChangeOnGoalHit, sizeChangeOnGoalHit);
-                    scoreboard.GetComponent<ScoreboardManagerScript>().UpdateScoreboard(sphereGraphic.GetComponent<RectTransform>().localScale.x / maxSize);
-                }
-                else
-                {
-                    // trigger a game over condition
-                }
-            }
+            // old behavior was: add sizeChangeOnGoalHit to scale.
+            // In score01 space, that’s:
+            AddScore01(sizeChangeOnGoalHit / Mathf.Max(0.0001f, maxSize));
         }
     }
 }

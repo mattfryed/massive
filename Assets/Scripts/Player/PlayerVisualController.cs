@@ -110,32 +110,32 @@ public class PlayerVisualController : MonoBehaviour
     bool _wasLungeActive = false;
 
     // ===== External charge jitter (power-ups) =====
-[Header("External Modifiers (Power-ups)")]
-[SerializeField] private float chargeJitterEaseUp = 18f;
-[SerializeField] private float chargeJitterEaseDown = 10f;
+    [Header("External Modifiers (Power-ups)")]
+    [SerializeField] private float chargeJitterEaseUp = 18f;
+    [SerializeField] private float chargeJitterEaseDown = 10f;
 
-[SerializeField] private float chargeTurnDampEaseUp = 18f;
-[SerializeField] private float chargeTurnDampEaseDown = 12f;
+    [SerializeField] private float chargeTurnDampEaseUp = 18f;
+    [SerializeField] private float chargeTurnDampEaseDown = 12f;
 
-[SerializeField] private float chargingYawSmoothMultiplier = 2.6f; // higher = slower turn response
-[SerializeField] private float chargingMaxYawSpeedMultiplier = 0.45f; // lower = capped turn speed
+    [SerializeField] private float chargingYawSmoothMultiplier = 2.6f; // higher = slower turn response
+    [SerializeField] private float chargingMaxYawSpeedMultiplier = 0.45f; // lower = capped turn speed
 
-private float _turnDampTarget01 = 0f;  // 0..1
-private float _turnDamp01 = 0f;
+    private float _turnDampTarget01 = 0f;  // 0..1
+    private float _turnDamp01 = 0f;
 
-public void SetExternalTurnDamp01(float t01)
-{
-    _turnDampTarget01 = Mathf.Clamp01(t01);
-}
+    public void SetExternalTurnDamp01(float t01)
+    {
+        _turnDampTarget01 = Mathf.Clamp01(t01);
+    }
 
 
-private float _chargeJitterTarget01 = 0f;
-private float _chargeJitter01 = 0f;
+    private float _chargeJitterTarget01 = 0f;
+    private float _chargeJitter01 = 0f;
 
-public void SetExternalChargeJitter01(float j01)
-{
-    _chargeJitterTarget01 = Mathf.Clamp01(j01);
-}
+    public void SetExternalChargeJitter01(float j01)
+    {
+        _chargeJitterTarget01 = Mathf.Clamp01(j01);
+    }
 
 
     // ===== Hit/contact state =====
@@ -214,7 +214,11 @@ public void SetExternalChargeJitter01(float j01)
         {
             var cam = kv.Key;
             var cb = kv.Value;
-            if (cam && cb != null) cam.RemoveCommandBuffer(CameraEvent.BeforeForwardAlpha, cb);
+            if (cam && cb != null)
+            {
+                cb.Clear();
+                cam.RemoveCommandBuffer(CameraEvent.BeforeForwardAlpha, cb);
+            }
             cb?.Release();
         }
         _perCamCB.Clear();
@@ -224,11 +228,11 @@ public void SetExternalChargeJitter01(float j01)
     {
         if (_blobMatInstance)
         {
-#if UNITY_EDITOR
+        #if UNITY_EDITOR
             DestroyImmediate(_blobMatInstance);
-#else
+        #else
             Destroy(_blobMatInstance);
-#endif
+        #endif
             _blobMatInstance = null;
         }
     }
@@ -400,19 +404,19 @@ public void SetExternalChargeJitter01(float j01)
 
         float targetYaw = Mathf.Atan2(_aimDir.y, _aimDir.x) * Mathf.Rad2Deg;
 
-float turnSpeed = (_turnDampTarget01 > _turnDamp01) ? chargeTurnDampEaseUp : chargeTurnDampEaseDown;
-float turnK = 1f - Mathf.Exp(-Mathf.Max(0.01f, turnSpeed) * Time.deltaTime);
-_turnDamp01 = Mathf.Lerp(_turnDamp01, _turnDampTarget01, turnK);
-_turnDamp01 = Mathf.Clamp01(_turnDamp01);
+        float turnSpeed = (_turnDampTarget01 > _turnDamp01) ? chargeTurnDampEaseUp : chargeTurnDampEaseDown;
+        float turnK = 1f - Mathf.Exp(-Mathf.Max(0.01f, turnSpeed) * Time.deltaTime);
+        _turnDamp01 = Mathf.Lerp(_turnDamp01, _turnDampTarget01, turnK);
+        _turnDamp01 = Mathf.Clamp01(_turnDamp01);
 
-if (_turnDamp01 > 0.95f)
-    _yawVelDeg = 0f;
+        if (_turnDamp01 > 0.95f)
+            _yawVelDeg = 0f;
 
-float yawSmooth = yawSmoothTime * Mathf.Lerp(1f, chargingYawSmoothMultiplier, _turnDamp01);
-float maxYaw    = maxYawSpeed  * Mathf.Lerp(1f, chargingMaxYawSpeedMultiplier, _turnDamp01);
+        float yawSmooth = yawSmoothTime * Mathf.Lerp(1f, chargingYawSmoothMultiplier, _turnDamp01);
+        float maxYaw    = maxYawSpeed  * Mathf.Lerp(1f, chargingMaxYawSpeedMultiplier, _turnDamp01);
 
-float nextYaw = Mathf.SmoothDampAngle(_yawDeg, targetYaw, ref _yawVelDeg, yawSmooth);
-float maxStep = maxYaw * Time.deltaTime;
+        float nextYaw = Mathf.SmoothDampAngle(_yawDeg, targetYaw, ref _yawVelDeg, yawSmooth);
+        float maxStep = maxYaw * Time.deltaTime;
 
 
         float delta = Mathf.DeltaAngle(_yawDeg, nextYaw);
@@ -566,14 +570,23 @@ float maxStep = maxYaw * Time.deltaTime;
     // Update the CB contents for this camera this frame (upload MVP + issue draws)
     void HandlePreRender(Camera cam)
     {
+        // If a CB exists for this camera, ALWAYS clear it first.
+        // This prevents “stuck blob” artifacts if we early-return.
+        if (_perCamCB.TryGetValue(cam, out var cb) && cb != null)
+            cb.Clear();
+        else
+            return;
+
+        // After clearing, it’s safe to bail out.
         if (!vectorBlobMode || !blobMat || !visuals) return;
-        if (!_perCamCB.TryGetValue(cam, out var cb) || cb == null) return;
 
         Matrix4x4 V = cam.worldToCameraMatrix;
         Matrix4x4 P = GL.GetGPUProjectionMatrix(cam.projectionMatrix, true);
         const int SEG = 128;
 
         cb.Clear();
+
+        if (!vectorBlobMode || !blobMat || !visuals) return;
 
         // --- Ghost trail (outline only) ---
         if (_ghosts != null && _ghosts.Count > 0)

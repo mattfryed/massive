@@ -174,6 +174,29 @@ private Quaternion _ringsBaseRot = Quaternion.identity;
     private float endRemoveTimer;
     public float SpawnFadeSeconds => spawnFadeSeconds;
 
+    private void ForceHideAllNow()
+    {
+        Color cc = unclaimedColor;
+        cc.a = 0f;
+
+        if (controlRingDashed != null)
+            ShapesAdapter.TrySetColor(controlRingDashed, cc);
+
+        if (coreRings != null)
+        {
+            for (int i = 0; i < coreRings.Length; i++)
+                if (coreRings[i] != null)
+                    ShapesAdapter.TrySetColor(coreRings[i], cc);
+        }
+
+        for (int i = 0; i < sourceSlices.Count; i++)
+            if (sourceSlices[i].ring != null)
+                ShapesAdapter.TrySetColor(sourceSlices[i].ring, cc);
+
+        for (int i = 0; i < endSlices.Count; i++)
+            if (endSlices[i].ring != null)
+                ShapesAdapter.TrySetColor(endSlices[i].ring, cc);
+    }
 
     public void Initialize(Vector3 sourceWorldPos, float captureRadiusWorld)
     {
@@ -211,13 +234,15 @@ private Quaternion _ringsBaseRot = Quaternion.identity;
 
         lastGoalMouth = null;
         endRemoveTimer = 0f;
+        ForceHideAllNow();
     }
 
     public void BeginDespawn(float seconds)
     {
         despawning = true;
-        // fadeSpeed = (seconds <= 0.001f) ? 999f : (1f / seconds);
+        fadeSpeed = (seconds <= 0.001f) ? 999f : (1f / seconds);
     }
+
 
     public void SetOwner(int teamID, Transform goalMouth, bool contested, float hold01)
     {
@@ -593,7 +618,16 @@ private void ForceRingsToXZPlane()
             go.name = $"Slice_{i:00}";
             var ring = ShapesAdapter.FindFirstRingLikeComponent(go);
 
+            // Immediately hide to prevent 1-frame pop-in before Update() applies fade.
+            if (ring != null)
+            {
+                Color cc = unclaimedColor;
+                cc.a = 0f;
+                ShapesAdapter.TrySetColor(ring, cc);
+            }
+
             list.Add(new Slice { tr = go.transform, ring = ring });
+
         }
     }
 

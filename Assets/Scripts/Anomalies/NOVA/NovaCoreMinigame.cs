@@ -118,6 +118,8 @@ public class NovaCoreMinigame : AnomalyMinigameBase
 
     private bool _gameplayEnabled = false;
 
+    private bool _instructionsPreviewActive;
+
 public void SetGameplayEnabled(bool enabled)
 {
     _gameplayEnabled = enabled;
@@ -267,7 +269,7 @@ private void Update()
     if (_orbitRadius <= 0f)
         RecomputeOrbitRadius();
 
-    float dt = Time.deltaTime;
+    float dt = (_instructionsPreviewActive ? Time.unscaledDeltaTime : Time.deltaTime);
 
     // Keep orbit placement running so transition scaling looks correct
     UpdateParticipantOrbitUI_VisualOnly(dt);
@@ -930,23 +932,10 @@ private void CleanupProjectile(ProjectileRay pr)
         rt.localRotation = Quaternion.AngleAxis(p.spinAngle, Vector3.forward);
         p.root = rt;
 
-        // material for subs
-        Material subMat = null;
-        if (_rayDotMaterial != null)
-        {
-            subMat = _rayDotMaterial;
-        }
-        else
-        {
-            var shader = Shader.Find(IconShaderName);
-            if (shader != null)
-            {
-                subMat = new Material(shader);
-                subMat.SetColor("_FillColor", Color.black);
-                subMat.SetColor("_OutlineColor", Color.black);
-                subMat.SetFloat("_OutlineWidth", 0.0f);
-            }
-        }
+        // material for subs (shared)
+        EnsureRayDotMaterial();
+        Material subMat = _rayDotMaterial;
+
 
         Vector2 forward = p.direction.normalized;
         Vector2 normal = new Vector2(-forward.y, forward.x);
@@ -1464,5 +1453,88 @@ private void EndMinigame()
 
     Complete(result);
 }
+
+
+// ====================
+// Instructions Preview
+// ====================
+
+/// <summary>
+/// Starts an endless, no-input, no-score preview suitable for the Instructions screen.
+/// Spawns only incoming particles and keeps them looping.
+/// </summary>
+public void BeginInstructionsPreview()
+{
+    _instructionsPreviewActive = true;
+    // Ensure we don't carry any runtime junk if this object gets re-enabled.
+    ClearAllProjectiles();
+    ClearAllParticlesAndBursts();
+
+    // Hide gameplay UI roots (no players/rays/projectiles in the preview).
+    if (playersRoot != null) playersRoot.gameObject.SetActive(false);
+    if (projectilesRoot != null) projectilesRoot.gameObject.SetActive(false);
+
+    // Prevent score/UI writes.
+    _scoringEnabled = false;
+
+    // Start "gameplay" updates so particles spawn/move.
+    _gameplayEnabled = true;
+
+    // Force the loop to never end.
+    _timeRemaining = float.PositiveInfinity;
+
+    // Mark started so Update() runs.
+    _started = true;
+
+    // Make sure play area sizing is computed.
+    RecomputeOrbitRadius();
+
+    // IMPORTANT: avoid spawning a new Material every particle when there are no ray dots.
+    EnsureRayDotMaterial();
+
+    // Spawn immediately.
+    _spawnTimer = 0f;
+}
+
+private void ClearAllParticlesAndBursts()
+{
+    for (int i = _particles.Count - 1; i >= 0; i--)
+    {
+        var p = _particles[i];
+        if (p.root != null)
+            Destroy(p.root.gameObject);
+    }
+    _particles.Clear();
+
+    for (int i = _burstDots.Count - 1; i >= 0; i--)
+    {
+        var b = _burstDots[i];
+        if (b.rt != null)
+            Destroy(b.rt.gameObject);
+    }
+    _burstDots.Clear();
+}
+
+/// <summary>
+/// In normal gameplay this gets created when ray dots are created.
+/// In preview mode we might never create ray dots, so we must create it once here
+/// to prevent per-particle material allocation.
+/// </summary>
+private void EnsureRayDotMaterial()
+{
+    if (_rayDotMaterial != null) return;
+
+    var shader = Shader.Find(IconShaderName);
+    if (shader == null) return;
+
+    _rayDotMaterial = new Material(shader);
+    _rayDotMaterial.SetColor("_FillColor", rayDotColor);
+    _rayDotMaterial.SetColor("_OutlineColor", rayDotColor);
+    _rayDotMaterial.SetFloat("_OutlineWidth", 0.0f);
+}
+
+
+
+
 
 }

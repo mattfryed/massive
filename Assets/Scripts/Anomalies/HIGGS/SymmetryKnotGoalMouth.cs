@@ -9,16 +9,35 @@ public class SymmetryKnotGoalMouth : MonoBehaviour
     [Header("Identity")]
     public int teamID = 1;
 
-    [Header("Flow Receive (optional)")]
-    [Tooltip("If true, this component will log received mass ticks. Replace with real scoring later.")]
-    public bool debugLogMass = false;
+    [Header("Scoring")]
+    [SerializeField] private ScoreSphereScript scoreSphere;
+    [SerializeField] private bool autoFindScoreSphere = true;
 
-    // Called by SymmetryKnotController via SendMessage by default.
-    public void OnSymmetryKnotMass(float amount)
+
+
+    private void Awake()
     {
-        if (debugLogMass)
-            Debug.Log($"[SymmetryKnotGoalMouth] team={teamID} +{amount:0.000} mass", this);
+        if (scoreSphere == null)
+            scoreSphere = GetComponentInParent<ScoreSphereScript>(true);
 
-        // TODO later: route into your actual team score / goal scripts.
+        // Fallback: find by teamID (runs once, OK)
+        if (scoreSphere == null)
+        {
+            var all = FindObjectsByType<ScoreSphereScript>(FindObjectsSortMode.None);
+            for (int i = 0; i < all.Length; i++)
+            {
+                if (all[i] != null && all[i].teamID == teamID)
+                {
+                    scoreSphere = all[i];
+                    break;
+                }
+            }
+        }
+    }
+
+    public void OnSymmetryKnotMass(float amount01)
+    {
+        if (scoreSphere != null)
+            scoreSphere.AddScore01(amount01);
     }
 }

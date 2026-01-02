@@ -130,20 +130,20 @@ public class PlayerMelee : MonoBehaviour
         if (!owner) return;
 
         // Sword vs Sword (clash)
-        if (other.CompareTag(swordTag))
-        {
-            if (swordClashPrefab)
-            {
-                var sc = Instantiate(swordClashPrefab);
-                sc.transform.position = transform.position;
-            }
+        // if (other.CompareTag(swordTag))
+        // {
+        //     if (swordClashPrefab)
+        //     {
+        //         var sc = Instantiate(swordClashPrefab);
+        //         sc.transform.position = transform.position;
+        //     }
 
-            // Apply your existing clash behavior to BOTH owners
-            owner.SwordClash();
-            var otherOwner = other.GetComponentInParent<PlayerControllerScript>();
-            if (otherOwner) otherOwner.SwordClash();
-            return;
-        }
+        //     // Apply your existing clash behavior to BOTH owners
+        //     owner.SwordClash();
+        //     var otherOwner = other.GetComponentInParent<PlayerControllerScript>();
+        //     if (otherOwner) otherOwner.SwordClash();
+        //     return;
+        // }
 
         // Sword vs Shield
         // Default: attacker gets stunned.

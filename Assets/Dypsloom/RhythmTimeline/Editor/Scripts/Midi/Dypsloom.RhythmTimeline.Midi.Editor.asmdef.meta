@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: e54d54d375913074e92cd0c11f9eb5a8
+AssemblyDefinitionImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 310749
+  packageName: Rhythm Timeline 2 - Rhythm Game Framework & Editor
+  packageVersion: 2.1.1
+  assetPath: Assets/Dypsloom/RhythmTimeline/Editor/Scripts/Midi/Dypsloom.RhythmTimeline.Midi.Editor.asmdef
+  uploadId: 803332
