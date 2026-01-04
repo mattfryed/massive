@@ -32,6 +32,15 @@ public class PowerUpIconManifestAnimator : MonoBehaviour
     [SerializeField] private bool destroyOnComplete = true;
     [SerializeField] private float destroyDelay = 0f;
 
+    [Header("Attack Despawn (Shatter)")]
+    [SerializeField] private float wireShatterDuration = 0.20f;
+    [SerializeField] private float wireCollapseDuration = 0.15f;
+    [SerializeField] private float shatterDistance = 0.35f;
+    [SerializeField] private float shatterSpinDegrees = 220f;
+    [SerializeField] private AnimationCurve shatterEase = AnimationCurve.EaseInOut(0, 0, 1, 1);
+    [SerializeField] private AnimationCurve collapseEase = AnimationCurve.EaseInOut(0, 0, 1, 1);
+
+
     public bool IsDespawning { get; private set; }
 
     private Coroutine _co;
@@ -95,6 +104,14 @@ public class PowerUpIconManifestAnimator : MonoBehaviour
         _co = StartCoroutine(CoOut());
     }
 
+    public void BeginAttackDespawn()
+{
+    if (IsDespawning) return;
+    if (_co != null) StopCoroutine(_co);
+    _co = StartCoroutine(CoAttackOut());
+}
+
+
     private IEnumerator CoIn()
     {
         SetHiddenInstant();
@@ -140,13 +157,87 @@ public class PowerUpIconManifestAnimator : MonoBehaviour
         else gameObject.SetActive(false);
     }
 
-    private void SetHiddenInstant()
+    private IEnumerator CoAttackOut()
     {
-        if (wire != null) { wire.drawProgress = 0f; wire.foldProgress = 0f; }
+        IsDespawning = true;
+
+        if (disableCollidersOnDespawn && _colliders != null)
+            foreach (var c in _colliders)
+                if (c) c.enabled = false;
+
+        // metaballs: keep existing behavior (play out)
+        float metasWait = 0f;
         if (metaballs != null)
+        {
             foreach (var m in metaballs)
-                if (m) m.SetHiddenInstant();
+            {
+                if (!m) continue;
+                m.PlayOut();
+                metasWait = Mathf.Max(metasWait, m.EstimatedOutTime());
+            }
+        }
+
+        // wire: shatter/explode instead of fold-out
+        if (wire != null)
+        {
+            // ensure it's fully present before shattering (optional but usually reads better)
+            wire.drawProgress = 1f;
+            wire.foldProgress = 1f;
+
+            wire.shatterProgress = 0f;
+            wire.collapseProgress = 0f;
+            wire.shatterDistance = shatterDistance;
+            wire.shatterSpinDegrees = shatterSpinDegrees;
+
+            // phase 1: separate
+            yield return Animate01(v => wire.shatterProgress = v, wireShatterDuration, shatterEase);
+
+            // phase 2: collapse/fade
+            yield return Animate01(v => wire.collapseProgress = v, wireCollapseDuration, collapseEase);
+        }
+
+        // if metaballs still running, wait remainder
+        float wireTotal = wireShatterDuration + wireCollapseDuration;
+        float remaining = metasWait - wireTotal;
+        if (remaining > 0f) yield return Wait(remaining);
+
+        SetHiddenInstant();
+
+        if (destroyOnComplete) Destroy(gameObject, destroyDelay);
+        else gameObject.SetActive(false);
     }
+
+    private IEnumerator Animate01(System.Action<float> setter, float duration, AnimationCurve ease)
+    {
+        if (duration <= 0f) { setter(1f); yield break; }
+
+        float t = 0f;
+        while (t < duration)
+        {
+            t += Dt();
+            float u = Mathf.Clamp01(t / duration);
+            setter(ease != null ? ease.Evaluate(u) : u);
+            yield return null;
+        }
+        setter(1f);
+    }
+
+
+private void SetHiddenInstant()
+{
+    if (wire != null)
+    {
+        wire.drawProgress = 0f;
+        wire.foldProgress = 0f;
+        wire.shatterProgress = 0f;
+        wire.collapseProgress = 0f;
+    }
+
+    if (metaballs != null)
+        foreach (var m in metaballs)
+            if (m) m.SetHiddenInstant();
+}
+
 
     private IEnumerator AnimateWire(float from, float to, float duration)
     {

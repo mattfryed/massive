@@ -8,8 +8,8 @@ Material:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: MASSIVE_MetaballSDF-PABeam
-  m_Shader: {fileID: 4800000, guid: b9d120b97040c3544a0295906158d613, type: 3}
-  m_Parent: {fileID: 0}
+  m_Shader: {fileID: 4800000, guid: 012bd092e503f4d2ebb3c623b6313f78, type: 3}
+  m_Parent: {fileID: 2100000, guid: 93cf9e9095f934d71b6a5cf1b7c0a802, type: 2}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []
   m_InvalidKeywords: []
@@ -25,16 +25,9 @@ Material:
     m_TexEnvs: []
     m_Ints: []
     m_Floats:
-    - _MaxDistance: 3
     - _MaxSteps: 124
     - _OutlineThreshold: 0.829
-    - _ShadeThreshold: 0.25
-    - _SmoothComp: 0.957
     - _SmoothK: 0.054
-    - _SurfaceEps: 0.005
-    m_Colors:
-    - _LitColor: {r: 1, g: 1, b: 1, a: 1}
-    - _OutlineColor: {r: 0, g: 0, b: 0, a: 1}
-    - _UnlitColor: {r: 0, g: 0, b: 0, a: 1}
+    m_Colors: []
   m_BuildTextureStacks: []
   m_AllowLocking: 1

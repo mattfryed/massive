@@ -71,6 +71,10 @@ public class PlayerControllerScript : MonoBehaviour
     [Header("Power-Ups")]
     public PlayerPowerUpController powerUps; // assign or auto-find
 
+    [Header("Shield Ability (Timed)")]
+    [SerializeField] private Massive.Player.PlayerShieldAbility shieldAbility;
+
+
     [Header("Aim (Power-up routing)")]
     [SerializeField, Range(0.05f, 0.6f)] private float aimDeadzone = 0.18f;
     private Vector3 lastStickAimWS = Vector3.right;
@@ -133,10 +137,24 @@ public class PlayerControllerScript : MonoBehaviour
 
     [SerializeField] private LayerMask respawnBlockMask = ~0;
 
+    // ===== Stun =====
+    [Header("Stun (Shield Parry) - Visual/Feel")]
+    [SerializeField] private float stunNuggetDragMaxMul = 10f;
+    [SerializeField] private float stunNuggetRampUpSeconds = 0.08f;
+    [SerializeField] private float stunNuggetRampDownSeconds = 0.12f;
+    [SerializeField] private float stunBlobJitterMul = 1.0f;
+
+    private float _baseNuggetDrag = -1f;
+    private Coroutine _stunRoutine;
+
+
     // ===== State =====
     [Header("Stun")]
     public float stunTime = 1.25f;
     private bool isStunned = false;
+
+    public bool IsStunned => isStunned;
+
 
     public bool isActive = true;
     [SerializeField] private float idleTime = 60f;
@@ -151,7 +169,6 @@ public class PlayerControllerScript : MonoBehaviour
     public bool shieldOn = false;
 
     public bool temporarilyEliminated = false;
-
     private float externalStunUntil = -Mathf.Infinity;
     public bool IsExternallyStunned => Time.time < externalStunUntil;
     public void ExternalStun(float seconds)
@@ -190,12 +207,19 @@ public class PlayerControllerScript : MonoBehaviour
         sm = transform.Find("SfxModule")?.gameObject;
         stunEffect = transform.Find("StunnedEffect")?.gameObject;
 
+        if (!shieldAbility)
+            shieldAbility = GetComponent<Massive.Player.PlayerShieldAbility>();
+
         if (!powerUps) powerUps = GetComponent<PlayerPowerUpController>();
         if (!visualsController) visualsController = GetComponent<PlayerVisualController>();
         if (!nuggetsGPU) nuggetsGPU = GetComponentInChildren<PlayerNuggetsGPU>(true);
 
         if (lifeFx == null) lifeFx = GetComponent<PlayerLifeFx_DissolveGPU>();
         _lifeFx = lifeFx as IPlayerLifeFx;
+
+        if (nuggetsGPU != null)
+        _baseNuggetDrag = nuggetsGPU.drag;
+
 
         _allColliders = GetComponentsInChildren<Collider>(true);
 
@@ -257,6 +281,25 @@ public class PlayerControllerScript : MonoBehaviour
             return;
         }
 
+        if (isStunned || IsExternallyStunned)
+        {
+            // Hard input lock
+            movement = Vector3.zero;
+            shieldOn = false;
+            didPlayerTapActionThisFrame = false;
+
+            // Optional: keep visuals stable while stunned
+            if (visualsController != null)
+            {
+                visualsController.SetMoveInput(Vector2.zero);
+                if (rb != null)
+                    visualsController.velocityWS = new Vector2(rb.linearVelocity.x, rb.linearVelocity.z);
+            }
+
+            return;
+        }
+
+
         // Input
         moveHorizontal = rewiredPlayer.GetAxis("MoveH");
         moveVertical = rewiredPlayer.GetAxis("MoveV");
@@ -267,7 +310,21 @@ public class PlayerControllerScript : MonoBehaviour
         if (movement.sqrMagnitude >= dz2)
             lastStickAimWS = movement.normalized;
 
-        shieldOn = rewiredPlayer.GetButton("Shield");
+        bool shieldDown = rewiredPlayer.GetButtonDown("Shield");
+
+        if (shieldAbility != null)
+        {
+            if (shieldDown)
+                shieldAbility.TryActivate();
+
+            shieldOn = shieldAbility.IsActive;
+        }
+        else
+        {
+            // Legacy fallback if the ability isn't present
+            shieldOn = rewiredPlayer.GetButton("Shield");
+        }
+
 
         bool attackDown = rewiredPlayer.GetButtonDown("Sword");
         bool attackHeld = rewiredPlayer.GetButton("Sword");
@@ -360,11 +417,11 @@ public class PlayerControllerScript : MonoBehaviour
                 shield.transform.rotation = Quaternion.LookRotation(face.normalized, Vector3.up);
                 shield.SetActive(true);
 
-                if (shieldDrainPerSecond01 > 0f)
-                {
-                    float drain = shieldDrainPerSecond01 * Time.fixedDeltaTime;
-                    ApplyExternalMassDelta(-drain, allowDeath: true);
-                }
+                // if (shieldDrainPerSecond01 > 0f)
+                // {
+                //     float drain = shieldDrainPerSecond01 * Time.fixedDeltaTime;
+                //     ApplyExternalMassDelta(-drain, allowDeath: true);
+                // }
             }
             else
             {
@@ -524,6 +581,48 @@ public class PlayerControllerScript : MonoBehaviour
         if (allowDeath && massScore <= massScoreMin)
             Die();
     }
+
+public void GrowScaled(float scale01)
+{
+    if (temporarilyEliminated) return;
+
+    float s = Mathf.Clamp01(scale01);
+    if (s <= 0f) return;
+
+    GainMass_WithOverflowScore(massGainPerHit * s, allowOverflowScore: true);
+}
+
+public void ShrinkScaled(GameObject hitSource, float scale01)
+{
+    if (temporarilyEliminated) return;
+    if (IsInvulnerable) return;
+
+    float s = Mathf.Clamp01(scale01);
+    if (s <= 0f) return;
+
+    if (Time.time - _timeOfLastShrink < hitShrinkCooldownSeconds)
+        return;
+
+    float loss = massLossPerHit * s;
+    massScore -= loss;
+    UpdateMassAndNuggets(forceRebuild: false);
+
+    // VFX: eject fewer blobs proportional to the scaled hit
+    if (hitSource != null)
+    {
+        const int maxBlobs = 5;
+        int num = Mathf.Clamp(Mathf.RoundToInt(maxBlobs * s), 1, maxBlobs);
+
+        for (int i = 0; i < num; i++)
+            EjectBlob(hitSource);
+    }
+
+    if (massScore <= massScoreMin)
+        Die();
+
+    _timeOfLastShrink = Time.time;
+}
+
 
     // Legacy deposit helpers (kept for compatibility)
     public void ShrinkSlow(GameObject target)
@@ -745,32 +844,114 @@ public class PlayerControllerScript : MonoBehaviour
     }
 
     // ===== Stun =====
-    private void UnStun()
-    {
-        isStunned = false;
-        if (stunEffect) stunEffect.GetComponent<ParticleSystem>()?.Stop();
-    }
-
-    public void Stun(Vector3 shieldPosition)
+    public void Stun(Vector3 shieldPosition, float strength01 = 1f)
     {
         if (temporarilyEliminated) return;
-        if (!rb) return;
+
+        float s = Mathf.Clamp01(strength01);
+        float duration = stunTime * s;
+        if (duration <= 0.0001f) return;
+
+        if (_stunRoutine != null)
+            StopCoroutine(_stunRoutine);
+
+        _stunRoutine = StartCoroutine(StunRoutine(shieldPosition, duration, s));
+    }
+
+    private IEnumerator StunRoutine(Vector3 shieldPosition, float duration, float s)
+    {
+        isStunned = true;
+
+        if (stunEffect)
+        {
+            stunEffect.SetActive(true);
+            stunEffect.GetComponent<ParticleSystem>()?.Play();
+        }
 
         playSFX("StunnedSFX");
 
-        Vector3 knockDirection = transform.position - shieldPosition;
-        knockDirection.y = 0f;
+        // Cancel any in-progress attack sequence (prevents “ghost” attack motion)
+        if (attackController != null)
+            attackController.CancelAttack(); // :contentReference[oaicite:10]{index=10}
 
-        if (knockDirection.sqrMagnitude < 0.0001f)
-            knockDirection = Vector3.right;
-
-        rb.AddForce(knockDirection.normalized * movePower * 30f, ForceMode.Force);
+        // Optional: if your shield ability has a force-stop, do it here
+        // shieldAbility?.ForceStopShield();
 
         if (shield) shield.SetActive(false);
         if (sword) sword.SetActive(false);
 
-        isStunned = true;
-        if (stunEffect) stunEffect.GetComponent<ParticleSystem>()?.Play();
-        Invoke(nameof(UnStun), stunTime);
+        // Knockback away from shield impact point (keep your existing logic)
+        Vector3 dir = transform.position - shieldPosition;
+        dir.y = 0f;
+        dir = (dir.sqrMagnitude > 0.0001f) ? dir.normalized : Vector3.right;
+
+        float force = movePower * 30f * s;
+        if (rb != null)
+            rb.AddForce(dir * force, ForceMode.Impulse);
+
+        // Blob jitter (re-using your Particle Accelerator style external modifier)
+        if (visualsController != null)
+            visualsController.SetExternalChargeJitter01(Mathf.Clamp01(stunBlobJitterMul * s));
+        // (This ultimately drives the amp*sin/cos render jitter):contentReference[oaicite:12]{index=12}
+
+        // Nuggets drag ramp
+        if (nuggetsGPU != null && _baseNuggetDrag <= 0f)
+            _baseNuggetDrag = nuggetsGPU.drag;
+
+        float maxMul = Mathf.Lerp(1f, stunNuggetDragMaxMul, s);
+
+        float t0 = Time.time;
+        float tEnd = t0 + duration;
+
+        float rampUp = Mathf.Min(stunNuggetRampUpSeconds, duration * 0.45f);
+        float rampDown = Mathf.Min(stunNuggetRampDownSeconds, duration * 0.45f);
+
+        while (Time.time < tEnd)
+        {
+            float t = Time.time - t0;
+            float mul;
+
+            if (t < rampUp)
+            {
+                float u = t / Mathf.Max(0.0001f, rampUp);
+                mul = Mathf.Lerp(1f, maxMul, Mathf.SmoothStep(0f, 1f, u));
+            }
+            else if (t > duration - rampDown)
+            {
+                float u = (t - (duration - rampDown)) / Mathf.Max(0.0001f, rampDown);
+                mul = Mathf.Lerp(maxMul, 1f, Mathf.SmoothStep(0f, 1f, u));
+            }
+            else
+            {
+                mul = maxMul;
+            }
+
+            if (nuggetsGPU != null && _baseNuggetDrag > 0f)
+                nuggetsGPU.drag = _baseNuggetDrag * mul; // affects _Drag fed to compute
+
+            yield return null;
+        }
+
+        UnStun();
+
+        _stunRoutine = null;
     }
+
+    private void UnStun()
+    {
+        isStunned = false;
+
+        if (stunEffect)
+            stunEffect.GetComponent<ParticleSystem>()?.Stop();
+
+        // Reset visuals
+        if (visualsController != null)
+            visualsController.SetExternalChargeJitter01(0f);
+
+        // Reset nuggets drag
+        if (nuggetsGPU != null && _baseNuggetDrag > 0f)
+            nuggetsGPU.drag = _baseNuggetDrag;
+    }
+
+
 }

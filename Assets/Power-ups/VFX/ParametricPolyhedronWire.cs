@@ -43,9 +43,17 @@ public class ParametricPolyhedronWire : ImmediateModeShapeDrawer
     public Color color = Color.white;
 
     [Header("Build Animation")]
-[Range(0f, 1f)] public float foldProgress = 1f; // 0 = flattened, 1 = full 3D
-[Range(0f, 1f)] public float drawProgress = 1f; // 0 = no edges, 1 = all edges
-public Vector3 foldAxis = Vector3.up;           // axis to "flatten" along
+    [Range(0f, 1f)] public float foldProgress = 1f; // 0 = flattened, 1 = full 3D
+    [Range(0f, 1f)] public float drawProgress = 1f; // 0 = no edges, 1 = all edges
+    public Vector3 foldAxis = Vector3.up;           // axis to "flatten" along
+
+    [Header("Shatter")]
+    [Range(0f, 1f)] public float shatterProgress = 0f;  // 0..1 separate
+    [Range(0f, 1f)] public float collapseProgress = 0f; // 0..1 shrink/fade
+    [Min(0f)] public float shatterDistance = 0.35f;
+    [Min(0f)] public float shatterSpinDegrees = 220f;
+    [Range(0f, 1f)] public float shatterRandomness = 0.35f; // 0 = purely radial, 1 = purely random
+
 
 
     struct Edge { public int a, b; public Edge(int A, int B) { a = A; b = B; } }
@@ -61,69 +69,169 @@ public Vector3 foldAxis = Vector3.up;           // axis to "flatten" along
         _lastHash = 0;
     }
 
-    public override void DrawShapes(Camera cam)
+public override void DrawShapes(Camera cam)
+{
+    if (sides < 3) sides = 3;
+
+    RebuildIfNeeded();
+
+    using (Draw.Command(cam))
     {
-        if (sides < 3) sides = 3;
+        Draw.Matrix = transform.localToWorldMatrix;
 
-        RebuildIfNeeded();
+        Draw.LineGeometry = lineGeometry;
+        Draw.ThicknessSpace = thicknessSpace;
 
-        using (Draw.Command(cam))
+        float fp = Mathf.Clamp01(foldProgress);
+        float dp = Mathf.Clamp01(drawProgress);
+
+        // NEW: shatter params (assumes you added these fields)
+        float sh = Mathf.Clamp01(shatterProgress);   // 0..1 separate
+        float co = Mathf.Clamp01(collapseProgress);  // 0..1 collapse/fade
+        float fade = 1f - co;
+
+        int edgeCount = _edges.Count;
+        if (edgeCount == 0 || dp <= 0f || fade <= 0f)
+            return;
+
+        // Fade thickness + alpha during collapse
+        Draw.Thickness = Mathf.Max(0.0001f, thickness * fade);
+
+        Color c = color;
+        c.a *= fade;
+        Draw.Color = c;
+
+        Vector3 axis = (foldAxis.sqrMagnitude < 1e-6f) ? Vector3.up : foldAxis.normalized;
+
+        Vector3 Fold(Vector3 v)
         {
-            Draw.Matrix = transform.localToWorldMatrix;
+            if (fp >= 0.9999f) return v;
+            float d = Vector3.Dot(v, axis);
+            Vector3 flat = v - axis * d;               // remove component along axis (flatten)
+            return Vector3.LerpUnclamped(flat, v, fp); // fold back into 3D
+        }
 
-            Draw.LineGeometry = lineGeometry;
-            Draw.ThicknessSpace = thicknessSpace;
-            Draw.Thickness = thickness;
-            Draw.Color = color;
+        // --- deterministic hashing (no per-frame Random) ---
 
-            float fp = Mathf.Clamp01(foldProgress);
-            float dp = Mathf.Clamp01(drawProgress);
-
-            Vector3 axis = (foldAxis.sqrMagnitude < 1e-6f) ? Vector3.up : foldAxis.normalized;
-
-            Vector3 Fold(Vector3 v)
+        float HashSigned01(int i, int seed)
+        {
+            unchecked
             {
-                if (fp >= 0.9999f) return v;
-                float d = Vector3.Dot(v, axis);
-                Vector3 flat = v - axis * d;              // removes component along axis (flatten)
-                return Vector3.LerpUnclamped(flat, v, fp); // fold back into 3D
+                uint h = (uint)(i * 374761393) ^ (uint)seed;
+                h ^= h >> 13; h *= 1274126177u; h ^= h >> 16;
+                float u = (h & 0x00FFFFFF) / 16777215f; // 0..1
+                return u * 2f - 1f; // -1..1
+            }
+        }
+
+        Vector3 HashDir(int i, int seed)
+        {
+            Vector3 v = new Vector3(
+                HashSigned01(i * 3 + 0, seed),
+                HashSigned01(i * 3 + 1, seed),
+                HashSigned01(i * 3 + 2, seed)
+            );
+
+            if (v.sqrMagnitude < 0.0001f) v = Vector3.right;
+            return v.normalized;
+        }
+
+        Vector3 ExplodeDir(int edgeIndex, Vector3 mid)
+        {
+            // Bias outward in XZ so it reads clearly in MASSIVE’s top-down view.
+            Vector3 radial = new Vector3(mid.x, 0f, mid.z);
+            if (radial.sqrMagnitude < 0.0001f) radial = Vector3.right;
+            radial.Normalize();
+
+            // Random 3D direction adds “shard chaos”
+            Vector3 rnd = HashDir(edgeIndex + 101, GetInstanceID());
+
+            Vector3 dir = Vector3.Lerp(radial, rnd, Mathf.Clamp01(shatterRandomness));
+            if (dir.sqrMagnitude < 0.0001f) dir = radial;
+            return dir.normalized;
+        }
+
+        void ApplyShatter(int edgeIndex, ref Vector3 a, ref Vector3 b)
+        {
+            if (sh <= 0f && co <= 0f) return;
+
+            Vector3 mid = (a + b) * 0.5f;
+
+            // explode
+            Vector3 dir = ExplodeDir(edgeIndex, mid);
+            Vector3 off = dir * (shatterDistance * sh);
+
+            // spin
+            Vector3 spinAxis = HashDir(edgeIndex + 1337, GetInstanceID());
+            Quaternion q = Quaternion.AngleAxis(shatterSpinDegrees * sh, spinAxis);
+
+            Vector3 ra = a - mid;
+            Vector3 rb = b - mid;
+
+            Vector3 mid2 = mid + off;
+
+            // separate + rotate around the (exploded) midpoint
+            a = mid2 + q * ra;
+            b = mid2 + q * rb;
+
+            // collapse: shrink the segment into its midpoint
+            if (co > 0f)
+            {
+                a = Vector3.Lerp(a, mid2, co);
+                b = Vector3.Lerp(b, mid2, co);
+            }
+        }
+
+        // --- draw logic (preserves your drawProgress behavior) ---
+
+        if (dp >= 0.9999f)
+        {
+            for (int i = 0; i < edgeCount; i++)
+            {
+                var e = _edges[i];
+
+                Vector3 a = Fold(_verts[e.a]);
+                Vector3 b = Fold(_verts[e.b]);
+
+                ApplyShatter(i, ref a, ref b);
+
+                Draw.Line(a, b);
+            }
+        }
+        else
+        {
+            float edgeF = dp * edgeCount;
+            int fullEdges = Mathf.Clamp(Mathf.FloorToInt(edgeF), 0, edgeCount);
+            float frac = Mathf.Clamp01(edgeF - fullEdges);
+
+            for (int i = 0; i < fullEdges; i++)
+            {
+                var e = _edges[i];
+
+                Vector3 a = Fold(_verts[e.a]);
+                Vector3 b = Fold(_verts[e.b]);
+
+                ApplyShatter(i, ref a, ref b);
+
+                Draw.Line(a, b);
             }
 
-            int edgeCount = _edges.Count;
-            if (edgeCount == 0 || dp <= 0f) return;
-
-            if (dp >= 0.9999f)
+            // partial edge for “draw in” feel
+            if (fullEdges < edgeCount && frac > 0f)
             {
-                for (int i = 0; i < edgeCount; i++)
-                {
-                    var e = _edges[i];
-                    Draw.Line(Fold(_verts[e.a]), Fold(_verts[e.b]));
-                }
+                var e = _edges[fullEdges];
+
+                Vector3 a = Fold(_verts[e.a]);
+                Vector3 b = Fold(_verts[e.b]);
+
+                ApplyShatter(fullEdges, ref a, ref b);
+
+                Draw.Line(a, Vector3.Lerp(a, b, frac));
             }
-            else
-            {
-                float edgeF = dp * edgeCount;
-                int fullEdges = Mathf.Clamp(Mathf.FloorToInt(edgeF), 0, edgeCount);
-                float frac = Mathf.Clamp01(edgeF - fullEdges);
-
-                for (int i = 0; i < fullEdges; i++)
-                {
-                    var e = _edges[i];
-                    Draw.Line(Fold(_verts[e.a]), Fold(_verts[e.b]));
-                }
-
-                // draw the “current” edge partially so it feels like it’s being drawn
-                if (fullEdges < edgeCount && frac > 0f)
-                {
-                    var e = _edges[fullEdges];
-                    Vector3 a = Fold(_verts[e.a]);
-                    Vector3 b = Fold(_verts[e.b]);
-                    Draw.Line(a, Vector3.Lerp(a, b, frac));
-                }
-            }
-
         }
     }
+}
+
 
     void RebuildIfNeeded()
     {

@@ -298,11 +298,36 @@ MonoBehaviour:
   angularSpeedDegreesPerSecond: 360
   lightTeamIndex: 1
   darkTeamIndex: 2
+  lateJoinPenaltySeconds: 2
+  lateJoinScaleEase:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
   massPerSubparticle: 1
   minTotalMassForSuccess: 1
   projectileHitPadding: 0.2
   iconDiameter: 0.7
-  iconOutlineWidth: 0.5
+  iconOutlineWidth: 0.05
   iconLabelFont: {fileID: 11400000, guid: 13b46f913b61e2d4195306f4c4e38dbd, type: 2}
   iconLabelFontSize: 0.2
   lightFillColor: {r: 1, g: 1, b: 1, a: 1}
@@ -317,6 +342,8 @@ MonoBehaviour:
   rayDotBaseScale: 1.2
   projectileScaleIncrease: 5
   projectileSpeed: 40
+  projectilesRoot: {fileID: 0}
+  projectileMaxDots: 80
   subparticleRadius: 0.2
   particleSpeed: 15
   particleSpeedVariance: 0.25
@@ -338,6 +365,13 @@ MonoBehaviour:
   explosionDotRadiusFactor: 1
   explosionLifetime: 0.75
   explosionSpeed: 2
+  previewAutoScale: 1
+  previewUseUnscaledTime: 1
+  previewSubRadiusPercent: 0.015
+  previewCoreHitRadiusMultiplier: 0.85
+  previewTravelTimeSeconds: 1.1
+  circleIconMaterialTemplate: {fileID: 0}
+  circleSpriteFallback: {fileID: 0}
 --- !u!114 &5295219901517991629
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -390,6 +424,7 @@ MonoBehaviour:
   lowerBoxes:
   - {fileID: 0}
   boxStagger: 0.06
+  uiSequencer: {fileID: 0}
   coreGPU: {fileID: 0}
 --- !u!1 &5225586007565686144
 GameObject:

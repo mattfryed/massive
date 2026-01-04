@@ -2,7 +2,7 @@
 Shader "MASSIVE/GridUnlitLines"
 {
     Properties{
-        _LinePixelWidth("Line Pixel Width", Float) = 1.2
+        _LinePixelWidth("Line Pixel Width", Float) = 1
         _LineColor("Line Color", Color) = (1,1,1,1)
         _DispBrightness("Displacement Brightness", Float) = 2.0
         _GridSize("Grid Size (XY)", Vector) = (16,8,0,0)

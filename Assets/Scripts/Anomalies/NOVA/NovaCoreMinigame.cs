@@ -11,7 +11,7 @@ using Rewired;
 /// - Only wave collision destroys subparticles
 /// - Score pushed to AnomalyUIController via Context.manager.ui.SetParticleCounts(...)
 /// </summary>
-public class NovaCoreMinigame : AnomalyMinigameBase
+public class NovaCoreMinigame : AnomalyMinigameBase, IOnTimeParticipantsReceiver
 {
     // -------------------- Inspector --------------------
 
@@ -29,6 +29,13 @@ public class NovaCoreMinigame : AnomalyMinigameBase
     [Header("Team Mapping")]
     [SerializeField] private int lightTeamIndex = 1;
     [SerializeField] private int darkTeamIndex  = 2;
+
+    [Header("Late Join Penalty")]
+    [SerializeField] private float lateJoinPenaltySeconds = 2f;
+
+    [SerializeField] private AnimationCurve lateJoinScaleEase =
+        AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
+
 
     [Header("Scoring")]
     [SerializeField] private float massPerSubparticle = 1f;
@@ -116,25 +123,52 @@ public class NovaCoreMinigame : AnomalyMinigameBase
     [SerializeField] private float explosionLifetime = 0.18f;
     [SerializeField] private float explosionSpeed = 1.5f;            // UI units/sec
 
+
+
+
+    [Header("Instructions Preview")]
+    [SerializeField] private bool previewAutoScale = true;
+    [SerializeField] private bool previewUseUnscaledTime = true;
+
+    // Subparticle radius as % of play area min dimension.
+    // Example: 0.015 on a 400px box => 6px radius
+    [SerializeField, Range(0.005f, 0.05f)]
+    private float previewSubRadiusPercent = 0.015f;
+
+    // core hit radius is derived from the coreRect visual size
+    [SerializeField, Range(0.4f, 1.2f)]
+    private float previewCoreHitRadiusMultiplier = 0.85f;
+
+    // Particle travel time from spawn ring to the core (seconds)
+    [SerializeField, Range(0.5f, 2.5f)]
+    private float previewTravelTimeSeconds = 1.1f;
+
+    // Material template using shader "MASSIVE/UI/CircleIcon" (ASSIGN IN INSPECTOR)
+    [SerializeField] private Material circleIconMaterialTemplate;
+
+    // Optional fallback sprite (circle) if shader fails (prevents squares)
+    [SerializeField] private Sprite circleSpriteFallback;
+
+
     private bool _gameplayEnabled = false;
 
     private bool _instructionsPreviewActive;
 
 public void SetGameplayEnabled(bool enabled)
-{
-    _gameplayEnabled = enabled;
+    {
+        _gameplayEnabled = enabled;
 
-    // When leaving gameplay (intro/outro), remove any live projectile visuals.
-    if (!enabled)
-        ClearAllProjectiles();
-}
+        // When leaving gameplay (intro/outro), remove any live projectile visuals.
+        if (!enabled)
+            ClearAllProjectiles();
+    }
 
-private void ClearAllProjectiles()
-{
-    for (int i = 0; i < _projectiles.Count; i++)
-        CleanupProjectile(_projectiles[i]);
-    _projectiles.Clear();
-}
+    private void ClearAllProjectiles()
+    {
+        for (int i = 0; i < _projectiles.Count; i++)
+            CleanupProjectile(_projectiles[i]);
+        _projectiles.Clear();
+    }
 
 
 
@@ -152,6 +186,14 @@ private void ClearAllProjectiles()
 
     private float _spawnTimer;
 
+    private readonly HashSet<int> _onTimePlayerIds = new HashSet<int>();
+
+    // Global multipliers driven by NovaMinigameTransition
+    private float _globalIconsScale01  = 1f;
+    private float _globalLabelsAlpha01 = 1f;
+    private float _globalRayDotsScale01 = 0f; // default hidden, like current behavior
+
+
     // -------------------- Internal types --------------------
 
     private class ParticipantState
@@ -166,6 +208,14 @@ private void ClearAllProjectiles()
         public Vector2 outwardDir;
 
         public List<RectTransform> rayDots = new List<RectTransform>();
+
+        // Late join penalty
+        public bool isLate;
+        public float penaltyRemaining;
+        public float penaltyDuration;
+        public float joinScale01 = 1f;
+
+        public TMP_Text label;
     }
 
     private class CoreParticle
@@ -232,6 +282,21 @@ void OnEnable()
     _rayDotMaterial = null;
 }
 
+public void SetOnTimeParticipants(IReadOnlyList<PlayerControllerScript> onTimeParticipants)
+{
+    _onTimePlayerIds.Clear();
+    if (onTimeParticipants == null) return;
+
+    foreach (var p in onTimeParticipants)
+    {
+        if (p != null)
+            _onTimePlayerIds.Add(p.playerID);
+    }
+}
+
+
+
+
     public override void Init(AnomalyContext context)
     {
         base.Init(context);
@@ -246,6 +311,9 @@ void OnEnable()
 
         RecomputeOrbitRadius();
         BuildParticipants();
+
+        ApplyLateJoinSetup();
+
 
         _spawnTimer = 0f;
     }
@@ -269,7 +337,10 @@ private void Update()
     if (_orbitRadius <= 0f)
         RecomputeOrbitRadius();
 
-    float dt = (_instructionsPreviewActive ? Time.unscaledDeltaTime : Time.deltaTime);
+    float dt =
+        (_instructionsPreviewActive && previewUseUnscaledTime)
+            ? Time.unscaledDeltaTime
+            : Time.deltaTime;
 
     // Keep orbit placement running so transition scaling looks correct
     UpdateParticipantOrbitUI_VisualOnly(dt);
@@ -277,6 +348,7 @@ private void Update()
     // During gameplay, full sim runs
     if (_gameplayEnabled)
     {
+        UpdateLateJoinPenalties(dt);
         HandleSwordInput();
         UpdateProjectiles(dt);  // <-- ADD THIS
         UpdateParticles(dt);
@@ -370,39 +442,23 @@ private void UpdateParticlesOutro(float dt)
 
 
     public void SetIconsScale(float s)
-{
-    s = Mathf.Clamp01(s);
-    foreach (var ps in _participants)
-        if (ps.icon != null) ps.icon.localScale = Vector3.one * s;
-}
-
-public void SetLabelsAlpha(float a)
-{
-    a = Mathf.Clamp01(a);
-    foreach (var ps in _participants)
     {
-        if (ps.icon == null) continue;
-        var label = ps.icon.GetComponentInChildren<TMP_Text>(true);
-        if (label == null) continue;
-
-        var c = label.color;
-        c.a = a;
-        label.color = c;
+        _globalIconsScale01 = Mathf.Clamp01(s);
+        ApplyParticipantVisuals();
     }
-}
 
-public void SetRayDotsScale01(float s01)
-{
-    s01 = Mathf.Clamp01(s01);
-    float s = rayDotBaseScale * s01;
-
-    foreach (var ps in _participants)
+    public void SetLabelsAlpha(float a)
     {
-        if (ps.rayDots == null) continue;
-        for (int i = 0; i < ps.rayDots.Count; i++)
-            if (ps.rayDots[i] != null) ps.rayDots[i].localScale = Vector3.one * s;
+        _globalLabelsAlpha01 = Mathf.Clamp01(a);
+        ApplyParticipantVisuals();
     }
-}
+
+    public void SetRayDotsScale01(float s01)
+    {
+        _globalRayDotsScale01 = Mathf.Clamp01(s01);
+        ApplyParticipantVisuals();
+    }
+
 
 
     // -------------------- Orbit / rays --------------------
@@ -587,12 +643,17 @@ private void HandleSwordInput()
     {
         if (ps.rewiredPlayer == null) continue;
 
+        // Late join: cannot fire until penalty ends
+        if (ps.isLate && ps.penaltyRemaining > 0f)
+            continue;
+
         if (ps.rewiredPlayer.GetButtonDown("Sword"))
         {
             FireProjectile(ps);
         }
     }
 }
+
 
 
     /// <summary>
@@ -761,24 +822,33 @@ private void CleanupProjectile(ProjectileRay pr)
 
             if (!p.consumed && !p.missed)
             {
-                p.position += p.direction * (p.speed * dt);
+                Vector2 prevPos = p.position;
+                Vector2 nextPos = prevPos + p.direction * (p.speed * dt);
 
-                float distToCore = (p.position - corePos).magnitude;
-                if (distToCore <= coreHitRadius)
+                // robust: did we cross within the hit radius at any point this frame?
+                float r = coreHitRadius;
+                bool hitCoreThisFrame = SqDistPointSegment(corePos, prevPos, nextPos) <= (r * r);
+
+                if (hitCoreThisFrame)
                 {
-                    // If it was already being captured, don't mark missed.
+                    // Snap to core and trigger the existing miss/capture logic
+                    p.position = corePos;
+
                     if (p.lastHitBy == null)
                     {
-                        p.position = corePos;
                         p.missed = true;
                         BeginShrinkAllSub(p);
                     }
                     else
                     {
-                        p.position = corePos;
                         p.speed = 0f;
                     }
                 }
+                else
+                {
+                    p.position = nextPos;
+                }
+
 
                 // spin
                 p.spinAngle += p.spinSpeed * dt;
@@ -954,8 +1024,23 @@ private void CleanupProjectile(ProjectileRay pr)
             srt.localScale = Vector3.one;
 
             var img = go.GetComponent<Image>();
-            if (subMat != null) { img.material = subMat; img.color = Color.white; }
-            else img.color = Color.black;
+            img.raycastTarget = false;
+            img.maskable = true;
+
+            if (subMat != null)
+            {
+                img.material = subMat;
+                img.color = Color.white;
+                img.sprite = null; // shader handles the circle
+            }
+            else
+            {
+                // Fallback: use a sprite if provided, so you don't get squares
+                img.material = null;
+                img.sprite = circleSpriteFallback;
+                img.color = Color.black;
+            }
+
 
             Vector2 offset = Vector2.zero;
 
@@ -1208,6 +1293,9 @@ private void CleanupProjectile(ProjectileRay pr)
         {
             ps.icon = CreateIcon(ps);
             ps.icon.gameObject.SetActive(true);
+            
+            // Cache label once
+            ps.label = ps.icon.GetComponentInChildren<TMP_Text>(true);
 
             ps.rayDots = new List<RectTransform>();
             int count = _maxDotsPerRay > 0 ? _maxDotsPerRay : 16;
@@ -1486,6 +1574,10 @@ public void BeginInstructionsPreview()
     // Mark started so Update() runs.
     _started = true;
 
+    if (previewAutoScale)
+        ApplyPreviewAutoScale();
+
+
     // Make sure play area sizing is computed.
     RecomputeOrbitRadius();
 
@@ -1524,14 +1616,178 @@ private void EnsureRayDotMaterial()
 {
     if (_rayDotMaterial != null) return;
 
-    var shader = Shader.Find(IconShaderName);
-    if (shader == null) return;
+    if (circleIconMaterialTemplate != null)
+    {
+        _rayDotMaterial = new Material(circleIconMaterialTemplate);
+    }
+    else
+    {
+        var shader = Shader.Find(IconShaderName);
+        if (shader == null)
+        {
+            Debug.LogError($"[NovaCoreMinigame] Shader not found: {IconShaderName}. " +
+                           "Assign 'circleIconMaterialTemplate' to avoid squares.", this);
+            return;
+        }
 
-    _rayDotMaterial = new Material(shader);
+        _rayDotMaterial = new Material(shader);
+    }
+
     _rayDotMaterial.SetColor("_FillColor", rayDotColor);
     _rayDotMaterial.SetColor("_OutlineColor", rayDotColor);
     _rayDotMaterial.SetFloat("_OutlineWidth", 0.0f);
 }
+
+
+private static float SqDistPointSegment(Vector2 p, Vector2 a, Vector2 b)
+{
+    Vector2 ab = b - a;
+    float ab2 = ab.sqrMagnitude;
+    if (ab2 < 1e-8f) return (p - a).sqrMagnitude;
+
+    float t = Vector2.Dot(p - a, ab) / ab2;
+    t = Mathf.Clamp01(t);
+
+    Vector2 closest = a + ab * t;
+    return (p - closest).sqrMagnitude;
+}
+
+private void ApplyPreviewAutoScale()
+{
+    if (playAreaRect == null || coreRect == null)
+        return;
+
+    // Ensure layout has run so rect sizes are valid
+    Canvas.ForceUpdateCanvases();
+
+    Rect pr = playAreaRect.rect;
+    float minDim = Mathf.Min(pr.width, pr.height);
+    if (minDim <= 1f) return;
+
+    // 1) Subparticle size (visual readability)
+    float r = Mathf.Clamp(minDim * previewSubRadiusPercent, 2f, 18f);
+    subparticleRadius = r;
+
+    // 2) Core hit radius based on core visual size
+    float coreVisualRadius = Mathf.Min(coreRect.rect.width, coreRect.rect.height) * 0.5f;
+    coreHitRadius = Mathf.Max(coreVisualRadius * previewCoreHitRadiusMultiplier, r * 2f);
+
+    // 3) Particle speed so it reaches the core in ~previewTravelTimeSeconds
+    float halfDiag = Mathf.Sqrt(pr.width * pr.width + pr.height * pr.height) * 0.5f;
+    float spawnRadius = halfDiag + r * 2f;
+
+    float t = Mathf.Max(0.01f, previewTravelTimeSeconds);
+    particleSpeed = Mathf.Clamp(spawnRadius / t, 60f, 1400f);
+
+    // Optional: make vibration scale with size (keeps it subtle at any resolution)
+    particleVibrationAmplitude = Mathf.Clamp(r * 0.12f, 0.5f, 6f);
+
+    // Optional: spawn rate scales a bit with box size (keeps it lively but not insane)
+    float targetRate = Mathf.Clamp(minDim / 140f, 2f, 7f);
+    spawnRatePerSecond = targetRate;
+    spawnRateJitter = targetRate * 0.25f;
+}
+
+private void ApplyLateJoinSetup()
+{
+    bool hasOnTimeInfo = _onTimePlayerIds.Count > 0;
+
+    foreach (var ps in _participants)
+    {
+        if (ps.controller == null) continue;
+
+        bool onTime = !hasOnTimeInfo || _onTimePlayerIds.Contains(ps.controller.playerID);
+
+        if (onTime || lateJoinPenaltySeconds <= 0f)
+        {
+            ps.isLate = false;
+            ps.penaltyDuration = 0f;
+            ps.penaltyRemaining = 0f;
+            ps.joinScale01 = 1f;
+
+            if (ps.label != null)
+                ps.label.gameObject.SetActive(true);
+        }
+        else
+        {
+            ps.isLate = true;
+            ps.penaltyDuration = Mathf.Max(0.001f, lateJoinPenaltySeconds);
+            ps.penaltyRemaining = ps.penaltyDuration;
+            ps.joinScale01 = 0f;
+
+            if (ps.label != null)
+                ps.label.gameObject.SetActive(false);
+        }
+    }
+
+    ApplyParticipantVisuals();
+}
+
+private void ApplyParticipantVisuals()
+{
+    float rayScale = rayDotBaseScale * _globalRayDotsScale01;
+
+    foreach (var ps in _participants)
+    {
+        // Icon scale = transition scale * late-join scale
+        if (ps.icon != null)
+        {
+            float s = _globalIconsScale01 * Mathf.Clamp01(ps.joinScale01);
+            ps.icon.localScale = Vector3.one * s;
+        }
+
+        // Label: hidden until penalty ends
+        if (ps.label != null)
+        {
+            bool shouldShow = !ps.isLate || ps.penaltyRemaining <= 0f;
+
+            if (ps.label.gameObject.activeSelf != shouldShow)
+                ps.label.gameObject.SetActive(shouldShow);
+
+            var c = ps.label.color;
+            c.a = shouldShow ? _globalLabelsAlpha01 : 0f;
+            ps.label.color = c;
+        }
+
+        // Aim rays (static dotted rays)
+        if (ps.rayDots != null)
+        {
+            for (int i = 0; i < ps.rayDots.Count; i++)
+                if (ps.rayDots[i] != null)
+                    ps.rayDots[i].localScale = Vector3.one * rayScale;
+        }
+    }
+}
+
+private void UpdateLateJoinPenalties(float dt)
+{
+    bool changed = false;
+
+    foreach (var ps in _participants)
+    {
+        if (!ps.isLate) continue;
+        if (ps.penaltyRemaining <= 0f) continue;
+
+        ps.penaltyRemaining -= dt;
+        if (ps.penaltyRemaining < 0f) ps.penaltyRemaining = 0f;
+
+        float t01 = 1f - (ps.penaltyRemaining / ps.penaltyDuration);
+        t01 = Mathf.Clamp01(t01);
+
+        float eased = (lateJoinScaleEase != null) ? lateJoinScaleEase.Evaluate(t01) : t01;
+        ps.joinScale01 = Mathf.Clamp01(eased);
+
+        changed = true;
+    }
+
+    if (changed)
+        ApplyParticipantVisuals();
+}
+
+
+
+
+
 
 
 

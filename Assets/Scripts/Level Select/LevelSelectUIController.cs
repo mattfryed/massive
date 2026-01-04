@@ -11,6 +11,17 @@ public class LevelSelectUIController : MonoBehaviour
     [SerializeField] private TMP_Text levelNumberText; // TextMeshProUGUI is fine
     [SerializeField] private TMP_Text levelTitleText;
 
+    [Header("New: Anomaly Type")]
+    [Tooltip("Optional: set this text to a constant label (ex: ANOMALY TYPE).")]
+    [SerializeField] private TMP_Text anomalyTypeLabelText;
+
+    [Tooltip("The dynamic anomaly type name pulled from LevelDefinition.")]
+    [SerializeField] private TMP_Text anomalyTypeNameText;
+
+    [SerializeField] private string anomalyTypeLabel = "ANOMALY TYPE";
+    [SerializeField] private string anomalyTypeFallback = "UNKNOWN";
+
+
     [Header("Formatting")]
     [SerializeField] private string stagePrefix = "STAGE_";
     [SerializeField] private int stageDigits = 3; // 3 => 001, 012, 123
@@ -128,14 +139,27 @@ public class LevelSelectUIController : MonoBehaviour
 
     private void SetText(LevelDefinition def)
     {
+        // Stage number
         if (levelNumberText != null)
         {
             string digits = def.levelNumber.ToString(new string('0', Mathf.Max(1, stageDigits)));
             levelNumberText.text = $"{stagePrefix}{digits}";
         }
 
+        // Title
         if (levelTitleText != null)
             levelTitleText.text = def.levelTitle;
+
+        // Anomaly type label (static)
+        if (anomalyTypeLabelText != null)
+            anomalyTypeLabelText.text = anomalyTypeLabel;
+
+        // Anomaly type name (dynamic)
+        if (anomalyTypeNameText != null)
+        {
+            string v = def != null ? def.anomalyTypeName : null;
+            anomalyTypeNameText.text = string.IsNullOrEmpty(v) ? anomalyTypeFallback : v;
+        }
     }
 
     private bool HasAnyTransition()

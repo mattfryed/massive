@@ -23,16 +23,47 @@ public class InstructionsScreenController : MonoBehaviour
     [SerializeField] private string stagePrefix = "STAGE_";
     [SerializeField] private int stageDigits = 3;
 
-    [Header("Timing + Prompt")]
+    [Header("Timing")]
     [SerializeField] private float minMandatoryWaitSeconds = 1.5f;
-    [SerializeField] private GameObject pressAnyPromptRoot; // set inactive at start
     [SerializeField] private bool useUnscaledTime = true;
+
+    [Header("Prompt Swap (Option B)")]
+    [Tooltip("Visible immediately (ex: GET READY...). Can be null if you don't want a ready prompt.")]
+    [SerializeField] private GameObject readyPromptRoot;
+
+    [Tooltip("Optional: add TMPTextTransition to the ready prompt group and assign it here.")]
+    [SerializeField] private TMPTextTransition readyPromptTransition;
+
+    [Tooltip("Hidden initially. This becomes visible after the mandatory wait.")]
+    [SerializeField] private GameObject pressAnyPromptRoot;
+
+    [Tooltip("Optional: add TMPTextTransition to the press-any group and assign it here.")]
+    [SerializeField] private TMPTextTransition pressAnyPromptTransition;
+
+    [Tooltip("Small hold between hiding Ready and showing Press Any (helps readability).")]
+    [SerializeField] private float swapHoldSeconds = 0.05f;
+
+    [Tooltip("Safety timeout if a transition never fires its completion event.")]
+    [SerializeField] private float transitionTimeoutSeconds = 1.5f;
 
     [Header("Rewired Actions (Any Player)")]
     [SerializeField] private string swordAction = "Sword";
     [SerializeField] private string shieldAction = "Shield";
 
     private bool _armed;
+
+    private bool _readyOutDone;
+    private bool _pressInDone;
+
+    private void Awake()
+    {
+        // Hook transition callbacks (optional)
+        if (readyPromptTransition != null)
+            readyPromptTransition.onOutComplete.AddListener(() => _readyOutDone = true);
+
+        if (pressAnyPromptTransition != null)
+            pressAnyPromptTransition.onInComplete.AddListener(() => _pressInDone = true);
+    }
 
     private void Start()
     {
@@ -46,9 +77,9 @@ public class InstructionsScreenController : MonoBehaviour
             return;
         }
 
-        // Hide prompt until we’re armed
-        if (pressAnyPromptRoot != null)
-            pressAnyPromptRoot.SetActive(false);
+        // Initial prompt state
+        if (readyPromptRoot != null) readyPromptRoot.SetActive(true);
+        if (pressAnyPromptRoot != null) pressAnyPromptRoot.SetActive(false);
 
         // Populate header (optional)
         ApplyHeader(selected);
@@ -146,14 +177,16 @@ public class InstructionsScreenController : MonoBehaviour
     {
         _armed = false;
 
+        // Mandatory wait
         float start = Now();
         while (Now() - start < minMandatoryWaitSeconds)
             yield return null;
 
-        _armed = true;
+        // Swap prompts (Ready -> PressAny)
+        yield return SwapPromptsRoutine();
 
-        if (pressAnyPromptRoot != null)
-            pressAnyPromptRoot.SetActive(true);
+        // Now accept input
+        _armed = true;
 
         // Wait for ANY button (Sword or Shield) from ANY player
         while (true)
@@ -165,6 +198,47 @@ public class InstructionsScreenController : MonoBehaviour
         }
 
         SceneFlow.GoToSelectedGameplay();
+    }
+
+    private IEnumerator SwapPromptsRoutine()
+    {
+        // OUT: Ready prompt (optional)
+        if (readyPromptRoot != null && readyPromptRoot.activeSelf)
+        {
+            if (readyPromptTransition != null)
+            {
+                _readyOutDone = false;
+                readyPromptTransition.PlayOut();
+
+                float t0 = Now();
+                while (!_readyOutDone && (Now() - t0) < transitionTimeoutSeconds)
+                    yield return null;
+            }
+
+            // Ensure it’s gone
+            readyPromptRoot.SetActive(false);
+        }
+
+        if (swapHoldSeconds > 0f)
+            yield return Wait(swapHoldSeconds);
+
+        // IN: Press-any prompt
+        if (pressAnyPromptRoot != null)
+        {
+            pressAnyPromptRoot.SetActive(true);
+
+            if (pressAnyPromptTransition != null)
+            {
+                _pressInDone = false;
+                pressAnyPromptTransition.PlayIn();
+
+                // Optional: wait for IN to complete before allowing input
+                // (Feels nice + prevents accidental instant start)
+                float t0 = Now();
+                while (!_pressInDone && (Now() - t0) < transitionTimeoutSeconds)
+                    yield return null;
+            }
+        }
     }
 
     private bool AnyPlayerPressedSwordOrShield()
@@ -186,4 +260,8 @@ public class InstructionsScreenController : MonoBehaviour
     }
 
     private float Now() => useUnscaledTime ? Time.unscaledTime : Time.time;
+
+private object Wait(float seconds) =>
+    useUnscaledTime ? (object)new WaitForSecondsRealtime(seconds) : new WaitForSeconds(seconds);
+
 }

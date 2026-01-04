@@ -66,6 +66,12 @@ public abstract class AnomalyMinigameBase : MonoBehaviour
     }
 }
 
+public interface IOnTimeParticipantsReceiver
+{
+    void SetOnTimeParticipants(IReadOnlyList<PlayerControllerScript> onTimeParticipants);
+}
+
+
 /// <summary>
 /// Owns scheduling, spawning and cleanup of anomaly minigames for a stage.
 /// One AnomalyManager should live in the stage scene.
@@ -98,6 +104,9 @@ public class AnomalyManager : MonoBehaviour
     // Fired whenever any anomaly finishes, after rewards are applied.
     // Used by level-specific adapters (e.g. NovaAnomalyAdapter) to react.
     public event Action<AnomalyDefinition, AnomalyResult> OnAnomalyCompleted;
+
+    IReadOnlyList<PlayerControllerScript> _forcedOnTimeParticipants;
+
 
     void Start()
     {
@@ -160,7 +169,8 @@ public class AnomalyManager : MonoBehaviour
     public void TriggerAnomaly(
         AnomalyDefinition def,
         IReadOnlyList<PlayerControllerScript> forcedParticipants = null,
-        float? forcedDuration = null)
+        float? forcedDuration = null,
+        IReadOnlyList<PlayerControllerScript> onTimeParticipants = null)
     {
         if (IsAnomalyRunning)
         {
@@ -177,6 +187,8 @@ public class AnomalyManager : MonoBehaviour
         _currentDef = def;
         _forcedParticipants = forcedParticipants;
         _forcedDuration = forcedDuration;
+        _forcedOnTimeParticipants = onTimeParticipants;
+
 
         StartCoroutine(RunAnomalyRoutine(def));
     }
@@ -185,18 +197,20 @@ public class AnomalyManager : MonoBehaviour
     {
         // 1. Warning / telegraph
         float warningDelay = def.GetRandomStartDelay();
-        if (ui != null)
+
+        // If delay is ~0, don't stomp any externally-managed UI state (like NOVA entry window).
+        if (ui != null && warningDelay > 0.01f)
             ui.ShowWarning(def, warningDelay);
 
         SpawnWorldTelegraph(def);
-        yield return new WaitForSeconds(warningDelay);
+
+        if (warningDelay > 0.01f)
+            yield return new WaitForSeconds(warningDelay);
+
 
         // 2. Activate
         // Duration for the minigame
         float duration = _forcedDuration.HasValue ? _forcedDuration.Value : def.GetRandomDuration();
-
-        if (ui != null)
-           // ui.ShowActiveBanner(def, duration);
 
         ApplyArenaMode(def.arenaMode);
 
@@ -230,6 +244,14 @@ public class AnomalyManager : MonoBehaviour
             yield break;
         }
 
+        // Provide "on-time at entry close" players (used for late penalties in some minigames).
+        if (_forcedOnTimeParticipants != null && _forcedOnTimeParticipants.Count > 0)
+        {
+            if (_currentMinigame is IOnTimeParticipantsReceiver receiver)
+                receiver.SetOnTimeParticipants(_forcedOnTimeParticipants);
+        }
+
+
         _currentMinigame.Init(context);
         
 
@@ -239,7 +261,8 @@ public class AnomalyManager : MonoBehaviour
         _currentMinigame.Begin();
 
                 // find transition on the minigame root
-        var transition = go.GetComponent<NovaMinigameTransition>();
+        var transition = go.GetComponentInChildren<NovaMinigameTransition>(true);
+
 
         
 if (transition != null && ui != null)
@@ -284,7 +307,13 @@ transition.BindUISequencer(seq);
     {
 
         // If the minigame has a transition component, play outro before finalizing.
-        var transition = _currentMinigame != null ? _currentMinigame.GetComponent<NovaMinigameTransition>() : null;
+        var transition =
+    _currentMinigame != null
+        ? (_currentMinigame.GetComponent<NovaMinigameTransition>()
+           ?? _currentMinigame.GetComponentInChildren<NovaMinigameTransition>(true)
+           ?? _currentMinigame.GetComponentInParent<NovaMinigameTransition>())
+        : null;
+
         if (transition != null)
         {
             StartCoroutine(FinalizeAfterOutro(transition, result));
@@ -321,6 +350,7 @@ transition.BindUISequencer(seq);
         _currentDef = null;
         _forcedParticipants = null;
         _forcedDuration = null;
+        _forcedOnTimeParticipants = null;
         DespawnWorldTelegraph();
     }
 
@@ -358,6 +388,7 @@ transition.BindUISequencer(seq);
         _currentDef = null;
         _forcedParticipants = null;
         _forcedDuration = null;
+        _forcedOnTimeParticipants = null;
         DespawnWorldTelegraph();
     }
 

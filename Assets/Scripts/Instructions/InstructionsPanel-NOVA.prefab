@@ -860,13 +860,13 @@ MonoBehaviour:
   projectileSpeed: 15
   projectilesRoot: {fileID: 8516632973065955361}
   projectileMaxDots: 80
-  subparticleRadius: 0.2
-  particleSpeed: 250
+  subparticleRadius: 2
+  particleSpeed: 150
   particleSpeedVariance: 0.25
   spawnRatePerSecond: 3
   spawnRateJitter: 1
   subShrinkDuration: 0.2
-  coreHitRadius: 0.3
+  coreHitRadius: 35
   subSpacingFactor: 0.7
   particleSpinSpeed: 90
   particleVibrationAmplitude: 0.03
@@ -881,6 +881,14 @@ MonoBehaviour:
   explosionDotRadiusFactor: 0.2
   explosionLifetime: 0.18
   explosionSpeed: 1.5
+  previewAutoScale: 1
+  previewUseUnscaledTime: 1
+  previewSubRadiusPercent: 0.015
+  previewCoreHitRadiusMultiplier: 0.85
+  previewTravelTimeSeconds: 1.1
+  circleIconMaterialTemplate: {fileID: 2100000, guid: 751edda24e2868d48a48c69c9b8f6699,
+    type: 2}
+  circleSpriteFallback: {fileID: 0}
 --- !u!114 &4097837329123461674
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -5959,6 +5967,7 @@ GameObject:
   - component: {fileID: 4606044811471659941}
   - component: {fileID: 5708604963560172009}
   - component: {fileID: 7505332991145253820}
+  - component: {fileID: 4028235636657996594}
   m_Layer: 0
   m_Name: Mid panel
   m_TagString: Untagged
@@ -5966,22 +5975,26 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &6971866376747486776
-Transform:
+--- !u!224 &6971866376747486776
+RectTransform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 6207034313365032684}
-  serializedVersion: 2
   m_LocalRotation: {x: 0.7071068, y: -0, z: -0, w: 0.7071068}
-  m_LocalPosition: {x: 10.79, y: 0, z: 0}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 735661778535835704}
   m_Father: {fileID: 744566377235835496}
   m_LocalEulerAnglesHint: {x: 90, y: 0, z: 0}
+  m_AnchorMin: {x: 0.5, y: 0.5}
+  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchoredPosition: {x: 10.79, y: 0}
+  m_SizeDelta: {x: 7.4, y: 4}
+  m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &4606044811471659941
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -6091,6 +6104,29 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!223 &4028235636657996594
+Canvas:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6207034313365032684}
+  m_Enabled: 1
+  serializedVersion: 3
+  m_RenderMode: 2
+  m_Camera: {fileID: 0}
+  m_PlaneDistance: 100
+  m_PixelPerfect: 0
+  m_ReceivesEvents: 1
+  m_OverrideSorting: 0
+  m_OverridePixelPerfect: 0
+  m_SortingBucketNormalizedSize: 0
+  m_VertexColorAlwaysGammaSpace: 0
+  m_AdditionalShaderChannelsFlag: 0
+  m_UpdateRectTransformForStandalone: 0
+  m_SortingLayerID: 0
+  m_SortingOrder: 0
+  m_TargetDisplay: 0
 --- !u!1 &6570438175334115833
 GameObject:
   m_ObjectHideFlags: 0

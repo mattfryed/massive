@@ -94,6 +94,39 @@ public class NovaStarController : MonoBehaviour
     /// </summary>
     public event Action OnFinalSupernova;
 
+
+    private readonly HashSet<PlayerControllerScript> _insideSet = new();
+
+    // Generic "is this player's position inside the entry collider right now?"
+    private bool IsInsideEntry(PlayerControllerScript pcs)
+    {
+        if (pcs == null || entryCollider == null) return false;
+
+        Vector3 p = pcs.transform.position;
+        Vector3 closest = entryCollider.ClosestPoint(p);
+
+        // If inside, ClosestPoint returns the point itself.
+        return (closest - p).sqrMagnitude < 0.0001f;
+    }
+
+    private List<PlayerControllerScript> GetPlayersInsideNow()
+    {
+        var result = new List<PlayerControllerScript>();
+
+        var players = FindObjectsOfType<PlayerControllerScript>();
+        foreach (var p in players)
+        {
+            if (p == null) continue;
+
+            // Optional: if you have eliminated/inactive flags, filter here.
+            if (IsInsideEntry(p))
+                result.Add(p);
+        }
+
+        return result;
+    }
+
+
     // --- Internal state ---
 
     private readonly List<PlayerControllerScript> _currentEntrants = new();
@@ -161,70 +194,120 @@ public class NovaStarController : MonoBehaviour
         }
     }
 
-    private IEnumerator EntryWindowRoutine()
+private IEnumerator EntryWindowRoutine()
+{
+    // --- OPEN WINDOW ---
+    _currentEntrants.Clear();
+    _entryWindowOpen = true;
+    _waitingForMinigame = false;
+
+    if (entryCollider != null)
+        entryCollider.enabled = true;
+
+    if (entryRingVisual != null)
+        entryRingVisual.SetActive(true);
+
+    OnEntryWindowOpened?.Invoke();
+
+    // --- WAIT ---
+    if (entryWindowDuration > 0f)
+        yield return new WaitForSeconds(entryWindowDuration);
+    else
+        yield return null;
+
+    // --- CLOSE WINDOW ---
+    _entryWindowOpen = false;
+
+    // Authoritative snapshot at the exact close moment
+    SnapshotEntrantsAtClose();
+
+    if (entryCollider != null)
+        entryCollider.enabled = false;
+
+    // Always hide ring when the entry window ends
+    if (entryRingVisual != null)
+        entryRingVisual.SetActive(false);
+
+    // Notify listeners with the fixed list of on-time players
+    OnEntryWindowClosed?.Invoke(new List<PlayerControllerScript>(_currentEntrants));
+
+    bool hasEntrants = _currentEntrants.Count > 0;
+
+    // --- BRANCH ---
+    if (!hasEntrants)
     {
+        TriggerBounce();
+        _bounceCount++;
         _currentEntrants.Clear();
-        _entryWindowOpen = true;
-        _waitingForMinigame = false;
-
-        if (entryCollider != null)
-            entryCollider.enabled = true;
-
-        if (entryRingVisual != null)
-            entryRingVisual.SetActive(true);
-
-        OnEntryWindowOpened?.Invoke();
-
-        float endTime = Time.time + entryWindowDuration;
-        while (Time.time < endTime)
-        {
-            yield return null;
-        }
-
-        _entryWindowOpen = false;
-
-        if (entryCollider != null)
-            entryCollider.enabled = false;
-
-        bool hasEntrants = _currentEntrants.Count > 0;
-
-        // Notify listeners that the entry window has closed, with the final entrants list
-        OnEntryWindowClosed?.Invoke(new List<PlayerControllerScript>(_currentEntrants));
-
-        // Always hide ring when the entry window ends (minigame begins if entrants>0)
-        if (entryRingVisual != null)
-            entryRingVisual.SetActive(false);
-
-        if (!hasEntrants)
-        {
-
-            TriggerBounce();
-            _bounceCount++;
-        }
-        else
-        {
-            // Entrants present: keep ring visual ON to show the star is "charged".
-            // The star will now wait for the anomaly to complete.
-            _waitingForMinigame = true;
-
-            // Wait until TriggerBounceAfterMinigame is called.
-            while (_waitingForMinigame)
-            {
-                yield return null;
-            }
-        }
+        yield break;
     }
+
+    // Entrants exist → wait for minigame completion
+    _waitingForMinigame = true;
+    while (_waitingForMinigame)
+        yield return null;
+}
+
 
     // ------------------------------------------------------
     // Entry detection
     // ------------------------------------------------------
 
-    private void OnTriggerEnter(Collider other)
+    // private void OnTriggerEnter(Collider other)
+    // {
+    //     if (!_entryWindowOpen || entryCollider == null || other == null)
+    //         return;
+
+    //     if (playerLayer.value != 0)
+    //     {
+    //         if ((playerLayer.value & (1 << other.gameObject.layer)) == 0)
+    //             return;
+    //     }
+
+    //     var pcs = other.GetComponentInParent<PlayerControllerScript>();
+    //     if (pcs == null) return;
+
+    //     _insideSet.Add(pcs);
+    // }
+
+    private bool IsPlayerInsideEntryCollider(PlayerControllerScript pcs)
+{
+    if (pcs == null || entryCollider == null) return false;
+
+    Vector3 p = pcs.transform.position;
+    Vector3 closest = entryCollider.ClosestPoint(p);
+
+    // If the point is inside the collider, ClosestPoint returns the point itself (within tolerance).
+    return (closest - p).sqrMagnitude <= 0.0001f;
+}
+
+private void SnapshotEntrantsAtClose()
+{
+    _currentEntrants.Clear();
+
+#if UNITY_6000_0_OR_NEWER
+    var players = FindObjectsByType<PlayerControllerScript>(FindObjectsSortMode.None);
+#else
+    var players = FindObjectsOfType<PlayerControllerScript>();
+#endif
+
+    foreach (var pcs in players)
+    {
+        if (pcs == null) continue;
+        if (!pcs.gameObject.activeInHierarchy) continue;
+
+        if (IsPlayerInsideEntryCollider(pcs))
+            _currentEntrants.Add(pcs);
+    }
+}
+
+
+
+    private void OnTriggerExit(Collider other)
     {
         if (!_entryWindowOpen || entryCollider == null || other == null)
             return;
 
-        // Only count objects on the player layer (if layer mask is set)
         if (playerLayer.value != 0)
         {
             if ((playerLayer.value & (1 << other.gameObject.layer)) == 0)
@@ -232,17 +315,11 @@ public class NovaStarController : MonoBehaviour
         }
 
         var pcs = other.GetComponentInParent<PlayerControllerScript>();
-        if (pcs == null)
-            return;
+        if (pcs == null) return;
 
-        if (!_currentEntrants.Contains(pcs))
-        {
-            _currentEntrants.Add(pcs);
-
-            // Optional: you can immediately hide their visual representation here
-            // and mark them as in-subspace; or let another script do that based
-            // on _currentEntrants.
-        }
+        // Handle multi-collider rigs: only remove if player is actually outside now.
+        if (!IsInsideEntry(pcs))
+            _insideSet.Remove(pcs);
     }
 
     // ------------------------------------------------------

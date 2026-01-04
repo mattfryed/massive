@@ -160,6 +160,9 @@ GameObject:
   - component: {fileID: -7847268438442591824}
   - component: {fileID: 2284913437449063720}
   - component: {fileID: 3129900321571771315}
+  - component: {fileID: 9017598580637871882}
+  - component: {fileID: 4634136652934439566}
+  - component: {fileID: 6140404384365348297}
   m_Layer: 0
   m_Name: PU_Decoherence
   m_TagString: Untagged
@@ -177,8 +180,8 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0.54463905, y: 0, z: 0, w: 0.8386706}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
+  m_LocalScale: {x: 0.8, y: 0.8, z: 0.8}
+  m_ConstrainProportionsScale: 1
   m_Children:
   - {fileID: 3689327816184071718}
   - {fileID: 7897131324361258388}
@@ -218,6 +221,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   definition: {fileID: 11400000, guid: 9bb81ee17f3bf4d9f81a360bcc1a08f6, type: 2}
+  requireAttackToActivate: 1
+  attackActivatorLayers:
+    serializedVersion: 2
+    m_Bits: 0
 --- !u!114 &2284913437449063720
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -248,6 +255,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 70fc707f874daca4694c76ac7198c801, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  controller: {fileID: 0}
   wire: {fileID: 7521140262397949418}
   metaballs:
   - {fileID: 7674094203995190581}
@@ -308,6 +316,125 @@ MonoBehaviour:
   disableCollidersOnDespawn: 1
   destroyOnComplete: 1
   destroyDelay: 1
+  wireShatterDuration: 0.4
+  wireCollapseDuration: 0.45
+  shatterDistance: 0.55
+  shatterSpinDegrees: 220
+  shatterEase:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  collapseEase:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+--- !u!54 &9017598580637871882
+Rigidbody:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4270921612713813033}
+  serializedVersion: 4
+  m_Mass: 1
+  m_Drag: 0
+  m_AngularDrag: 0.05
+  m_CenterOfMass: {x: 0, y: 0, z: 0}
+  m_InertiaTensor: {x: 1, y: 1, z: 1}
+  m_InertiaRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ImplicitCom: 1
+  m_ImplicitTensor: 1
+  m_UseGravity: 0
+  m_IsKinematic: 0
+  m_Interpolate: 1
+  m_Constraints: 0
+  m_CollisionDetection: 1
+--- !u!114 &4634136652934439566
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4270921612713813033}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3da2265c33487464186ec0405d27d30c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  maxDriftRadius: 1.2
+  spring: 35
+  damping: 10
+  snapWhenSettled: 1
+  snapDistance: 0.03
+  snapSpeed: 0.08
+  lockToXZPlane: 1
+--- !u!135 &6140404384365348297
+SphereCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4270921612713813033}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Radius: 0.65
+  m_Center: {x: 0, y: 0, z: 0}
 --- !u!1 &6000369881104928203
 GameObject:
   m_ObjectHideFlags: 0
@@ -368,3 +495,8 @@ MonoBehaviour:
   foldProgress: 1
   drawProgress: 1
   foldAxis: {x: 0, y: 1, z: 0}
+  shatterProgress: 0
+  collapseProgress: 0
+  shatterDistance: 0.35
+  shatterSpinDegrees: 220
+  shatterRandomness: 0.572

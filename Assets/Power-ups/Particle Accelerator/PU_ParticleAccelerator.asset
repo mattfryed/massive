@@ -17,22 +17,22 @@ MonoBehaviour:
   pickupPrefab: {fileID: 1305589374316551868, guid: b8be357cf873d46ebadf8060e1559a61,
     type: 3}
   worldLifetimeSeconds: 12
-  effectDurationSeconds: 999
+  effectDurationSeconds: 15
   activateInputName: Sword
   chargeToMaxSeconds: 2
   minDistanceOnTap: 2
   maxDistance: 20
-  rechargeMultiplier: 1.1
-  baseRechargeDelay: 0.35
-  recoilVelocityMin: 0.2
-  recoilVelocityMax: 3
+  rechargeMultiplier: 0.0002
+  baseRechargeDelay: 1
+  recoilVelocityMin: 0.5
+  recoilVelocityMax: 5
   beamVisualMinLength: 2.5
   beamVisualMaxLength: 22
   beamThicknessMin: 0.28
   beamThicknessMax: 0.35
-  beamSpeed: 22
+  beamSpeed: 33
   massRemovedMin: 0.06
-  massRemovedMax: 0.16
+  massRemovedMax: 0.26
   transferMassToShooter: 1
   beamProjectilePrefab: {fileID: 2729370454382667784, guid: 4d8350eed08b3db479d57c1aa9c52f24,
     type: 3}

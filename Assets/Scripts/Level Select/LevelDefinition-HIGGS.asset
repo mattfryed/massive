@@ -19,3 +19,7 @@ MonoBehaviour:
     sceneAsset: {fileID: 102900000, guid: f9546f79ca44a4a25be7bd405f75b046, type: 3}
   iconPrefab: {fileID: 7087981260614280204, guid: 6a48154ced8df422b9ec7be3569f10da,
     type: 3}
+  instructionsPanelPrefab: {fileID: 7889573251582337184, guid: 923531e7b4812e34bac3fd373bf08511,
+    type: 3}
+  anomalyTypeName: SYMETTRY KNOTS
+  audioProfile: {fileID: 0}

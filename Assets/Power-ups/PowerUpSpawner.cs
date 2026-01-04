@@ -45,30 +45,47 @@ namespace Massive.PowerUps
             _nextSpawnTime = Time.time + Random.Range(minSpawnDelay, maxSpawnDelay);
         }
 
-        private void TrySpawnOne()
+private void TrySpawnOne()
+{
+    if (vectorGrid == null || availablePowerUps.Count == 0) return;
+
+    var def = PickWeighted(availablePowerUps);
+    if (!def || !def.pickupPrefab) return;
+
+    const int attempts = 30;
+    for (int i = 0; i < attempts; i++)
+    {
+        if (!TrySamplePointOnGrid(out Vector3 p)) continue;
+        if (!IsSpawnPointValid(p)) continue;
+
+        // ✅ Instantiate at position/rotation (important for dynamic rigidbodies)
+        var rot = def.pickupPrefab.transform.rotation;
+        var go = Instantiate(def.pickupPrefab, p, rot);
+
+        // ✅ If it has a Rigidbody, make sure RB state matches spawn (extra safety)
+        if (go.TryGetComponent<Rigidbody>(out var rb))
         {
-            if (vectorGrid == null || availablePowerUps.Count == 0) return;
-
-            var def = PickWeighted(availablePowerUps);
-            if (!def || !def.pickupPrefab) return;
-
-            const int attempts = 30;
-            for (int i = 0; i < attempts; i++)
-            {
-                if (!TrySamplePointOnGrid(out Vector3 p)) continue;
-                if (!IsSpawnPointValid(p)) continue;
-
-                var go = Instantiate(def.pickupPrefab);
-                go.transform.position = p;
-
-                var pickup = go.GetComponent<PowerUpPickup>();
-                if (!pickup) pickup = go.AddComponent<PowerUpPickup>();
-                pickup.definition = def;
-
-                _active.Add(go);
-                return;
-            }
+            rb.position = p;
+            rb.rotation = rot;
+            rb.linearVelocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+            // rb.Sleep(); // optional; collisions will wake it anyway
         }
+
+        // ✅ If using tethering, make sure this spawn point becomes "home"
+        var tether = go.GetComponent<PowerUpIconTetheredBody>();
+        if (tether) tether.ResetAnchorHere();
+
+        // Pickup hookup (keep as-is)
+        var pickup = go.GetComponent<PowerUpPickup>();
+        if (!pickup) pickup = go.AddComponent<PowerUpPickup>();
+        pickup.definition = def;
+
+        _active.Add(go);
+        return;
+    }
+}
+
 
         private bool TrySamplePointOnGrid(out Vector3 worldPos)
         {

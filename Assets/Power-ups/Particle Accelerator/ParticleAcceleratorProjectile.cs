@@ -1,4 +1,5 @@
 using UnityEngine;
+using Massive.Player;
 
 namespace Massive.PowerUps
 {
@@ -37,6 +38,8 @@ namespace Massive.PowerUps
         private bool _hitLocked;
         private float _hitDist;
         private bool _impactSpawned;
+
+        private const string ShieldTag = "Shield";
 
         public void Init(
             PlayerControllerScript shooter,
@@ -115,14 +118,47 @@ namespace Massive.PowerUps
                         _hitDist = _headDist + Mathf.Max(0f, nearest.distance - 0.01f);
                         _hitDist = Mathf.Clamp(_hitDist, 0f, _maxDistance);
 
-                        // Apply mass drain if we hit a player
-                        if (!isBlocker && victim && victim != _shooter)
-                        {
-                            victim.ApplyExternalMassDelta(-_massRemove, allowDeath: true);
+                            // Shield interaction (tagged "Shield") uses scaled stun + partial damage leak,
+                            // instead of the standard full damage logic.
+                            bool hitShield = nearest.collider != null && nearest.collider.CompareTag(ShieldTag);
 
-                            if (_transfer && _shooter)
-                                _shooter.ApplyExternalMassDelta(+_massRemove, allowDeath: false);
-                        }
+                            if (hitShield)
+                             {
+                                float strength01 = 1f;
+                                if (victim)
+                                {
+                                    var shieldAbility = victim.GetComponent<PlayerShieldAbility>();
+                                    if (shieldAbility != null && shieldAbility.IsActive)
+                                        strength01 = shieldAbility.CurrentStrength01;
+                                }
+                                strength01 = Mathf.Clamp01(strength01);
+ 
+                                // 1) Attacker gets stunned proportional to shield strength
+                                if (_shooter && victim && victim != _shooter)
+                                    _shooter.Stun(_originWS + _dir * _hitDist, strength01);
+
+                                // 2) Defender takes "leaked" damage proportional to weakness (1 - strength)
+                                float leak01 = 1f - strength01;
+                                if (leak01 > 0.0001f && victim && victim != _shooter)
+                                {
+                                    float leakedMass = _massRemove * leak01;
+                                    victim.ApplyExternalMassDelta(-leakedMass, allowDeath: true);
+
+                                    if (_transfer && _shooter)
+                                        _shooter.ApplyExternalMassDelta(+leakedMass, allowDeath: false);
+                                }
+                            }
+                            else
+                            {
+                                // Apply mass drain if we hit a player
+                                if (!isBlocker && victim && victim != _shooter)
+                                {
+                                    victim.ApplyExternalMassDelta(-_massRemove, allowDeath: true);
+
+                                    if (_transfer && _shooter)
+                                        _shooter.ApplyExternalMassDelta(+_massRemove, allowDeath: false);
+                                }
+                             }
 
                         SpawnImpactOnce(_originWS + _dir * _hitDist);
                     }
@@ -186,9 +222,10 @@ namespace Massive.PowerUps
             isBlocker = false;
             victim = null;
 
-            // NOTE: Ignore triggers so pickups / VFX triggers don't block the beam.
-            var hits = Physics.SphereCastAll(headPosWS, _radius, _dir, stepDist, ~0, QueryTriggerInteraction.Ignore);
-
+            // NOTE: Mostly ignore triggers so pickups / VFX triggers don't block the beam,
+            // but allow the player's Shield (tagged "Shield") to be detected even if it's a trigger collider.
+            var hits = Physics.SphereCastAll(headPosWS, _radius, _dir, stepDist, ~0, QueryTriggerInteraction.Collide);
+ 
             float best = float.PositiveInfinity;
             bool hasHit = false;
 
@@ -196,6 +233,10 @@ namespace Massive.PowerUps
             {
                 var h = hits[i];
                 if (!h.collider) continue;
+
+                // Ignore trigger colliders except for Shield
+                if (h.collider.isTrigger && !h.collider.CompareTag(ShieldTag))
+                    continue;
 
                 // Ignore our own projectile hierarchy
                 if (h.collider.GetComponentInParent<ParticleAcceleratorProjectile>() == this)

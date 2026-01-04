@@ -27,7 +27,7 @@ Material:
     m_Floats:
     - _MaxDistance: 3
     - _MaxSteps: 64
-    - _OutlineThreshold: 0.35
+    - _OutlineThreshold: 0.329
     - _ShadeThreshold: -0.76
     - _SmoothK: 0.124
     - _SurfaceEps: 0.0091

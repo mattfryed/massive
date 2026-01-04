@@ -16,6 +16,9 @@ public class LevelDefinition : ScriptableObject
     [Header("Instructions (Optional)")]
     public GameObject instructionsPanelPrefab;
 
+    [Header("Anomaly (Instructions UI)")]
+    public string anomalyTypeName = "GRAVITY WELL";
+
 
     [Header("Audio")]
     public LevelAudioProfile audioProfile;   // ✅ new

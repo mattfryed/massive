@@ -1,4 +1,4 @@
-Shader "MASSIVE/UI/CircleIcon"
+Shader "MASSIVE/UI/WipeCircle"
 {
     Properties
     {

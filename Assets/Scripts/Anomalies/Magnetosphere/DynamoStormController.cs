@@ -136,6 +136,9 @@ public class DynamoStormController : MonoBehaviour
 
     private float _magResponse01; // 0..1 factor applied to magnetosphere deformation
     private readonly Dictionary<int, float> _stormFactorByPlayer = new Dictionary<int, float>(8);
+    // Cache PlayerExternalEffects so we can call directly (no SendMessage).
+    private readonly Dictionary<int, PlayerExternalEffects> _effectsByPlayer = new Dictionary<int, PlayerExternalEffects>(8);
+
 
     // ============================================================
     // Reflection caches
@@ -184,6 +187,9 @@ public class DynamoStormController : MonoBehaviour
 
         if (autoFindPlayersByTag)
             RefreshPlayersByTag();
+            // If players were assigned manually (or tag find ran), ensure effects cache is populated.
+        RebuildEffectsCacheFromTargets();
+
     }
 
     private void Update()
@@ -494,7 +500,10 @@ private void ApplyDamageTick(float dt)
         float dmg = damagePerSecondAtFullStorm * dmgFactor * dt;
 
         // Placeholder hook
-        tr.gameObject.SendMessage("ApplyStormDamage", dmg, SendMessageOptions.DontRequireReceiver);
+        var fx = GetEffects(tr);
+if (fx != null)
+    fx.ApplyStormDamage(dmg);
+
     }
 }
 
@@ -692,17 +701,58 @@ public Vector3 GetStormFlowDirWS()
         try { return (float)fi.GetValue(target); } catch { return -1f; }
     }
 
-    private void RefreshPlayersByTag()
+private void RefreshPlayersByTag()
+{
+    playerTargets ??= new List<Transform>(4);
+    playerTargets.Clear();
+    _effectsByPlayer.Clear();
+
+    if (string.IsNullOrEmpty(playerTag)) return;
+
+    var gos = GameObject.FindGameObjectsWithTag(playerTag);
+    for (int i = 0; i < gos.Length; i++)
     {
-        playerTargets ??= new List<Transform>(4);
-        playerTargets.Clear();
+        var tr = gos[i].transform;
+        playerTargets.Add(tr);
 
-        if (string.IsNullOrEmpty(playerTag)) return;
-
-        var gos = GameObject.FindGameObjectsWithTag(playerTag);
-        for (int i = 0; i < gos.Length; i++)
-            playerTargets.Add(gos[i].transform);
+        var fx = gos[i].GetComponent<PlayerExternalEffects>();
+        if (!fx) fx = gos[i].GetComponentInParent<PlayerExternalEffects>();
+        if (fx) _effectsByPlayer[tr.GetInstanceID()] = fx;
     }
+}
+
+
+    private void RebuildEffectsCacheFromTargets()
+{
+    _effectsByPlayer.Clear();
+
+    if (playerTargets == null) return;
+
+    for (int i = 0; i < playerTargets.Count; i++)
+    {
+        var tr = playerTargets[i];
+        if (!tr) continue;
+
+        var fx = tr.GetComponent<PlayerExternalEffects>();
+        if (!fx) fx = tr.GetComponentInParent<PlayerExternalEffects>();
+        if (fx) _effectsByPlayer[tr.GetInstanceID()] = fx;
+    }
+}
+
+private PlayerExternalEffects GetEffects(Transform tr)
+{
+    if (!tr) return null;
+
+    int id = tr.GetInstanceID();
+    if (_effectsByPlayer.TryGetValue(id, out var fx) && fx) return fx;
+
+    fx = tr.GetComponent<PlayerExternalEffects>();
+    if (!fx) fx = tr.GetComponentInParent<PlayerExternalEffects>();
+    if (fx) _effectsByPlayer[id] = fx;
+
+    return fx;
+}
+
 
     private static float ProjectedHalfLen(Vector3 flowDir, Vector2 fieldSizeXZ)
     {

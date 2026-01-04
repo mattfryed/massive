@@ -1,5 +1,5 @@
 using UnityEngine;
-
+ 
 [RequireComponent(typeof(MetaballSDFInstance))]
 [RequireComponent(typeof(MetaballManifest))]
 

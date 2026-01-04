@@ -83,15 +83,17 @@ namespace Massive.Player
             characterController = GetComponent<CharacterController>();
             rb = GetComponent<Rigidbody>();
 
-            // Auto-wire forward reference to the visual controller's 'visuals' child if not set
+            // Auto-wire forward reference
             if (forwardReference == null)
             {
-                var pvc = GetComponent<PlayerVisualController>();   // global type, no namespace
-                if (pvc != null && pvc.visuals != null)
+                var pvc = GetComponent<PlayerVisualController>();
+                if (pvc != null)
                 {
-                    forwardReference = pvc.visuals;
+                    if (pvc.gameplayFacing != null) forwardReference = pvc.gameplayFacing;
+                    else if (pvc.visuals != null) forwardReference = pvc.visuals;
                 }
             }
+
 
 
         }

@@ -14,6 +14,14 @@ public class PlayerVisualController : MonoBehaviour
     public Transform visuals;          // "Visuals" child that follows player & gets yaw
     public Material blobMat;           // MASSIVE/PlayerBlobVector
 
+[Header("Gameplay Facing Root (for hitboxes)")]
+public Transform gameplayFacing;            // Assign CombatFacingRoot here
+public bool gameplayFacingInstant = true;
+[Range(0.01f, 0.3f)] public float gameplayFacingSmoothTime = 0.04f;
+public float gameplayFacingMaxYawSpeed = 2500f;
+
+
+
     // ===== Attacks =====
     [Header("Attacks")]
     public Massive.Player.PlayerAttackController attackController;
@@ -156,6 +164,11 @@ public class PlayerVisualController : MonoBehaviour
     Vector2 _input;
     Vector2 _aimDir = Vector2.right; // last meaningful stick direction
 
+Vector2 _gameplayFacing = Vector2.right;  // unfiltered direction for combat-facing
+float _gameplayYawDeg;
+float _gameplayYawVelDeg;
+
+
     // ===== Yaw state =====
     float _yawDeg;
     float _yawVelDeg;
@@ -184,6 +197,13 @@ public class PlayerVisualController : MonoBehaviour
             var t = transform.Find("Visuals");
             if (t) visuals = t;
         }
+        if (!gameplayFacing)
+        {
+            var t = transform.Find("CombatFacingRoot");
+            if (!t) t = transform.Find("GameplayFacing");
+            if (t) gameplayFacing = t;
+        }
+
 
         // Clone blob material so each player owns their instance (safe to set uniforms per-player)
         if (blobMat)
@@ -247,35 +267,35 @@ public class PlayerVisualController : MonoBehaviour
     }
 
     // Called every frame by PlayerControllerScript
-    public void SetMoveInput(Vector2 stick)
+public void SetMoveInput(Vector2 stick)
+{
+    if (invertY) stick.y = -stick.y;
+
+    // Deadzone + remap to 0..1
+    float m = stick.magnitude;
+    if (m < inputDeadzone)
     {
-        if (invertY) stick.y = -stick.y;
-
-        // Deadzone + remap to 0..1
-        float m = stick.magnitude;
-        if (m < inputDeadzone)
-        {
-            stick = Vector2.zero;
-        }
-        else
-        {
-            stick = stick.normalized * ((m - inputDeadzone) / (1f - inputDeadzone));
-        }
-
-        _input = stick;
-
-        // Aim stability:
-        // only update aim when we have meaningful stick input, and reject sudden 1-frame flips.
-        if (stick.sqrMagnitude > 0.0001f)
-        {
-            Vector2 cand = stick.normalized;
-
-            // Reject huge instantaneous flips (helps with noisy spikes)
-            if (_aimDir.sqrMagnitude < 0.0001f || Vector2.Dot(cand, _aimDir) > aimFlipRejectDot)
-                _aimDir = cand;
-        }
-        // else: keep _aimDir unchanged (last joystick direction)
+        stick = Vector2.zero;
     }
+    else
+    {
+        stick = stick.normalized * ((m - inputDeadzone) / (1f - inputDeadzone));
+    }
+
+    _input = stick;
+
+    // --- GameplayFacing: ALWAYS accept flips (this is for combat/hitboxes) ---
+    if (stick.sqrMagnitude > 0.0001f)
+    {
+        _gameplayFacing = stick.normalized;
+
+        // Aim stability (optional): only for visuals/aim if you want flip rejection
+        if (_aimDir.sqrMagnitude < 0.0001f || Vector2.Dot(_gameplayFacing, _aimDir) > aimFlipRejectDot)
+            _aimDir = _gameplayFacing;
+    }
+    // else: keep both facings as last meaningful direction
+}
+
 
     void Update()
     {
@@ -398,11 +418,13 @@ public class PlayerVisualController : MonoBehaviour
 
 
 
-        // --- Yaw: always follow last joystick direction (_aimDir) ---
-        if (_aimDir.sqrMagnitude < 0.0001f)
-            _aimDir = Vector2.right; // absolute fallback; should rarely happen
+        // --- Yaw: follow gameplay-facing (updates even on instant 180 reversals) ---
+        Vector2 yawDir = _gameplayFacing;
+        if (yawDir.sqrMagnitude < 0.0001f)
+            yawDir = Vector2.right;
 
-        float targetYaw = Mathf.Atan2(_aimDir.y, _aimDir.x) * Mathf.Rad2Deg;
+        float targetYaw = Mathf.Atan2(yawDir.y, yawDir.x) * Mathf.Rad2Deg;
+
 
         float turnSpeed = (_turnDampTarget01 > _turnDamp01) ? chargeTurnDampEaseUp : chargeTurnDampEaseDown;
         float turnK = 1f - Mathf.Exp(-Mathf.Max(0.01f, turnSpeed) * Time.deltaTime);
@@ -433,6 +455,8 @@ public class PlayerVisualController : MonoBehaviour
             visuals.position = transform.position;
             visuals.rotation = yawRot * baseRot;
         }
+
+        UpdateGameplayFacingRoot();
 
         _noise += Time.deltaTime * 1.3f;
         _hit = Mathf.Max(0, _hit - hitImpulseDecay * Time.deltaTime);
@@ -492,7 +516,8 @@ public class PlayerVisualController : MonoBehaviour
             );
 
             if (arc && visuals)
-                arc.Rebuild(_aimDir * Mathf.Max(effectiveMag, 1f), visuals.position, baseRadius + outlineHalf);
+                arc.Rebuild(yawDir * Mathf.Max(effectiveMag, 1f), visuals.position, baseRadius + outlineHalf);
+
         }
 
         // Smooth jitter up/down so it doesn't snap off on release
@@ -701,4 +726,39 @@ public class PlayerVisualController : MonoBehaviour
     {
         return _pcs && _pcs.teamID != 1;
     }
+
+    void UpdateGameplayFacingRoot()
+{
+    if (!gameplayFacing) return;
+
+    Vector2 dir = _gameplayFacing;
+    if (dir.sqrMagnitude < 0.0001f) dir = Vector2.right;
+
+    float targetYaw = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
+
+    float nextYaw;
+
+    if (gameplayFacingInstant)
+    {
+        nextYaw = targetYaw;
+        _gameplayYawVelDeg = 0f;
+    }
+    else
+    {
+        nextYaw = Mathf.SmoothDampAngle(_gameplayYawDeg, targetYaw, ref _gameplayYawVelDeg, gameplayFacingSmoothTime);
+
+        float maxStep = gameplayFacingMaxYawSpeed * Time.deltaTime;
+        float delta = Mathf.DeltaAngle(_gameplayYawDeg, nextYaw);
+        if (Mathf.Abs(delta) > maxStep)
+            nextYaw = _gameplayYawDeg + Mathf.Clamp(delta, -maxStep, +maxStep);
+    }
+
+    _gameplayYawDeg = nextYaw;
+
+    // IMPORTANT: hitbox root should be a pure yaw (no -90 baseRot stuff)
+    gameplayFacing.rotation = Quaternion.AngleAxis(_gameplayYawDeg, Vector3.up);
+}
+
+
+
 }

@@ -19,3 +19,6 @@ MonoBehaviour:
     sceneAsset: {fileID: 102900000, guid: 042e78f8522eeb045b414fcf7ec1b63c, type: 3}
   iconPrefab: {fileID: 6718998717813906176, guid: d39a1d411809e4c66ba3a34f1d9f9fa8,
     type: 3}
+  instructionsPanelPrefab: {fileID: 0}
+  anomalyTypeName: MAGNETOSPHERE
+  audioProfile: {fileID: 0}

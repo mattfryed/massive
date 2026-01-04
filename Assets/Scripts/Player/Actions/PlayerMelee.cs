@@ -150,20 +150,44 @@ public class PlayerMelee : MonoBehaviour
         // Power-up override: defender can "Decohere" while shielding, letting attacker phase through + get briefly stunned.
         if (other.CompareTag(shieldTag))
         {
+            // Power-up override still gets first shot (existing behavior)
             var defenderPU = other.GetComponentInParent<PlayerPowerUpController>();
             if (defenderPU != null)
             {
-                Vector3 dir = (attackController != null) ? attackController.CurrentAttackDirectionWS : owner.transform.forward;
-                dir.y = 0f;
-                if (dir.sqrMagnitude < 0.0001f) dir = owner.transform.forward;
-
-                if (defenderPU.TryHandleShieldImpact(owner, other, dir))
-                    return; // handled (Decoherence success)
+                Vector3 dir = other.transform.position - owner.transform.position;
+                dir.y = 0;
+                if (dir.magnitude > 0.01f)
+                {
+                    dir.Normalize();
+                    if (defenderPU.TryHandleShieldImpact(owner, other, dir))
+                        return;
+                }
             }
 
-            owner.Stun(other.transform.position);
+            // New: strength-based behavior
+            var defender = other.GetComponentInParent<PlayerControllerScript>();
+            var defenderShield = other.GetComponentInParent<Massive.Player.PlayerShieldAbility>();
+
+            float strength = 1f;
+            if (defenderShield != null && defenderShield.IsActive)
+                strength = defenderShield.CurrentStrength01;
+
+            // Stun attacker scaled by defender's shield strength
+            owner.Stun(other.transform.position, strength);
+
+            // Damage leak-through scaled by (1 - strength)
+            float leak01 = Mathf.Clamp01(1f - strength);
+
+            if (defender != null && leak01 > 0.001f)
+            {
+                owner.GrowScaled(leak01);
+                defender.ShrinkScaled(owner.gameObject, leak01);
+                defender.playSFX("struckSFX");
+            }
+
             return;
         }
+
 
         // Sword vs Player (damage if victim not shielding)
         if (other.CompareTag(playerTag))

@@ -73,39 +73,43 @@ public class NovaAnomalyAdapter : MonoBehaviour
         ui.ShowWarning(novaCoreAnomalyDefinition, star != null ? star.entryWindowDuration : 0f);
     }
 
-    private void HandleEntryClosed(List<PlayerControllerScript> entrants)
+private void HandleEntryClosed(List<PlayerControllerScript> entrants)
+{
+    if (anomalyManager == null || novaCoreAnomalyDefinition == null)
+        return;
+
+    var ui = anomalyManager.ui;
+
+    // No entrants -> no minigame
+    if (entrants == null || entrants.Count == 0)
     {
-        if (anomalyManager == null || novaCoreAnomalyDefinition == null)
-            return;
+        if (hideWarningIfNoEntrants && ui != null)
+            ui.HideTop();
 
-        var ui = anomalyManager.ui;
-
-        // No entrants: hide the warning banner and do nothing else.
-        if (entrants == null || entrants.Count == 0)
-        {
-            if (hideWarningIfNoEntrants && ui != null)
-                ui.HideTop();
-
-            return;
-        }
-
-        // Entrants exist: optionally flip to ACTIVE (with no countdown yet).
-        if (setActiveStateOnEntryClose && ui != null)
-        {
-            // Countdown for gameplay should start after intro finishes (AnomalyManager will do that).
-            ui.SetTopState(novaCoreAnomalyDefinition, AnomalyTopState.Active, 0f);
-        }
-
-        if (anomalyManager.IsAnomalyRunning)
-            return;
-
-        float? duration = null;
-        if (overrideDuration > 0f)
-            duration = overrideDuration;
-
-        // Trigger the anomaly with forced participants
-        anomalyManager.TriggerAnomaly(novaCoreAnomalyDefinition, entrants, duration);
+        return;
     }
+
+// Entrants exist: trigger the anomaly
+float? duration = null;
+if (overrideDuration > 0f)
+    duration = overrideDuration;
+
+// All players should be loaded into the minigame
+var allPlayers = (anomalyManager.playerManager != null)
+    ? anomalyManager.playerManager.ActivePlayers
+    : entrants;
+
+// Entrants = the "on-time" list used for late penalties
+anomalyManager.TriggerAnomaly(
+    novaCoreAnomalyDefinition,
+    forcedParticipants: allPlayers,
+    forcedDuration: duration,
+    onTimeParticipants: entrants
+);
+
+}
+
+
 
     private void HandleAnomalyCompleted(AnomalyDefinition def, AnomalyResult result)
     {
