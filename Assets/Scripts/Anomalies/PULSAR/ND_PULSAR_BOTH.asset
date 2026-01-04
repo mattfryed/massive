@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 96f9abb4ac86e004bbeed9da8429af89, type: 3}
   m_Name: ND_PULSAR_BOTH
   m_EditorClassIdentifier: 
-  m_NotePrefab: {fileID: 4560419918492144645, guid: d40daf6fe809cc245bbfc873e03fe20a,
+  m_NotePrefab: {fileID: 4560419918492144645, guid: 1af02b813338644eb9b3d3a2b9259308,
     type: 3}
   m_ClipDuration: 0
   m_DurationScaler: 1.2
