@@ -19,7 +19,7 @@ public class PowerupDecoherenceVisual : MonoBehaviour
     [Header("Direction")]
     [SerializeField] private float directionSlerp = 18f;
 
-    [Header("Connector Chain")]
+    [Header("Connector Chain")] 
 [SerializeField, Range(1, 24)] private int connectorCount = 7;     // how many balls between the lobes
 [SerializeField] private float connectorRadiusNearLobe = 0.16f;    // thicker near the big blobs
 [SerializeField] private float connectorRadiusMid = 0.06f;         // thinnest point in the middle

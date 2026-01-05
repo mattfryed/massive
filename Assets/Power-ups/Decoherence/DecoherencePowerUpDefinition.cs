@@ -8,6 +8,9 @@ namespace Massive.PowerUps
         [Header("Input")]
         public string activateInputName = "Shield"; // defensive input
 
+        [Header("Shield Replacement VFX")]
+        public GameObject shieldVfxPrefab;   // prefab with MetaballSDFInstance + MetaballManifest + PowerupDecoherenceVisual
+
         [Header("Tuning")]
         [Tooltip("How close attacker must be for decoherence to trigger.")]
         public float distanceWindow = 1.25f;

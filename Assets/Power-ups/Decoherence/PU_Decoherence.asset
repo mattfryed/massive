@@ -17,8 +17,10 @@ MonoBehaviour:
   pickupPrefab: {fileID: 4270921612713813033, guid: 335549c2a3c5a45ffae53340f955b7bd,
     type: 3}
   worldLifetimeSeconds: 12
-  effectDurationSeconds: 8
+  effectDurationSeconds: 44
   activateInputName: Shield
+  shieldVfxPrefab: {fileID: 4807030499099527682, guid: dd334a42f6ef34e198988e707cb2a8ca,
+    type: 3}
   distanceWindow: 1.25
   attackerStunSeconds: 0.55
   passThroughDistance: 1

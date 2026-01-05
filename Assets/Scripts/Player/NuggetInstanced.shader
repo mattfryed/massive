@@ -78,7 +78,9 @@ fixed4 frag(v2f i) : SV_Target
     // Analytic AA + premultiplied
     float  aa = max(fwidth(r2) * 1.1, 1e-5);
     float  a  = saturate(m / aa);
-    return float4(_Color.rgb * a, a); // premultiplied
+    float opacity = saturate(_Color.a);
+float fa = a * opacity;
+return float4(_Color.rgb * fa, fa); // premultiplied, with opacity
 }
             ENDHLSL
         }
@@ -138,7 +140,9 @@ fixed4 frag(v2f i) : SV_Target
                 float  r2 = dot(d,d);
                 float  aa = max(fwidth(r2)*1.1, 1e-5);
                 float  a  = saturate((1.0 - r2)/aa);
-                return float4(_OutlineColor.rgb * a, a); // premultiplied
+                float opacity = saturate(_OutlineColor.a);
+                float fa = a * opacity;
+                return float4(_OutlineColor.rgb * fa, fa); // premultiplied, with opacity
             }
             ENDHLSL
         }

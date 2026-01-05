@@ -109,21 +109,89 @@ void OnDisable() { Camera.onPreCull -= HandlePreCull; }
 
 void HandlePreCull(Camera cam)
 {
-    if (sim == null || nuggetMat == null || quadMesh == null || _args == null) return;
+    if (sim == null || nuggetMat == null || quadMesh == null || _args == null || _pos == null) return;
 
-        _mpb.SetVector("_CamRightWS", cam.transform.right);
-        _mpb.SetVector("_CamUpWS",    cam.transform.up);
-        _mpb.SetVector("_CenterWS", GetBlobCenterWS());
+    // Billboard vectors per camera
+    _mpb.SetVector("_CamRightWS", cam.transform.right);
+    _mpb.SetVector("_CamUpWS",    cam.transform.up);
+
+    // Bind render data (safe to redundantly set here)
+    _mpb.SetBuffer("_NuggetPos", _pos);
+    _mpb.SetFloat("_DotRadius", dotRadius);
+
+    // Base center (plus deco pre-jitter if active)
+    Vector3 baseCenter = GetBlobCenterWS();
+    if (controller != null)
+        baseCenter += controller.DecoPreJitterWS;
+
+    // Determine if we are in split mode
+    float splitT = (controller != null) ? Mathf.Clamp01(controller.DecoSplit01) : 0f;
+    bool splitActive = (controller != null && splitT > 0.001f);
+
+    // Opacity control:
+    // - When split is active, match blob fill alpha behavior: ghostOpacity * splitFillAlpha
+    float alphaMul = 1f;
+    if (splitActive)
+        alphaMul = Mathf.Clamp01(controller.DecoGhostOpacity * controller.DecoSplitFillAlpha);
+
+    // Team color + optional outline (your existing behavior)
+    bool team2 = playerController ? playerController.teamID != 1 : false;
+
+    Color dot = team2 ? colorTeam2 : colorTeam1;
+    dot.a *= alphaMul;
+    _mpb.SetColor("_Color", dot);
+
+    _mpb.SetFloat("_DrawOutline", team2 ? 1f : 0f);
+    if (team2)
+    {
+        Color oc = Color.white;
+        oc.a *= alphaMul;
+        _mpb.SetColor("_OutlineColor", oc);
+        _mpb.SetFloat("_OutlineWidth", 0.02f);
+    }
+    else
+    {
+        _mpb.SetFloat("_OutlineWidth", 0f);
+    }
+
     if (!nuggetMat.enableInstancing) nuggetMat.enableInstancing = true;
 
+    // ---- Normal (no split) ----
+    if (!splitActive)
+    {
+        _mpb.SetVector("_CenterWS", baseCenter);
+
+        Graphics.DrawMeshInstancedIndirect(
+            quadMesh, 0, nuggetMat, _drawBounds, _args,
+            0, _mpb,
+            ShadowCastingMode.Off, false, 0, cam,
+            LightProbeUsage.Off
+        );
+        return;
+    }
+
+    // ---- Split: draw TWO copies (A/B) ----
+    Vector3 side = controller.DecoSideWS;
+    float halfSep = 0.5f * controller.DecoSplitSeparationWorld * splitT;
+    Vector3 off = side * halfSep;
+
+    // Ghost A
+    _mpb.SetVector("_CenterWS", baseCenter + off + controller.DecoGhostJitterA_WS);
     Graphics.DrawMeshInstancedIndirect(
         quadMesh, 0, nuggetMat, _drawBounds, _args,
-        0, _mpb,  // <-- MPB here
-        UnityEngine.Rendering.ShadowCastingMode.Off, false, 0, cam,
-        UnityEngine.Rendering.LightProbeUsage.Off
+        0, _mpb,
+        ShadowCastingMode.Off, false, 0, cam,
+        LightProbeUsage.Off
     );
-    
 
+    // Ghost B
+    _mpb.SetVector("_CenterWS", baseCenter - off + controller.DecoGhostJitterB_WS);
+    Graphics.DrawMeshInstancedIndirect(
+        quadMesh, 0, nuggetMat, _drawBounds, _args,
+        0, _mpb,
+        ShadowCastingMode.Off, false, 0, cam,
+        LightProbeUsage.Off
+    );
 }
 
 

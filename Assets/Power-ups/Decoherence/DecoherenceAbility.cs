@@ -1,13 +1,21 @@
-using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
+using Massive.Player;
 
 namespace Massive.PowerUps
 {
     internal class DecoherenceAbility : IPowerUpAbility
     {
+
         private readonly DecoherencePowerUpDefinition _def;
         private readonly PlayerControllerScript _defender;
         private readonly PlayerPowerUpController _host;
+
+        private PlayerShieldAbility _shield;
+        private PlayerVisualController _visuals;
+
+        // Optional: hide nuggets renderers while split is active
+        private readonly List<Renderer> _nuggetRenderers = new();
 
         public DecoherenceAbility(DecoherencePowerUpDefinition def, PlayerControllerScript defender, PlayerPowerUpController host)
         {
@@ -16,82 +24,119 @@ namespace Massive.PowerUps
             _host = host;
         }
 
-        public void OnEquip() { }
+        public void OnEquip()
+        {
+            if (_defender == null) return;
 
+            _shield = _defender.GetComponent<PlayerShieldAbility>();
+            _visuals = _defender.visualsController;
+
+            // Cache nugget renderers (optional)
+            _nuggetRenderers.Clear();
+            var nuggets = _defender.GetComponentInChildren<PlayerNuggetsGPU>(true);
+            if (nuggets != null)
+            {
+                _nuggetRenderers.AddRange(nuggets.GetComponentsInChildren<Renderer>(true));
+            }
+
+            if (_shield != null)
+            {
+                // suppress normal shield VFX while power-up is equipped
+                _shield.SuppressDefaultShieldVfx = true;
+
+                _shield.ShieldStarted += OnShieldStarted;
+                _shield.ShieldEnded += OnShieldEnded;
+            }
+        }
+
+        public void OnUnequip()
+        {
+            if (_shield != null)
+            {
+                _shield.ShieldStarted -= OnShieldStarted;
+                _shield.ShieldEnded -= OnShieldEnded;
+
+                _shield.SuppressDefaultShieldVfx = false;
+            }
+
+            // Ensure visuals are restored
+            if (_visuals != null)
+                _visuals.SetDecoherenceSplitActive(false);
+
+            SetNuggetsVisible(true);
+
+            _shield = null;
+            _visuals = null;
+        }
+
+        private void OnShieldStarted(PlayerShieldAbility s)
+        {
+            if (_visuals != null)
+                _visuals.SetDecoherenceSplitActive(true /*, optional separation value */);
+
+            SetNuggetsVisible(false);
+        }
+
+        private void OnShieldEnded(PlayerShieldAbility s)
+        {
+            if (_visuals != null)
+                _visuals.SetDecoherenceSplitActive(false);
+
+            SetNuggetsVisible(true);
+        }
+
+        private void SetNuggetsVisible(bool visible)
+        {
+            for (int i = 0; i < _nuggetRenderers.Count; i++)
+            {
+                if (_nuggetRenderers[i] != null)
+                    _nuggetRenderers[i].enabled = visible;
+            }
+        }
+
+        // You can leave the input methods as no-ops for Design A
         public void Tick(float dt) { }
-
-        public void PreTickInput(in PowerUpInputState input)
-        {
-            _host.SetMovementMultiplierWhileCharging(1f);
-        }
-
-        public bool HandleInput(in PowerUpInputState input, out float cooldownToApply)
-        {
-            cooldownToApply = 0f;
-            return false; // does not consume attack input
-        }
-
+        public void PreTickInput(in PowerUpInputState input) { }
+        public bool HandleInput(in PowerUpInputState input, out float cooldownToApply) { cooldownToApply = 0f; return false; }
         public bool ConsumesAttackWhileOnCooldown(in PowerUpInputState input) => false;
-
         public bool TryHandleShieldImpact(PlayerControllerScript attacker, Collider shieldCollider, Vector3 attackDirWS)
         {
-            // Only active if defender is holding shield
-            // (this is your “instead of normal parry/block, they decohere while defending”)
-            if (_defender == null) return false;
+            if (_defender == null || attacker == null) return false;
+
+            // Armed window: defender shield must be active
             if (!_defender.shieldOn) return false;
 
-            // distance window
-            float d = Vector3.Distance(attacker.transform.position, _defender.transform.position);
-            if (d > _def.distanceWindow) return false;
+            // IMPORTANT: because this is only called when sword already hit the shield collider,
+            // a root-distance gate can cause false negatives. If you want "always super shield",
+            // remove distance gating entirely.
+            // float d = Vector3.Distance(attacker.transform.position, _defender.transform.position);
+            // if (d > _def.distanceWindow) return false;
 
-            // Success: attacker stunned (without knockback), defender takes no damage, attacker phases through
             attacker.ExternalStun(_def.attackerStunSeconds);
 
-            // push attacker through defender along attack direction
-            var rb = attacker.GetComponent<Rigidbody>();
+            // Move attacker through the defender
             Vector3 dir = attackDirWS;
             dir.y = 0f;
-            if (dir.sqrMagnitude < 0.0001f) dir = (attacker.transform.position - _defender.transform.position).normalized;
-            if (dir.sqrMagnitude < 0.0001f) dir = attacker.transform.forward;
+            if (dir.sqrMagnitude < 0.0001f)
+                dir = (_defender.transform.position - attacker.transform.position);
 
-            Vector3 targetPos = attacker.transform.position + dir.normalized * _def.passThroughDistance;
+            dir.y = 0f;
+            if (dir.sqrMagnitude < 0.0001f)
+                dir = attacker.transform.forward;
+
+            dir.Normalize();
+
+            Vector3 targetPos = _defender.transform.position + dir * _def.passThroughDistance;
+
+            var rb = attacker.GetComponent<Rigidbody>();
             if (rb) rb.MovePosition(targetPos);
             else attacker.transform.position = targetPos;
 
-            // temporarily ignore collisions between the two players (prevents immediate “catch”)
             _host.StartIgnoreCollisionsTemporarily(attacker, _defender, _def.ignoreCollisionSeconds);
 
-            return true; // handled: PlayerMelee should NOT do default stun/behavior
+            return true; // prevents normal shield behavior in PlayerMelee
         }
 
-        public void OnUnequip() { }
-    }
 
-    // helper extensions implemented as small MonoBehaviour proxy on the controller object
-    internal static class PowerUpCollisionHelpers
-    {
-        public static void StartIgnoreCollisionsTemporarily(this PlayerPowerUpController host,
-            PlayerControllerScript a, PlayerControllerScript b, float seconds)
-        {
-            host.StartCoroutine(IgnoreCollisionsCo(a, b, seconds));
-        }
-
-        private static IEnumerator IgnoreCollisionsCo(PlayerControllerScript a, PlayerControllerScript b, float seconds)
-        {
-            if (!a || !b) yield break;
-
-            var ac = a.GetComponentsInChildren<Collider>();
-            var bc = b.GetComponentsInChildren<Collider>();
-
-            for (int i = 0; i < ac.Length; i++)
-                for (int j = 0; j < bc.Length; j++)
-                    if (ac[i] && bc[j]) Physics.IgnoreCollision(ac[i], bc[j], true);
-
-            yield return new WaitForSeconds(seconds);
-
-            for (int i = 0; i < ac.Length; i++)
-                for (int j = 0; j < bc.Length; j++)
-                    if (ac[i] && bc[j]) Physics.IgnoreCollision(ac[i], bc[j], false);
-        }
     }
 }

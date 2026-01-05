@@ -21,6 +21,8 @@ namespace Massive.Player
         [SerializeField] private GameObject shieldColliderObject;
         [SerializeField] private ShieldRingsVfx_Shapes ringsVfx;
 
+        public bool SuppressDefaultShieldVfx { get; set; } = false;
+
         [Header("Timing")]
         [SerializeField, Min(0.05f)] private float durationSeconds = 0.65f;
         [SerializeField, Min(0.05f)] private float cooldownSeconds = 2.0f;
@@ -75,6 +77,7 @@ namespace Massive.Player
         private float endTime;
         private Vector3 lastFaceDirWS = Vector3.right;
 
+
         private void Reset()
         {
             owner = GetComponentInParent<PlayerControllerScript>();
@@ -90,6 +93,7 @@ namespace Massive.Player
             if (!attackController) attackController = GetComponentInParent<PlayerAttackController>();
             if (!shieldColliderObject && owner != null) shieldColliderObject = owner.shield;
             if (!ringsVfx) ringsVfx = GetComponentInChildren<ShieldRingsVfx_Shapes>(true);
+            
 
             // Start disabled
             if (shieldColliderObject != null)
@@ -199,13 +203,14 @@ namespace Massive.Player
             if (owner != null)
                 owner.shieldOn = true;
 
-            if (shieldColliderObject != null)
-                shieldColliderObject.SetActive(true);
+    if (shieldColliderObject != null)
+        shieldColliderObject.SetActive(true);
 
-            if (ringsVfx != null)
-                ringsVfx.Play(CurrentStrength01, durationSeconds);
+    // Only play default rings if NOT suppressed
+    if (!SuppressDefaultShieldVfx && ringsVfx != null)
+        ringsVfx.Play(CurrentStrength01, durationSeconds);
 
-            ShieldStarted?.Invoke(this);
+    ShieldStarted?.Invoke(this);
         }
 
         public void ForceStopShield()
@@ -218,11 +223,16 @@ namespace Massive.Player
             if (shieldColliderObject != null)
                 shieldColliderObject.SetActive(false);
 
+
+            // Only stop default rings if NOT suppressed
+            if (!SuppressDefaultShieldVfx && ringsVfx != null)
+                ringsVfx.Stop(immediate: false);
+
             if (owner != null)
                 owner.shieldOn = false;
 
             if (ringsVfx != null)
-                ringsVfx.Stop(immediate: false);
+            ringsVfx.Stop(immediate: false);
 
             ShieldEnded?.Invoke(this);
         }

@@ -7,6 +7,8 @@ using UnityEngine.Rendering;  // built-in pipeline CommandBuffer API
 public class PlayerVisualController : MonoBehaviour
 {
     // ===== Rendering / materials =====
+    static readonly int _FillColor = Shader.PropertyToID("_FillColor");
+    static readonly int _OutlineColor = Shader.PropertyToID("_OutlineColor");
     Material _blobMatInstance;
 
     [Header("Rendering")]
@@ -128,6 +130,37 @@ public float gameplayFacingMaxYawSpeed = 2500f;
     [SerializeField] private float chargingYawSmoothMultiplier = 2.6f; // higher = slower turn response
     [SerializeField] private float chargingMaxYawSpeedMultiplier = 0.45f; // lower = capped turn speed
 
+    [Header("Decoherence Split")]
+    [SerializeField] private float decoSplitSeparationWorld = 1.05f;
+    [SerializeField, Range(0f, 1f)] private float decoSplitFillAlpha = 0.20f;
+    [SerializeField, Range(0f, 1f)] private float decoSplitOutlineAlpha = 0.90f;
+    [SerializeField] private float decoSplitFadeSeconds = 0.07f;
+
+    [Header("Decoherence Split - Jitter + Opacity")]
+    [SerializeField, Min(0f)] private float decoPreSplitJitterSeconds = 0.10f;   // time to vibrate before separation starts
+    [SerializeField, Min(0f)] private float decoPreSplitJitterAmp = 0.06f;       // world units
+    [SerializeField, Min(0f)] private float decoPreSplitJitterFreq = 48f;        // Hz-ish
+
+    [SerializeField, Min(0f)] private float decoHoldJitterAmp = 0.03f;           // world units
+    [SerializeField, Min(0f)] private float decoHoldJitterFreq = 26f;
+
+    [SerializeField, Range(0f, 1f)] private float decoGhostOpacity = 0.80f;      // master opacity slider (blob + nuggets ghosts)
+
+    // --- Decoherence read-only access (for nuggets + other render helpers) ---
+    public float  DecoSplit01                => _decoSplit01;               // 0..1
+    public Vector3 DecoSideWS                => _decoSideWS;                // normalized
+    public Vector3 DecoPreJitterWS           => _decoPreJitterWS;
+    public Vector3 DecoGhostJitterA_WS       => _decoGhostJitterA_WS;
+    public Vector3 DecoGhostJitterB_WS       => _decoGhostJitterB_WS;
+    public float  DecoSplitSeparationWorld   => decoSplitSeparationWorld;
+    public float  DecoGhostOpacity           => decoGhostOpacity;
+    public float  DecoSplitFillAlpha         => decoSplitFillAlpha;
+
+    private float _decoSplitTarget01 = 0f;
+    private float _decoSplit01 = 0f;
+
+    private MaterialPropertyBlock _tmpProps;
+
     private float _turnDampTarget01 = 0f;  // 0..1
     private float _turnDamp01 = 0f;
 
@@ -144,6 +177,15 @@ public float gameplayFacingMaxYawSpeed = 2500f;
     {
         _chargeJitterTarget01 = Mathf.Clamp01(j01);
     }
+
+    private bool _decoRequestedActive = false;
+    private float _decoRequestedStartTime = -999f;
+
+    private float _decoSeed0, _decoSeed1, _decoSeed2;
+    private Vector3 _decoPreJitterWS;
+    private Vector3 _decoGhostJitterA_WS;
+    private Vector3 _decoGhostJitterB_WS;
+    private Vector3 _decoSideWS = Vector3.forward;
 
 
     // ===== Hit/contact state =====
@@ -182,10 +224,26 @@ float _gameplayYawVelDeg;
     MaterialPropertyBlock _ghostProps;
     MaterialPropertyBlock _mainProps;
 
+    public void SetDecoherenceSplitActive(bool active, float separationWorld = -1f)
+    {
+        if (active && !_decoRequestedActive)
+            _decoRequestedStartTime = Time.time;
+
+        _decoRequestedActive = active;
+
+        if (separationWorld > 0f)
+            decoSplitSeparationWorld = separationWorld;
+
+        // collapse target when turning off (the Update() will drive it down)
+        if (!active)
+            _decoSplitTarget01 = 0f;
+    }
+
     void Awake()
     {
         TryGetComponent(out _rb);
         TryGetComponent(out _pcs);
+        
 
         // Attack controller is often on the same GO or parent
         if (!attackController)
@@ -214,6 +272,10 @@ float _gameplayYawVelDeg;
 
         _ghostProps ??= new MaterialPropertyBlock();
         _mainProps  ??= new MaterialPropertyBlock();
+        _tmpProps = new MaterialPropertyBlock();
+        _decoSeed0 = Random.value * 1000f;
+        _decoSeed1 = Random.value * 1000f;
+        _decoSeed2 = Random.value * 1000f;
     }
 
     void OnEnable()
@@ -406,12 +468,12 @@ public void SetMoveInput(Vector2 stick)
                 }
             }
 
-            float now = Time.time;
-            for (int i = _ghosts.Count - 1; i >= 0; i--)
-            {
-                if (now - _ghosts[i].spawnTime > GhostLifetime)
-                    _ghosts.RemoveAt(i);
-            }
+            float ghostNow = Time.time;
+                for (int i = _ghosts.Count - 1; i >= 0; i--)
+                {
+                    if (ghostNow - _ghosts[i].spawnTime > GhostLifetime)
+                        _ghosts.RemoveAt(i);
+                }
 
             _wasLungeActive = lungeActive;
         }
@@ -526,6 +588,50 @@ public void SetMoveInput(Vector2 stick)
         _chargeJitter01 = Mathf.Lerp(_chargeJitter01, _chargeJitterTarget01, jitterK);
 
         ApplyBlobUniforms(deformAmtNow, _deformLag, deformDirNow);
+
+        // --- Decoherence: pre-jitter then split ---
+        float now = Time.time;
+
+        bool inPreJitter = _decoRequestedActive &&
+                        (now - _decoRequestedStartTime) < Mathf.Max(0.0001f, decoPreSplitJitterSeconds);
+
+        float desiredSplitTarget = (_decoRequestedActive && !inPreJitter) ? 1f : 0f;
+        _decoSplitTarget01 = desiredSplitTarget;
+
+        // drive split 0..1 with your existing fade time
+        float fade = Mathf.Max(0.0001f, decoSplitFadeSeconds);
+        _decoSplit01 = Mathf.MoveTowards(_decoSplit01, _decoSplitTarget01, Time.deltaTime / fade);
+
+        // compute sideways axis once per frame (used by blob + nuggets)
+        if (visuals != null)
+        {
+            Vector3 face = visuals.right;
+            face.y = 0f;
+            if (face.sqrMagnitude < 0.0001f) face = Vector3.right;
+            face.Normalize();
+
+            _decoSideWS = new Vector3(-face.z, 0f, face.x);
+            if (_decoSideWS.sqrMagnitude < 0.0001f) _decoSideWS = Vector3.forward;
+            _decoSideWS.Normalize();
+        }
+        else
+        {
+            _decoSideWS = Vector3.forward;
+        }
+
+        // jitter right before splitting
+        float pre01 = 0f;
+        if (inPreJitter)
+        {
+            float dur = Mathf.Max(0.0001f, decoPreSplitJitterSeconds);
+            pre01 = Mathf.Clamp01((now - _decoRequestedStartTime) / dur);
+        }
+        _decoPreJitterWS = DecoJitterWS(now, decoPreSplitJitterFreq, decoPreSplitJitterAmp * pre01, _decoSeed0);
+
+        // jitter while holding max separation (ramps in near full split)
+        float hold01 = Mathf.SmoothStep(0.75f, 1f, _decoSplit01);
+        _decoGhostJitterA_WS = DecoJitterWS(now, decoHoldJitterFreq, decoHoldJitterAmp * hold01, _decoSeed1);
+        _decoGhostJitterB_WS = DecoJitterWS(now, decoHoldJitterFreq, decoHoldJitterAmp * hold01, _decoSeed2);
     }
 
     public void OnContact(Vector3 worldContactPoint, Vector3 worldContactNormal, float strength)
@@ -593,83 +699,88 @@ public void SetMoveInput(Vector2 stick)
     }
 
     // Update the CB contents for this camera this frame (upload MVP + issue draws)
-    void HandlePreRender(Camera cam)
-    {
-        // If a CB exists for this camera, ALWAYS clear it first.
-        // This prevents “stuck blob” artifacts if we early-return.
-        if (_perCamCB.TryGetValue(cam, out var cb) && cb != null)
-            cb.Clear();
-        else
-            return;
-
-        // After clearing, it’s safe to bail out.
-        if (!vectorBlobMode || !blobMat || !visuals) return;
-
-        Matrix4x4 V = cam.worldToCameraMatrix;
-        Matrix4x4 P = GL.GetGPUProjectionMatrix(cam.projectionMatrix, true);
-        const int SEG = 128;
-
+ void HandlePreRender(Camera cam)
+{
+    // If a CB exists for this camera, ALWAYS clear it first.
+    // This prevents “stuck blob” artifacts if we early-return.
+    if (_perCamCB.TryGetValue(cam, out var cb) && cb != null)
         cb.Clear();
+    else
+        return;
 
-        if (!vectorBlobMode || !blobMat || !visuals) return;
+    // After clearing, it’s safe to bail out.
+    if (!vectorBlobMode || !blobMat || !visuals) return;
 
-        // --- Ghost trail (outline only) ---
-        if (_ghosts != null && _ghosts.Count > 0)
+    Matrix4x4 V = cam.worldToCameraMatrix;
+    Matrix4x4 P = GL.GetGPUProjectionMatrix(cam.projectionMatrix, true);
+    const int SEG = 128;
+
+    // --- Ghost trail (outline only) ---
+    if (_ghosts != null && _ghosts.Count > 0)
+    {
+        Color baseOutline = IsTeam2() ? team2_Outline : team1_Outline;
+        float now = Time.time;
+        int drawn = 0;
+
+        for (int i = _ghosts.Count - 1; i >= 0 && drawn < GhostStepsVisible; i--)
         {
-            Color baseOutline = IsTeam2() ? team2_Outline : team1_Outline;
-            float now = Time.time;
-            int drawn = 0;
+            var ghost = _ghosts[i];
+            float lifeNorm = (now - ghost.spawnTime) / GhostLifetime;
+            if (lifeNorm < 0f || lifeNorm > 1f) continue;
 
-            for (int i = _ghosts.Count - 1; i >= 0 && drawn < GhostStepsVisible; i--)
-            {
-                var ghost = _ghosts[i];
-                float lifeNorm = (now - ghost.spawnTime) / GhostLifetime;
-                if (lifeNorm < 0f || lifeNorm > 1f) continue;
+            float fade = (1f - lifeNorm) * GhostMaxAlpha;
+            if (fade <= 0.01f) continue;
 
-                float fade = (1f - lifeNorm) * GhostMaxAlpha;
-                if (fade <= 0.01f) continue;
+            _ghostProps.Clear();
 
-                _ghostProps.Clear();
+            Color ghostOutline = baseOutline;
+            ghostOutline.a *= fade;
+            _ghostProps.SetColor("_OutlineColor", ghostOutline);
 
-                Color ghostOutline = baseOutline;
-                ghostOutline.a *= fade;
-                _ghostProps.SetColor("_OutlineColor", ghostOutline);
+            _ghostProps.SetFloat("_DeformLerp", ghost.teardrop);
+            float ghostStretch = 1f - ghost.teardrop * maxVerticalSquash;
+            _ghostProps.SetFloat("_Stretch", ghostStretch);
 
-                _ghostProps.SetFloat("_DeformLerp", ghost.teardrop);
-                float ghostStretch = 1f - ghost.teardrop * maxVerticalSquash;
-                _ghostProps.SetFloat("_Stretch", ghostStretch);
+            Matrix4x4 Mg = Matrix4x4.TRS(ghost.position, ghost.rotation, visuals.lossyScale);
+            Matrix4x4 MVPg = P * V * Mg;
+            _ghostProps.SetMatrix("_MVP", MVPg);
 
-                Matrix4x4 Mg = Matrix4x4.TRS(ghost.position, ghost.rotation, visuals.lossyScale);
-                Matrix4x4 MVPg = P * V * Mg;
-                _ghostProps.SetMatrix("_MVP", MVPg);
+            cb.DrawProcedural(
+                Matrix4x4.identity,
+                blobMat,
+                1,
+                MeshTopology.Triangles,
+                SEG * 3,
+                1,
+                _ghostProps
+            );
 
-                cb.DrawProcedural(
-                    Matrix4x4.identity,
-                    blobMat,
-                    1,
-                    MeshTopology.Triangles,
-                    SEG * 3,
-                    1,
-                    _ghostProps
-                );
+            drawn++;
+        }
+    }
 
-                drawn++;
-            }
+    // --- Main blob OR Decoherence split ---
+    {
+        // Apply power-up jitter to the *rendered* blob only (not transforms / not VFX modules)
+        Vector3 jitter = Vector3.zero;
+        if (_chargeJitter01 > 0.001f)
+        {
+            float amp = 0.06f * _chargeJitter01;
+            float tt = Time.time * (16f + 20f * _chargeJitter01);
+            jitter = new Vector3(Mathf.Sin(tt * 1.13f), 0f, Mathf.Sin(tt * 0.97f + 1.7f)) * amp;
         }
 
-        // --- Main blob (fill + outline) ---
+        Vector3 basePos = visuals.position + jitter + _decoPreJitterWS;
+        Quaternion baseRot = visuals.rotation;
+        Vector3 baseScale = visuals.lossyScale;
+
+        // 0 = normal, 1 = fully split
+        float t = Mathf.Clamp01(_decoSplit01);
+
+        if (t <= 0.001f)
         {
-            // Apply power-up jitter to the *rendered* blob only (not transforms / not VFX modules)
-            Vector3 jitter = Vector3.zero;
-            if (_chargeJitter01 > 0.001f)
-            {
-                float amp = 0.06f * _chargeJitter01;
-                float t = Time.time * (16f + 20f * _chargeJitter01);
-                jitter = new Vector3(Mathf.Sin(t * 1.13f), 0f, Mathf.Sin(t * 0.97f + 1.7f)) * amp;
-            }
-
-
-            Matrix4x4 M = Matrix4x4.TRS(visuals.position + jitter, visuals.rotation, visuals.lossyScale);
+            // --- Normal main blob (fill + outline) ---
+            Matrix4x4 M = Matrix4x4.TRS(basePos, baseRot, baseScale);
             Matrix4x4 MVP = P * V * M;
 
             _mainProps.Clear();
@@ -695,7 +806,113 @@ public void SetMoveInput(Vector2 stick)
                 _mainProps
             );
         }
+        else
+        {
+            // --- Decoherence split: don't draw the original. Draw two sideways copies. ---
+
+            // Determine sideways axis from facing.
+            // NOTE: visuals.right is treated as "front" elsewhere in your project.
+            Vector3 face = visuals.right;
+            face.y = 0f;
+            if (face.sqrMagnitude < 0.0001f) face = Vector3.right;
+            face.Normalize();
+
+            Vector3 side = new Vector3(-face.z, 0f, face.x); // 90° rotated in XZ
+            if (side.sqrMagnitude < 0.0001f) side = Vector3.forward;
+            side.Normalize();
+
+            float halfSep = 0.5f * decoSplitSeparationWorld * t;
+            Vector3 off = side * halfSep;
+
+            // Optional: ghosty transparency (safe if shader has these properties)
+            // If you don't want transparency, set these to 1f in the inspector.
+
+
+            // Color outline = IsTeam2() ? team2_Outline : team1_Outline;
+            // outline.a *= decoSplitOutlineAlpha;
+
+            // bool hasFillColor = blobMat.HasProperty("_FillColor");
+            // Color fill = hasFillColor ? blobMat.GetColor("_FillColor") : Color.white;
+            // if (hasFillColor) fill.a *= decoSplitFillAlpha;
+
+
+
+            Color fill = IsTeam2() ? team2_Fill : team1_Fill;
+            Color outline = IsTeam2() ? team2_Outline : team1_Outline;
+
+            float o = Mathf.Clamp01(decoGhostOpacity);
+
+            fill.a *= o * decoSplitFillAlpha;
+            outline.a *= o * decoSplitOutlineAlpha;
+
+            // ---- Draw copy A ----
+            {
+                Vector3 posA = basePos + off + _decoGhostJitterA_WS;
+                Matrix4x4 MA = Matrix4x4.TRS(posA, baseRot, baseScale);
+                Matrix4x4 MVPA = P * V * MA;
+
+                _mainProps.Clear();
+                _mainProps.SetMatrix("_MVP", MVPA);
+
+                _mainProps.SetColor(_OutlineColor, outline);
+                _mainProps.SetColor(_FillColor, fill);
+
+                cb.DrawProcedural(
+                    Matrix4x4.identity,
+                    blobMat,
+                    0,
+                    MeshTopology.Triangles,
+                    SEG * 3,
+                    1,
+                    _mainProps
+                );
+
+                cb.DrawProcedural(
+                    Matrix4x4.identity,
+                    blobMat,
+                    1,
+                    MeshTopology.Triangles,
+                    SEG * 3,
+                    1,
+                    _mainProps
+                );
+            }
+
+            // ---- Draw copy B ----
+            {
+                Vector3 posB = basePos - off + _decoGhostJitterB_WS;
+                Matrix4x4 MB = Matrix4x4.TRS(posB, baseRot, baseScale);
+                Matrix4x4 MVPB = P * V * MB;
+
+                _mainProps.Clear();
+                _mainProps.SetMatrix("_MVP", MVPB);
+
+                _mainProps.SetColor(_OutlineColor, outline);
+                _mainProps.SetColor(_FillColor, fill);
+
+                cb.DrawProcedural(
+                    Matrix4x4.identity,
+                    blobMat,
+                    0,
+                    MeshTopology.Triangles,
+                    SEG * 3,
+                    1,
+                    _mainProps
+                );
+
+                cb.DrawProcedural(
+                    Matrix4x4.identity,
+                    blobMat,
+                    1,
+                    MeshTopology.Triangles,
+                    SEG * 3,
+                    1,
+                    _mainProps
+                );
+            }
+        }
     }
+}
 
     void HandlePostRender(Camera cam)
     {
@@ -716,6 +933,53 @@ public void SetMoveInput(Vector2 stick)
         }
     }
 
+//     private void DrawBlob(CommandBuffer cb, Camera cam, Vector3 posWS, float t01, float fillAlphaMul, float outlineAlphaMul)
+// {
+//     var vp = cam.projectionMatrix * cam.worldToCameraMatrix;
+
+//     _tmpProps.Clear();
+//     _tmpProps.SetMatrix(_MVP, vp * Matrix4x4.Translate(posWS));
+
+//     // Override _PlayerPos so any shader effects anchored to PlayerPos follow the split copy
+//     _tmpProps.SetVector(_PlayerPos, new Vector4(posWS.x, posWS.z, baseRadius, 0f));
+
+//     Color fc = fillColor;
+//     fc.a *= (t01 * fillAlphaMul);
+
+//     Color oc = outlineColor;
+//     oc.a *= (t01 * outlineAlphaMul);
+
+//     _tmpProps.SetColor(_FillColor, fc);
+//     _tmpProps.SetColor(_OutlineColor, oc);
+
+//     cb.DrawProcedural(Matrix4x4.identity, blobMat, 0, MeshTopology.Triangles, SEG * 3, 1, _tmpProps);
+//     cb.DrawProcedural(Matrix4x4.identity, blobMat, 1, MeshTopology.Triangles, SEG * 3, 1, _tmpProps);
+// }
+
+private void DrawBlob(
+    CommandBuffer cb,
+    Matrix4x4 V,
+    Matrix4x4 P,
+    Vector3 posWS,
+    Quaternion rotWS,
+    Vector3 scaleWS,
+    Color fill,
+    Color outline)
+{
+    const int SEG = 128;
+
+    Matrix4x4 M = Matrix4x4.TRS(posWS, rotWS, scaleWS);
+    Matrix4x4 MVP = P * V * M;
+
+    _tmpProps.Clear();
+    _tmpProps.SetMatrix("_MVP", MVP);
+    _tmpProps.SetColor("_FillColor", fill);
+    _tmpProps.SetColor("_OutlineColor", outline);
+
+    cb.DrawProcedural(Matrix4x4.identity, blobMat, 0, MeshTopology.Triangles, SEG * 3, 1, _tmpProps);
+    cb.DrawProcedural(Matrix4x4.identity, blobMat, 1, MeshTopology.Triangles, SEG * 3, 1, _tmpProps);
+}
+
     // old API retained
     public void OnHit(float strength = 1f)
     {
@@ -726,6 +990,19 @@ public void SetMoveInput(Vector2 stick)
     {
         return _pcs && _pcs.teamID != 1;
     }
+
+    private Vector3 DecoJitterWS(float now, float freq, float amp, float seed)
+{
+    if (amp <= 0.0001f || freq <= 0.0001f) return Vector3.zero;
+
+    float t = now * freq;
+
+    // layered sines = stable “vibration” without Random popping
+    float x = Mathf.Sin(t * 1.13f + seed) + Mathf.Sin(t * 2.07f + seed * 1.7f);
+    float z = Mathf.Sin(t * 0.97f + seed * 2.3f) + Mathf.Sin(t * 1.71f + seed * 0.9f);
+
+    return new Vector3(x, 0f, z) * (0.5f * amp);
+}
 
     void UpdateGameplayFacingRoot()
 {

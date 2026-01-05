@@ -1,5 +1,6 @@
 using System;
 using UnityEngine;
+using System.Collections;
 
 namespace Massive.PowerUps
 {
@@ -24,6 +25,53 @@ namespace Massive.PowerUps
         public event Action<PowerUpDefinition> OnEquipped;
         public event Action OnExpired;
 
+        public void StartIgnoreCollisionsTemporarily(PlayerControllerScript a, PlayerControllerScript b, float seconds)
+{
+    if (seconds <= 0f) return;
+    if (a == null || b == null) return;
+
+    StartCoroutine(IgnoreCollisionsCo(a, b, seconds));
+}
+
+private static IEnumerator IgnoreCollisionsCo(PlayerControllerScript a, PlayerControllerScript b, float seconds)
+{
+    if (a == null || b == null) yield break;
+
+    var ac = a.GetComponentsInChildren<Collider>(true);
+    var bc = b.GetComponentsInChildren<Collider>(true);
+
+    // Ignore all collider pairs between the two players
+    for (int i = 0; i < ac.Length; i++)
+    {
+        var cA = ac[i];
+        if (!cA) continue;
+
+        for (int j = 0; j < bc.Length; j++)
+        {
+            var cB = bc[j];
+            if (!cB) continue;
+
+            Physics.IgnoreCollision(cA, cB, true);
+        }
+    }
+
+    yield return new WaitForSeconds(seconds);
+
+    // Restore collisions
+    for (int i = 0; i < ac.Length; i++)
+    {
+        var cA = ac[i];
+        if (!cA) continue;
+
+        for (int j = 0; j < bc.Length; j++)
+        {
+            var cB = bc[j];
+            if (!cB) continue;
+
+            Physics.IgnoreCollision(cA, cB, false);
+        }
+    }
+}
         private void Awake()
         {
             _player = GetComponent<PlayerControllerScript>();
@@ -140,21 +188,23 @@ namespace Massive.PowerUps
         void OnUnequip();
     }
 
+    
+
     internal static class PowerUpAbilityFactory
     {
-public static IPowerUpAbility Create(PowerUpDefinition def, PlayerControllerScript owner, PlayerPowerUpController host)
-{
-    if (def is TimeDilationPowerUpDefinition td)
-        return new TimeDilationAbility(td, owner, host);
+        public static IPowerUpAbility Create(PowerUpDefinition def, PlayerControllerScript owner, PlayerPowerUpController host)
+        {
+            if (def is TimeDilationPowerUpDefinition td)
+                return new TimeDilationAbility(td, owner, host);
 
-    if (def is ParticleAcceleratorPowerUpDefinition pa)
-        return new ParticleAcceleratorAbility(pa, owner, host);
+            if (def is ParticleAcceleratorPowerUpDefinition pa)
+                return new ParticleAcceleratorAbility(pa, owner, host);
 
-    if (def is DecoherencePowerUpDefinition dc)
-        return new DecoherenceAbility(dc, owner, host);
+            if (def is DecoherencePowerUpDefinition dc)
+                return new DecoherenceAbility(dc, owner, host);
 
-    Debug.LogError($"PowerUpDefinition has unknown concrete type: {def.GetType().Name}", def);
-    return null;
-}
+            Debug.LogError($"PowerUpDefinition has unknown concrete type: {def.GetType().Name}", def);
+            return null;
+        }
     }
 }
