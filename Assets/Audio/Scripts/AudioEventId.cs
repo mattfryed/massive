@@ -15,6 +15,7 @@ public enum AudioEventId
     Player_ShieldUp = 23,
     Player_Spawn = 24,
     Player_Stunned = 25,
+    Player_SwordAttack = 26,
 
     // UI
     UI_Navigate = 11,

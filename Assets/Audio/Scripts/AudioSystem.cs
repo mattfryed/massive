@@ -8,21 +8,11 @@ public class AudioSystem : MonoBehaviour
 {
     public static AudioSystem I { get; private set; }
 
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-    private static void Bootstrap()
-    {
-        if (I != null) return;
-
-        var existing = Object.FindFirstObjectByType<AudioSystem>();
-        if (existing != null)
-        {
-            I = existing;
-            return;
-        }
-
-        var go = new GameObject("AudioRoot_Auto");
-        go.AddComponent<AudioSystem>();
-    }
+[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+private static void ResetStatics()
+{
+    I = null;
+}
 
     [Header("Database (AudioEventId -> AudioCue)")]
     public AudioDatabase database;

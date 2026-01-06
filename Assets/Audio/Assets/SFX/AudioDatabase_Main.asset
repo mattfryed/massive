@@ -67,6 +67,12 @@ MonoBehaviour:
     assigned: 1
     deprecated: 0
     cue: {fileID: 11400000, guid: f03b731f0ce3c4eee96e7a4d56418bcc, type: 2}
+  - id: 26
+    name: Player_SwordAttack
+    value: 26
+    assigned: 1
+    deprecated: 0
+    cue: {fileID: 11400000, guid: 043b2221ddc354074b8d24b805494ed1, type: 2}
   uiEntries:
   - id: 11
     name: UI_Navigate
