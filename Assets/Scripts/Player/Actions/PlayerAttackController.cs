@@ -335,6 +335,11 @@ public Vector3 CurrentAttackDirectionWS => GetAttackDirection();
 
             DetermineSwipeDirection();
 
+                // 🔊 Sword SFX: play on stage start
+            if (stageIndex == 0) // only first lunge of the sequence
+                AudioSystem.I?.Play(AudioEventId.Player_SwordAttack, transform.position);
+
+
             // GPU VFX (AttackTrailGPU) are driven by OnStageStarted
             onStageStarted.Invoke(stage);
         }

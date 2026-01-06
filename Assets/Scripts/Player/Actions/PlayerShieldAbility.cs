@@ -210,6 +210,8 @@ namespace Massive.Player
     if (!SuppressDefaultShieldVfx && ringsVfx != null)
         ringsVfx.Play(CurrentStrength01, durationSeconds);
 
+        AudioSystem.I?.Play(AudioEventId.Player_ShieldUp, transform.position);
+
     ShieldStarted?.Invoke(this);
         }
 

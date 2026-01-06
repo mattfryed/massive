@@ -678,7 +678,8 @@ public void ShrinkScaled(GameObject hitSource, float scale01)
         if (_teamScoreSphere != null) _teamScoreSphere.LoseScore(teamID);
         else if (goalZone != null) goalZone.BroadcastMessage("LoseScore", teamID, SendMessageOptions.DontRequireReceiver);
 
-        playSFX("diedSFX");
+        // playSFX("diedSFX");
+        AudioSystem.I?.Play(AudioEventId.Player_Death, transform.position);
 
         // Disable collisions immediately so we can't keep interacting while dissolving
         SetCollidersEnabled(false);
@@ -736,6 +737,8 @@ public void ShrinkScaled(GameObject hitSource, float scale01)
         massScore = spawnMassScore01;
 
         RespawnStarted?.Invoke(this);
+
+        AudioSystem.I?.Play(AudioEventId.Player_Spawn, transform.position);
 
         // --- Respawn FX (form) ---
         if (_lifeFx != null) yield return _lifeFx.PlayRespawn(this, respawnFxSeconds);

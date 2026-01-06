@@ -174,6 +174,8 @@ public class PlayerMelee : MonoBehaviour
 
             // Stun attacker scaled by defender's shield strength
             owner.Stun(other.transform.position, strength);
+            
+            AudioSystem.I?.Play(AudioEventId.Player_Parry, transform.position);
 
             // Damage leak-through scaled by (1 - strength)
             float leak01 = Mathf.Clamp01(1f - strength);
@@ -199,7 +201,8 @@ public class PlayerMelee : MonoBehaviour
             {
                 owner.Grow();                    // Attacker grows
                 victim.Shrink(owner.gameObject); // Victim shrinks + blob eject to attacker
-                victim.playSFX("struckSFX");
+                // victim.playSFX("struckSFX");
+                AudioSystem.I?.Play(AudioEventId.Player_Hit, transform.position);
             }
         }
     }
