@@ -7953,22 +7953,22 @@ PrefabInstance:
     - target: {fileID: 5598618597848298232, guid: 6a48154ced8df422b9ec7be3569f10da,
         type: 3}
       propertyPath: m_LocalRotation.w
-      value: 0.7346425
+      value: 0.016654408
       objectReference: {fileID: 0}
     - target: {fileID: 5598618597848298232, guid: 6a48154ced8df422b9ec7be3569f10da,
         type: 3}
       propertyPath: m_LocalRotation.x
-      value: 0.06298857
+      value: 0.7162881
       objectReference: {fileID: 0}
     - target: {fileID: 5598618597848298232, guid: 6a48154ced8df422b9ec7be3569f10da,
         type: 3}
       propertyPath: m_LocalRotation.y
-      value: 0.0023053887
+      value: -0.0029863873
       objectReference: {fileID: 0}
     - target: {fileID: 5598618597848298232, guid: 6a48154ced8df422b9ec7be3569f10da,
         type: 3}
       propertyPath: m_LocalRotation.z
-      value: -0.6755201
+      value: 0.69759953
       objectReference: {fileID: 0}
     - target: {fileID: 5598618597848298232, guid: 6a48154ced8df422b9ec7be3569f10da,
         type: 3}
@@ -8278,7 +8278,8 @@ PrefabInstance:
     - {fileID: 832050996641821731, guid: 085098f52480d463faec6fc85e28a674, type: 3}
     - {fileID: 832050996641821729, guid: 085098f52480d463faec6fc85e28a674, type: 3}
     - {fileID: 832050996641821728, guid: 085098f52480d463faec6fc85e28a674, type: 3}
-    m_RemovedGameObjects: []
+    m_RemovedGameObjects:
+    - {fileID: 3424908623238354779, guid: 085098f52480d463faec6fc85e28a674, type: 3}
     m_AddedGameObjects:
     - targetCorrespondingSourceObject: {fileID: 832050996641821730, guid: 085098f52480d463faec6fc85e28a674,
         type: 3}
@@ -8379,6 +8380,12 @@ MonoBehaviour:
   attackingMoveScale: 0.6
   moveDeadzone: 0.15
   shieldMoveMultiplier: 0.4
+  maxMoveSpeed: 7.5
+  lateralFriction: 35
+  reverseBrake: 45
+  reverseDotThreshold: 0
+  idleBrake: 8
+  clampSpeed: 1
   goalZone: {fileID: 0}
   massBlobPrefab: {fileID: 8955568199136096286}
   visualsController: {fileID: 2420133512403156953}

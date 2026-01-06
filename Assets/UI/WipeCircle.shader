@@ -18,6 +18,9 @@ Shader "MASSIVE/UI/WipeCircle"
         _StencilReadMask ("Stencil Read Mask", Float) = 255
         _ColorMask ("Color Mask", Float) = 15
         [Toggle(UNITY_UI_ALPHACLIP)] _UseUIAlphaClip ("Use Alpha Clip", Float) = 0
+
+        // ✅ RectMask2D supplies this at runtime; shader must declare it to compile.
+        [HideInInspector] _ClipRect ("Clip Rect", Vector) = (-32767,-32767,32767,32767)
     }
 
     SubShader
@@ -69,6 +72,9 @@ Shader "MASSIVE/UI/WipeCircle"
             float  _OutlineWidth;
             float  _EdgeSoftness;
 
+            // ✅ REQUIRED for UNITY_UI_CLIP_RECT path
+            float4 _ClipRect;
+
             struct appdata_t
             {
                 float4 vertex   : POSITION;
@@ -87,7 +93,7 @@ Shader "MASSIVE/UI/WipeCircle"
             v2f vert(appdata_t v)
             {
                 v2f o;
-                o.worldPosition = v.vertex;
+                o.worldPosition = v.vertex;                // UI uses this for RectMask2D clipping
                 o.vertex = UnityObjectToClipPos(v.vertex);
                 o.uv = v.texcoord;
                 o.color = v.color * _Color;
@@ -96,19 +102,19 @@ Shader "MASSIVE/UI/WipeCircle"
 
             fixed4 frag(v2f i) : SV_Target
             {
-                // RectMask2D / Mask clip
+                // RectMask2D / clip rect
                 #ifdef UNITY_UI_CLIP_RECT
-                i.color.a *= UnityGet2DClipping(i.worldPosition.xy, _ClipRect);
+                    i.color.a *= UnityGet2DClipping(i.worldPosition.xy, _ClipRect);
                 #endif
 
                 // Analytic circle
                 float2 p = i.uv * 2.0 - 1.0;
                 float r = length(p);
 
-                // Soft edge (small)
+                // Soft edge
                 float edge = smoothstep(1.0, 1.0 - 0.01 * _EdgeSoftness, r);
 
-                // Crisp outline (no gradient): choose fill vs outline by hard threshold
+                // Crisp outline
                 float inner = 1.0 - _OutlineWidth;
                 fixed4 col = (r <= inner) ? _FillColor : _OutlineColor;
 
@@ -117,7 +123,7 @@ Shader "MASSIVE/UI/WipeCircle"
                 col *= i.color;
 
                 #ifdef UNITY_UI_ALPHACLIP
-                clip(col.a - 0.001);
+                    clip(col.a - 0.001);
                 #endif
 
                 return col;
@@ -125,4 +131,6 @@ Shader "MASSIVE/UI/WipeCircle"
             ENDCG
         }
     }
+
+    Fallback "UI/Default"
 }

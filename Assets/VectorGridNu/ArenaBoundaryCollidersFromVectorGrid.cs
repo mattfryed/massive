@@ -1,5 +1,9 @@
 using UnityEngine;
 
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
+
 [ExecuteAlways]
 public class ArenaBoundaryCollidersFromVectorGrid : MonoBehaviour
 {
@@ -27,20 +31,60 @@ public class ArenaBoundaryCollidersFromVectorGrid : MonoBehaviour
     const string BOT   = "ArenaWall_Bottom";
     const string TOP   = "ArenaWall_Top";
 
+#if UNITY_EDITOR
+    private bool _rebuildQueued;
+#endif
+
     void Reset()
     {
         if (!grid) grid = GetComponent<VectorGridGPU>();
         if (!boundsProvider) boundsProvider = GetComponent<ArenaBoundsFromVectorGrid>();
     }
 
-    void OnEnable() => Rebuild();
+    void OnEnable() => RequestRebuild();
+    void OnValidate() => RequestRebuild();
+
+    // Optional: if you still want "instant" updates during edit-mode changes that don't trigger OnValidate,
+    // keep this. But don't rebuild every frame; just queue it.
     void Update()
     {
-        // keep it simple: rebuild in edit mode so inspector tweaks reflect instantly
-        if (!Application.isPlaying) Rebuild();
+        if (!Application.isPlaying)
+        {
+            // If you find you *need* continuous syncing, you can call RequestRebuild() here,
+            // but be aware it can cause constant scene dirties. Prefer hashing-change detection if needed.
+            // RequestRebuild();
+        }
     }
 
-    void OnValidate() => Rebuild();
+    void RequestRebuild()
+    {
+        if (!grid) return;
+
+#if UNITY_EDITOR
+        // 1) Don't mutate anything during player builds / asset bundle builds
+        if (BuildPipeline.isBuildingPlayer) return; // :contentReference[oaicite:5]{index=5}
+
+        // 2) Don't modify prefab ASSETS (Project window prefab files)
+        if (PrefabUtility.IsPartOfPrefabAsset(gameObject)) return; // :contentReference[oaicite:6]{index=6}
+
+        // 3) OnValidate can run on a loading thread — defer hierarchy work to main thread
+        if (_rebuildQueued) return;
+        _rebuildQueued = true;
+
+        EditorApplication.delayCall += () =>
+        {
+            _rebuildQueued = false;
+            if (!this) return;
+            if (BuildPipeline.isBuildingPlayer) return;
+            if (PrefabUtility.IsPartOfPrefabAsset(gameObject)) return;
+
+            Rebuild();
+        };
+#else
+        // In player builds, OnValidate never runs anyway; just rebuild directly when requested.
+        Rebuild();
+#endif
+    }
 
     public void Rebuild()
     {
@@ -48,16 +92,12 @@ public class ArenaBoundaryCollidersFromVectorGrid : MonoBehaviour
 
         Vector2 halfLocal = grid.size * 0.5f;
 
-        // Determine wall thickness: border stroke (world) or manual
         float tWorld = wallThicknessWorld;
         if (useGridBorderThickness)
         {
-            // Your render code uses: halfW = 0.5 * borderWidthWorld * borderWidthMul
-            // so full stroke width is borderWidthWorld * borderWidthMul.
             tWorld = Mathf.Max(0.001f, grid.boundary.borderWidthWorld * grid.boundary.borderWidthMul);
         }
 
-        // Convert world units to local units (per-axis) to survive scaled transforms
         Vector3 ls = transform.lossyScale;
         float sx = Mathf.Max(1e-6f, Mathf.Abs(ls.x));
         float sy = Mathf.Max(1e-6f, Mathf.Abs(ls.y));
@@ -67,11 +107,9 @@ public class ArenaBoundaryCollidersFromVectorGrid : MonoBehaviour
         float tLocalY = tWorld / sy;
         float hLocalZ = wallHeightWorld / sz;
 
-        // Where to place walls relative to the edge
         float offsetX = halfLocal.x + (placeOutside ? tLocalX * 0.5f : 0f);
         float offsetY = halfLocal.y + (placeOutside ? tLocalY * 0.5f : 0f);
 
-        // Sizes (local units)
         float spanX = (halfLocal.x * 2f) + (placeOutside ? tLocalX * 2f : 0f);
         float spanY = (halfLocal.y * 2f) + (placeOutside ? tLocalY * 2f : 0f);
 
