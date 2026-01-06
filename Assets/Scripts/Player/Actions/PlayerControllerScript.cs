@@ -42,6 +42,15 @@ public class PlayerControllerScript : MonoBehaviour
     [Tooltip("Movement multiplier while shielding.")]
     [SerializeField, Range(0.05f, 1f)] private float shieldMoveMultiplier = 0.4f;
 
+    [Header("Movement Feel (Turn On A Dime)")]
+    [SerializeField] private float maxMoveSpeed = 7.5f;     // XZ max speed (set to your current “feels right” top speed)
+    [SerializeField] private float lateralFriction = 35f;   // higher = less drift / sharper turns
+    [SerializeField] private float reverseBrake = 45f;      // extra braking when input is opposite current velocity
+    [SerializeField, Range(-1f, 1f)] private float reverseDotThreshold = 0.0f; // dot < 0 means reversing
+    [SerializeField] private float idleBrake = 8f;          // braking when stick released
+    [SerializeField] private bool clampSpeed = true;
+
+
     private Rigidbody rb;
     private Vector3 spawnAnchorWS;
 
@@ -304,6 +313,9 @@ public class PlayerControllerScript : MonoBehaviour
         moveHorizontal = rewiredPlayer.GetAxis("MoveH");
         moveVertical = rewiredPlayer.GetAxis("MoveV");
         movement = new Vector3(moveHorizontal, 0f, moveVertical);
+        float moveDz2 = moveDeadzone * moveDeadzone;
+        bool moveActive = movement.sqrMagnitude > moveDz2;
+
 
         // Aim memory for power-ups
         float dz2 = aimDeadzone * aimDeadzone;
@@ -377,8 +389,9 @@ public class PlayerControllerScript : MonoBehaviour
             lastActivityTime = Time.time;
         }
 
-        if (attackDown || shieldOn || attackHeld)
-            lastActivityTime = Time.time;
+        if (attackDown || attackHeld || shieldDown || shieldOn || moveActive)
+        lastActivityTime = Time.time;
+
 
         timeSinceLastActivity = Time.time - lastActivityTime;
         isActive = timeSinceLastActivity <= idleTime;
@@ -402,8 +415,78 @@ public class PlayerControllerScript : MonoBehaviour
             moveMul *= powerUps.MovementMultiplier * powerUps.MovementMultiplierWhileCharging;
 
         float dz2 = moveDeadzone * moveDeadzone;
-        if (movement.sqrMagnitude > dz2)
-            rb.AddForce(movement * movePower * moveMul, ForceMode.Force);
+        // if (movement.sqrMagnitude > dz2)
+        //     rb.AddForce(movement * movePower * moveMul, ForceMode.Force);
+
+        // --- Movement (arcade traction) ---
+        Vector3 input = movement;
+        input.y = 0f;
+
+        Vector3 vel = rb.linearVelocity;
+        Vector3 velXZ = new Vector3(vel.x, 0f, vel.z);
+
+        // Deadzone + rescale so you still get full strength at the rim
+        float inputMag = input.magnitude;
+        float dz = moveDeadzone;
+
+        bool hasInput = inputMag > dz;
+        Vector3 inputDir = Vector3.zero;
+        float input01 = 0f;
+
+        if (hasInput)
+        {
+            inputDir = input / Mathf.Max(0.0001f, inputMag);
+            input01  = Mathf.InverseLerp(dz, 1f, Mathf.Clamp01(inputMag));
+        }
+
+        // 1) Traction: kill sideways velocity relative to desired input direction
+        if (hasInput && velXZ.sqrMagnitude > 0.0001f)
+        {
+            // velocity component NOT aligned with stick direction
+            Vector3 lateralVel = velXZ - Vector3.Project(velXZ, inputDir);
+
+            // Acceleration mode = consistent “feel” regardless of mass changes
+            rb.AddForce(-lateralVel * lateralFriction, ForceMode.Acceleration);
+
+            // 2) Extra brake when reversing direction
+            float speed = velXZ.magnitude;
+            if (speed > 0.001f)
+            {
+                float dot = Vector3.Dot(velXZ / speed, inputDir); // -1..1
+                if (dot < reverseDotThreshold)
+                    rb.AddForce(-velXZ * reverseBrake, ForceMode.Acceleration);
+            }
+        }
+        else
+        {
+            // 3) Brake when no input (optional)
+            rb.AddForce(-velXZ * idleBrake, ForceMode.Acceleration);
+        }
+
+        // 4) Your existing propulsion (keeps “heavy blob” mass effect)
+        if (hasInput)
+        {
+            // Use direction * input01, so tiny-stick still moves but with controlled ramp
+            Vector3 drive = inputDir * (input01 * movePower * moveMul);
+            rb.AddForce(drive, ForceMode.Force);
+        }
+
+        // 5) Clamp XZ speed so you can crank responsiveness without raising top speed
+        if (clampSpeed)
+        {
+            Vector3 v2 = rb.linearVelocity;
+            Vector3 v2xz = new Vector3(v2.x, 0f, v2.z);
+
+            float max = Mathf.Max(0.1f, maxMoveSpeed * moveMul);
+            float max2 = max * max;
+
+            if (v2xz.sqrMagnitude > max2)
+            {
+                v2xz = v2xz.normalized * max;
+                rb.linearVelocity = new Vector3(v2xz.x, v2.y, v2xz.z);
+            }
+        }
+
 
         // Shield visuals + drain
         if (shield != null)

@@ -409,7 +409,7 @@ MonoBehaviour:
   autoFitVolumes: 1
   fitPaddingWorld: 0.75
   fitMinSizeWorld: 1
-  logCountsEverySecond: 1
+  logCountsEverySecond: 0
 --- !u!114 &2323851706224470444
 MonoBehaviour:
   m_ObjectHideFlags: 0

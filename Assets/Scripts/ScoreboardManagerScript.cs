@@ -41,7 +41,7 @@ public class ScoreboardManagerScript : MonoBehaviour
         {
             precedingZeroes = "0 ";
         }
-        gameObject.GetComponent<TextMesh>().text = precedingZeroes + scoreString + " / 0 1 0 0";
+        gameObject.GetComponent<TextMesh>().text = precedingZeroes + scoreString + "/";
         score = newDisplay;
 
     }
