@@ -7623,6 +7623,16 @@ MonoBehaviour:
   chargeTurnDampEaseDown: 12
   chargingYawSmoothMultiplier: 2.6
   chargingMaxYawSpeedMultiplier: 0.45
+  decoSplitSeparationWorld: 1.05
+  decoSplitFillAlpha: 0.2
+  decoSplitOutlineAlpha: 0.9
+  decoSplitFadeSeconds: 0.07
+  decoPreSplitJitterSeconds: 0.1
+  decoPreSplitJitterAmp: 0.06
+  decoPreSplitJitterFreq: 48
+  decoHoldJitterAmp: 0.03
+  decoHoldJitterFreq: 26
+  decoGhostOpacity: 0.8
 --- !u!1 &9046460300305127794
 GameObject:
   m_ObjectHideFlags: 0
@@ -8405,6 +8415,10 @@ MonoBehaviour:
   respawnBlockMask:
     serializedVersion: 2
     m_Bits: 4294967295
+  stunNuggetDragMaxMul: 10
+  stunNuggetRampUpSeconds: 0.08
+  stunNuggetRampDownSeconds: 0.12
+  stunBlobJitterMul: 1
   stunTime: 1.25
   isActive: 1
   idleTime: 60

@@ -35,5 +35,8 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/S-8_MAGNETOSPHERE.unity
     guid: 042e78f8522eeb045b414fcf7ec1b63c
+  - enabled: 1
+    path: Assets/Scenes/S-0_POSTGAME.unity
+    guid: b08d2d847ed49684c8852683be1e5a4b
   m_configObjects: {}
   m_UseUCBPForAssetBundles: 0

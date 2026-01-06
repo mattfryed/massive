@@ -15,6 +15,13 @@ public sealed class GameFlowContext : MonoBehaviour
     // Fallback / convenience if you ever need to set by string (eg debug)
     [SerializeField] private string selectedGameplaySceneName;
 
+    [SerializeField] private bool hasLastMatchResult;
+[SerializeField] private MatchResult lastMatchResult;
+
+public bool HasLastMatchResult => hasLastMatchResult;
+public MatchResult LastMatchResult => lastMatchResult;
+
+
     public GameMode Mode => mode;
     public bool IsTwoVTwo => mode == GameMode.TwoVTwo;
 
@@ -81,5 +88,17 @@ public sealed class GameFlowContext : MonoBehaviour
     {
         selectedLevel = null;
         selectedGameplaySceneName = null;
+    }
+
+    public void SetLastMatchResult(MatchResult result)
+    {
+        lastMatchResult = result;
+        hasLastMatchResult = true;
+    }
+
+    public void ClearLastMatchResult()
+    {
+        hasLastMatchResult = false;
+        lastMatchResult = default;
     }
 }

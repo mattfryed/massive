@@ -11,6 +11,11 @@ public static class SceneFlow
     public static void GoToLevelSelect() => SceneManager.LoadScene(LevelSelectScene);
     public static void GoToInstructions() => SceneManager.LoadScene(InstructionsScene);
 
+    public const string PostGameScene = "S-0_POSTGAME"; // your post-game scene name
+
+    public static void GoToPostGame() => UnityEngine.SceneManagement.SceneManager.LoadScene(PostGameScene);
+
+
     public static void GoToSelectedGameplay()
     {
         GameFlowContext.EnsureExists();
