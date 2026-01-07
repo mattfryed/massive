@@ -20,6 +20,12 @@ public class GridInteractor : MonoBehaviour
     readonly Dictionary<int, ModuleState> _state = new();
     class ModuleState { public float t = -1f; public bool active = true; }
 
+void TryResolveGrid()
+{
+    if (grid) return;
+    grid = VectorGridGPU.Instance;
+}
+
     static Vector3 GetVelocity(Rigidbody rb)
     {
         #if UNITY_6000_0_OR_NEWER
@@ -39,15 +45,17 @@ public class GridInteractor : MonoBehaviour
         // cache RB once
         if (_rb == null) _rb = GetComponent<Rigidbody>();
 
-        // NEW: prefab-safe auto find
-        if (!grid)
-        {
-        #if UNITY_2022_2_OR_NEWER
-            grid = FindFirstObjectByType<VectorGridGPU>();
-        #else
-            grid = FindObjectOfType<VectorGridGPU>();
-        #endif
-        }
+    TryResolveGrid();
+
+        // // NEW: prefab-safe auto find
+        // if (!grid)
+        // {
+        // #if UNITY_2022_2_OR_NEWER
+        //     grid = FindFirstObjectByType<VectorGridGPU>();
+        // #else
+        //     grid = FindObjectOfType<VectorGridGPU>();
+        // #endif
+        // }
 
         // locate the mixer once (ok if null; mixer is optional)
     #if UNITY_2022_2_OR_NEWER

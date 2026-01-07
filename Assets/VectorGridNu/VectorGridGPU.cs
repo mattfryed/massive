@@ -8,6 +8,8 @@ using UnityEngine.Rendering;
 [RequireComponent(typeof(MeshFilter), typeof(MeshRenderer))]
 public class VectorGridGPU : MonoBehaviour, IVectorGrid
 {
+
+    public static VectorGridGPU Instance { get; private set; }
     [Header("Resolution (sim grid)")]
     [Min(2)] public int gridX = 64;
     [Min(2)] public int gridY = 32;
@@ -188,6 +190,11 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
 
     void OnEnable()
     {
+        if (Instance != null && Instance != this)
+            Debug.LogWarning("Multiple VectorGridGPU detected; Instance will be overwritten.");
+
+            Instance = this;
+        
         _mf = GetComponent<MeshFilter>();
         _mr = GetComponent<MeshRenderer>();
         if (_mpb == null) _mpb = new MaterialPropertyBlock();
@@ -225,6 +232,7 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
 
     void OnDisable()
     {
+    if (Instance == this) Instance = null;
         ReleaseBuffers();
         if (_mesh != null && Application.isPlaying == false)
             DestroyImmediate(_mesh);

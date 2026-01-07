@@ -192,21 +192,33 @@ public class AnomalyUIController : MonoBehaviour
 
     public void ShowResult(AnomalyDefinition def, AnomalyResult result)
     {
-        StopCountdown();
-
-        // Post states (toggleable per anomaly)
-        SetTopState(def, AnomalyTopState.Post, 0f);
-        SetLowerState(def, AnomalyLowerState.Post);
-
         if (resultRoot != null)
             resultRoot.SetActive(true);
 
-        if (resultLabel != null)
+        // Post state (no countdown)
+        SetTopState(def, AnomalyTopState.Post, 0f);
+        SetLowerState(def, AnomalyLowerState.Post);
+
+        if (resultLabel == null) return;
+
+        // NOVA core wrap-up
+        if (result.payload is NovaCoreWrapUpPayload wrap)
         {
-            string status = result.success ? "RESOLVED" : "FAILED";
-            resultLabel.text = $"{(def != null ? def.displayName.ToUpperInvariant() : "ANOMALY")}\n{status}";
+            string status = result.success ? "CORE STABILIZED" : "CORE OVERLOADED";
+
+            // You can tweak formatting later (icons, special last-bounce marker, etc.)
+            resultLabel.text =
+                $"{def.displayName}\n{status}\n\n" +
+                $"LIGHT: {wrap.lightParticles}  (+{wrap.lightMass:0.#} mass)\n" +
+                $"DARK:  {wrap.darkParticles}  (+{wrap.darkMass:0.#} mass)";
+        }
+        else
+        {
+            // Default behavior for other anomalies
+            resultLabel.text = $"{def.displayName}\n{(result.success ? "SUCCESS" : "FAILED")}";
         }
     }
+
 
     public void SetParticleCounts(int light, int dark)
     {

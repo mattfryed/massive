@@ -9,6 +9,7 @@ public class PlayerExternalEffects : MonoBehaviour
     [Header("Storm")]
     [SerializeField] private bool stormDrainIgnoresInvuln = false;
 
+
     void Awake()
     {
         if (!player) player = GetComponent<PlayerControllerScript>();

@@ -11,7 +11,7 @@ using Rewired;
 /// - Only wave collision destroys subparticles
 /// - Score pushed to AnomalyUIController via Context.manager.ui.SetParticleCounts(...)
 /// </summary>
-public class NovaCoreMinigame : AnomalyMinigameBase, IOnTimeParticipantsReceiver
+public partial class NovaCoreMinigame : AnomalyMinigameBase, IGameplayEnableReceiver, IOnTimeParticipantsReceiver
 {
     // -------------------- Inspector --------------------
 
@@ -148,6 +148,21 @@ public class NovaCoreMinigame : AnomalyMinigameBase, IOnTimeParticipantsReceiver
 
     // Optional fallback sprite (circle) if shader fails (prevents squares)
     [SerializeField] private Sprite circleSpriteFallback;
+
+
+
+    [SerializeField, Tooltip("Deadzone used when deciding whether minigame orbit input counts as player activity.")]
+        private float minigameActivityDeadzone = 0.15f;
+
+        private void RegisterMinigameActivity(PlayerControllerScript pcs)
+        {
+            if (pcs == null) return;
+
+            pcs.lastActivityTime = Time.time;
+            pcs.timeSinceLastActivity = 0f;
+            pcs.isActive = true;
+        }
+
 
 
     private bool _gameplayEnabled = false;
@@ -300,6 +315,7 @@ public void SetOnTimeParticipants(IReadOnlyList<PlayerControllerScript> onTimePa
     public override void Init(AnomalyContext context)
     {
         base.Init(context);
+        SetWorldPlayersSuppressed(true);
 
         _timeRemaining = (overrideDuration > 0f)
             ? overrideDuration
@@ -502,10 +518,16 @@ private void UpdateParticipantOrbitUI_VisualOnly(float dt)
         if (_gameplayEnabled && ps.rewiredPlayer != null)
         {
             float h = ps.rewiredPlayer.GetAxis("MoveH");
+
+            // NEW: count orbit input as “activity” (prevents idle abort while playing)
+            if (Mathf.Abs(h) > minigameActivityDeadzone)
+                RegisterMinigameActivity(ps.controller);
+
             ps.angleRad += h * angSpeedRad * dt;
             if (ps.angleRad > Mathf.PI) ps.angleRad -= Mathf.PI * 2f;
             if (ps.angleRad < -Mathf.PI) ps.angleRad += Mathf.PI * 2f;
         }
+
 
         Vector2 dir = new Vector2(Mathf.Sin(ps.angleRad), Mathf.Cos(ps.angleRad));
         Vector2 iconPos = corePos + dir * _orbitRadius;
@@ -643,16 +665,20 @@ private void HandleSwordInput()
     {
         if (ps.rewiredPlayer == null) continue;
 
+        bool swordDown = ps.rewiredPlayer.GetButtonDown("Sword");
+        if (!swordDown) continue;
+
+        // NEW: pressing Sword always counts as activity
+        RegisterMinigameActivity(ps.controller);
+
         // Late join: cannot fire until penalty ends
         if (ps.isLate && ps.penaltyRemaining > 0f)
             continue;
 
-        if (ps.rewiredPlayer.GetButtonDown("Sword"))
-        {
-            FireProjectile(ps);
-        }
+        FireProjectile(ps);
     }
 }
+
 
 
 
@@ -1256,56 +1282,65 @@ private void CleanupProjectile(ProjectileRay pr)
     /// <summary>
     /// Builds participant list from Context.participants and spawns their icon + ray dots.
     /// </summary>
-    private void BuildParticipants()
+private void BuildParticipants()
+{
+    _participants.Clear();
+
+    if (Context.participants == null)
+        return;
+
+    var lightTeam = new List<ParticipantState>();
+    var darkTeam  = new List<ParticipantState>();
+
+    foreach (var p in Context.participants)
     {
-        _participants.Clear();
+        if (p == null) continue;
 
-        if (Context.participants == null)
-            return;
-
-        var lightTeam = new List<ParticipantState>();
-        var darkTeam  = new List<ParticipantState>();
-
-        foreach (var p in Context.participants)
+        // NOTE: In MASSIVE, PlayerControllerScript.playerID should be 0..3 (Rewired player index).
+        // We display players as P1..P4 in UI by using (playerID + 1).
+        if (p.playerID < 0 || p.playerID > 3)
         {
-            if (p == null) continue;
-
-            var ps = new ParticipantState
-            {
-                controller = p,
-                rewiredPlayer = ReInput.players.GetPlayer(p.playerID),
-                totalCapturedMass = 0f,
-                angleRad = 0f
-            };
-
-            _participants.Add(ps);
-
-            if (p.teamID == lightTeamIndex) lightTeam.Add(ps);
-            else if (p.teamID == darkTeamIndex) darkTeam.Add(ps);
+            Debug.LogWarning(
+                $"[NovaCoreMinigame] Player '{p.name}' has playerID={p.playerID}. " +
+                $"Expected 0-3 (Rewired player index). This can break input mapping / late-join penalties.",
+                p
+            );
         }
 
-        lightTeam.Sort((a, b) => a.controller.playerID.CompareTo(b.controller.playerID));
-        darkTeam.Sort((a, b) => a.controller.playerID.CompareTo(b.controller.playerID));
-
-        AssignSpawnAngles(lightTeam, darkTeam);
-
-        foreach (var ps in _participants)
+        var ps = new ParticipantState
         {
-            ps.icon = CreateIcon(ps);
-            ps.icon.gameObject.SetActive(true);
-            
-            // Cache label once
-            ps.label = ps.icon.GetComponentInChildren<TMP_Text>(true);
+            controller = p,
+            rewiredPlayer = ReInput.players.GetPlayer(p.playerID), // <-- IMPORTANT: 0-based
+            totalCapturedMass = 0f,
+            angleRad = 0f
+        };
 
-            ps.rayDots = new List<RectTransform>();
-            int count = _maxDotsPerRay > 0 ? _maxDotsPerRay : 16;
-            for (int i = 0; i < count; i++)
-            {
-                var dot = CreateRayDot(playersRoot);
-                ps.rayDots.Add(dot);
-            }
+        _participants.Add(ps);
+
+        if (p.teamID == lightTeamIndex) lightTeam.Add(ps);
+        else if (p.teamID == darkTeamIndex) darkTeam.Add(ps);
+    }
+
+    lightTeam.Sort((a, b) => a.controller.playerID.CompareTo(b.controller.playerID));
+    darkTeam.Sort((a, b) => a.controller.playerID.CompareTo(b.controller.playerID));
+
+    AssignSpawnAngles(lightTeam, darkTeam);
+
+    foreach (var ps in _participants)
+    {
+        ps.icon = CreateIcon(ps);
+        ps.icon.gameObject.SetActive(true);
+
+        ps.rayDots = new List<RectTransform>();
+        int count = _maxDotsPerRay > 0 ? _maxDotsPerRay : 16;
+        for (int i = 0; i < count; i++)
+        {
+            var dot = CreateRayDot(playersRoot);
+            ps.rayDots.Add(dot);
         }
     }
+}
+
 
     /// <summary>
     /// Assigns the initial orbit angles for players (2-player and 4-player layouts supported).
@@ -1350,74 +1385,80 @@ private void CleanupProjectile(ProjectileRay pr)
     /// <summary>
     /// Creates a procedural circle icon + P# label for a player (uses CircleIcon shader).
     /// </summary>
-    private RectTransform CreateIcon(ParticipantState ps)
+private RectTransform CreateIcon(ParticipantState ps)
+{
+    // Display is P1..P4, but internal ID remains 0..3
+    var go = new GameObject($"Icon_P{ps.controller.playerID + 1}", typeof(RectTransform), typeof(Image));
+
+    var rt = go.GetComponent<RectTransform>();
+    rt.SetParent(playersRoot, false);
+    rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
+    rt.sizeDelta = new Vector2(iconDiameter, iconDiameter);
+    rt.localScale = Vector3.one;
+
+    var img = go.GetComponent<Image>();
+
+    if (_iconBaseMaterial == null)
     {
-        var go = new GameObject($"Icon_P{ps.controller.playerID}", typeof(RectTransform), typeof(Image));
-        var rt = go.GetComponent<RectTransform>();
-        rt.SetParent(playersRoot, false);
-        rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
-        rt.sizeDelta = new Vector2(iconDiameter, iconDiameter);
-        rt.localScale = Vector3.one;
-
-        var img = go.GetComponent<Image>();
-
-        if (_iconBaseMaterial == null)
-        {
-            var shader = Shader.Find(IconShaderName);
-            if (shader != null) _iconBaseMaterial = new Material(shader);
-        }
-
-        Material iconMatInstance = null;
-        if (_iconBaseMaterial != null)
-        {
-            iconMatInstance = new Material(_iconBaseMaterial);
-            img.material = iconMatInstance;
-        }
-
-        var labelGO = new GameObject("Label", typeof(RectTransform), typeof(TextMeshProUGUI));
-        var lrt = labelGO.GetComponent<RectTransform>();
-        lrt.SetParent(rt, false);
-        lrt.anchorMin = lrt.anchorMax = lrt.pivot = new Vector2(0.5f, 0.5f);
-        lrt.anchoredPosition = Vector2.zero;
-
-        var tmp = labelGO.GetComponent<TextMeshProUGUI>();
-        if (iconLabelFont != null) tmp.font = iconLabelFont;
-        tmp.fontSize = iconLabelFontSize;
-        tmp.text = "P" + ps.controller.playerID;
-        tmp.alignment = TextAlignmentOptions.Center;
-        tmp.raycastTarget = false;
-
-        bool isLight = (ps.controller.teamID == lightTeamIndex);
-        bool isDark  = (ps.controller.teamID == darkTeamIndex);
-
-        if (iconMatInstance != null)
-        {
-            if (isLight)
-            {
-                iconMatInstance.SetColor("_FillColor", lightFillColor);
-                iconMatInstance.SetColor("_OutlineColor", lightOutlineColor);
-                iconMatInstance.SetFloat("_OutlineWidth", iconOutlineWidth);
-            }
-            else if (isDark)
-            {
-                iconMatInstance.SetColor("_FillColor", darkFillColor);
-                iconMatInstance.SetColor("_OutlineColor", darkOutlineColor);
-                iconMatInstance.SetFloat("_OutlineWidth", iconOutlineWidth);
-            }
-            else
-            {
-                iconMatInstance.SetColor("_FillColor", darkFillColor);
-                iconMatInstance.SetColor("_OutlineColor", darkOutlineColor);
-                iconMatInstance.SetFloat("_OutlineWidth", iconOutlineWidth);
-            }
-        }
-
-        if (isLight) tmp.color = lightTextColor;
-        else if (isDark) tmp.color = darkTextColor;
-        else tmp.color = darkTextColor;
-
-        return rt;
+        var shader = Shader.Find(IconShaderName);
+        if (shader != null) _iconBaseMaterial = new Material(shader);
     }
+
+    Material iconMatInstance = null;
+    if (_iconBaseMaterial != null)
+    {
+        iconMatInstance = new Material(_iconBaseMaterial);
+        img.material = iconMatInstance;
+    }
+
+    var labelGO = new GameObject("Label", typeof(RectTransform), typeof(TextMeshProUGUI));
+    var lrt = labelGO.GetComponent<RectTransform>();
+    lrt.SetParent(rt, false);
+    lrt.anchorMin = lrt.anchorMax = lrt.pivot = new Vector2(0.5f, 0.5f);
+    lrt.anchoredPosition = Vector2.zero;
+
+    var tmp = labelGO.GetComponent<TextMeshProUGUI>();
+    if (iconLabelFont != null) tmp.font = iconLabelFont;
+    tmp.fontSize = iconLabelFontSize;
+
+    // <-- IMPORTANT: show P1..P4 even though playerID is 0..3
+    tmp.text = "P" + (ps.controller.playerID + 1);
+
+    tmp.alignment = TextAlignmentOptions.Center;
+    tmp.raycastTarget = false;
+
+    bool isLight = (ps.controller.teamID == lightTeamIndex);
+    bool isDark  = (ps.controller.teamID == darkTeamIndex);
+
+    if (iconMatInstance != null)
+    {
+        if (isLight)
+        {
+            iconMatInstance.SetColor("_FillColor", lightFillColor);
+            iconMatInstance.SetColor("_OutlineColor", lightOutlineColor);
+            iconMatInstance.SetFloat("_OutlineWidth", iconOutlineWidth);
+        }
+        else if (isDark)
+        {
+            iconMatInstance.SetColor("_FillColor", darkFillColor);
+            iconMatInstance.SetColor("_OutlineColor", darkOutlineColor);
+            iconMatInstance.SetFloat("_OutlineWidth", iconOutlineWidth);
+        }
+        else
+        {
+            iconMatInstance.SetColor("_FillColor", darkFillColor);
+            iconMatInstance.SetColor("_OutlineColor", darkOutlineColor);
+            iconMatInstance.SetFloat("_OutlineWidth", iconOutlineWidth);
+        }
+    }
+
+    if (isLight) tmp.color = lightTextColor;
+    else if (isDark) tmp.color = darkTextColor;
+    else tmp.color = darkTextColor;
+
+    return rt;
+}
+
 
     /// <summary>
     /// Creates one dot used in the player's dotted ray (CircleIcon shader with zero outline).
@@ -1495,52 +1536,52 @@ public void BeginOutroDissolve()
     /// <summary>
     /// Computes winner/score, cleans up runtime objects, and calls Complete(result).
     /// </summary>
-private void EndMinigame()
-{
-    if (IsFinished) return;
+// private void EndMinigame()
+// {
+//     if (IsFinished) return;
 
-    // stop sim/input immediately; transition will handle visuals
-    SetGameplayEnabled(false);
+//     // stop sim/input immediately; transition will handle visuals
+//     SetGameplayEnabled(false);
 
-    var teamToMass = new Dictionary<int, float>();
-    ParticipantState best = null;
+//     var teamToMass = new Dictionary<int, float>();
+//     ParticipantState best = null;
 
-    foreach (var ps in _participants)
-    {
-        int team = ps.controller.teamID;
-        if (!teamToMass.ContainsKey(team)) teamToMass[team] = 0f;
-        teamToMass[team] += ps.totalCapturedMass;
+//     foreach (var ps in _participants)
+//     {
+//         int team = ps.controller.teamID;
+//         if (!teamToMass.ContainsKey(team)) teamToMass[team] = 0f;
+//         teamToMass[team] += ps.totalCapturedMass;
 
-        if (best == null || ps.totalCapturedMass > best.totalCapturedMass)
-            best = ps;
-    }
+//         if (best == null || ps.totalCapturedMass > best.totalCapturedMass)
+//             best = ps;
+//     }
 
-    float totalMass = 0f;
-    foreach (var kv in teamToMass) totalMass += kv.Value;
+//     float totalMass = 0f;
+//     foreach (var kv in teamToMass) totalMass += kv.Value;
 
-    bool success = totalMass >= minTotalMassForSuccess;
+//     bool success = totalMass >= minTotalMassForSuccess;
 
-    int winningTeam = -1;
-    float winningMass = 0f;
-    foreach (var kv in teamToMass)
-    {
-        if (kv.Value > winningMass)
-        {
-            winningMass = kv.Value;
-            winningTeam = kv.Key;
-        }
-    }
+//     int winningTeam = -1;
+//     float winningMass = 0f;
+//     foreach (var kv in teamToMass)
+//     {
+//         if (kv.Value > winningMass)
+//         {
+//             winningMass = kv.Value;
+//             winningTeam = kv.Key;
+//         }
+//     }
 
-    var result = new AnomalyResult
-    {
-        success = success,
-        winningPlayer = best != null ? best.controller : null,
-        winningTeamIndex = winningTeam,
-        score = winningMass
-    };
+//     var result = new AnomalyResult
+//     {
+//         success = success,
+//         winningPlayer = best != null ? best.controller : null,
+//         winningTeamIndex = winningTeam,
+//         score = winningMass
+//     };
 
-    Complete(result);
-}
+//     Complete(result);
+// }
 
 
 // ====================
@@ -1783,6 +1824,30 @@ private void UpdateLateJoinPenalties(float dt)
     if (changed)
         ApplyParticipantVisuals();
 }
+
+private void SetWorldPlayersSuppressed(bool suppressed)
+{
+    // AnomalyContext is a struct -> it can never be null.
+    // Use a reference field as the “is initialized” sentinel.
+    if (Context.manager == null)
+        return;
+
+    var allPlayers = Context.allPlayers;
+    if (allPlayers == null)
+        return;
+
+    foreach (var p in allPlayers)
+    {
+        if (p == null) continue;
+
+        // Whatever you called your new toggle method:
+        // p.SetGameplayRigSuppressed(suppressed);
+        // OR: p.SetGameplayRigActive(!suppressed);
+        // OR: p.SetGameplayRigRootActive(!suppressed);
+    }
+}
+
+
 
 
 

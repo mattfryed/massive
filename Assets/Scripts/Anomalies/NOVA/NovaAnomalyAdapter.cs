@@ -73,50 +73,103 @@ public class NovaAnomalyAdapter : MonoBehaviour
         ui.ShowWarning(novaCoreAnomalyDefinition, star != null ? star.entryWindowDuration : 0f);
     }
 
+// private void HandleEntryClosed(List<PlayerControllerScript> entrants)
+// {
+//     if (anomalyManager == null || novaCoreAnomalyDefinition == null)
+//         return;
+
+//     var ui = anomalyManager.ui;
+
+//     // No entrants -> no minigame
+//     if (entrants == null || entrants.Count == 0)
+//     {
+//         if (hideWarningIfNoEntrants && ui != null)
+//             ui.HideTop();
+
+//         return;
+//     }
+
+// // Entrants exist: trigger the anomaly
+// float? duration = null;
+// if (overrideDuration > 0f)
+//     duration = overrideDuration;
+
+// // All players should be loaded into the minigame
+// var allPlayers = (anomalyManager.playerManager != null)
+//     ? anomalyManager.playerManager.ActivePlayers
+//     : entrants;
+
+// // Entrants = the "on-time" list used for late penalties
+// anomalyManager.TriggerAnomaly(
+//     novaCoreAnomalyDefinition,
+//     forcedParticipants: allPlayers,
+//     forcedDuration: duration,
+//     onTimeParticipants: entrants
+// );
+
+// }
+
 private void HandleEntryClosed(List<PlayerControllerScript> entrants)
 {
-    if (anomalyManager == null || novaCoreAnomalyDefinition == null)
-        return;
+    if (anomalyManager == null || novaCoreAnomalyDefinition == null) return;
 
-    var ui = anomalyManager.ui;
-
-    // No entrants -> no minigame
     if (entrants == null || entrants.Count == 0)
     {
-        if (hideWarningIfNoEntrants && ui != null)
-            ui.HideTop();
-
+        if (hideWarningIfNoEntrants && anomalyManager.ui != null)
+            anomalyManager.ui.HideTop();
         return;
     }
 
-// Entrants exist: trigger the anomaly
-float? duration = null;
-if (overrideDuration > 0f)
-    duration = overrideDuration;
+    if (setActiveStateOnEntryClose && anomalyManager.ui != null)
+        anomalyManager.ui.SetTopState(novaCoreAnomalyDefinition, AnomalyTopState.Active, 0f);
 
-// All players should be loaded into the minigame
-var allPlayers = (anomalyManager.playerManager != null)
-    ? anomalyManager.playerManager.ActivePlayers
-    : entrants;
+    if (anomalyManager.IsAnomalyRunning) return;
 
-// Entrants = the "on-time" list used for late penalties
-anomalyManager.TriggerAnomaly(
-    novaCoreAnomalyDefinition,
-    forcedParticipants: allPlayers,
-    forcedDuration: duration,
-    onTimeParticipants: entrants
-);
+    float? duration = overrideDuration > 0f ? overrideDuration : null;
 
+    IReadOnlyList<PlayerControllerScript> allPlayers = null;
+    if (anomalyManager.playerManager != null)
+        allPlayers = anomalyManager.playerManager.ActivePlayers;
+
+    // Fallback safety (if playerManager isn't assigned or returns empty)
+    if (allPlayers == null || allPlayers.Count == 0)
+    {
+#if UNITY_6000_0_OR_NEWER
+        allPlayers = FindObjectsByType<PlayerControllerScript>(FindObjectsSortMode.None);
+#else
+        allPlayers = FindObjectsOfType<PlayerControllerScript>();
+#endif
+    }
+
+    // Force everyone into the minigame, but ONLY entrants are "on-time"
+    anomalyManager.TriggerAnomaly(novaCoreAnomalyDefinition, allPlayers, duration, entrants);
 }
 
 
+private void HandleAnomalyCompleted(AnomalyDefinition def, AnomalyResult result)
+{
+    if (def != novaCoreAnomalyDefinition) return;
 
-    private void HandleAnomalyCompleted(AnomalyDefinition def, AnomalyResult result)
+    RestoreWorldPlayers();
+
+    if (star != null)
+        star.TriggerBounceAfterMinigame();
+}
+
+private void RestoreWorldPlayers()
+{
+#if UNITY_6000_0_OR_NEWER
+    var players = FindObjectsByType<PlayerControllerScript>(FindObjectsSortMode.None);
+#else
+    var players = FindObjectsOfType<PlayerControllerScript>();
+#endif
+
+    foreach (var p in players)
     {
-        if (def != novaCoreAnomalyDefinition)
-            return;
-
-        if (star != null)
-            star.TriggerBounceAfterMinigame();
+        if (p == null) continue;
+        p.SetWorldGameplaySuppressed(false);
     }
+}
+
+
 }

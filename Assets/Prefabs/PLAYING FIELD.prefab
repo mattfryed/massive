@@ -490,7 +490,7 @@ Transform:
   m_GameObject: {fileID: 1575708158174099760}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -21.32, y: 24.840002, z: -5.3}
+  m_LocalPosition: {x: -21.28, y: 24.840002, z: -5.3}
   m_LocalScale: {x: 18.4, y: 0.1, z: 52}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -765,7 +765,7 @@ Transform:
   m_GameObject: {fileID: 1936709045048862168}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 24.840002, z: -22.55}
+  m_LocalPosition: {x: 0, y: 24.840002, z: -22.51}
   m_LocalScale: {x: 44, y: 0.1, z: 22}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -6065,7 +6065,7 @@ GameObject:
   - component: {fileID: 7711980093488762993}
   - component: {fileID: 2734299642689843533}
   m_Layer: 0
-  m_Name: ScoreAcceptorHitbox
+  m_Name: Team 1 ScoreAcceptorHitbox
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -6381,7 +6381,7 @@ Transform:
   m_GameObject: {fileID: 6358470117411099506}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 21.12, y: 24.840002, z: -5.3}
+  m_LocalPosition: {x: 21.03, y: 24.840002, z: -5.3}
   m_LocalScale: {x: 18.4, y: 0.1, z: 52}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -6782,7 +6782,7 @@ Transform:
   m_GameObject: {fileID: 7351829713026773269}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 24.840002, z: 10.5}
+  m_LocalPosition: {x: 0, y: 24.840002, z: 10.44}
   m_LocalScale: {x: 44, y: 0.1, z: 22}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -7060,7 +7060,7 @@ GameObject:
   - component: {fileID: 8122320592973732244}
   - component: {fileID: 3108047187046666770}
   m_Layer: 0
-  m_Name: Score Acceptor
+  m_Name: Team 2 Score Acceptor
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -7243,6 +7243,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 9015369086367158153, guid: 18761c972c6104c768b7b26af03fed9b,
         type: 3}
+      propertyPath: m_Name
+      value: Team 2 ScoreAcceptorHitbox
+      objectReference: {fileID: 0}
+    - target: {fileID: 9015369086367158153, guid: 18761c972c6104c768b7b26af03fed9b,
+        type: 3}
       propertyPath: m_IsActive
       value: 1
       objectReference: {fileID: 0}
@@ -7420,6 +7425,11 @@ PrefabInstance:
         type: 3}
       propertyPath: m_AnchoredPosition.x
       value: -1.775
+      objectReference: {fileID: 0}
+    - target: {fileID: 9015369087686992469, guid: 18761c972c6104c768b7b26af03fed9b,
+        type: 3}
+      propertyPath: m_Name
+      value: Team 2 Score Acceptor
       objectReference: {fileID: 0}
     - target: {fileID: 9015369087686992474, guid: 18761c972c6104c768b7b26af03fed9b,
         type: 3}

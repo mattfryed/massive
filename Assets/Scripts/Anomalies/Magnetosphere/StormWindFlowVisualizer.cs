@@ -121,6 +121,14 @@ public class StormWindFlowVisualizer : MonoBehaviour
     [SerializeField] private float bowShockUpdateRateHz = 6f;
     [SerializeField] private bool bowShockWindwardOnly = true;
 
+    // --- Public API (gameplay queries) ---
+public float GetEnvelopeQ(Vector3 worldPos) => EnvelopeQ(worldPos);
+public bool IsOutsideMagnetopause(Vector3 worldPos) => GetEnvelopeQ(worldPos) >= 1f;
+
+// Also helpful so DynamoStormController doesn't reflect this every time:
+public bool FlowUsesIncomingDirection => flowUsesIncomingDirection;
+
+
     // ============================================================
     // Internal state
     // ============================================================

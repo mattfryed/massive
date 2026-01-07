@@ -914,6 +914,7 @@ MonoBehaviour:
   circleIconMaterialTemplate: {fileID: 2100000, guid: 751edda24e2868d48a48c69c9b8f6699,
     type: 2}
   circleSpriteFallback: {fileID: 0}
+  minigameActivityDeadzone: 0.15
 --- !u!114 &4097837329123461674
 MonoBehaviour:
   m_ObjectHideFlags: 0

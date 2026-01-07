@@ -30,6 +30,13 @@ public class PlayerControllerScript : MonoBehaviour
     public int playerID;
     public int teamID;
 
+    [Header("Gameplay Rig Root (Anomalies / Minigames)")]
+    [SerializeField] private Transform gameplayRigRoot; // assign in prefab if you can
+    [SerializeField] private string gameplayRigRootName = "GameplayRigRoot";
+
+    private bool _worldGameplaySuppressed;
+
+
     [Header("Movement")]
     [SerializeField] private float movePower = 10f;
 
@@ -138,6 +145,21 @@ public class PlayerControllerScript : MonoBehaviour
     [SerializeField] private float respawnDelaySeconds = 0.5f;
     [SerializeField] private float respawnFxSeconds = 0.25f;
 
+    
+    
+[Header("Match Start Spawn")]
+[SerializeField] private bool playMatchSpawnOnSceneLoad = true;
+[SerializeField] private float matchSpawnFxSeconds = -1f; // <0 => use respawnFxSeconds
+[SerializeField] private bool showPlayerIdToastOnMatchStart = true;
+[SerializeField] private float playerIdToastLifetime = 1.25f;
+
+private bool _matchSpawning;
+
+
+
+
+
+
     [Tooltip("After respawn, ignore Shrink() hits for this many seconds.")]
     [SerializeField] private float respawnInvulnSeconds = 0.6f;
 
@@ -206,6 +228,131 @@ public class PlayerControllerScript : MonoBehaviour
 
     public bool IsInvulnerable => Time.time < _invulnUntil;
 
+private void OnEnable()
+{
+    if (!playMatchSpawnOnSceneLoad) return;
+
+    // DO NOT call ForceHiddenForSpawn() here.
+    // It can run before PlayerLifeFx_DissolveGPU.Awake caches default radii,
+    // causing _baseRadius0/_dotRadius0 to become 0 => "1px dot" player.
+
+    // Safe: hide render drivers without modifying baseRadius/dotRadius.
+    if (!visualsController) visualsController = GetComponent<PlayerVisualController>();
+    if (!nuggetsGPU) nuggetsGPU = GetComponentInChildren<PlayerNuggetsGPU>(true);
+
+    if (visualsController) visualsController.enabled = false;
+    if (nuggetsGPU) nuggetsGPU.enabled = false;
+}
+
+
+
+private void EnsureLifeFxCached()
+{
+    if (_lifeFx != null) return;
+
+    if (lifeFx == null) lifeFx = GetComponent<PlayerLifeFx_DissolveGPU>();
+    _lifeFx = lifeFx as IPlayerLifeFx;
+}
+
+private void ForceHiddenForSpawn()
+{
+    // Lock movement/interaction without marking player “inactive”
+    _matchSpawning = true;
+    lastActivityTime = Time.time;
+    isActive = true;
+
+    // Disable collisions + physics
+    SetCollidersEnabled(false);
+
+    if (rb != null)
+    {
+        rb.linearVelocity = Vector3.zero;
+        rb.angularVelocity = Vector3.zero;
+        rb.isKinematic = true;
+        rb.Sleep();
+    }
+
+    if (attackController != null) attackController.enabled = false;
+    if (shield) shield.SetActive(false);
+    if (sword) sword.SetActive(false);
+
+    // Hide visuals
+    if (_lifeFx != null) _lifeFx.SetVisibleInstant(this, false);
+}
+
+private IEnumerator MatchSpawnRoutine()
+{
+    _matchSpawning = true;
+
+    // Keep “cabinet empty” logic from thinking this player is inactive
+    lastActivityTime = Time.time;
+    isActive = true;
+
+    // Lock gameplay like your death routine does (but WITHOUT temporarilyEliminated)
+    SetCollidersEnabled(false);
+
+    if (rb != null)
+    {
+        rb.linearVelocity = Vector3.zero;
+        rb.angularVelocity = Vector3.zero;
+        rb.isKinematic = true;
+        rb.Sleep();
+    }
+
+    if (attackController != null) attackController.enabled = false;
+
+    if (_lifeFx != null) _lifeFx.SetVisibleInstant(this, false);
+    else
+    {
+        if (visualsController) visualsController.enabled = false;
+        if (nuggetsGPU) nuggetsGPU.enabled = false;
+    }
+
+    // Spawn position: use your existing anchor logic
+    Vector3 spawnPos = respawnPointOverride ? respawnPointOverride.position : spawnAnchorWS;
+    spawnPos.y = transform.position.y;
+
+    TeleportTo(spawnPos);
+
+    // Snap visuals child so first render frame is correct (same fix you used in respawn)
+    if (visualsController != null && visualsController.visuals != null)
+        visualsController.visuals.position = spawnPos;
+
+    // Optional “PLAYER X” toast during spawn
+if (showPlayerIdToastOnMatchStart)
+    Massive.Players.UI.PlayerIdToastSystem.Instance?.ShowForPlayer(this, playerIdToastLifetime);
+
+
+    // Reset mass now, but rebuild AFTER form finishes (same as respawn)
+    massScore = spawnMassScore01;
+
+    float fx = (matchSpawnFxSeconds >= 0f) ? matchSpawnFxSeconds : respawnFxSeconds;
+
+    AudioSystem.I?.Play(AudioEventId.Player_Spawn, transform.position);
+
+    if (_lifeFx != null) yield return _lifeFx.PlayRespawn(this, fx);
+    else if (fx > 0f) yield return new WaitForSeconds(fx);
+
+    SyncNuggetsGeometryFromVisuals();
+    UpdateMassAndNuggets(forceRebuild: true);
+
+    // Re-enable gameplay
+    if (rb != null)
+    {
+        rb.isKinematic = false;
+        rb.WakeUp();
+    }
+
+    SetCollidersEnabled(true);
+
+    _invulnUntil = Time.time + Mathf.Max(0f, respawnInvulnSeconds);
+
+    if (attackController != null) attackController.enabled = true;
+
+    _matchSpawning = false;
+}
+
+
     private void Awake()
     {
         rewiredPlayer = Rewired.ReInput.players.GetPlayer(playerID);
@@ -213,8 +360,8 @@ public class PlayerControllerScript : MonoBehaviour
         rb = GetComponent<Rigidbody>();
         if (!rb) Debug.LogWarning($"[{name}] No Rigidbody found on Player root.", this);
 
-        sm = transform.Find("SfxModule")?.gameObject;
-        stunEffect = transform.Find("StunnedEffect")?.gameObject;
+        sm = FindUnderRigOrRoot("SfxModule")?.gameObject;
+        stunEffect = FindUnderRigOrRoot("StunnedEffect")?.gameObject;
 
         if (!shieldAbility)
             shieldAbility = GetComponent<Massive.Player.PlayerShieldAbility>();
@@ -229,6 +376,11 @@ public class PlayerControllerScript : MonoBehaviour
         if (nuggetsGPU != null)
         _baseNuggetDrag = nuggetsGPU.drag;
 
+        
+        // Determine respawn anchor. If you assign respawnPointOverride, that becomes authoritative.
+        spawnAnchorWS = respawnPointOverride ? respawnPointOverride.position : transform.position;
+
+
 
         _allColliders = GetComponentsInChildren<Collider>(true);
 
@@ -241,9 +393,6 @@ public class PlayerControllerScript : MonoBehaviour
 
     private void Start()
     {
-        // Determine respawn anchor. If you assign respawnPointOverride, that becomes authoritative.
-        spawnAnchorWS = respawnPointOverride ? respawnPointOverride.position : transform.position;
-
         if (goalZone == null)
             goalZone = (teamID == 1) ? GameObject.Find("TEAM 1") : GameObject.Find("TEAM 2");
 
@@ -257,10 +406,23 @@ public class PlayerControllerScript : MonoBehaviour
             if (f.sqrMagnitude > 0.0001f) lastStickAimWS = f.normalized;
         }
 
-        // Spawn baseline
-        massScore = spawnMassScore01;
-        UpdateMassAndNuggets(forceRebuild: true);
+
+                // original behavior
+                massScore = spawnMassScore01;
+                UpdateMassAndNuggets(forceRebuild: true);
+            
     }
+
+    public void BeginMatchStartSpawn()
+{
+    if (!gameObject.activeInHierarchy) return;
+    if (_matchSpawning) return;
+
+    EnsureLifeFxCached();
+    ForceHiddenForSpawn();
+    StartCoroutine(MatchSpawnRoutine());
+}
+
 
     private void CacheTeamScoreRefs()
     {
@@ -277,6 +439,16 @@ public class PlayerControllerScript : MonoBehaviour
 
     private void Update()
     {
+
+        if (_matchSpawning)
+        {
+            // Don’t read inputs while spawning; also don’t go “inactive”
+            lastActivityTime = Time.time;
+            timeSinceLastActivity = 0f;
+            isActive = true;
+            return;
+        }
+        
         if (temporarilyEliminated)
         {
             moveHorizontal = 0f;
@@ -307,6 +479,22 @@ public class PlayerControllerScript : MonoBehaviour
 
             return;
         }
+
+        if (_worldGameplaySuppressed)
+            {
+                // Clear world-driven state
+                moveHorizontal = 0f;
+                moveVertical = 0f;
+                movement = Vector3.zero;
+                shieldOn = false;
+                didPlayerTapActionThisFrame = false;
+
+                // Still keep inactivity bookkeeping correct
+                timeSinceLastActivity = Time.time - lastActivityTime;
+                isActive = timeSinceLastActivity <= idleTime;
+                return;
+            }
+
 
 
         // Input
@@ -399,6 +587,8 @@ public class PlayerControllerScript : MonoBehaviour
 
     private void FixedUpdate()
     {
+        if (_worldGameplaySuppressed) return;
+
         if (temporarilyEliminated || isStunned || IsExternallyStunned) return;
         if (!rb) return;
 
@@ -907,15 +1097,30 @@ public void ShrinkScaled(GameObject hitSource, float scale01)
         return true;
     }
 
-    private void SetCollidersEnabled(bool enabled)
+private void SetCollidersEnabled(bool enabled)
+{
+    if (_allColliders == null) return;
+
+    foreach (var c in _allColliders)
     {
-        if (_allColliders == null) return;
-        foreach (var c in _allColliders)
+        if (c == null) continue;
+
+        if (enabled)
         {
-            if (c == null) continue;
-            c.enabled = enabled;
+            // IMPORTANT:
+            // Don't globally enable melee hitboxes.
+            // PlayerMelee gates its collider to the activation window.
+            if (c.TryGetComponent<PlayerMelee>(out _))
+            {
+                c.enabled = false;
+                continue;
+            }
         }
+
+        c.enabled = enabled;
     }
+}
+
 
     // ===== Mass blob VFX =====
     private void EjectBlob(GameObject newTarget)
@@ -1038,6 +1243,76 @@ public void ShrinkScaled(GameObject hitSource, float scale01)
         if (nuggetsGPU != null && _baseNuggetDrag > 0f)
             nuggetsGPU.drag = _baseNuggetDrag;
     }
+
+    private Transform FindUnderRigOrRoot(string childName)
+{
+    if (gameplayRigRoot == null && !string.IsNullOrEmpty(gameplayRigRootName))
+        gameplayRigRoot = transform.Find(gameplayRigRootName);
+
+    if (gameplayRigRoot != null)
+    {
+        var t = gameplayRigRoot.Find(childName);
+        if (t != null) return t;
+    }
+
+    return transform.Find(childName);
+}
+
+public void SetWorldGameplaySuppressed(bool suppressed)
+{
+    // Only do work if state actually changes
+    if (_worldGameplaySuppressed == suppressed)
+        return;
+
+    _worldGameplaySuppressed = suppressed;
+
+    // Resolve rig root if needed
+    if (gameplayRigRoot == null && !string.IsNullOrEmpty(gameplayRigRootName))
+        gameplayRigRoot = transform.Find(gameplayRigRootName);
+
+    // Make sure we have refs (safe even if already assigned)
+    if (!visualsController) visualsController = GetComponent<PlayerVisualController>();
+    if (!nuggetsGPU) nuggetsGPU = GetComponentInChildren<PlayerNuggetsGPU>(true);
+
+    // Toggle subtree (visuals, sword, shield, VFX, etc.)
+    if (gameplayRigRoot != null)
+        gameplayRigRoot.gameObject.SetActive(!suppressed);
+
+    // Disable root-level controllers that can still affect gameplay even if visuals are hidden.
+    if (attackController != null) attackController.enabled = !suppressed;
+    if (powerUps != null) powerUps.enabled = !suppressed;
+    if (visualsController != null) visualsController.enabled = !suppressed;
+    if (shieldAbility != null) shieldAbility.enabled = !suppressed;
+
+    // If your nuggets driver is NOT under GameplayRigRoot in some prefabs,
+    // this ensures it follows suppression too (harmless if it *is* under the root).
+    if (nuggetsGPU != null) nuggetsGPU.enabled = !suppressed;
+
+    // Prevent physics interactions while suppressed (NOVA)
+    SetCollidersEnabled(!suppressed);
+
+    // Stop drift when suppressing
+    if (suppressed && rb != null)
+    {
+#if UNITY_6000_0_OR_NEWER
+        rb.linearVelocity = Vector3.zero;
+#else
+        rb.velocity = Vector3.zero;
+#endif
+        rb.angularVelocity = Vector3.zero;
+    }
+
+    // ✅ KEY: when returning from suppression, re-sync nugget geometry + force a rebuild
+    // This is the same fix you already rely on after respawn to prevent the "single dot" look.
+    if (!suppressed)
+    {
+        SyncNuggetsGeometryFromVisuals();
+        UpdateMassAndNuggets(forceRebuild: true);
+    }
+}
+
+
+
 
 
 }

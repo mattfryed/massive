@@ -1,62 +1,74 @@
 using UnityEngine;
 
-/// <summary>
-/// NOVA anomaly reward:
-/// - Converts captured core mass (AnomalyResult.score) into team score
-///   via GameManagerScript.
-/// - Sends a "shield" contribution to NovaStarController so the next
-///   bounce is less damaging for the winning team.
-/// </summary>
-[CreateAssetMenu(menuName = "MASSIVE/AnomalyRewards/Nova Core Mass Reward")]
-public class NovaCoreMassReward : AnomalyReward
+// Change base class name if needed to match your project’s reward base type.
+[CreateAssetMenu(menuName = "MASSIVE/Anomalies/Rewards/Nova Core Mass Reward")]
+public class NovaCoreMassReward : AnomalyRewardBase
 {
-    [Header("Score Conversion")]
-    [Tooltip("How much game score to grant per unit of captured core mass.")]
-    public float scorePerMassUnit = 1f;
+    [Header("When to award")]
+    public bool awardOnFailure = true;
 
-    [Header("Bounce Shielding")]
-    [Tooltip("How much 'shield' (abstract units) to grant per unit of core mass. NovaStarController decides how that translates into bounce reduction.")]
-    public float shieldPerMassUnit = 0.2f;
+    [Header("Star Shield (reduces bounce intensity)")]
+    public bool registerStarShield = true;
+    public float shieldMultiplier = 1f;
+
+    [Header("Mass/Score Transfer")]
+    public bool awardMassToTeams = true;
+    public float massMultiplier = 1f;
 
     public override void Apply(AnomalyResult result, AnomalyManager manager)
     {
-        // If there is no winning team or no mass, treat as a no-op.
-        if (!result.success || result.winningTeamIndex < 0 || result.score <= 0f)
+        if (!result.success && !awardOnFailure) return;
+        if (result.payload is not NovaCoreWrapUpPayload wrap) return;
+
+        // 1) Register shielding to the star
+        if (registerStarShield)
         {
-            // You *could* treat a total failure as a negative effect,
-            // but we'll keep rewards one-sided and let the star handle
-            // "bad bounces" generically.
-            return;
-        }
-
-        int teamIndex = result.winningTeamIndex;
-        float capturedMass = result.score;
-
-        // 1) Convert captured mass into team score through GameManagerScript.
-        var gm = Object.FindObjectOfType<GameManagerScript>();
-        if (gm != null)
-        {
-            float scoreDelta = capturedMass * scorePerMassUnit;
-
-            // Assuming Team 0 → finalScore_1, Team 1 → finalScore_2.
-            if (teamIndex == 0)
+            var star = FindStar();
+            if (star != null)
             {
-                gm.finalScore_1 += scoreDelta;
+                star.RegisterCoreCapture(wrap.lightTeamIndex, wrap.lightMass * shieldMultiplier);
+                star.RegisterCoreCapture(wrap.darkTeamIndex,  wrap.darkMass  * shieldMultiplier);
             }
-            else if (teamIndex == 1)
-            {
-                gm.finalScore_2 += scoreDelta;
-            }
-
-            // If you ever add more teams, extend this mapping.
         }
 
-        // 2) Send shield contribution to the star controller.
-        var star = Object.FindObjectOfType<NovaStarController>();
-        if (star != null)
+        // 2) Forward to your mass/score system
+        if (awardMassToTeams)
         {
-            float shieldAmount = capturedMass * shieldPerMassUnit;
-            star.RegisterCoreCapture(teamIndex, shieldAmount);
+            var sink = FindSink(manager);
+            if (sink != null)
+            {
+                sink.AwardTeam(wrap.lightTeamIndex, wrap.lightParticles, wrap.lightMass * massMultiplier);
+                sink.AwardTeam(wrap.darkTeamIndex,  wrap.darkParticles,  wrap.darkMass  * massMultiplier);
+            }
+            else
+            {
+                Debug.LogWarning("[NovaCoreMassReward] No NovaCoreRewardsSink found; mass/score not applied.");
+            }
         }
+    }
+
+    private NovaStarController FindStar()
+    {
+#if UNITY_6000_0_OR_NEWER
+        return Object.FindFirstObjectByType<NovaStarController>();
+#else
+        return Object.FindObjectOfType<NovaStarController>();
+#endif
+    }
+
+    private NovaCoreRewardsSink FindSink(AnomalyManager manager)
+    {
+        if (manager != null)
+        {
+            // Prefer explicit sink on the manager GO.
+            var local = manager.GetComponent<NovaCoreRewardsSink>();
+            if (local != null) return local;
+        }
+
+#if UNITY_6000_0_OR_NEWER
+        return Object.FindFirstObjectByType<NovaCoreRewardsSink>();
+#else
+        return Object.FindObjectOfType<NovaCoreRewardsSink>();
+#endif
     }
 }

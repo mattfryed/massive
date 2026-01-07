@@ -1031,6 +1031,8 @@ MonoBehaviour:
   playerTargets: []
   autoFindPlayersByTag: 1
   playerTag: Player
+  outsideRampQ: 0.15
+  useTravelingFrontForDamage: 0
   timeBetweenStormsRange: {x: 0, y: 0}
   stormTotalDurationRange: {x: 99, y: 99}
   easeInFrac: 0

@@ -12,8 +12,8 @@ public class PowerupDecoherenceVisual : MonoBehaviour
     [Header("Shape")]
     [SerializeField] private float baseRadius = 0.23f;
     [SerializeField] private float splitRadius = 0.18f;
-    [SerializeField] private float bridgeRadiusMax = 0.20f;
-    [SerializeField] private float bridgeRadiusMin = 0.07f;
+    // [SerializeField] private float bridgeRadiusMax = 0.20f;
+    // [SerializeField] private float bridgeRadiusMin = 0.07f;
     [SerializeField] private float maxSeparation = 0.42f;
 
     [Header("Direction")]

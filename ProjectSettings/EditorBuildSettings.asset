@@ -9,26 +9,14 @@ EditorBuildSettings:
     path: Assets/Scenes/S-0_ATTRACT.unity
     guid: 221eefdd02185479ca215f39b425661b
   - enabled: 1
-    path: Assets/Scenes/S-3_NOVA.unity
-    guid: 9e16f8f76bac04dc0a485433977d0359
-  - enabled: 1
-    path: Assets/Scenes/S-X_LEVEL-END.unity
-    guid: 2cde54bef5b5b407981e481f3a617e89
-  - enabled: 1
-    path: Assets/Scenes/levelendnewscene.unity
-    guid: 5760f3bebd3a04e869a67143e3cfc426
-  - enabled: 1
-    path: Assets/Scenes/S-4_STAR-CROSSED.unity
-    guid: ca3956fddc39d44b3ad87f3af8d35d6a
-  - enabled: 1
-    path: Assets/Scenes/S-6_STARDUST-CLOUD.unity
-    guid: 3891defdec8f649daac8b10665004cda
+    path: Assets/Scenes/S-0_LEVEL-SELECT NEW.unity
+    guid: 142b2796430a443fc9c54dc83af0e941
   - enabled: 1
     path: Assets/Scenes/S-0_INSTRUCTIONS.unity
     guid: 306edb7a04b3d4e45b050f9888bcb57e
   - enabled: 1
-    path: Assets/Scenes/S-0_LEVEL-SELECT NEW.unity
-    guid: 142b2796430a443fc9c54dc83af0e941
+    path: Assets/Scenes/S-3_NOVA.unity
+    guid: 9e16f8f76bac04dc0a485433977d0359
   - enabled: 1
     path: Assets/Scenes/S-9_HIGGS.unity
     guid: f9546f79ca44a4a25be7bd405f75b046
@@ -38,5 +26,17 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/S-0_POSTGAME.unity
     guid: b08d2d847ed49684c8852683be1e5a4b
+  - enabled: 0
+    path: Assets/Scenes/DEPRECATED/S-X_LEVEL-END.unity
+    guid: 2cde54bef5b5b407981e481f3a617e89
+  - enabled: 0
+    path: Assets/Scenes/DEPRECATED/levelendnewscene.unity
+    guid: 5760f3bebd3a04e869a67143e3cfc426
+  - enabled: 0
+    path: Assets/Scenes/DEPRECATED/S-4_STAR-CROSSED.unity
+    guid: ca3956fddc39d44b3ad87f3af8d35d6a
+  - enabled: 0
+    path: Assets/Scenes/DEPRECATED/S-6_STARDUST-CLOUD.unity
+    guid: 3891defdec8f649daac8b10665004cda
   m_configObjects: {}
   m_UseUCBPForAssetBundles: 0

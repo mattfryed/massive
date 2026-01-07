@@ -19,6 +19,14 @@ public class DynamoStormController : MonoBehaviour
     [SerializeField] private bool autoFindPlayersByTag = true;
     [SerializeField] private string playerTag = "Player";
 
+    [Header("Deterministic Outside Hazard")]
+    [SerializeField, Tooltip("0 = hard switch at boundary. >0 = ramp up as you move further outside (in Q units).")]
+    private float outsideRampQ = 0.15f;
+
+    // If you want to keep the old moving-front behavior as an optional mode:
+    [SerializeField] private bool useTravelingFrontForDamage = false;
+
+
     // ============================================================
     // Storm scheduling
     // ============================================================
@@ -447,27 +455,70 @@ if (psr && psr.sharedMaterial)
     // ============================================================
     // Damage
     // ============================================================
+// private void ApplyDamageTick(float dt)
+// {
+//     if (!_stormActive) return;
+//     if (playerTargets == null || playerTargets.Count == 0) return;
+
+//     Vector3 downstream = _downstreamDir;
+//     downstream.y = 0f;
+//     if (downstream.sqrMagnitude < 1e-6f) downstream = Vector3.right;
+//     downstream.Normalize();
+
+//     Vector3 flow = GetStormFlowIncomingFlag() ? -downstream : downstream;
+
+//     float halfLen = ProjectedHalfLen(flow, playfieldSizeXZ);
+//     float startS = -halfLen - damageFrontTravelPad;
+//     float endS = halfLen + damageFrontTravelPad;
+
+//     float t01 = Mathf.Clamp01(_stormTimer / Mathf.Max(0.0001f, _stormTotal));
+//     float frontCenterS = Mathf.Lerp(startS, endS, t01);
+
+//     float halfT = damageFrontThickness * 0.5f;
+//     float feather = Mathf.Lerp(0.05f, 2.0f, damageFrontFeather);
+
+//     for (int i = 0; i < playerTargets.Count; i++)
+//     {
+//         var tr = playerTargets[i];
+//         if (!tr) continue;
+
+//         Vector3 pos = tr.position;
+//         int id = tr.GetInstanceID();
+
+//         // If player is inside magnetosphere, storm factor is 0 and no damage.
+//         if (!IsOutsideMagnetosphere(pos))
+//         {
+//             _stormFactorByPlayer[id] = 0f;
+//             continue;
+//         }
+
+//         // Storm front delay mask
+//         float along = Vector3.Dot(pos - playfieldCenter, flow);
+//         float dist = along - frontCenterS;
+
+//         float core = 1f - Smoothstep01(halfT, halfT * feather, Mathf.Abs(dist));
+//         float dmgFactor = Mathf.Clamp01(core) * _stormStrength01;
+
+//         // Cache per-player factor for other systems (like storm push)
+//         _stormFactorByPlayer[id] = dmgFactor;
+
+//         if (dmgFactor <= 0f)
+//             continue;
+
+//         float dmg = damagePerSecondAtFullStorm * dmgFactor * dt;
+
+//         // Placeholder hook
+//         var fx = GetEffects(tr);
+// if (fx != null)
+//     fx.ApplyStormDamage(dmg);
+
+//     }
+// }
+
 private void ApplyDamageTick(float dt)
 {
     if (!_stormActive) return;
     if (playerTargets == null || playerTargets.Count == 0) return;
-
-    Vector3 downstream = _downstreamDir;
-    downstream.y = 0f;
-    if (downstream.sqrMagnitude < 1e-6f) downstream = Vector3.right;
-    downstream.Normalize();
-
-    Vector3 flow = GetStormFlowIncomingFlag() ? -downstream : downstream;
-
-    float halfLen = ProjectedHalfLen(flow, playfieldSizeXZ);
-    float startS = -halfLen - damageFrontTravelPad;
-    float endS = halfLen + damageFrontTravelPad;
-
-    float t01 = Mathf.Clamp01(_stormTimer / Mathf.Max(0.0001f, _stormTotal));
-    float frontCenterS = Mathf.Lerp(startS, endS, t01);
-
-    float halfT = damageFrontThickness * 0.5f;
-    float feather = Mathf.Lerp(0.05f, 2.0f, damageFrontFeather);
 
     for (int i = 0; i < playerTargets.Count; i++)
     {
@@ -477,35 +528,22 @@ private void ApplyDamageTick(float dt)
         Vector3 pos = tr.position;
         int id = tr.GetInstanceID();
 
-        // If player is inside magnetosphere, storm factor is 0 and no damage.
-        if (!IsOutsideMagnetosphere(pos))
-        {
-            _stormFactorByPlayer[id] = 0f;
-            continue;
-        }
+        float hazard01 = GetStormHazard01(pos);
 
-        // Storm front delay mask
-        float along = Vector3.Dot(pos - playfieldCenter, flow);
-        float dist = along - frontCenterS;
+        // Cache for debugging/other systems if you still want it
+        _stormFactorByPlayer[id] = hazard01;
 
-        float core = 1f - Smoothstep01(halfT, halfT * feather, Mathf.Abs(dist));
-        float dmgFactor = Mathf.Clamp01(core) * _stormStrength01;
-
-        // Cache per-player factor for other systems (like storm push)
-        _stormFactorByPlayer[id] = dmgFactor;
-
-        if (dmgFactor <= 0f)
+        if (hazard01 <= 0f)
             continue;
 
-        float dmg = damagePerSecondAtFullStorm * dmgFactor * dt;
+        float dmg = damagePerSecondAtFullStorm * hazard01 * dt;
 
-        // Placeholder hook
         var fx = GetEffects(tr);
-if (fx != null)
-    fx.ApplyStormDamage(dmg);
-
+        if (fx != null)
+            fx.ApplyStormDamage(dmg);
     }
 }
+
 
     private bool IsOutsideMagnetosphere(Vector3 worldPos)
     {
@@ -522,11 +560,12 @@ if (fx != null)
         return true;
     }
 
-    public float GetStormFactor01(Transform player)
+public float GetStormFactor01(Transform player)
 {
     if (!player) return 0f;
-    return _stormFactorByPlayer.TryGetValue(player.GetInstanceID(), out var v) ? v : 0f;
+    return GetStormHazard01(player.position);
 }
+
 
 public Vector3 GetStormFlowDirWS()
 {
@@ -806,4 +845,61 @@ private PlayerExternalEffects GetEffects(Transform tr)
         try { _miStormFlowSyncNow.Invoke(stormFlow, null); }
         catch { }
     }
+
+    private float OutsideFactor01(Vector3 posWS)
+{
+    if (stormFlow == null) return 1f; // fail-open: assume outside
+
+    float q = stormFlow.GetEnvelopeQ(posWS); // uses the public wrapper above
+    if (q < 1f) return 0f;
+
+    if (outsideRampQ <= 0.0001f) return 1f;
+    return Mathf.Clamp01((q - 1f) / outsideRampQ);
+}
+
+private float FrontMask01(Vector3 posWS)
+{
+    // This is your existing front logic, extracted.
+    // IMPORTANT: your current code does: Mathf.Lerp(0.05, 2.0, damageFrontFeather)
+    // but damageFrontFeather is already Range(0.05..2). That Lerp is likely unintended.
+    // Here we treat damageFrontFeather as the actual feather multiplier.
+    Vector3 downstream = _downstreamDir;
+    downstream.y = 0f;
+    if (downstream.sqrMagnitude < 1e-6f) downstream = Vector3.right;
+    downstream.Normalize();
+
+    Vector3 flow = (stormFlow != null && stormFlow.FlowUsesIncomingDirection) ? -downstream : downstream;
+
+    float halfLen = ProjectedHalfLen(flow, playfieldSizeXZ);
+    float startS = -halfLen - damageFrontTravelPad;
+    float endS = halfLen + damageFrontTravelPad;
+
+    float t01 = Mathf.Clamp01(_stormTimer / Mathf.Max(0.0001f, _stormTotal));
+    float frontCenterS = Mathf.Lerp(startS, endS, t01);
+
+    float halfT = damageFrontThickness * 0.5f;
+    float feather = Mathf.Max(0.05f, damageFrontFeather);
+
+    float along = Vector3.Dot(posWS - playfieldCenter, flow);
+    float dist = along - frontCenterS;
+
+    float core = 1f - Smoothstep01(halfT, halfT * feather, Mathf.Abs(dist));
+    return Mathf.Clamp01(core);
+}
+
+public float GetStormHazard01(Vector3 posWS)
+{
+    if (!_stormActive) return 0f;
+
+    float outside01 = OutsideFactor01(posWS);
+    if (outside01 <= 0f) return 0f;
+
+    float f = outside01 * _stormStrength01;
+
+    if (useTravelingFrontForDamage)
+        f *= FrontMask01(posWS);
+
+    return Mathf.Clamp01(f);
+}
+
 }

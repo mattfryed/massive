@@ -8417,6 +8417,10 @@ MonoBehaviour:
   deathFxSeconds: 0.25
   respawnDelaySeconds: 1.25
   respawnFxSeconds: 0.25
+  playMatchSpawnOnSceneLoad: 1
+  matchSpawnFxSeconds: -1
+  showPlayerIdToastOnMatchStart: 1
+  playerIdToastLifetime: 1.25
   respawnInvulnSeconds: 0.6
   respawnCheckRadius: 1
   respawnBlockMask:

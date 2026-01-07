@@ -78,14 +78,38 @@ namespace Massive.Player
 
         private void Reset()
         {
-            followTarget = transform;
-            visuals = GetComponentInParent<PlayerVisualController>();
+             var owner = GetComponentInParent<PlayerControllerScript>();
+            followTarget = owner != null ? owner.transform : (transform.parent != null ? transform.parent : transform);
+            if (!visuals && owner != null) visuals = owner.visualsController;
+         
         }
 
         private void Awake()
         {
-            if (!followTarget) followTarget = transform;
-            if (!visuals) visuals = GetComponentInParent<PlayerVisualController>();
+            // if (!followTarget) followTarget = transform;
+            // if (!visuals) visuals = GetComponentInParent<PlayerVisualController>();
+             var owner = GetComponentInParent<PlayerControllerScript>();
+
+            // If left at default (self) or not assigned, bind to owning player root.
+            if ((followTarget == null || followTarget == transform) && owner != null)
+                followTarget = owner.transform;
+            else if (followTarget == null)
+                followTarget = (transform.parent != null ? transform.parent : transform);
+
+            // If visuals not explicitly assigned, prefer the one already referenced by the player.
+            if (!visuals && owner != null)
+                visuals = owner.visualsController;
+            if (!visuals)
+                visuals = GetComponentInParent<PlayerVisualController>();
+         }
+
+        /// <summary>
+        /// Optional runtime rebind (useful for spawned/pool players).
+        /// </summary>
+        public void Bind(Transform follow, PlayerVisualController visualsOverride = null)
+        {
+            if (follow != null) followTarget = follow;
+            if (visualsOverride != null) visuals = visualsOverride;
         }
 
         public void Play(float strength01, float durationSeconds)

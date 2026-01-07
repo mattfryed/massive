@@ -34,6 +34,10 @@ public struct AnomalyResult
 
     // Optional metric (alignment %, accuracy, etc.)
     public float score;
+
+    // Optional arbitrary payload for rewards / post screens.
+    // Example: NovaCoreMinigame can attach a NovaCoreWrapUpPayload here.
+    public object payload;
 }
 
 /// <summary>
@@ -66,12 +70,6 @@ public abstract class AnomalyMinigameBase : MonoBehaviour
     }
 }
 
-public interface IOnTimeParticipantsReceiver
-{
-    void SetOnTimeParticipants(IReadOnlyList<PlayerControllerScript> onTimeParticipants);
-}
-
-
 /// <summary>
 /// Owns scheduling, spawning and cleanup of anomaly minigames for a stage.
 /// One AnomalyManager should live in the stage scene.
@@ -80,6 +78,13 @@ public class AnomalyManager : MonoBehaviour
 {
     [Header("Config")]
     public StageProfile stageProfile;
+
+    [Header("Arena Mode (Hard Disable)")]
+    [SerializeField] private bool hardDisablePlayerObjectsWhilePaused = true;
+
+    // Track what we disabled so we can restore exactly those objects.
+    private readonly List<GameObject> _hardDisabledPlayerRoots = new();
+
 
     [Header("Scheduling")]
     [Tooltip("If true, anomalies are auto-scheduled using StageProfile. If false, anomalies only start when TriggerAnomaly() is called.")]
@@ -98,6 +103,7 @@ public class AnomalyManager : MonoBehaviour
     // Optional overrides for externally-triggered anomalies:
     IReadOnlyList<PlayerControllerScript> _forcedParticipants;
     float? _forcedDuration;
+	IReadOnlyList<PlayerControllerScript> _forcedOnTimeParticipants;
 
     public bool IsAnomalyRunning => _currentMinigame != null;
 
@@ -105,7 +111,39 @@ public class AnomalyManager : MonoBehaviour
     // Used by level-specific adapters (e.g. NovaAnomalyAdapter) to react.
     public event Action<AnomalyDefinition, AnomalyResult> OnAnomalyCompleted;
 
-    IReadOnlyList<PlayerControllerScript> _forcedOnTimeParticipants;
+    private void HardDisableActivePlayers()
+{
+    _hardDisabledPlayerRoots.Clear();
+
+    if (playerManager == null) return;
+
+    var players = playerManager.ActivePlayers;
+    if (players == null) return;
+
+    foreach (var pcs in players)
+    {
+        if (pcs == null) continue;
+
+        var go = pcs.gameObject;
+        if (go != null && go.activeSelf)
+        {
+            _hardDisabledPlayerRoots.Add(go);
+            go.SetActive(false);
+        }
+    }
+}
+
+private void RestoreHardDisabledPlayers()
+{
+    for (int i = 0; i < _hardDisabledPlayerRoots.Count; i++)
+    {
+        var go = _hardDisabledPlayerRoots[i];
+        if (go != null)
+            go.SetActive(true);
+    }
+
+    _hardDisabledPlayerRoots.Clear();
+}
 
 
     void Start()
@@ -169,8 +207,8 @@ public class AnomalyManager : MonoBehaviour
     public void TriggerAnomaly(
         AnomalyDefinition def,
         IReadOnlyList<PlayerControllerScript> forcedParticipants = null,
-        float? forcedDuration = null,
-        IReadOnlyList<PlayerControllerScript> onTimeParticipants = null)
+		float? forcedDuration = null,
+		IReadOnlyList<PlayerControllerScript> onTimeParticipants = null)
     {
         if (IsAnomalyRunning)
         {
@@ -187,8 +225,7 @@ public class AnomalyManager : MonoBehaviour
         _currentDef = def;
         _forcedParticipants = forcedParticipants;
         _forcedDuration = forcedDuration;
-        _forcedOnTimeParticipants = onTimeParticipants;
-
+		_forcedOnTimeParticipants = onTimeParticipants;
 
         StartCoroutine(RunAnomalyRoutine(def));
     }
@@ -197,22 +234,19 @@ public class AnomalyManager : MonoBehaviour
     {
         // 1. Warning / telegraph
         float warningDelay = def.GetRandomStartDelay();
-
-        // If delay is ~0, don't stomp any externally-managed UI state (like NOVA entry window).
-        if (ui != null && warningDelay > 0.01f)
+        if (ui != null)
             ui.ShowWarning(def, warningDelay);
 
         SpawnWorldTelegraph(def);
-
-        if (warningDelay > 0.01f)
-            yield return new WaitForSeconds(warningDelay);
-
+        yield return new WaitForSeconds(warningDelay);
 
         // 2. Activate
         // Duration for the minigame
         float duration = _forcedDuration.HasValue ? _forcedDuration.Value : def.GetRandomDuration();
 
-        ApplyArenaMode(def.arenaMode);
+		// NOTE: we intentionally start the Active banner/countdown *after* the intro transition,
+		// so we do not call ui.ShowActiveBanner(def, duration) here.
+		ApplyArenaMode(def.arenaMode);
 
         var context = BuildContextFor(def, duration, _forcedParticipants);
 
@@ -244,15 +278,14 @@ public class AnomalyManager : MonoBehaviour
             yield break;
         }
 
-        // Provide "on-time at entry close" players (used for late penalties in some minigames).
-        if (_forcedOnTimeParticipants != null && _forcedOnTimeParticipants.Count > 0)
-        {
-            if (_currentMinigame is IOnTimeParticipantsReceiver receiver)
-                receiver.SetOnTimeParticipants(_forcedOnTimeParticipants);
-        }
+		// Optional hand-off: some minigames (like NOVA CORE COLLAPSE) need to know who was
+		// "on-time" before the anomaly transition started.
+		if (_forcedOnTimeParticipants != null && _currentMinigame is IOnTimeParticipantsReceiver onTimeReceiver)
+		{
+			onTimeReceiver.SetOnTimeParticipants(_forcedOnTimeParticipants);
+		}
 
-
-        _currentMinigame.Init(context);
+		_currentMinigame.Init(context);
         
 
         
@@ -261,8 +294,7 @@ public class AnomalyManager : MonoBehaviour
         _currentMinigame.Begin();
 
                 // find transition on the minigame root
-        var transition = go.GetComponentInChildren<NovaMinigameTransition>(true);
-
+        var transition = go.GetComponent<NovaMinigameTransition>();
 
         
 if (transition != null && ui != null)
@@ -307,13 +339,7 @@ transition.BindUISequencer(seq);
     {
 
         // If the minigame has a transition component, play outro before finalizing.
-        var transition =
-    _currentMinigame != null
-        ? (_currentMinigame.GetComponent<NovaMinigameTransition>()
-           ?? _currentMinigame.GetComponentInChildren<NovaMinigameTransition>(true)
-           ?? _currentMinigame.GetComponentInParent<NovaMinigameTransition>())
-        : null;
-
+        var transition = _currentMinigame != null ? _currentMinigame.GetComponent<NovaMinigameTransition>() : null;
         if (transition != null)
         {
             StartCoroutine(FinalizeAfterOutro(transition, result));
@@ -350,7 +376,7 @@ transition.BindUISequencer(seq);
         _currentDef = null;
         _forcedParticipants = null;
         _forcedDuration = null;
-        _forcedOnTimeParticipants = null;
+		_forcedOnTimeParticipants = null;
         DespawnWorldTelegraph();
     }
 
@@ -386,9 +412,9 @@ transition.BindUISequencer(seq);
 
         _currentParticipants.Clear();
         _currentDef = null;
-        _forcedParticipants = null;
-        _forcedDuration = null;
-        _forcedOnTimeParticipants = null;
+		_forcedParticipants = null;
+		_forcedDuration = null;
+		_forcedOnTimeParticipants = null;
         DespawnWorldTelegraph();
     }
 
@@ -400,31 +426,32 @@ transition.BindUISequencer(seq);
 }
 
 
-    void ApplyArenaMode(ArenaModeDuringAnomaly mode)
+void ApplyArenaMode(ArenaModeDuringAnomaly mode)
+{
+    if (playerManager == null) return;
+
+    switch (mode)
     {
-        if (playerManager == null)
-            return;
+        case ArenaModeDuringAnomaly.Unchanged:
+            // Restore objects first, then unpause
+            if (hardDisablePlayerObjectsWhilePaused)
+                RestoreHardDisabledPlayers();
 
-        switch (mode)
-        {
-            case ArenaModeDuringAnomaly.Unchanged:
-                // Return arena to normal play.
-                playerManager.SetGlobalPaused(false);
-                // TODO: clear any ghost / subspace state here if you add it to PlayerManager.
-                break;
+            playerManager.SetGlobalPaused(false);
+            break;
 
-            case ArenaModeDuringAnomaly.PauseAllPlayers:
-                playerManager.SetGlobalPaused(true);
-                break;
+        case ArenaModeDuringAnomaly.PauseAllPlayers:
+            // Pause first, then optionally hard-disable
+            playerManager.SetGlobalPaused(true);
 
-            case ArenaModeDuringAnomaly.GhostParticipantsOnly:
-                // Leave game running but you can choose to mark participants
-                // as "in subspace" / ghosted via your PlayerManager.
-                // Example (once you implement it):
-                // playerManager.SetGhostFor(_currentParticipants, true);
-                break;
-        }
+            if (hardDisablePlayerObjectsWhilePaused)
+                HardDisableActivePlayers();
+            break;
+
+        // keep your other cases as-is...
     }
+}
+
 
     void ApplyRewards(AnomalyResult result)
     {

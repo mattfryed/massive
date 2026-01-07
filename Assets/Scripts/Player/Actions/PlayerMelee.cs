@@ -31,6 +31,13 @@ public class PlayerMelee : MonoBehaviour
 
     private Coroutine gateRoutine;
 
+    
+private bool IsFriendly(PlayerControllerScript otherPlayer)
+{
+    if (owner == null || otherPlayer == null) return false;
+    return otherPlayer.teamID == owner.teamID;
+}
+
     private void Reset()
     {
         hitbox = GetComponent<Collider>();
@@ -148,47 +155,69 @@ public class PlayerMelee : MonoBehaviour
         // Sword vs Shield
         // Default: attacker gets stunned.
         // Power-up override: defender can "Decohere" while shielding, letting attacker phase through + get briefly stunned.
-        if (other.CompareTag(shieldTag))
-        {
-            // Power-up override still gets first shot (existing behavior)
-            var defenderPU = other.GetComponentInParent<PlayerPowerUpController>();
-            if (defenderPU != null)
-            {
-                Vector3 dir = other.transform.position - owner.transform.position;
-                dir.y = 0;
-                if (dir.magnitude > 0.01f)
-                {
-                    dir.Normalize();
-                    if (defenderPU.TryHandleShieldImpact(owner, other, dir))
-                        return;
-                }
-            }
+    if (other.CompareTag(shieldTag))
+    {
+        var defender = other.GetComponentInParent<PlayerControllerScript>();
 
-            // New: strength-based behavior
-            var defender = other.GetComponentInParent<PlayerControllerScript>();
-            var defenderShield = other.GetComponentInParent<Massive.Player.PlayerShieldAbility>();
-
-            float strength = 1f;
-            if (defenderShield != null && defenderShield.IsActive)
-                strength = defenderShield.CurrentStrength01;
-
-            // Stun attacker scaled by defender's shield strength
-            owner.Stun(other.transform.position, strength);
-            
-            AudioSystem.I?.Play(AudioEventId.Player_Parry, transform.position);
-
-            // Damage leak-through scaled by (1 - strength)
-            float leak01 = Mathf.Clamp01(1f - strength);
-
-            if (defender != null && leak01 > 0.001f)
-            {
-                owner.GrowScaled(leak01);
-                defender.ShrinkScaled(owner.gameObject, leak01);
-                defender.playSFX("struckSFX");
-            }
-
+        // NEW: ignore teammate shields (prevents grief-stunning your own team)
+        if (defender != null && IsFriendly(defender))
             return;
+
+        // Power-up override still gets first shot (existing behavior)
+        var defenderPU = other.GetComponentInParent<PlayerPowerUpController>();
+        if (defenderPU != null)
+        {
+            Vector3 dir = other.transform.position - owner.transform.position;
+            dir.y = 0;
+            if (dir.magnitude > 0.01f)
+            {
+                dir.Normalize();
+                if (defenderPU.TryHandleShieldImpact(owner, other, dir))
+                    return;
+            }
         }
+
+        var defenderShield = other.GetComponentInParent<Massive.Player.PlayerShieldAbility>();
+
+        float strength = 1f;
+        if (defenderShield != null && defenderShield.IsActive)
+            strength = defenderShield.CurrentStrength01;
+
+        owner.Stun(other.transform.position, strength);
+        AudioSystem.I?.Play(AudioEventId.Player_Parry, transform.position);
+
+        float leak01 = Mathf.Clamp01(1f - strength);
+
+        // NEW: only leak-through damage if defender is an enemy
+        if (defender != null && leak01 > 0.001f && !IsFriendly(defender))
+        {
+            owner.GrowScaled(leak01);
+            defender.ShrinkScaled(owner.gameObject, leak01);
+            defender.playSFX("struckSFX");
+        }
+
+        return;
+    }
+
+    // Sword vs Player
+    if (other.CompareTag(playerTag))
+    {
+        // Slight robustness improvement: collider might be on a child
+        var victim = other.GetComponentInParent<PlayerControllerScript>();
+        if (!victim) return;
+
+        // NEW: ignore self + teammates
+        if (victim == owner) return;
+        if (IsFriendly(victim)) return;
+
+        if (!victim.shieldOn)
+        {
+            owner.Grow();
+            victim.Shrink(owner.gameObject);
+            AudioSystem.I?.Play(AudioEventId.Player_Hit, transform.position);
+        }
+    }
+
 
 
         // Sword vs Player (damage if victim not shielding)

@@ -93,6 +93,17 @@ namespace Massive.Player
             if (!attackController) attackController = GetComponentInParent<PlayerAttackController>();
             if (!shieldColliderObject && owner != null) shieldColliderObject = owner.shield;
             if (!ringsVfx) ringsVfx = GetComponentInChildren<ShieldRingsVfx_Shapes>(true);
+
+            // Ensure rings follow the correct player (prevents duplicate/prefab offset issues)
+            if (ringsVfx != null && owner != null)
+            {
+                var vc = owner.visualsController;
+                Transform follow = owner.transform;
+                if (vc != null && vc.visuals != null)
+                    follow = vc.visuals;
+
+                ringsVfx.Bind(follow, vc);
+            }
             
 
             // Start disabled
