@@ -185,6 +185,10 @@ public void SetGameplayEnabled(bool enabled)
         _projectiles.Clear();
     }
 
+    private bool _worldPlayersSuppressed;
+private readonly List<PlayerControllerScript> _worldPlayersCache = new();
+
+
 
 
     // -------------------- Runtime state --------------------
@@ -314,8 +318,21 @@ public void SetOnTimeParticipants(IReadOnlyList<PlayerControllerScript> onTimePa
 
     public override void Init(AnomalyContext context)
     {
-        base.Init(context);
-        SetWorldPlayersSuppressed(true);
+    base.Init(context);
+
+    // Cache exactly who we intend to suppress/restore (participants, not allPlayers)
+    _worldPlayersCache.Clear();
+    if (Context.participants != null)
+    {
+        foreach (var p in Context.participants)
+        {
+            if (p != null)
+                _worldPlayersCache.Add(p);
+        }
+    }
+
+    // Now actually suppress them
+    SetWorldPlayersSuppressed(true);
 
         _timeRemaining = (overrideDuration > 0f)
             ? overrideDuration
@@ -1827,25 +1844,30 @@ private void UpdateLateJoinPenalties(float dt)
 
 private void SetWorldPlayersSuppressed(bool suppressed)
 {
-    // AnomalyContext is a struct -> it can never be null.
-    // Use a reference field as the “is initialized” sentinel.
-    if (Context.manager == null)
-        return;
+    if (_worldPlayersSuppressed == suppressed) return;
+    _worldPlayersSuppressed = suppressed;
 
-    var allPlayers = Context.allPlayers;
-    if (allPlayers == null)
-        return;
+    // If somehow cache wasn't built yet, fall back to Context.participants
+    if (_worldPlayersCache.Count == 0 && Context.participants != null)
+    {
+        foreach (var p in Context.participants)
+            if (p != null) _worldPlayersCache.Add(p);
+    }
 
-    foreach (var p in allPlayers)
+    foreach (var p in _worldPlayersCache)
     {
         if (p == null) continue;
-
-        // Whatever you called your new toggle method:
-        // p.SetGameplayRigSuppressed(suppressed);
-        // OR: p.SetGameplayRigActive(!suppressed);
-        // OR: p.SetGameplayRigRootActive(!suppressed);
+        p.SetWorldGameplaySuppressed(suppressed);
     }
 }
+
+private void OnDestroy()
+{
+    // Ensure world players always come back even if something ends early.
+    SetWorldPlayersSuppressed(false);
+}
+
+
 
 
 

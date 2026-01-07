@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using UnityEngine;
@@ -11,39 +12,37 @@ public sealed class Ultrastik360FixedAssignment : MonoBehaviour {
     [SerializeField] private int rewiredP3 = 2;
     [SerializeField] private int rewiredP4 = 3;
 
-    // Matches "... Player 1", "... Player 2", etc.
-    // Matches "... #1" at the end (UltraStik #1, UltraStik 360 #1, etc.)
+    [Header("Debug / Safety")]
+    [SerializeField] private bool verboseLogs = true;
+    [SerializeField] private bool requireAllFourBeforeAssign = true;
+
+    // Matches "... #1"
     private static readonly Regex HashSuffixRegex =
         new Regex(@"#\s*(\d+)\s*$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-    // Optional fallback: matches "... Player 1"
+    // Matches "... Player 1"
     private static readonly Regex PlayerSuffixRegex =
         new Regex(@"Player\s*(\d+)\s*$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-
-    private static int ExtractUltrastikId(string hardwareName) {
-        if(string.IsNullOrWhiteSpace(hardwareName)) return -1;
-
-        // Try "#N" first
-        var m = HashSuffixRegex.Match(hardwareName);
-        if(m.Success && int.TryParse(m.Groups[1].Value, out var id)) return id;
-
-        // Fallback: "Player N"
-        m = PlayerSuffixRegex.Match(hardwareName);
-        if(m.Success && int.TryParse(m.Groups[1].Value, out id)) return id;
-
-        return -1;
-    }
-
 
     private void Awake() {
         DontDestroyOnLoad(gameObject);
 
-        // Run once Rewired is initialized (safer than assuming Awake/Start timing).
-        ReInput.InitializedEvent += OnRewiredInitialized;
+        if(verboseLogs) Debug.Log("[UltraStikAssign] Awake");
 
-        // Optional: if something hotplugs / USB hiccups, re-apply mapping.
+        ReInput.InitializedEvent += OnRewiredInitialized;
         ReInput.ControllerConnectedEvent += OnControllerChanged;
         ReInput.ControllerDisconnectedEvent += OnControllerChanged;
+    }
+
+    private void Start() {
+        // Critical: ensures mapping happens even if this object loads after Rewired init.
+        StartCoroutine(WaitForRewiredThenApply());
+    }
+
+    private IEnumerator WaitForRewiredThenApply() {
+        while(!ReInput.isReady) yield return null;
+        if(verboseLogs) Debug.Log("[UltraStikAssign] Rewired ready (Start) -> applying mapping");
+        ApplyUltrastikMapping();
     }
 
     private void OnDestroy() {
@@ -53,50 +52,74 @@ public sealed class Ultrastik360FixedAssignment : MonoBehaviour {
     }
 
     private void OnRewiredInitialized() {
+        if(verboseLogs) Debug.Log("[UltraStikAssign] Rewired initialized event -> applying mapping");
         ApplyUltrastikMapping();
     }
 
     private void OnControllerChanged(ControllerStatusChangedEventArgs args) {
         if(args.controllerType != ControllerType.Joystick) return;
+        if(!ReInput.isReady) return;
+
+        // Do it next frame to allow Rewired's joystick list to settle.
+        StartCoroutine(ApplyNextFrame());
+    }
+
+    private IEnumerator ApplyNextFrame() {
+        yield return null;
+        if(verboseLogs) Debug.Log("[UltraStikAssign] Controller change -> applying mapping");
         ApplyUltrastikMapping();
+    }
+
+    private static int ExtractUltrastikId(string hardwareName) {
+        if(string.IsNullOrWhiteSpace(hardwareName)) return -1;
+
+        var m = HashSuffixRegex.Match(hardwareName);
+        if(m.Success && int.TryParse(m.Groups[1].Value, out var id)) return id;
+
+        m = PlayerSuffixRegex.Match(hardwareName);
+        if(m.Success && int.TryParse(m.Groups[1].Value, out id)) return id;
+
+        return -1;
+    }
+
+    private static bool LooksLikeUltrastik(string hardwareName) {
+        if(string.IsNullOrEmpty(hardwareName)) return false;
+
+        // Match what your screenshots show: "Ultimarc Ultra-Stik Player N"
+        return hardwareName.IndexOf("Ultimarc", System.StringComparison.OrdinalIgnoreCase) >= 0
+            && hardwareName.IndexOf("Ultra", System.StringComparison.OrdinalIgnoreCase) >= 0
+            && hardwareName.IndexOf("Stik", System.StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     private void ApplyUltrastikMapping() {
         if(!ReInput.isReady) return;
 
-        // Build: UltraStik ID (1-4) -> joystick
         var byUltrastikId = new Dictionary<int, Joystick>();
 
         foreach (var j in ReInput.controllers.Joysticks) {
-            Debug.Log($"JOY: '{j.hardwareName}'  guid={j.deviceInstanceGuid}");
-        }
+            if(verboseLogs) {
+                Debug.Log($"[UltraStikAssign] Found joystick: '{j.hardwareName}' " +
+                          $"rewiredId={j.id} systemId={j.systemId} guid={j.deviceInstanceGuid}");
+            }
 
-        if(byUltrastikId.Count < 4) {
-            Debug.LogWarning("Not all 4 UltraStiks detected yet; skipping remap for now.");
-            return;
-        }
-
-
-
-        foreach (var j in ReInput.controllers.Joysticks) {
             var hwName = j.hardwareName ?? string.Empty;
 
-            // Filter down to just UltraStiks (prevents accidental grabs of other gamepads)
-            if(hwName.IndexOf("UltraStik", System.StringComparison.OrdinalIgnoreCase) < 0) continue;
-
-            
-
+            if(!LooksLikeUltrastik(hwName)) continue;
 
             int id = ExtractUltrastikId(hwName);
             if(id < 1 || id > 4) continue;
 
             if(byUltrastikId.ContainsKey(id)) {
-                Debug.LogWarning($"Duplicate UltraStik ID {id} detected: '{hwName}'. " +
-                                 $"Re-check UltraMap Assign ID and replug each stick.");
+                Debug.LogWarning($"[UltraStikAssign] Duplicate UltraStik ID {id}: '{hwName}'. Check UltraMap IDs.");
                 continue;
             }
 
             byUltrastikId[id] = j;
+        }
+
+        if(requireAllFourBeforeAssign && byUltrastikId.Count < 4) {
+            Debug.LogWarning($"[UltraStikAssign] Only detected {byUltrastikId.Count}/4 UltraStiks; skipping remap.");
+            return;
         }
 
         ForceAssign(rewiredP1, byUltrastikId, 1);
@@ -105,24 +128,24 @@ public sealed class Ultrastik360FixedAssignment : MonoBehaviour {
         ForceAssign(rewiredP4, byUltrastikId, 4);
     }
 
-
-
     private static void ForceAssign(int rewiredPlayerId, Dictionary<int, Joystick> ultraById, int ultrastikId) {
         var player = ReInput.players.GetPlayer(rewiredPlayerId);
-        if(player == null) return;
-
-        // Removes ALL joysticks from that player. (Perfect for a dedicated cabinet.)
-        player.controllers.ClearControllersOfType(ControllerType.Joystick);
-
-        if(!ultraById.TryGetValue(ultrastikId, out var stick)) {
-            Debug.LogWarning($"UltraStik Player {ultrastikId} not found. Rewired Player {rewiredPlayerId} has no joystick.");
+        if(player == null) {
+            Debug.LogWarning($"[UltraStikAssign] Rewired Player {rewiredPlayerId} not found.");
             return;
         }
 
-        // removeFromOtherPlayers = true prevents any accidental double-assign.
+        // Clear any existing joystick assignment for this player
+        player.controllers.ClearControllersOfType(ControllerType.Joystick);
+
+        if(!ultraById.TryGetValue(ultrastikId, out var stick)) {
+            Debug.LogWarning($"[UltraStikAssign] UltraStik {ultrastikId} not found; Player {rewiredPlayerId} gets no joystick.");
+            return;
+        }
+
+        // removeFromOtherPlayers = true prevents duplicates
         player.controllers.AddController(stick, true);
 
-        Debug.Log($"Assigned '{stick.hardwareName}' -> Rewired Player {rewiredPlayerId} " +
-                  $"(deviceInstanceGuid={stick.deviceInstanceGuid})");
+        Debug.Log($"[UltraStikAssign] Assigned '{stick.hardwareName}' -> Rewired Player {rewiredPlayerId}");
     }
 }

@@ -109,52 +109,102 @@ public class NovaAnomalyAdapter : MonoBehaviour
 
 // }
 
+// private void HandleEntryClosed(List<PlayerControllerScript> entrants)
+// {
+//     if (anomalyManager == null || novaCoreAnomalyDefinition == null) return;
+
+//     if (entrants == null || entrants.Count == 0)
+//     {
+//         if (hideWarningIfNoEntrants && anomalyManager.ui != null)
+//             anomalyManager.ui.HideTop();
+//         return;
+//     }
+
+//     if (setActiveStateOnEntryClose && anomalyManager.ui != null)
+//         anomalyManager.ui.SetTopState(novaCoreAnomalyDefinition, AnomalyTopState.Active, 0f);
+
+//     if (anomalyManager.IsAnomalyRunning) return;
+
+//     float? duration = overrideDuration > 0f ? overrideDuration : null;
+
+//     IReadOnlyList<PlayerControllerScript> allPlayers = null;
+//     if (anomalyManager.playerManager != null)
+//         allPlayers = anomalyManager.playerManager.ActivePlayers;
+
+//     // Fallback safety (if playerManager isn't assigned or returns empty)
+//     if (allPlayers == null || allPlayers.Count == 0)
+//     {
+// #if UNITY_6000_0_OR_NEWER
+//         allPlayers = FindObjectsByType<PlayerControllerScript>(FindObjectsSortMode.None);
+// #else
+//         allPlayers = FindObjectsOfType<PlayerControllerScript>();
+// #endif
+//     }
+
+//     // Force everyone into the minigame, but ONLY entrants are "on-time"
+//     anomalyManager.TriggerAnomaly(novaCoreAnomalyDefinition, allPlayers, duration, entrants);
+// }
+
 private void HandleEntryClosed(List<PlayerControllerScript> entrants)
 {
-    if (anomalyManager == null || novaCoreAnomalyDefinition == null) return;
+    if (anomalyManager == null || novaCoreAnomalyDefinition == null)
+        return;
 
+    var ui = anomalyManager.ui;
+
+    // No entrants -> no anomaly
     if (entrants == null || entrants.Count == 0)
     {
-        if (hideWarningIfNoEntrants && anomalyManager.ui != null)
-            anomalyManager.ui.HideTop();
+        if (hideWarningIfNoEntrants && ui != null)
+            ui.HideTop(); // <-- real method
         return;
     }
 
-    if (setActiveStateOnEntryClose && anomalyManager.ui != null)
-        anomalyManager.ui.SetTopState(novaCoreAnomalyDefinition, AnomalyTopState.Active, 0f);
+    // Entrants exist: optionally flip banner to ACTIVE immediately
+    if (setActiveStateOnEntryClose && ui != null)
+        ui.SetTopState(novaCoreAnomalyDefinition, AnomalyTopState.Active, 0f);
 
-    if (anomalyManager.IsAnomalyRunning) return;
+    // Don't stomp if something else is already running
+    if (anomalyManager.IsAnomalyRunning)
+        return;
 
-    float? duration = overrideDuration > 0f ? overrideDuration : null;
+    // Duration override
+    float? duration = (overrideDuration > 0f) ? overrideDuration : (float?)null;
 
-    IReadOnlyList<PlayerControllerScript> allPlayers = null;
-    if (anomalyManager.playerManager != null)
-        allPlayers = anomalyManager.playerManager.ActivePlayers;
+    // IMPORTANT: load *all rostered players* into the minigame (fixes "only entrants participate")
+    var rosteredPlayers = GetRosteredWorldPlayers();
+    if (rosteredPlayers == null || rosteredPlayers.Count == 0)
+        rosteredPlayers = new List<PlayerControllerScript>(entrants);
 
-    // Fallback safety (if playerManager isn't assigned or returns empty)
-    if (allPlayers == null || allPlayers.Count == 0)
+    // On-time list must be a subset of rostered players (defensive)
+    var rosteredSet = new HashSet<PlayerControllerScript>(rosteredPlayers);
+    var onTime = new List<PlayerControllerScript>(entrants.Count);
+    foreach (var p in entrants)
     {
-#if UNITY_6000_0_OR_NEWER
-        allPlayers = FindObjectsByType<PlayerControllerScript>(FindObjectsSortMode.None);
-#else
-        allPlayers = FindObjectsOfType<PlayerControllerScript>();
-#endif
+        if (p != null && rosteredSet.Contains(p))
+            onTime.Add(p);
     }
 
-    // Force everyone into the minigame, but ONLY entrants are "on-time"
-    anomalyManager.TriggerAnomaly(novaCoreAnomalyDefinition, allPlayers, duration, entrants);
+    // This will feed your late-join system (AnomalyManager pushes forced on-time list into the minigame)
+    anomalyManager.TriggerAnomaly(
+        novaCoreAnomalyDefinition,
+        forcedParticipants: rosteredPlayers,
+        forcedDuration: duration,
+        onTimeParticipants: onTime
+    );
 }
+
 
 
 private void HandleAnomalyCompleted(AnomalyDefinition def, AnomalyResult result)
 {
     if (def != novaCoreAnomalyDefinition) return;
 
-    RestoreWorldPlayers();
-
+    // Let NovaCoreMinigame restore its own cached world players.
     if (star != null)
         star.TriggerBounceAfterMinigame();
 }
+
 
 private void RestoreWorldPlayers()
 {
@@ -169,6 +219,49 @@ private void RestoreWorldPlayers()
         if (p == null) continue;
         p.SetWorldGameplaySuppressed(false);
     }
+}
+
+private static bool IsRosteredWorldPlayer(PlayerControllerScript p)
+{
+    if (p == null) return false;
+    if (!p.isActiveAndEnabled) return false; // activeInHierarchy + enabled
+
+    // If you're using GameplayRigRoot to "turn off" unused players in 1v1,
+    // this prevents those players from being included.
+    var rig = p.transform.Find("GameplayRigRoot");
+    if (rig != null && !rig.gameObject.activeInHierarchy) return false;
+
+    return true;
+}
+
+private List<PlayerControllerScript> GetRosteredWorldPlayers()
+{
+    var result = new List<PlayerControllerScript>();
+    var seen = new HashSet<PlayerControllerScript>();
+
+    var fromManager = anomalyManager?.playerManager?.ActivePlayers;
+    if (fromManager != null)
+    {
+        foreach (var p in fromManager)
+        {
+            if (!IsRosteredWorldPlayer(p)) continue;
+            if (seen.Add(p)) result.Add(p);
+        }
+    }
+
+    // Fallback: scene query (active objects only)
+    if (result.Count == 0)
+    {
+        foreach (var p in FindObjectsByType<PlayerControllerScript>(FindObjectsSortMode.None))
+        {
+            if (!IsRosteredWorldPlayer(p)) continue;
+            if (seen.Add(p)) result.Add(p);
+        }
+    }
+
+    // Deterministic order (helps debugging & UI consistency)
+    result.Sort((a, b) => a.playerID.CompareTo(b.playerID));
+    return result;
 }
 
 
