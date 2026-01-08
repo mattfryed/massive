@@ -175,6 +175,21 @@ private bool _matchSpawning;
     [SerializeField] private float stunNuggetRampDownSeconds = 0.12f;
     [SerializeField] private float stunBlobJitterMul = 1.0f;
 
+    [Header("Stun Knockback")]
+    [SerializeField] private bool stunAppliesKnockback = true;
+
+    // Interpreted as "meters/second of knockback at full strength"
+    [SerializeField] private float stunKnockbackVelocity = 4.0f;
+
+    // Absolute safety clamp for planar speed during the kick
+    [SerializeField] private float stunMaxPlanarSpeed = 8.0f;
+
+    // Prevent multiple knockback kicks from stacking if stun is triggered repeatedly
+    [SerializeField] private float stunKnockbackLockout = 0.15f;
+
+    private float _nextAllowedStunKickTime = -Mathf.Infinity;
+
+
     private float _baseNuggetDrag = -1f;
     private Coroutine _stunRoutine;
 
@@ -1176,9 +1191,30 @@ private void SetCollidersEnabled(bool enabled)
         dir.y = 0f;
         dir = (dir.sqrMagnitude > 0.0001f) ? dir.normalized : Vector3.right;
 
-        float force = movePower * 3f * s;
-        if (rb != null)
-            rb.AddForce(dir * force, ForceMode.Impulse);
+        if (rb != null && stunAppliesKnockback && Time.time >= _nextAllowedStunKickTime)
+        {
+            _nextAllowedStunKickTime = Time.time + stunKnockbackLockout;
+
+            // Optional but recommended: don't compound existing lateral speed
+            Vector3 v = rb.linearVelocity;
+            Vector3 planarV = new Vector3(v.x, 0f, v.z);
+            rb.linearVelocity = v - planarV;
+
+            // Predictable, mass-independent kick:
+            float kick = stunKnockbackVelocity * s;
+            rb.AddForce(dir * kick, ForceMode.VelocityChange);
+
+            // Safety clamp so you can never get launched across the map
+            Vector3 v2 = rb.linearVelocity;
+            Vector3 planar2 = new Vector3(v2.x, 0f, v2.z);
+            float mag = planar2.magnitude;
+            if (mag > stunMaxPlanarSpeed && mag > 0.0001f)
+            {
+                planar2 = (planar2 / mag) * stunMaxPlanarSpeed;
+                rb.linearVelocity = new Vector3(planar2.x, v2.y, planar2.z);
+            }
+        }
+
 
         // Blob jitter (re-using your Particle Accelerator style external modifier)
         if (visualsController != null)

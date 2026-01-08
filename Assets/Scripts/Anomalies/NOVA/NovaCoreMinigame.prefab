@@ -325,7 +325,7 @@ MonoBehaviour:
     m_RotationOrder: 4
   massPerSubparticle: 1
   minTotalMassForSuccess: 1
-  projectileHitPadding: 0.2
+  projectileHitPadding: 0.4
   iconDiameter: 0.7
   iconOutlineWidth: 0.05
   iconLabelFont: {fileID: 11400000, guid: 13b46f913b61e2d4195306f4c4e38dbd, type: 2}
@@ -341,11 +341,11 @@ MonoBehaviour:
   rayDotSpacing: 0.3
   rayDotBaseScale: 1.2
   projectileScaleIncrease: 5
-  projectileSpeed: 40
+  projectileSpeed: 45
   projectilesRoot: {fileID: 0}
   projectileMaxDots: 80
   subparticleRadius: 0.2
-  particleSpeed: 15
+  particleSpeed: 8
   particleSpeedVariance: 0.25
   spawnRatePerSecond: 6
   spawnRateJitter: 2
@@ -355,7 +355,7 @@ MonoBehaviour:
   particleSpinSpeed: 500
   particleVibrationAmplitude: 0.2
   particleVibrationFrequency: 12
-  bridgeDotRadiusFactor: 0.45
+  bridgeDotRadiusFactor: 0.75
   bridgeDotsPerConnection: 5
   spawnMinWeight: 0.15
   spawnSideExponent: 5
@@ -372,6 +372,7 @@ MonoBehaviour:
   previewTravelTimeSeconds: 1.1
   circleIconMaterialTemplate: {fileID: 0}
   circleSpriteFallback: {fileID: 0}
+  minigameActivityDeadzone: 0.15
 --- !u!114 &5295219901517991629
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -8376,6 +8376,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   playerID: 2
   teamID: 1
+  gameplayRigRoot: {fileID: 0}
+  gameplayRigRootName: GameplayRigRoot
   movePower: 24
   attackingMoveScale: 0.6
   moveDeadzone: 0.15
@@ -8430,6 +8432,10 @@ MonoBehaviour:
   stunNuggetRampUpSeconds: 0.08
   stunNuggetRampDownSeconds: 0.12
   stunBlobJitterMul: 1
+  stunAppliesKnockback: 1
+  stunKnockbackVelocity: 4
+  stunMaxPlanarSpeed: 8
+  stunKnockbackLockout: 0.15
   stunTime: 1.25
   isActive: 1
   idleTime: 60
