@@ -27,6 +27,7 @@ public class DynamoStormController : MonoBehaviour
     [SerializeField] private bool useTravelingFrontForDamage = false;
 
 
+
     // ============================================================
     // Storm scheduling
     // ============================================================
@@ -95,6 +96,7 @@ public class DynamoStormController : MonoBehaviour
     [SerializeField] private Vector2 jitterScaleRange = new Vector2(0.35f, 1.0f);
     [SerializeField] private Vector2 alphaScaleRange = new Vector2(0.0f, 1.0f);
 
+ 
     // ============================================================
     // Damage
     // ============================================================
@@ -231,6 +233,19 @@ public class DynamoStormController : MonoBehaviour
             _stormStrength01 = 0f;
             ApplyStormToSystems(0f);
         }
+
+        if (_stormActive)
+        {
+            _stormTimer += Time.deltaTime;
+            UpdateEnvelopeAndStrength();
+            ApplyStormToSystems(_stormStrength01);
+
+            UpdatePlayerStormFactors(); // <-- add this
+
+            if (_stormTimer >= _stormTotal)
+                EndStorm(now);
+        }
+
 
         // Damage tick (cheap perf win)
         float tick = (damageTickRateHz <= 0f) ? 0f : 1f / damageTickRateHz;
@@ -515,6 +530,84 @@ if (psr && psr.sharedMaterial)
 //     }
 // }
 
+private bool TryGetEnvelopeQ(Vector3 worldPos, out float q)
+{
+    q = 0f;
+    if (stormFlow != null && _miStormFlowEnvelopeQ != null)
+    {
+        try
+        {
+            q = (float)_miStormFlowEnvelopeQ.Invoke(stormFlow, new object[] { worldPos });
+            return true;
+        }
+        catch { }
+    }
+    return false;
+}
+
+private float Outside01(Vector3 worldPos)
+{
+    if (!TryGetEnvelopeQ(worldPos, out float q))
+        return 0f; // safer default: if we can't measure boundary, don't damage
+
+    if (q <= 1f) return 0f;
+    float ramp = Mathf.Max(0.0001f, outsideRampQ);
+    return Mathf.Clamp01((q - 1f) / ramp);
+}
+
+private float Front01(Vector3 worldPos, Vector3 flowDir)
+{
+    // same math you already had
+    float halfLen = ProjectedHalfLen(flowDir, playfieldSizeXZ);
+    float startS = -halfLen - damageFrontTravelPad;
+    float endS   =  halfLen + damageFrontTravelPad;
+
+    float t01 = Mathf.Clamp01(_stormTimer / Mathf.Max(0.0001f, _stormTotal));
+    float frontCenterS = Mathf.Lerp(startS, endS, t01);
+
+    float along = Vector3.Dot(worldPos - playfieldCenter, flowDir);
+    float dist = along - frontCenterS;
+
+    float halfT = damageFrontThickness * 0.5f;
+    float feather = Mathf.Lerp(0.05f, 2.0f, damageFrontFeather);
+
+    float core = 1f - Smoothstep01(halfT, halfT * feather, Mathf.Abs(dist));
+    return Mathf.Clamp01(core);
+}
+
+private void UpdatePlayerStormFactors()
+{
+    if (!_stormActive || playerTargets == null || playerTargets.Count == 0)
+        return;
+
+    Vector3 flow = GetStormFlowDirWS();
+    flow.y = 0f;
+    if (flow.sqrMagnitude < 1e-6f) flow = Vector3.right;
+    flow.Normalize();
+
+    for (int i = 0; i < playerTargets.Count; i++)
+    {
+        var tr = playerTargets[i];
+        if (!tr) continue;
+
+        int id = tr.GetInstanceID();
+
+        float outside = Outside01(tr.position);
+        if (outside <= 0f)
+        {
+            _stormFactorByPlayer[id] = 0f;
+            continue;
+        }
+
+        float front = useTravelingFrontForDamage ? Front01(tr.position, flow) : 1f;
+
+        float factor = outside * front * _stormStrength01;
+        _stormFactorByPlayer[id] = factor;
+    }
+}
+
+
+
 private void ApplyDamageTick(float dt)
 {
     if (!_stormActive) return;
@@ -525,24 +618,27 @@ private void ApplyDamageTick(float dt)
         var tr = playerTargets[i];
         if (!tr) continue;
 
-        Vector3 pos = tr.position;
-        int id = tr.GetInstanceID();
+        float f = GetStormFactor01(tr);
+        if (f <= 0f) continue;
 
-        float hazard01 = GetStormHazard01(pos);
+        float dmg = damagePerSecondAtFullStorm * f * dt;
 
-        // Cache for debugging/other systems if you still want it
-        _stormFactorByPlayer[id] = hazard01;
-
-        if (hazard01 <= 0f)
-            continue;
-
-        float dmg = damagePerSecondAtFullStorm * hazard01 * dt;
-
+        // If you have PlayerExternalEffects, use it:
         var fx = GetEffects(tr);
         if (fx != null)
+        {
             fx.ApplyStormDamage(dmg);
+        }
+        else
+        {
+            // Fallback: directly drain mass (so you SEE something happen immediately)
+            var pc = tr.GetComponent<PlayerControllerScript>() ?? tr.GetComponentInParent<PlayerControllerScript>();
+            if (pc != null && !pc.IsInvulnerable)
+                pc.ApplyExternalMassDelta(-dmg, allowDeath: true);
+        }
     }
 }
+
 
 
     private bool IsOutsideMagnetosphere(Vector3 worldPos)
@@ -751,14 +847,21 @@ private void RefreshPlayersByTag()
     var gos = GameObject.FindGameObjectsWithTag(playerTag);
     for (int i = 0; i < gos.Length; i++)
     {
-        var tr = gos[i].transform;
-        playerTargets.Add(tr);
+        var go = gos[i];
 
-        var fx = gos[i].GetComponent<PlayerExternalEffects>();
-        if (!fx) fx = gos[i].GetComponentInParent<PlayerExternalEffects>();
+        // Prefer the object that actually owns the PlayerControllerScript (the "real player")
+        var pc = go.GetComponent<PlayerControllerScript>() ?? go.GetComponentInParent<PlayerControllerScript>();
+        Transform tr = pc ? pc.transform : go.transform;
+
+        if (!playerTargets.Contains(tr))
+            playerTargets.Add(tr);
+
+        var fx = tr.GetComponent<PlayerExternalEffects>();
+        if (!fx) fx = tr.GetComponentInParent<PlayerExternalEffects>();
         if (fx) _effectsByPlayer[tr.GetInstanceID()] = fx;
     }
 }
+
 
 
     private void RebuildEffectsCacheFromTargets()
@@ -901,5 +1004,7 @@ public float GetStormHazard01(Vector3 posWS)
 
     return Mathf.Clamp01(f);
 }
+
+
 
 }

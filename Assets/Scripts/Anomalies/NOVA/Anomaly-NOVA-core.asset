@@ -31,5 +31,7 @@ MonoBehaviour:
   controlIconB: {fileID: 0}
   uiCopyOverride: {fileID: 11400000, guid: 775eac4e2b2e1934aa12c0825af254d1, type: 2}
   instructionText: 
-  rewardsOnSuccess: []
-  rewardsOnFail: []
+  rewardsOnSuccess:
+  - {fileID: 11400000, guid: aa4ab6ac0a14cb844af84e2626e4a92a, type: 2}
+  rewardsOnFail:
+  - {fileID: 11400000, guid: aa4ab6ac0a14cb844af84e2626e4a92a, type: 2}

@@ -885,8 +885,8 @@ MonoBehaviour:
   projectileSpeed: 15
   projectilesRoot: {fileID: 8516632973065955361}
   projectileMaxDots: 80
-  subparticleRadius: 2
-  particleSpeed: 150
+  subparticleRadius: 0.2
+  particleSpeed: 22
   particleSpeedVariance: 0.25
   spawnRatePerSecond: 3
   spawnRateJitter: 1

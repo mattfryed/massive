@@ -48,7 +48,8 @@ public class PlayerStormPush : MonoBehaviour
         if (player && player.temporarilyEliminated)
             return;
 
-        float f = storm.GetStormFactor01(transform); // 0..1, includes outside/front delay
+        Transform key = (player != null) ? player.transform : transform;
+        float f = storm.GetStormFactor01(key);
         fSmoothed = Mathf.SmoothDamp(fSmoothed, f, ref fVel, factorSmoothTime);
 
         if (fSmoothed <= 0.0001f) return;

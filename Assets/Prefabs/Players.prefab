@@ -355,6 +355,7 @@ GameObject:
   - component: {fileID: 5508607764185764374}
   - component: {fileID: 562461102613263482}
   - component: {fileID: 6132357155083758080}
+  - component: {fileID: 7438244145939044982}
   m_Layer: 0
   m_Name: Player 4
   m_TagString: Player
@@ -559,6 +560,10 @@ MonoBehaviour:
   stunNuggetRampUpSeconds: 0.08
   stunNuggetRampDownSeconds: 0.12
   stunBlobJitterMul: 1
+  stunAppliesKnockback: 1
+  stunKnockbackVelocity: 4
+  stunMaxPlanarSpeed: 8
+  stunKnockbackLockout: 0.15
   stunTime: 1.25
   isActive: 1
   idleTime: 60
@@ -585,6 +590,19 @@ MonoBehaviour:
   attackProfile: {fileID: 11400000, guid: f8da97854828d82479cb4fca1898b16f, type: 2}
   externalMoveInput: {x: 0, y: 0}
   attackCooldown: 0.5
+  lockOnEnabled: 1
+  lockOnConeHalfAngleDeg: 25
+  lockOnMaxDistanceOverride: 0
+  lockOnDirectionBlend: 0.85
+  lockOnIgnoreSameTeam: 1
+  lockOnIgnoreEliminated: 1
+  lockOnTargetMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  lockOnRequireLineOfSight: 0
+  lockOnLineOfSightMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
   comboInputBuffer: 0.15
   forwardReference: {fileID: 2138244321642689187}
   onStageStarted:
@@ -709,6 +727,24 @@ MonoBehaviour:
   requireNotAttacking: 1
   cancelIfOwnerStunned: 1
   cancelIfOwnerExternallyStunned: 1
+--- !u!114 &7438244145939044982
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 392038114670197601}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0919b1e07e89546fcae72c952c99a516, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  storm: {fileID: 0}
+  player: {fileID: 0}
+  stormMaxDriftSpeed: 10
+  currentResponse: 6
+  maxAcceleration: 30
+  factorSmoothTime: 0.1
 --- !u!1 &584772934661744130
 GameObject:
   m_ObjectHideFlags: 0
@@ -2793,6 +2829,7 @@ GameObject:
   - component: {fileID: 7155467318940361878}
   - component: {fileID: 2830504071976160163}
   - component: {fileID: 8662673505827970028}
+  - component: {fileID: 3387532621364373653}
   m_Layer: 0
   m_Name: Player 3
   m_TagString: Player
@@ -2997,6 +3034,10 @@ MonoBehaviour:
   stunNuggetRampUpSeconds: 0.08
   stunNuggetRampDownSeconds: 0.12
   stunBlobJitterMul: 1
+  stunAppliesKnockback: 1
+  stunKnockbackVelocity: 4
+  stunMaxPlanarSpeed: 8
+  stunKnockbackLockout: 0.15
   stunTime: 1.25
   isActive: 1
   idleTime: 60
@@ -3023,6 +3064,19 @@ MonoBehaviour:
   attackProfile: {fileID: 11400000, guid: f8da97854828d82479cb4fca1898b16f, type: 2}
   externalMoveInput: {x: 0, y: 0}
   attackCooldown: 0.5
+  lockOnEnabled: 1
+  lockOnConeHalfAngleDeg: 25
+  lockOnMaxDistanceOverride: 0
+  lockOnDirectionBlend: 0.85
+  lockOnIgnoreSameTeam: 1
+  lockOnIgnoreEliminated: 1
+  lockOnTargetMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  lockOnRequireLineOfSight: 0
+  lockOnLineOfSightMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
   comboInputBuffer: 0.15
   forwardReference: {fileID: 7093163964905583013}
   onStageStarted:
@@ -3147,6 +3201,24 @@ MonoBehaviour:
   requireNotAttacking: 1
   cancelIfOwnerStunned: 1
   cancelIfOwnerExternallyStunned: 1
+--- !u!114 &3387532621364373653
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4478566604985342078}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0919b1e07e89546fcae72c952c99a516, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  storm: {fileID: 0}
+  player: {fileID: 0}
+  stormMaxDriftSpeed: 10
+  currentResponse: 6
+  maxAcceleration: 30
+  factorSmoothTime: 0.1
 --- !u!1 &4530543394128760712
 GameObject:
   m_ObjectHideFlags: 0
@@ -4215,6 +4287,7 @@ GameObject:
   - component: {fileID: 6395486008814182495}
   - component: {fileID: 7181159435398090212}
   - component: {fileID: 6120169519258287194}
+  - component: {fileID: 8381267655638476602}
   m_Layer: 0
   m_Name: Player 1
   m_TagString: Player
@@ -4419,6 +4492,10 @@ MonoBehaviour:
   stunNuggetRampUpSeconds: 0.08
   stunNuggetRampDownSeconds: 0.12
   stunBlobJitterMul: 1
+  stunAppliesKnockback: 1
+  stunKnockbackVelocity: 4
+  stunMaxPlanarSpeed: 8
+  stunKnockbackLockout: 0.15
   stunTime: 1.25
   isActive: 1
   idleTime: 60
@@ -4445,6 +4522,19 @@ MonoBehaviour:
   attackProfile: {fileID: 11400000, guid: f8da97854828d82479cb4fca1898b16f, type: 2}
   externalMoveInput: {x: 0, y: 0}
   attackCooldown: 0.5
+  lockOnEnabled: 1
+  lockOnConeHalfAngleDeg: 25
+  lockOnMaxDistanceOverride: 0
+  lockOnDirectionBlend: 0.85
+  lockOnIgnoreSameTeam: 1
+  lockOnIgnoreEliminated: 1
+  lockOnTargetMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  lockOnRequireLineOfSight: 0
+  lockOnLineOfSightMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
   comboInputBuffer: 0.15
   forwardReference: {fileID: 4259332121503468344}
   onStageStarted:
@@ -4569,6 +4659,24 @@ MonoBehaviour:
   requireNotAttacking: 1
   cancelIfOwnerStunned: 1
   cancelIfOwnerExternallyStunned: 1
+--- !u!114 &8381267655638476602
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7043992040001868691}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0919b1e07e89546fcae72c952c99a516, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  storm: {fileID: 0}
+  player: {fileID: 0}
+  stormMaxDriftSpeed: 10
+  currentResponse: 6
+  maxAcceleration: 30
+  factorSmoothTime: 0.1
 --- !u!1 &7099389551411198482
 GameObject:
   m_ObjectHideFlags: 0
@@ -5038,6 +5146,7 @@ GameObject:
   - component: {fileID: 6199074446648023192}
   - component: {fileID: 2764018769313091554}
   - component: {fileID: 5461854745555159754}
+  - component: {fileID: 7621770994169106218}
   m_Layer: 0
   m_Name: Player 2
   m_TagString: Player
@@ -5242,6 +5351,10 @@ MonoBehaviour:
   stunNuggetRampUpSeconds: 0.08
   stunNuggetRampDownSeconds: 0.12
   stunBlobJitterMul: 1
+  stunAppliesKnockback: 1
+  stunKnockbackVelocity: 4
+  stunMaxPlanarSpeed: 8
+  stunKnockbackLockout: 0.15
   stunTime: 1.25
   isActive: 1
   idleTime: 60
@@ -5268,6 +5381,19 @@ MonoBehaviour:
   attackProfile: {fileID: 11400000, guid: f8da97854828d82479cb4fca1898b16f, type: 2}
   externalMoveInput: {x: 0, y: 0}
   attackCooldown: 0.5
+  lockOnEnabled: 1
+  lockOnConeHalfAngleDeg: 25
+  lockOnMaxDistanceOverride: 0
+  lockOnDirectionBlend: 0.85
+  lockOnIgnoreSameTeam: 1
+  lockOnIgnoreEliminated: 1
+  lockOnTargetMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  lockOnRequireLineOfSight: 0
+  lockOnLineOfSightMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
   comboInputBuffer: 0.15
   forwardReference: {fileID: 3926127567115470239}
   onStageStarted:
@@ -5392,6 +5518,24 @@ MonoBehaviour:
   requireNotAttacking: 1
   cancelIfOwnerStunned: 1
   cancelIfOwnerExternallyStunned: 1
+--- !u!114 &7621770994169106218
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8459673253657699572}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0919b1e07e89546fcae72c952c99a516, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  storm: {fileID: 0}
+  player: {fileID: 0}
+  stormMaxDriftSpeed: 10
+  currentResponse: 6
+  maxAcceleration: 30
+  factorSmoothTime: 0.1
 --- !u!1 &8459699647868600381
 GameObject:
   m_ObjectHideFlags: 0
