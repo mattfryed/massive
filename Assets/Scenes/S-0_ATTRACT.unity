@@ -5449,7 +5449,7 @@ MeshFilter:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 291331875}
-  m_Mesh: {fileID: 1243885392}
+  m_Mesh: {fileID: 1241632268}
 --- !u!4 &291331879
 Transform:
   m_ObjectHideFlags: 0
@@ -11110,10 +11110,10 @@ TextMesh:
   m_Anchor: 4
   m_Alignment: 1
   m_TabSize: 4
-  m_FontSize: 0
+  m_FontSize: 88
   m_FontStyle: 0
   m_RichText: 1
-  m_Font: {fileID: 12800000, guid: 8668acd3567b64184b0bed88527e7979, type: 3}
+  m_Font: {fileID: 12800000, guid: 209e4102a4cbabc43bbdd241f55dad52, type: 3}
   m_Color:
     serializedVersion: 2
     rgba: 4294967295
@@ -11140,7 +11140,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 8668acd3567b64184b0bed88527e7979, type: 3}
+  - {fileID: 2100000, guid: 209e4102a4cbabc43bbdd241f55dad52, type: 3}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -11317,7 +11317,7 @@ MonoBehaviour:
   rewiredP4: 3
   verboseLogs: 1
   requireAllFourBeforeAssign: 1
---- !u!43 &1243885392
+--- !u!43 &1241632268
 Mesh:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -11634,6 +11634,11 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 1501838056}
     m_Modifications:
+    - target: {fileID: 2640862121420476812, guid: 889ca2db08eaa43219b3e3d25f2be28a,
+        type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 9190559600130576400, guid: 889ca2db08eaa43219b3e3d25f2be28a,
         type: 3}
       propertyPath: m_Name
@@ -11722,12 +11727,12 @@ PrefabInstance:
     - target: {fileID: 9190559600130576401, guid: 889ca2db08eaa43219b3e3d25f2be28a,
         type: 3}
       propertyPath: m_AnchoredPosition.x
-      value: -64.3
+      value: -139.2
       objectReference: {fileID: 0}
     - target: {fileID: 9190559600130576401, guid: 889ca2db08eaa43219b3e3d25f2be28a,
         type: 3}
       propertyPath: m_AnchoredPosition.y
-      value: -244.46
+      value: -480.79
       objectReference: {fileID: 0}
     - target: {fileID: 9190559600130576401, guid: 889ca2db08eaa43219b3e3d25f2be28a,
         type: 3}
@@ -11744,8 +11749,14 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 9190559600130576403, guid: 889ca2db08eaa43219b3e3d25f2be28a,
+        type: 3}
+      propertyPath: m_Enabled
+      value: 1
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
-    m_RemovedGameObjects: []
+    m_RemovedGameObjects:
+    - {fileID: 2640862121420476812, guid: 889ca2db08eaa43219b3e3d25f2be28a, type: 3}
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 889ca2db08eaa43219b3e3d25f2be28a, type: 3}
@@ -11972,10 +11983,10 @@ TextMesh:
   m_Anchor: 4
   m_Alignment: 1
   m_TabSize: 4
-  m_FontSize: 0
+  m_FontSize: 88
   m_FontStyle: 0
   m_RichText: 1
-  m_Font: {fileID: 12800000, guid: 8668acd3567b64184b0bed88527e7979, type: 3}
+  m_Font: {fileID: 12800000, guid: 209e4102a4cbabc43bbdd241f55dad52, type: 3}
   m_Color:
     serializedVersion: 2
     rgba: 4294967295
@@ -12002,7 +12013,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 8668acd3567b64184b0bed88527e7979, type: 3}
+  - {fileID: 2100000, guid: 209e4102a4cbabc43bbdd241f55dad52, type: 3}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -12191,12 +12202,12 @@ PrefabInstance:
     - target: {fileID: 9190559600130576401, guid: 889ca2db08eaa43219b3e3d25f2be28a,
         type: 3}
       propertyPath: m_AnchoredPosition.x
-      value: -64.29993
+      value: -139.2
       objectReference: {fileID: 0}
     - target: {fileID: 9190559600130576401, guid: 889ca2db08eaa43219b3e3d25f2be28a,
         type: 3}
       propertyPath: m_AnchoredPosition.y
-      value: -298.9
+      value: -589.75
       objectReference: {fileID: 0}
     - target: {fileID: 9190559600130576401, guid: 889ca2db08eaa43219b3e3d25f2be28a,
         type: 3}
@@ -12213,8 +12224,14 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 9190559600130576403, guid: 889ca2db08eaa43219b3e3d25f2be28a,
+        type: 3}
+      propertyPath: m_Enabled
+      value: 1
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
-    m_RemovedGameObjects: []
+    m_RemovedGameObjects:
+    - {fileID: 2640862121420476812, guid: 889ca2db08eaa43219b3e3d25f2be28a, type: 3}
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 889ca2db08eaa43219b3e3d25f2be28a, type: 3}

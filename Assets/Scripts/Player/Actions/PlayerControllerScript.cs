@@ -1165,13 +1165,13 @@ private void SetCollidersEnabled(bool enabled)
         if (attackController != null)
             attackController.CancelAttack(); // :contentReference[oaicite:10]{index=10}
 
-        // Optional: if your shield ability has a force-stop, do it here
+        
         // shieldAbility?.ForceStopShield();
 
         if (shield) shield.SetActive(false);
         if (sword) sword.SetActive(false);
 
-        // Knockback away from shield impact point (keep your existing logic)
+        // Knockback away from shield impact point
         Vector3 dir = transform.position - shieldPosition;
         dir.y = 0f;
         dir = (dir.sqrMagnitude > 0.0001f) ? dir.normalized : Vector3.right;
