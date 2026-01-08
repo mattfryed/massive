@@ -1723,8 +1723,12 @@ private void ApplyPreviewAutoScale()
     if (minDim <= 1f) return;
 
     // 1) Subparticle size (visual readability)
-    float r = Mathf.Clamp(minDim * previewSubRadiusPercent, 2f, 18f);
-    subparticleRadius = r;
+    float r = minDim * previewSubRadiusPercent;
+
+// Clamp as a percentage of the play area size (works in pixels or world units)
+float minR = minDim * 0.0025f; // 0.25% of box
+float maxR = minDim * 0.03f;   // 3% of box
+subparticleRadius = Mathf.Clamp(r, minR, maxR);
 
     // 2) Core hit radius based on core visual size
     float coreVisualRadius = Mathf.Min(coreRect.rect.width, coreRect.rect.height) * 0.5f;

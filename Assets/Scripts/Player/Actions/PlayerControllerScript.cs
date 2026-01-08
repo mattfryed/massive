@@ -491,6 +491,8 @@ if (showPlayerIdToastOnMatchStart)
                 if (rb != null)
                     visualsController.velocityWS = new Vector2(rb.linearVelocity.x, rb.linearVelocity.z);
             }
+            timeSinceLastActivity = Time.time - lastActivityTime;
+            isActive = timeSinceLastActivity <= idleTime;
 
             return;
         }
@@ -526,18 +528,18 @@ if (showPlayerIdToastOnMatchStart)
             lastStickAimWS = movement.normalized;
 
         bool shieldDown = rewiredPlayer.GetButtonDown("Shield");
+        bool shieldHeldInput = rewiredPlayer.GetButton("Shield"); // raw input
 
         if (shieldAbility != null)
         {
             if (shieldDown)
                 shieldAbility.TryActivate();
 
-            shieldOn = shieldAbility.IsActive;
+            shieldOn = shieldAbility.IsActive; // gameplay state
         }
         else
         {
-            // Legacy fallback if the ability isn't present
-            shieldOn = rewiredPlayer.GetButton("Shield");
+            shieldOn = shieldHeldInput; // legacy: gameplay state == held input
         }
 
 
@@ -592,7 +594,7 @@ if (showPlayerIdToastOnMatchStart)
             lastActivityTime = Time.time;
         }
 
-        if (attackDown || attackHeld || shieldDown || shieldOn || moveActive)
+        if (attackDown || attackHeld || shieldDown || shieldHeldInput || moveActive)
         lastActivityTime = Time.time;
 
 
@@ -1345,6 +1347,17 @@ public void SetWorldGameplaySuppressed(bool suppressed)
         SyncNuggetsGeometryFromVisuals();
         UpdateMassAndNuggets(forceRebuild: true);
     }
+}
+
+private void OnDisable()
+{
+    if (_stunRoutine != null)
+    {
+        StopCoroutine(_stunRoutine);
+        _stunRoutine = null;
+    }
+
+    UnStun(); // ensures isStunned=false + resets drag/jitter/VFX
 }
 
 

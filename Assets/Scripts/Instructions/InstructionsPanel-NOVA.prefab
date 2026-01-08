@@ -908,13 +908,13 @@ MonoBehaviour:
   explosionSpeed: 1.5
   previewAutoScale: 1
   previewUseUnscaledTime: 1
-  previewSubRadiusPercent: 0.015
+  previewSubRadiusPercent: 0.0284
   previewCoreHitRadiusMultiplier: 0.85
-  previewTravelTimeSeconds: 1.1
+  previewTravelTimeSeconds: 0.53
   circleIconMaterialTemplate: {fileID: 2100000, guid: 751edda24e2868d48a48c69c9b8f6699,
     type: 2}
   circleSpriteFallback: {fileID: 0}
-  minigameActivityDeadzone: 0.15
+  minigameActivityDeadzone: 0.1
 --- !u!114 &4097837329123461674
 MonoBehaviour:
   m_ObjectHideFlags: 0

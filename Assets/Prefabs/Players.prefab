@@ -566,7 +566,7 @@ MonoBehaviour:
   stunKnockbackLockout: 0.15
   stunTime: 1.25
   isActive: 1
-  idleTime: 60
+  idleTime: 10
   timeSinceLastActivity: 0
   lastActivityTime: 0
   moveHorizontal: 0
@@ -697,8 +697,9 @@ MonoBehaviour:
   attackController: {fileID: 6053901523157150560}
   shieldColliderObject: {fileID: 7359753550906017844}
   ringsVfx: {fileID: 203200325042147782}
+  activationCooldownSeconds: 2
   durationSeconds: 0.65
-  cooldownSeconds: 3
+  cooldownSeconds: 4
   minStrengthWhenEmpty: 0.15
   chargeToStrength:
     serializedVersion: 2
@@ -3040,7 +3041,7 @@ MonoBehaviour:
   stunKnockbackLockout: 0.15
   stunTime: 1.25
   isActive: 1
-  idleTime: 60
+  idleTime: 10
   timeSinceLastActivity: 0
   lastActivityTime: 0
   moveHorizontal: 0
@@ -3171,8 +3172,9 @@ MonoBehaviour:
   attackController: {fileID: 8069449206212830527}
   shieldColliderObject: {fileID: 872897441411467076}
   ringsVfx: {fileID: 792902632332366820}
+  activationCooldownSeconds: 2
   durationSeconds: 0.65
-  cooldownSeconds: 3
+  cooldownSeconds: 4
   minStrengthWhenEmpty: 0.15
   chargeToStrength:
     serializedVersion: 2
@@ -4498,7 +4500,7 @@ MonoBehaviour:
   stunKnockbackLockout: 0.15
   stunTime: 1.25
   isActive: 1
-  idleTime: 60
+  idleTime: 10
   timeSinceLastActivity: 0
   lastActivityTime: 0
   moveHorizontal: 0
@@ -4629,8 +4631,9 @@ MonoBehaviour:
   attackController: {fileID: 7449126616696641186}
   shieldColliderObject: {fileID: 8213169850770846564}
   ringsVfx: {fileID: 6721011910378729973}
+  activationCooldownSeconds: 2
   durationSeconds: 0.65
-  cooldownSeconds: 3
+  cooldownSeconds: 4
   minStrengthWhenEmpty: 0.15
   chargeToStrength:
     serializedVersion: 2
@@ -5357,7 +5360,7 @@ MonoBehaviour:
   stunKnockbackLockout: 0.15
   stunTime: 1.25
   isActive: 1
-  idleTime: 60
+  idleTime: 10
   timeSinceLastActivity: 0
   lastActivityTime: 0
   moveHorizontal: 0
@@ -5488,8 +5491,9 @@ MonoBehaviour:
   attackController: {fileID: 2858261058606723727}
   shieldColliderObject: {fileID: 2776260209057697151}
   ringsVfx: {fileID: 897185842197553391}
+  activationCooldownSeconds: 2
   durationSeconds: 0.65
-  cooldownSeconds: 3
+  cooldownSeconds: 4
   minStrengthWhenEmpty: 0.15
   chargeToStrength:
     serializedVersion: 2

@@ -24,6 +24,11 @@ namespace Massive.Player
         public bool SuppressDefaultShieldVfx { get; set; } = false;
 
         [Header("Timing")]
+        [Tooltip("Hard lockout after the shield ends. During this time, Shield cannot be activated at all.")]
+        [SerializeField, Min(0f)] private float activationCooldownSeconds = 0.35f;
+
+
+        [Tooltip("Soft cooldown / recharge time to return to full strength (1.0).")]
         [SerializeField, Min(0.05f)] private float durationSeconds = 0.65f;
         [SerializeField, Min(0.05f)] private float cooldownSeconds = 2.0f;
 
@@ -48,6 +53,9 @@ namespace Massive.Player
 
         public float CooldownSeconds => cooldownSeconds;
         public float DurationSeconds => durationSeconds;
+
+        public float ActivationCooldownSeconds => activationCooldownSeconds;
+        public float ActivationCooldownRemaining => Mathf.Max(0f, nextAllowedActivateTime - Time.time);
 
         /// <summary>
         /// 0 right after using, 1 when fully cooled down.
@@ -76,6 +84,7 @@ namespace Massive.Player
         private float lastUseTime = -999f;
         private float endTime;
         private Vector3 lastFaceDirWS = Vector3.right;
+        private float nextAllowedActivateTime = -999f;
 
 
         private void Reset()
@@ -179,6 +188,8 @@ namespace Massive.Player
         {
             if (!enabled || !gameObject.activeInHierarchy) return false;
             if (IsActive) return false; // no stacking
+            // Hard lockout (prevents spam-tapping to chain shields)
+            if (Time.time < nextAllowedActivateTime) return false;
 
             if (owner != null)
             {
@@ -230,6 +241,10 @@ namespace Massive.Player
         {
             if (!IsActive) return;
 
+
+            // Start hard lockout AFTER the shield finishes.
+            nextAllowedActivateTime = Time.time + Mathf.Max(0f, activationCooldownSeconds);
+
             IsActive = false;
             CurrentStrength01 = 0f;
 
@@ -260,6 +275,7 @@ namespace Massive.Player
             // On respawn: shield ready immediately
             lastUseTime = Time.time - cooldownSeconds;
             ForceStopShield();
+            nextAllowedActivateTime = Time.time - 999f;
         }
     }
 }
