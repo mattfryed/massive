@@ -2,6 +2,7 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.Events;
 
+
 namespace Massive.Player
 {
     [DisallowMultipleComponent]
@@ -44,6 +45,41 @@ namespace Massive.Player
 
         private float lastAttackEndTime = -Mathf.Infinity;
 
+
+    // ===== Lock-on / Aim Assist (Stage 0 lunge) =====
+    [Header("Lunge Lock-On Assist")]
+    [SerializeField] private bool lockOnEnabled = true;
+
+    [SerializeField, Range(0f, 90f)]
+    private float lockOnConeHalfAngleDeg = 25f;
+
+    // 0 = use stage TravelDistance
+    [SerializeField] private float lockOnMaxDistanceOverride = 0f;
+
+    // 1 = fully snap to target dir, 0.6-0.85 feels more like "assist"
+    [SerializeField, Range(0f, 1f)]
+    private float lockOnDirectionBlend = 0.85f;
+
+    [SerializeField] private bool lockOnIgnoreSameTeam = true;
+    [SerializeField] private bool lockOnIgnoreEliminated = true;
+
+    // Put players on a Player layer if possible; otherwise leave as Everything and rely on filtering.
+    [SerializeField] private LayerMask lockOnTargetMask = ~0;
+
+    // Optional but recommended if you have solid walls/obstacles
+    [SerializeField] private bool lockOnRequireLineOfSight = false;
+    [SerializeField] private LayerMask lockOnLineOfSightMask = ~0;
+
+        // Runtime state (do NOT mutate the stage asset)
+    private float stageTravelDistanceWS;
+    private float stageStopDistanceWS;
+
+    private PlayerControllerScript ownerController;
+    private PlayerControllerScript lockedTarget;
+    private readonly Collider[] _lockHits = new Collider[16];
+
+
+
         [Header("Combo Tuning")]
         [SerializeField, Min(0f)]
         private float comboInputBuffer = 0.15f;
@@ -79,9 +115,13 @@ namespace Massive.Player
         public Transform ForwardReference => forwardReference != null ? forwardReference : transform;
 
         private void Awake()
-        {
+    {
             characterController = GetComponent<CharacterController>();
             rb = GetComponent<Rigidbody>();
+            ownerController = GetComponent<PlayerControllerScript>();
+
+            // existing forwardReference auto-wire...
+
 
             // Auto-wire forward reference
             if (forwardReference == null)
@@ -213,17 +253,21 @@ public Vector3 CurrentAttackDirectionWS => GetAttackDirection();
 
         private void ApplyStageMotion(float normalized, float deltaNormalized)
         {
-            float targetDistance = currentStage.TravelDistance * currentStage.DistanceCurve.Evaluate(normalized);
-            float deltaDistance = targetDistance - currentDistanceProgress;
-            currentDistanceProgress = targetDistance;
+    float targetDistance = stageTravelDistanceWS * currentStage.DistanceCurve.Evaluate(normalized);
 
-            if (!Mathf.Approximately(deltaDistance, 0f))
-            {
-                Vector3 displacement = GetAttackDirection() * deltaDistance;
-                displacement.y = 0f;      // <— force attack moves to stay on the ground plane
-                Move(displacement);
+    // If we locked a target closer than the full travel, stop exactly at that initial distance.
+    if (stageStopDistanceWS < stageTravelDistanceWS)
+        targetDistance = Mathf.Min(targetDistance, stageStopDistanceWS);
 
-            }
+    float deltaDistance = targetDistance - currentDistanceProgress;
+    currentDistanceProgress = targetDistance;
+
+    if (!Mathf.Approximately(deltaDistance, 0f))
+    {
+        Vector3 displacement = GetAttackDirection() * deltaDistance;
+        displacement.y = 0f;
+        Move(displacement);
+    }
 
             switch (currentStage.StageType)
             {
@@ -330,15 +374,24 @@ public Vector3 CurrentAttackDirectionWS => GetAttackDirection();
             comboQueued = false;
             isAttacking = true;
 
+            // lock attack direction for this stage (your existing behavior)
+stageAttackDirectionWS = ComputeAttackDirectionFromInput();
+
+// per-stage travel (so we never edit the AttackStage asset)
+stageTravelDistanceWS = currentStage.TravelDistance;
+stageStopDistanceWS = stageTravelDistanceWS;
+lockedTarget = null;
+
+// Only apply lock-on to the primary lunge (stage 0)
+if (lockOnEnabled && stageIndex == 0)
+{
+    TryApplyLungeLockOn();
+}
+
             // lock attack direction for this stage
             stageAttackDirectionWS = ComputeAttackDirectionFromInput();
 
             DetermineSwipeDirection();
-
-                // 🔊 Sword SFX: play on stage start
-            if (stageIndex == 0) // only first lunge of the sequence
-                AudioSystem.I?.Play(AudioEventId.Player_SwordAttack, transform.position);
-
 
             // GPU VFX (AttackTrailGPU) are driven by OnStageStarted
             onStageStarted.Invoke(stage);
@@ -413,10 +466,102 @@ public Vector3 CurrentAttackDirectionWS => GetAttackDirection();
 
             EndAttackSequence();
         }
+
+
+    private void TryApplyLungeLockOn()
+{
+    Vector3 origin = (rb != null) ? rb.position : transform.position;
+
+    Vector3 aimDir = stageAttackDirectionWS;
+    aimDir.y = 0f;
+    if (aimDir.sqrMagnitude < 0.0001f) return;
+    aimDir.Normalize();
+
+    float maxDist = (lockOnMaxDistanceOverride > 0f) ? lockOnMaxDistanceOverride : stageTravelDistanceWS;
+    if (maxDist <= 0.0001f) return;
+
+    float cosLimit = Mathf.Cos(lockOnConeHalfAngleDeg * Mathf.Deg2Rad);
+
+    int count = Physics.OverlapSphereNonAlloc(
+        origin,
+        maxDist,
+        _lockHits,
+        lockOnTargetMask,
+        QueryTriggerInteraction.Collide // safer: includes triggers if your player collider is trigger for some reason
+    );
+
+    float bestScore = float.NegativeInfinity;
+    PlayerControllerScript best = null;
+    Vector3 bestDir = aimDir;
+    float bestDist = 0f;
+
+    for (int i = 0; i < count; i++)
+    {
+        Collider col = _lockHits[i];
+        if (col == null) continue;
+
+        // Your PlayerMelee expects PlayerControllerScript on the same object as the collider/tagged "Player".
+        // If your body collider is on a child, change this to GetComponentInParent<PlayerControllerScript>().
+        var pcs = col.GetComponent<PlayerControllerScript>();
+        if (pcs == null) continue;
+        if (pcs == ownerController) continue;
+
+        if (lockOnIgnoreEliminated && pcs.temporarilyEliminated) continue;
+        if (lockOnIgnoreSameTeam && ownerController != null && pcs.teamID == ownerController.teamID) continue;
+
+        Vector3 to = pcs.transform.position - origin;
+        to.y = 0f;
+
+        float dist = to.magnitude;
+        if (dist < 0.001f) continue;
+
+        Vector3 dir = to / dist;
+
+        // Cone check
+        float dot = Vector3.Dot(aimDir, dir);
+        if (dot < cosLimit) continue;
+
+        // Optional line of sight check
+        if (lockOnRequireLineOfSight)
+        {
+            if (Physics.Raycast(origin, dir, out RaycastHit hit, dist, lockOnLineOfSightMask, QueryTriggerInteraction.Ignore))
+            {
+                var hitPcs = hit.collider.GetComponentInParent<PlayerControllerScript>();
+                if (hitPcs != pcs) continue;
+            }
+        }
+
+        // Score: prioritize "most centered in cone", then closeness
+        float distance01 = 1f - Mathf.Clamp01(dist / maxDist);
+        float score = dot * 0.75f + distance01 * 0.25f;
+
+        if (score > bestScore)
+        {
+            bestScore = score;
+            best = pcs;
+            bestDir = dir;
+            bestDist = dist;
+        }
+    }
+
+    if (best == null) return;
+
+    lockedTarget = best;
+
+    // Blend for feel (avoid “magnet snap”)
+    Vector3 blendedDir = Vector3.Slerp(aimDir, bestDir, Mathf.Clamp01(lockOnDirectionBlend));
+    blendedDir.y = 0f;
+    if (blendedDir.sqrMagnitude > 0.0001f)
+        stageAttackDirectionWS = blendedDir.normalized;
+
+    // Stop at initial distance (but preserve speed by clamping, not scaling travelDistance)
+    stageStopDistanceWS = Mathf.Clamp(bestDist, 0f, stageTravelDistanceWS);
+}
     }
 
     [System.Serializable]
     public class AttackStageUnityEvent : UnityEvent<AttackStage>
     {
     }
+
 }
