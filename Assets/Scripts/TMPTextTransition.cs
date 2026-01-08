@@ -203,6 +203,28 @@ public class TMPTextTransition : MonoBehaviour
         StartRoutine(OutRoutine());
     }
 
+    // Call this if another script changes TMP_Text.color at runtime.
+// TMPTextTransition caches baseColor and will otherwise overwrite your new color.
+public void RefreshBaseColorsFromCurrent()
+{
+    if (!Application.isPlaying) return;
+
+    EnsureCache();
+
+    for (int i = 0; i < _cache.Count; i++)
+    {
+        var c = _cache[i];
+        if (c == null || c.text == null) continue;
+
+        // Re-capture whatever color is currently on the text.
+        c.baseColor = c.text.color;
+    }
+
+    // Important if you’re using per-character vertex color fades/typewriter.
+    RefreshTextInfoAndBaseColors(force: true);
+}
+
+
     public void Skip()
     {
         if (!Application.isPlaying) return;

@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Reflection;
 using TMPro;
 using UnityEngine;
@@ -53,7 +54,11 @@ public class PostGameScreenController : MonoBehaviour
 
     private bool _armed;
 
-    private void Start()
+    // --- Fix helpers ---
+    private static readonly int FaceColorId = Shader.PropertyToID("_FaceColor");
+    private readonly List<Material> _instancedMaterials = new();
+
+    private IEnumerator Start()
     {
         GameFlowContext.EnsureExists();
 
@@ -61,15 +66,33 @@ public class PostGameScreenController : MonoBehaviour
         {
             // No result? Return to attract safely.
             SceneFlow.GoToChooseMode();
-            return;
+            yield break;
         }
 
         MatchResult r = GameFlowContext.Instance.LastMatchResult;
 
         ApplyResult(r);
+
+        // Apply theme immediately...
         ApplyWinnerTheme(r);
 
-        StartCoroutine(ReturnRoutine());
+        // ...and again next frame so first-frame TMP init / other scripts don't stomp it.
+        yield return null;
+        ApplyWinnerTheme(r);
+
+        // Continue with normal return routine.
+        yield return ReturnRoutine();
+    }
+
+    private void OnDestroy()
+    {
+        // Clean up any runtime-instanced materials we created.
+        for (int i = 0; i < _instancedMaterials.Count; i++)
+        {
+            if (_instancedMaterials[i] != null)
+                Destroy(_instancedMaterials[i]);
+        }
+        _instancedMaterials.Clear();
     }
 
     private void ApplyResult(MatchResult r)
@@ -100,53 +123,145 @@ public class PostGameScreenController : MonoBehaviour
             modeText.text = r.mode == GameMode.TwoVTwo ? "2v2" : "1v1";
     }
 
-    private void ApplyWinnerTheme(MatchResult r)
+private void ApplyWinnerTheme(MatchResult r)
+{
+    // 1) Text color theme
+    Color c = (r.winner == TeamSide.Light) ? lightWinTextColor :
+              (r.winner == TeamSide.Dark)  ? darkWinTextColor  :
+              darkWinTextColor;
+
+    System.Collections.Generic.HashSet<TMPTextTransition> toRefresh = null;
+
+    if (themedTexts != null)
     {
-        // 1) Text color theme
-        Color c = (r.winner == TeamSide.Light) ? lightWinTextColor :
-                  (r.winner == TeamSide.Dark)  ? darkWinTextColor  :
-                  darkWinTextColor; // tie fallback (adjust if you want)
-
-        if (themedTexts != null)
+        for (int i = 0; i < themedTexts.Length; i++)
         {
-            for (int i = 0; i < themedTexts.Length; i++)
+            var t = themedTexts[i];
+            if (t == null) continue;
+
+            t.color = c;
+
+            // Collect transitions that might be controlling this text
+            var tt = t.GetComponent<TMPTextTransition>();
+            if (tt != null)
             {
-                if (themedTexts[i] == null) continue;
-                themedTexts[i].color = c;
+                toRefresh ??= new System.Collections.Generic.HashSet<TMPTextTransition>();
+                toRefresh.Add(tt);
+            }
+
+            var ttParent = t.GetComponentInParent<TMPTextTransition>();
+            if (ttParent != null)
+            {
+                toRefresh ??= new System.Collections.Generic.HashSet<TMPTextTransition>();
+                toRefresh.Add(ttParent);
             }
         }
+    }
 
-        // 2) Void background team override
-        int teamId = (r.winner == TeamSide.Light) ? lightTeamIdOverride :
-                     (r.winner == TeamSide.Dark)  ? darkTeamIdOverride  :
-                     -1; // tie => don't change
+    // Refresh cached base colors AFTER setting .color
+    if (toRefresh != null)
+    {
+        foreach (var tt in toRefresh)
+            tt.RefreshBaseColorsFromCurrent();
+    }
 
-        if (teamId < 0) return;
+    // 2) Void background team override (leave your existing code as-is)
+    int teamId = (r.winner == TeamSide.Light) ? lightTeamIdOverride :
+                 (r.winner == TeamSide.Dark)  ? darkTeamIdOverride  :
+                 -1;
 
-        if (voidBackgroundVisuals == null || voidBackgroundVisuals.Length == 0) return;
+    if (teamId < 0) return;
 
-        for (int i = 0; i < voidBackgroundVisuals.Length; i++)
+    if (voidBackgroundVisuals == null || voidBackgroundVisuals.Length == 0) return;
+
+    for (int i = 0; i < voidBackgroundVisuals.Length; i++)
+    {
+        var mb = voidBackgroundVisuals[i];
+        if (mb == null) continue;
+
+        bool ok = TrySetIntMember(mb, teamId, preferredTeamOverrideMemberName);
+
+        if (!ok)
         {
-            var mb = voidBackgroundVisuals[i];
-            if (mb == null) continue;
-
-            bool ok = TrySetIntMember(mb, teamId, preferredTeamOverrideMemberName);
-
-            if (!ok)
-            {
-                Debug.LogWarning(
-                    $"[PostGameScreenController] Could not set Team ID Override on '{mb.name}' ({mb.GetType().Name}). " +
-                    $"Tell me the backing C# field/property name for the inspector label 'Team ID Override' and I'll lock it in."
-                );
-            }
-            else
-            {
-                // If the visual script needs to rebuild, these are safe no-ops if the methods don't exist.
-                mb.SendMessage("Refresh", SendMessageOptions.DontRequireReceiver);
-                mb.SendMessage("Rebuild", SendMessageOptions.DontRequireReceiver);
-                mb.SendMessage("Apply", SendMessageOptions.DontRequireReceiver);
-            }
+            Debug.LogWarning(
+                $"[PostGameScreenController] Could not set Team ID Override on '{mb.name}' ({mb.GetType().Name}). " +
+                $"Tell me the backing C# field/property name for the inspector label 'Team ID Override' and I'll lock it in."
+            );
         }
+        else
+        {
+            mb.SendMessage("Refresh", SendMessageOptions.DontRequireReceiver);
+            mb.SendMessage("Rebuild", SendMessageOptions.DontRequireReceiver);
+            mb.SendMessage("Apply", SendMessageOptions.DontRequireReceiver);
+        }
+    }
+}
+
+
+    /// <summary>
+    /// Applies the winner theme RGB to:
+    /// - themedTexts array
+    /// - plus winnerText/modeText/countdownText (even if you forgot to add them to themedTexts)
+    ///
+    /// Preserves each text's current alpha (so typewriter/fades can still drive transparency).
+    /// Also neutralizes TMP material FaceColor to white on a per-instance material if needed.
+    /// </summary>
+    private void ApplyThemeColorToTextSet(Color themeRgb)
+    {
+        // Always include these, even if not in themedTexts:
+        ApplyThemeColorToText(winnerText, themeRgb);
+        ApplyThemeColorToText(modeText, themeRgb);
+        ApplyThemeColorToText(countdownText, themeRgb);
+
+        if (themedTexts == null) return;
+        for (int i = 0; i < themedTexts.Length; i++)
+            ApplyThemeColorToText(themedTexts[i], themeRgb);
+    }
+
+    private void ApplyThemeColorToText(TMP_Text t, Color themeRgb)
+    {
+        if (t == null) return;
+
+        // Preserve existing alpha so other effects (typewriter/alpha anims) aren't broken.
+        Color c = themeRgb;
+        c.a = t.color.a;
+        t.color = c;
+
+        // If the material preset has FaceColor tinted black, vertex color can't go white.
+        // Ensure FaceColor is neutral white, but do it on a per-instance material (no global side effects).
+        Material mat = EnsureWritableFontMaterial(t);
+        if (mat != null && mat.HasProperty(FaceColorId))
+        {
+            Color face = mat.GetColor(FaceColorId);
+            face.r = 1f; face.g = 1f; face.b = 1f; // keep alpha as-is
+            mat.SetColor(FaceColorId, face);
+        }
+
+        // Force update so you can visually confirm immediately.
+        t.ForceMeshUpdate();
+    }
+
+    private Material EnsureWritableFontMaterial(TMP_Text t)
+    {
+        if (t == null) return null;
+
+        // fontMaterial can be shared or instanced depending on how the text/preset was authored.
+        Material mat = t.fontMaterial;
+        Material shared = t.fontSharedMaterial;
+
+        if (mat == null) return null;
+
+        // If it's the shared asset material, instance it so we don't affect other scenes/text.
+        if (shared != null && ReferenceEquals(mat, shared))
+        {
+            var inst = new Material(shared);
+            inst.name = shared.name + " (PostGame Instance)";
+            t.fontMaterial = inst;
+            _instancedMaterials.Add(inst);
+            return inst;
+        }
+
+        return mat;
     }
 
     private IEnumerator ReturnRoutine()
@@ -233,7 +348,6 @@ public class PostGameScreenController : MonoBehaviour
 
         var t = target.GetType();
 
-        // Candidate member names (most likely backing names for an inspector label "Team ID Override")
         string[] candidates = string.IsNullOrEmpty(preferredName)
             ? new[]
             {
@@ -249,7 +363,6 @@ public class PostGameScreenController : MonoBehaviour
         {
             string name = candidates[i];
 
-            // Field
             var f = t.GetField(name, flags);
             if (f != null && f.FieldType == typeof(int))
             {
@@ -257,7 +370,6 @@ public class PostGameScreenController : MonoBehaviour
                 return true;
             }
 
-            // Property
             var p = t.GetProperty(name, flags);
             if (p != null && p.CanWrite && p.PropertyType == typeof(int))
             {
@@ -266,7 +378,6 @@ public class PostGameScreenController : MonoBehaviour
             }
         }
 
-        // If preferredName was supplied and failed, fall back to common candidates too
         if (!string.IsNullOrEmpty(preferredName))
             return TrySetIntMember(target, value, preferredName: "");
 

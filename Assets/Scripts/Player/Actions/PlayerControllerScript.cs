@@ -1176,7 +1176,7 @@ private void SetCollidersEnabled(bool enabled)
         dir.y = 0f;
         dir = (dir.sqrMagnitude > 0.0001f) ? dir.normalized : Vector3.right;
 
-        float force = movePower * 30f * s;
+        float force = movePower * 3f * s;
         if (rb != null)
             rb.AddForce(dir * force, ForceMode.Impulse);
 

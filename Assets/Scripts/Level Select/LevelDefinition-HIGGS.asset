@@ -22,4 +22,4 @@ MonoBehaviour:
   instructionsPanelPrefab: {fileID: 7889573251582337184, guid: 923531e7b4812e34bac3fd373bf08511,
     type: 3}
   anomalyTypeName: SYMETTRY KNOTS
-  audioProfile: {fileID: 0}
+  audioProfile: {fileID: 11400000, guid: 7acbe58a564814946ab33dbd32f1afe0, type: 2}

@@ -21,5 +21,5 @@ MonoBehaviour:
     type: 3}
   instructionsPanelPrefab: {fileID: 7889573251582337184, guid: 70c27a905e9a042c3b467e27b2d79460,
     type: 3}
-  anomalyTypeName: GRAVITY WELL
-  audioProfile: {fileID: 0}
+  anomalyTypeName: ASTRAL RHYTHMS
+  audioProfile: {fileID: 11400000, guid: 7acbe58a564814946ab33dbd32f1afe0, type: 2}

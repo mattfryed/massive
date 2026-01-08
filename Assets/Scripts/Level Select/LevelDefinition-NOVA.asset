@@ -22,4 +22,4 @@ MonoBehaviour:
   instructionsPanelPrefab: {fileID: 7889573251582337184, guid: b57924630d048d54e9fba77a4d36915f,
     type: 3}
   anomalyTypeName: CORE COLLAPSE
-  audioProfile: {fileID: 0}
+  audioProfile: {fileID: 11400000, guid: 7acbe58a564814946ab33dbd32f1afe0, type: 2}

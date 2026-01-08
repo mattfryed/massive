@@ -22,4 +22,4 @@ MonoBehaviour:
   instructionsPanelPrefab: {fileID: 7889573251582337184, guid: 1e94abd55282e9743b41a1f12800c8a0,
     type: 3}
   anomalyTypeName: MAGNETOSPHERE
-  audioProfile: {fileID: 0}
+  audioProfile: {fileID: 11400000, guid: 7acbe58a564814946ab33dbd32f1afe0, type: 2}
