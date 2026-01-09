@@ -1050,8 +1050,10 @@ public void ShrinkScaled(GameObject hitSource, float scale01)
         SetCollidersEnabled(true);
 
         temporarilyEliminated = false;
-        lastActivityTime = Time.time;
-        isActive = true;
+
+// ✅ do NOT treat respawn as player activity
+timeSinceLastActivity = Time.time - lastActivityTime;
+isActive = timeSinceLastActivity <= idleTime;
 
         _invulnUntil = Time.time + Mathf.Max(0f, respawnInvulnSeconds);
 
