@@ -26,6 +26,57 @@ public class PlayerControllerScript : MonoBehaviour
 {
     private Rewired.Player rewiredPlayer;
 
+    [Header("Control")]
+    [SerializeField] private PlayerControlMode controlMode = PlayerControlMode.Rewired;
+
+    [Tooltip("If true, this is a non-gameplay 'puppet' and should be ignored by player registries, etc.")]
+    [SerializeField] private bool isPseudoPlayer = false;
+
+    private PlayerInputFrame _scriptedInput;
+    private bool _hasScriptedInput;
+
+    public bool IsPseudoPlayer => isPseudoPlayer;
+    public PlayerControlMode ControlMode => controlMode;
+
+    public void SetControlMode(PlayerControlMode mode)
+    {
+        controlMode = mode;
+
+        // If we switch back to Rewired at runtime, try to acquire it.
+        if (controlMode == PlayerControlMode.Rewired)
+            EnsureRewiredPlayer();
+    }
+
+    public void SetScriptedInput(in PlayerInputFrame frame)
+    {
+        _scriptedInput = frame;
+        _hasScriptedInput = true;
+    }
+
+    public void ClearScriptedInput()
+    {
+        _scriptedInput = default;
+        _hasScriptedInput = false;
+    }
+    
+    private void EnsureRewiredPlayer()
+{
+    if (rewiredPlayer != null) return;
+
+    try
+    {
+        rewiredPlayer = Rewired.ReInput.players.GetPlayer(playerID);
+    }
+    catch
+    {
+        // If someone runs a scene directly without Rewired initialized,
+        // we don't want hard exceptions. We'll just behave like "no input".
+        rewiredPlayer = null;
+    }
+}
+
+
+
     [Header("Identity")]
     public int playerID;
     public int teamID;
@@ -370,7 +421,8 @@ if (showPlayerIdToastOnMatchStart)
 
     private void Awake()
     {
-        rewiredPlayer = Rewired.ReInput.players.GetPlayer(playerID);
+        if (controlMode == PlayerControlMode.Rewired)
+        EnsureRewiredPlayer();
 
         rb = GetComponent<Rigidbody>();
         if (!rb) Debug.LogWarning($"[{name}] No Rigidbody found on Player root.", this);
@@ -514,38 +566,93 @@ if (showPlayerIdToastOnMatchStart)
 
 
 
-        // Input
-        moveHorizontal = rewiredPlayer.GetAxis("MoveH");
-        moveVertical = rewiredPlayer.GetAxis("MoveV");
-        movement = new Vector3(moveHorizontal, 0f, moveVertical);
-        float moveDz2 = moveDeadzone * moveDeadzone;
+        // // Input
+        // moveHorizontal = rewiredPlayer.GetAxis("MoveH");
+        // moveVertical = rewiredPlayer.GetAxis("MoveV");
+        // movement = new Vector3(moveHorizontal, 0f, moveVertical);
+        // float moveDz2 = moveDeadzone * moveDeadzone;
+        // bool moveActive = movement.sqrMagnitude > moveDz2;
+
+        
+
+        // --------------------
+        // Input (Rewired OR Scripted)
+        // --------------------
+        PlayerInputFrame input = default;
+
+        switch (controlMode)
+        {
+            case PlayerControlMode.Rewired:
+                EnsureRewiredPlayer();
+                if (rewiredPlayer != null)
+                {
+                    input.move = new Vector2(
+                        rewiredPlayer.GetAxis("MoveH"),
+                        rewiredPlayer.GetAxis("MoveV")
+                    );
+
+                    input.shieldDown = rewiredPlayer.GetButtonDown("Shield");
+                    input.shieldHeld = rewiredPlayer.GetButton("Shield");
+
+                    input.attackDown = rewiredPlayer.GetButtonDown("Sword");
+                    input.attackHeld = rewiredPlayer.GetButton("Sword");
+                    input.attackUp   = rewiredPlayer.GetButtonUp("Sword");
+                }
+                break;
+
+            case PlayerControlMode.Scripted:
+                input = _hasScriptedInput ? _scriptedInput : default;
+
+                // Quality-of-life: auto-clear edge pulses so the director
+                // can just "set once" and not accidentally repeat for multiple frames.
+                if (_hasScriptedInput)
+                {
+                    _scriptedInput.attackDown = false;
+                    _scriptedInput.attackUp   = false;
+                    _scriptedInput.shieldDown = false;
+                }
+                break;
+
+            case PlayerControlMode.Disabled:
+                input = default;
+                break;
+        }
+
+        // Apply to your existing exposed fields
+        moveHorizontal = input.move.x;
+        moveVertical   = input.move.y;
+        movement       = new Vector3(moveHorizontal, 0f, moveVertical);
+
+        float moveDz2  = moveDeadzone * moveDeadzone;
         bool moveActive = movement.sqrMagnitude > moveDz2;
 
-
-        // Aim memory for power-ups
+        // Aim memory for power-ups (unchanged)
         float dz2 = aimDeadzone * aimDeadzone;
         if (movement.sqrMagnitude >= dz2)
             lastStickAimWS = movement.normalized;
 
-        bool shieldDown = rewiredPlayer.GetButtonDown("Shield");
-        bool shieldHeldInput = rewiredPlayer.GetButton("Shield"); // raw input
+        // Shield (unchanged semantics, but now uses scripted/re-wired values)
+        bool shieldDown = input.shieldDown;
+        bool shieldHeldInput = input.shieldHeld;
 
         if (shieldAbility != null)
         {
             if (shieldDown)
                 shieldAbility.TryActivate();
 
-            shieldOn = shieldAbility.IsActive; // gameplay state
+            shieldOn = shieldAbility.IsActive;
         }
         else
         {
-            shieldOn = shieldHeldInput; // legacy: gameplay state == held input
+            // Legacy fallback if no ability exists on this prefab
+            shieldOn = input.shieldHeld;
         }
 
+        // Attack buttons
+        bool attackDown = input.attackDown;
+        bool attackHeld = input.attackHeld;
+        bool attackUp   = input.attackUp;
 
-        bool attackDown = rewiredPlayer.GetButtonDown("Sword");
-        bool attackHeld = rewiredPlayer.GetButton("Sword");
-        bool attackUp   = rewiredPlayer.GetButtonUp("Sword");
 
         didPlayerTapActionThisFrame = attackDown;
 
@@ -594,7 +701,7 @@ if (showPlayerIdToastOnMatchStart)
             lastActivityTime = Time.time;
         }
 
-        if (attackDown || attackHeld || shieldDown || shieldHeldInput || moveActive)
+        if (attackDown || attackHeld || attackUp || shieldDown || shieldHeldInput || shieldOn || moveActive)
         lastActivityTime = Time.time;
 
 

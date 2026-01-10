@@ -352,6 +352,8 @@ private void SnapshotEntrantsAtClose()
     /// </summary>
     public void TriggerBounceAfterMinigame()
     {
+        if (!_waitingForMinigame)
+            return;
         // Hide the entry ring now that the minigame is done.
         if (entryRingVisual != null)
             entryRingVisual.SetActive(false);

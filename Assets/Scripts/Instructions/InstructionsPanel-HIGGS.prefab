@@ -8374,6 +8374,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3be56beee2fefdc4c84f0a3b4f1003c5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  controlMode: 0
+  isPseudoPlayer: 0
   playerID: 2
   teamID: 1
   gameplayRigRoot: {fileID: 0}

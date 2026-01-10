@@ -1731,15 +1731,15 @@ float maxR = minDim * 0.03f;   // 3% of box
 subparticleRadius = Mathf.Clamp(r, minR, maxR);
 
     // 2) Core hit radius based on core visual size
-    float coreVisualRadius = Mathf.Min(coreRect.rect.width, coreRect.rect.height) * 0.5f;
+    float coreVisualRadius = Mathf.Min(coreRect.rect.width, coreRect.rect.height) * 0.2f;
     coreHitRadius = Mathf.Max(coreVisualRadius * previewCoreHitRadiusMultiplier, r * 2f);
 
     // 3) Particle speed so it reaches the core in ~previewTravelTimeSeconds
-    float halfDiag = Mathf.Sqrt(pr.width * pr.width + pr.height * pr.height) * 0.5f;
+    float halfDiag = Mathf.Sqrt(pr.width * pr.width + pr.height * pr.height) * 1f;
     float spawnRadius = halfDiag + r * 2f;
 
     float t = Mathf.Max(0.01f, previewTravelTimeSeconds);
-    particleSpeed = Mathf.Clamp(spawnRadius / t, 60f, 1400f);
+    particleSpeed = Mathf.Clamp(spawnRadius / t, 5f, 1400f);
 
     // Optional: make vibration scale with size (keeps it subtle at any resolution)
     particleVibrationAmplitude = Mathf.Clamp(r * 0.12f, 0.5f, 6f);
@@ -1748,6 +1748,11 @@ subparticleRadius = Mathf.Clamp(r, minR, maxR);
     float targetRate = Mathf.Clamp(minDim / 140f, 2f, 7f);
     spawnRatePerSecond = targetRate;
     spawnRateJitter = targetRate * 0.25f;
+
+    // Keep ~N particles in flight on average
+    float desiredInFlight = 25f;
+    spawnRatePerSecond = Mathf.Clamp(desiredInFlight / t, 0.6f, 7f);
+    spawnRateJitter = spawnRatePerSecond * 0.25f;
 }
 
 private void ApplyLateJoinSetup()

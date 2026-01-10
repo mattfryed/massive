@@ -83,7 +83,8 @@ public class AnomalyManager : MonoBehaviour
     [SerializeField] private bool hardDisablePlayerObjectsWhilePaused = true;
 
     // Track what we disabled so we can restore exactly those objects.
-    private readonly List<GameObject> _hardDisabledPlayerRoots = new();
+    private readonly List<PlayerControllerScript> _hardSuppressedPlayers = new();
+
 
 
     [Header("Scheduling")]
@@ -97,6 +98,7 @@ public class AnomalyManager : MonoBehaviour
     AnomalyDefinition _currentDef;
     AnomalyMinigameBase _currentMinigame;
     readonly List<PlayerControllerScript> _currentParticipants = new List<PlayerControllerScript>();
+    [SerializeField] private NovaCorePostResultsPanel novaCoreResultsPanel;
 
     Coroutine _scheduleRoutine;
 
@@ -111,9 +113,9 @@ public class AnomalyManager : MonoBehaviour
     // Used by level-specific adapters (e.g. NovaAnomalyAdapter) to react.
     public event Action<AnomalyDefinition, AnomalyResult> OnAnomalyCompleted;
 
-    private void HardDisableActivePlayers()
+private void HardDisableActivePlayers()
 {
-    _hardDisabledPlayerRoots.Clear();
+    _hardSuppressedPlayers.Clear();
 
     if (playerManager == null) return;
 
@@ -124,26 +126,28 @@ public class AnomalyManager : MonoBehaviour
     {
         if (pcs == null) continue;
 
-        var go = pcs.gameObject;
-        if (go != null && go.activeSelf)
-        {
-            _hardDisabledPlayerRoots.Add(go);
-            go.SetActive(false);
-        }
+        // Cache so we can restore exactly what we suppressed.
+        _hardSuppressedPlayers.Add(pcs);
+
+        // IMPORTANT: Do NOT deactivate the player GameObject (triggers OnEnable hide logic).
+        pcs.SetWorldGameplaySuppressed(true);
     }
 }
+
 
 private void RestoreHardDisabledPlayers()
 {
-    for (int i = 0; i < _hardDisabledPlayerRoots.Count; i++)
+    for (int i = 0; i < _hardSuppressedPlayers.Count; i++)
     {
-        var go = _hardDisabledPlayerRoots[i];
-        if (go != null)
-            go.SetActive(true);
+        var pcs = _hardSuppressedPlayers[i];
+        if (pcs == null) continue;
+
+        pcs.SetWorldGameplaySuppressed(false);
     }
 
-    _hardDisabledPlayerRoots.Clear();
+    _hardSuppressedPlayers.Clear();
 }
+
 
 
     void Start()
@@ -335,50 +339,161 @@ transition.BindUISequencer(seq);
         // RunAnomalyRoutine gives control back once HandleMinigameCompleted clears _currentMinigame.
     }
 
+    // void HandleMinigameCompleted(AnomalyResult result)
+    // {
+
+    //     // If the minigame has a transition component, play outro before finalizing.
+    //     var transition = _currentMinigame != null ? _currentMinigame.GetComponent<NovaMinigameTransition>() : null;
+    //     if (transition != null)
+    //     {
+    //         StartCoroutine(FinalizeAfterOutro(transition, result));
+    //         return;
+    //     }
+
+    //     // Prevent double handling if Complete() is somehow called twice.
+    //     if (!IsAnomalyRunning && _currentDef == null)
+    //         return;
+
+    //     ApplyArenaMode(ArenaModeDuringAnomaly.Unchanged);
+
+    //     if (ui != null)
+    //     {
+    //         ui.HideActiveBanner();
+    //         ui.HideLowerThird();
+    //         ui.ShowResult(_currentDef, result);
+    //     }
+
+    //     ApplyRewards(result);
+
+    //     // Fire completion event so NovaAnomalyAdapter (and any other
+    //     // systems) can react.
+    //     OnAnomalyCompleted?.Invoke(_currentDef, result);
+
+    //     if (_currentMinigame != null)
+    //     {
+    //         _currentMinigame.OnCompleted -= HandleMinigameCompleted;
+    //         Destroy(_currentMinigame.gameObject);
+    //         _currentMinigame = null;
+    //     }
+
+    //     _currentParticipants.Clear();
+    //     _currentDef = null;
+    //     _forcedParticipants = null;
+    //     _forcedDuration = null;
+	// 	_forcedOnTimeParticipants = null;
+    //     DespawnWorldTelegraph();
+    // }
+
     void HandleMinigameCompleted(AnomalyResult result)
+{
+    var transition = _currentMinigame != null ? _currentMinigame.GetComponent<NovaMinigameTransition>() : null;
+    if (transition != null)
     {
+        StartCoroutine(FinalizeAfterOutro(transition, result));
+        return;
+    }
 
-        // If the minigame has a transition component, play outro before finalizing.
-        var transition = _currentMinigame != null ? _currentMinigame.GetComponent<NovaMinigameTransition>() : null;
-        if (transition != null)
-        {
-            StartCoroutine(FinalizeAfterOutro(transition, result));
-            return;
-        }
+    StartCoroutine(FinalizeWithPostResults(result));
+}
 
-        // Prevent double handling if Complete() is somehow called twice.
-        if (!IsAnomalyRunning && _currentDef == null)
-            return;
+IEnumerator FinalizeAfterOutro(NovaMinigameTransition transition, AnomalyResult result)
+{
+    yield return StartCoroutine(transition.PlayOutro()); // circle wipe ends here【turn7file3†NovaMinigameTransition.cs†L86-L90】
+    yield return StartCoroutine(FinalizeWithPostResults(result));
+}
 
-        ApplyArenaMode(ArenaModeDuringAnomaly.Unchanged);
+private IEnumerator FinalizeWithPostResults(AnomalyResult result)
+{
+    var minigameToDestroy = _currentMinigame; // cache ref; keep it until the end
 
-        if (ui != null)
-        {
-            ui.HideActiveBanner();
-            ui.HideLowerThird();
-            ui.ShowResult(_currentDef, result);
-        }
+    // Prevent double handling
+    if (!IsAnomalyRunning && _currentDef == null)
+        yield break;
 
+    // Hide anomaly UI pieces (optional)
+    if (ui != null)
+    {
+        ui.HideActiveBanner();
+        ui.HideLowerThird();
+    }
+
+    // Only do the custom panel if this is NovaCore
+    if (result.payload is NovaCoreWrapUpPayload wrap && novaCoreResultsPanel != null)
+    {
+        // Capture "before" scores
+        var lightSphere = FindScoreSphereForTeam(wrap.lightTeamIndex);
+        var darkSphere  = FindScoreSphereForTeam(wrap.darkTeamIndex);
+
+        float lightBefore = lightSphere != null ? lightSphere.Score01 : 0f;
+        float darkBefore  = darkSphere  != null ? darkSphere.Score01  : 0f;
+
+        // Apply rewards now (this updates the score spheres)
         ApplyRewards(result);
 
-        // Fire completion event so NovaAnomalyAdapter (and any other
-        // systems) can react.
-        OnAnomalyCompleted?.Invoke(_currentDef, result);
+        // Capture "after" scores
+        float lightAfter = lightSphere != null ? lightSphere.Score01 : lightBefore;
+        float darkAfter  = darkSphere  != null ? darkSphere.Score01  : darkBefore;
 
-        if (_currentMinigame != null)
-        {
-            _currentMinigame.OnCompleted -= HandleMinigameCompleted;
-            Destroy(_currentMinigame.gameObject);
-            _currentMinigame = null;
-        }
+        float lightAwarded01 = Mathf.Max(0f, lightAfter - lightBefore);
+        float darkAwarded01  = Mathf.Max(0f, darkAfter  - darkBefore);
 
-        _currentParticipants.Clear();
-        _currentDef = null;
-        _forcedParticipants = null;
-        _forcedDuration = null;
-		_forcedOnTimeParticipants = null;
-        DespawnWorldTelegraph();
+        // Destroy minigame UI/object now (optional, keeps things tidy)
+        // if (_currentMinigame != null)
+        // {
+        //     _currentMinigame.OnCompleted -= HandleMinigameCompleted;
+        //     Destroy(_currentMinigame.gameObject);
+        //     _currentMinigame = null;
+        // }
+
+        // Show results window ON TOP of gameplay (post wipe)
+        novaCoreResultsPanel.Show(
+            wrap.lightParticles, lightAwarded01,
+            wrap.darkParticles,  darkAwarded01
+        );
+
+        float hold = Mathf.Max(0f, novaCoreResultsPanel.ShowSeconds);
+        if (hold > 0f)
+            yield return new WaitForSeconds(hold);
+
+        novaCoreResultsPanel.Hide();
     }
+    else
+    {
+        // Fallback: existing generic result behavior
+        if (ui != null)
+            ui.ShowResult(_currentDef, result);
+
+        ApplyRewards(result);
+    }
+
+    // Fire completion (star bounce, etc) while players are still paused
+OnAnomalyCompleted?.Invoke(_currentDef, result);
+
+// Unpause + restore arena mode
+ApplyArenaMode(ArenaModeDuringAnomaly.Unchanged);
+
+// NOW it is safe to destroy the minigame (its OnDestroy restore won't get "overridden" by unpause)
+if (minigameToDestroy != null)
+{
+    minigameToDestroy.OnCompleted -= HandleMinigameCompleted;
+    Destroy(minigameToDestroy.gameObject);
+}
+_currentMinigame = null;
+
+    // NOW fire completion (bounce, etc) and re-enable gameplay
+    OnAnomalyCompleted?.Invoke(_currentDef, result);
+
+    // Let players move again ONLY AFTER results window completes
+    ApplyArenaMode(ArenaModeDuringAnomaly.Unchanged);
+
+    _currentParticipants.Clear();
+    _currentDef = null;
+    _forcedParticipants = null;
+    _forcedDuration = null;
+    _forcedOnTimeParticipants = null;
+    DespawnWorldTelegraph();
+}
+
 
         void HandleMinigameCompleted_NoOutro(AnomalyResult result)
     {
@@ -418,12 +533,12 @@ transition.BindUISequencer(seq);
         DespawnWorldTelegraph();
     }
 
-    IEnumerator FinalizeAfterOutro(NovaMinigameTransition transition, AnomalyResult result)
-{
-    yield return StartCoroutine(transition.PlayOutro());
-    // proceed with your existing cleanup path
-    HandleMinigameCompleted_NoOutro(result);
-}
+//     IEnumerator FinalizeAfterOutro(NovaMinigameTransition transition, AnomalyResult result)
+// {
+//     yield return StartCoroutine(transition.PlayOutro());
+//     // proceed with your existing cleanup path
+//     HandleMinigameCompleted_NoOutro(result);
+// }
 
 
 void ApplyArenaMode(ArenaModeDuringAnomaly mode)
@@ -433,12 +548,12 @@ void ApplyArenaMode(ArenaModeDuringAnomaly mode)
     switch (mode)
     {
         case ArenaModeDuringAnomaly.Unchanged:
-            // Restore objects first, then unpause
-            if (hardDisablePlayerObjectsWhilePaused)
-                RestoreHardDisabledPlayers();
+        // Unpause first (may re-enable PlayerControllerScript and trigger OnEnable)
+        playerManager.SetGlobalPaused(false);
 
-            playerManager.SetGlobalPaused(false);
-            break;
+        // Then restore suppressed rigs so visuals/nuggets are guaranteed ON afterward
+        RestoreHardDisabledPlayers(); // safe even if list is empty
+        break;
 
         case ArenaModeDuringAnomaly.PauseAllPlayers:
             // Pause first, then optionally hard-disable
@@ -584,4 +699,20 @@ void ApplyArenaMode(ArenaModeDuringAnomaly mode)
     {
         // TODO: clean up any telegraph visuals spawned in SpawnWorldTelegraph.
     }
+
+    private ScoreSphereScript FindScoreSphereForTeam(int teamID)
+    {
+    #if UNITY_6000_0_OR_NEWER
+        var spheres = FindObjectsByType<ScoreSphereScript>(FindObjectsSortMode.None);
+    #else
+        var spheres = FindObjectsOfType<ScoreSphereScript>();
+    #endif
+        foreach (var s in spheres)
+        {
+            if (s != null && s.teamID == teamID)
+                return s;
+        }
+        return null;
+    }
+
 }

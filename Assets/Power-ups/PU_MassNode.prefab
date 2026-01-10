@@ -109,6 +109,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   controller: {fileID: 0}
+  despawnRoot: {fileID: 1251901491536214004}
   wire: {fileID: 7521140262397949418}
   metaballs:
   - {fileID: 0}

@@ -9,6 +9,9 @@ public class PowerUpIconManifestAnimator : MonoBehaviour
     [Header("Optional: Player hookup (leave empty for world pickups)")]
     [SerializeField] private PlayerPowerUpController controller;
 
+    [Header("Despawn Target")]
+    [SerializeField] private Transform despawnRoot;
+
     [Header("Auto-find if null")]
     [SerializeField] private ParametricPolyhedronWire wire;
     [SerializeField] private MetaballManifest[] metaballs;
@@ -50,15 +53,26 @@ public class PowerUpIconManifestAnimator : MonoBehaviour
     private void Awake()
     {
         if (controller == null) controller = GetComponentInParent<PlayerPowerUpController>();
-        if (wire == null) wire = GetComponentInChildren<ParametricPolyhedronWire>(true);
-        if (metaballs == null || metaballs.Length == 0)
-            metaballs = GetComponentsInChildren<MetaballManifest>(true);
 
-        _colliders = GetComponentsInChildren<Collider>(true);
+        // Decide what object we actually consider "the thing to despawn".
+        // - World pickup: kill the prefab root (so no leftover wire cage child/sibling)
+        // - Player mode: only affect this object (never destroy the player root)
+        if (despawnRoot == null)
+            despawnRoot = (controller == null) ? transform.root : transform;
+
+        // IMPORTANT: auto-find using despawnRoot, not "this", so it works even if the animator is on a child.
+        if (wire == null) wire = despawnRoot.GetComponentInChildren<ParametricPolyhedronWire>(true);
+
+        if (metaballs == null || metaballs.Length == 0)
+            metaballs = despawnRoot.GetComponentsInChildren<MetaballManifest>(true);
+
+        // Colliders to disable should also be gathered from the despawnRoot
+        _colliders = despawnRoot.GetComponentsInChildren<Collider>(true);
 
         if (startHiddenOnAwake)
             SetHiddenInstant();
     }
+
 
     private void OnEnable()
     {
@@ -155,6 +169,10 @@ public class PowerUpIconManifestAnimator : MonoBehaviour
 
         if (destroyOnComplete) Destroy(gameObject, destroyDelay);
         else gameObject.SetActive(false);
+
+        if (destroyOnComplete) Destroy(despawnRoot.gameObject, destroyDelay);
+        else despawnRoot.gameObject.SetActive(false);
+
     }
 
     private IEnumerator CoAttackOut()
@@ -205,6 +223,10 @@ public class PowerUpIconManifestAnimator : MonoBehaviour
 
         if (destroyOnComplete) Destroy(gameObject, destroyDelay);
         else gameObject.SetActive(false);
+
+        if (destroyOnComplete) Destroy(despawnRoot.gameObject, destroyDelay);
+        else despawnRoot.gameObject.SetActive(false);
+
     }
 
     private IEnumerator Animate01(System.Action<float> setter, float duration, AnimationCurve ease)
