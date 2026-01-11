@@ -1174,7 +1174,7 @@ MonoBehaviour:
   stunKnockbackLockout: 0.15
   stunTime: 1.25
   isActive: 1
-  idleTime: 10
+  idleTime: 60
   timeSinceLastActivity: 0
   lastActivityTime: 0
   moveHorizontal: 0

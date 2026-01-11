@@ -200,8 +200,8 @@ CapsuleCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 2
-  m_Radius: 0.17
-  m_Height: 1.22
+  m_Radius: 0.25
+  m_Height: 1.45
   m_Direction: 0
   m_Center: {x: 1, y: 0, z: 0}
 --- !u!114 &5990259661383865616
@@ -501,6 +501,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3be56beee2fefdc4c84f0a3b4f1003c5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  controlMode: 0
+  isPseudoPlayer: 0
   playerID: 3
   teamID: 2
   gameplayRigRoot: {fileID: 0}
@@ -2976,6 +2978,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3be56beee2fefdc4c84f0a3b4f1003c5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  controlMode: 0
+  isPseudoPlayer: 0
   playerID: 2
   teamID: 2
   gameplayRigRoot: {fileID: 8268123285256121554}
@@ -3849,8 +3853,8 @@ CapsuleCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 2
-  m_Radius: 0.17
-  m_Height: 1.22
+  m_Radius: 0.25
+  m_Height: 1.45
   m_Direction: 0
   m_Center: {x: 1, y: 0, z: 0}
 --- !u!114 &6315604623626645355
@@ -4435,6 +4439,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3be56beee2fefdc4c84f0a3b4f1003c5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  controlMode: 0
+  isPseudoPlayer: 0
   playerID: 0
   teamID: 1
   gameplayRigRoot: {fileID: 3771797657263773121}
@@ -5295,6 +5301,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3be56beee2fefdc4c84f0a3b4f1003c5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  controlMode: 0
+  isPseudoPlayer: 0
   playerID: 1
   teamID: 1
   gameplayRigRoot: {fileID: 6389561842378151905}
@@ -5593,8 +5601,8 @@ CapsuleCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 2
-  m_Radius: 0.17
-  m_Height: 1.22
+  m_Radius: 0.25
+  m_Height: 1.45
   m_Direction: 0
   m_Center: {x: 1, y: 0, z: 0}
 --- !u!114 &1538633878358260896
@@ -5876,8 +5884,8 @@ CapsuleCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 2
-  m_Radius: 0.17
-  m_Height: 1.22
+  m_Radius: 0.25
+  m_Height: 1.45
   m_Direction: 0
   m_Center: {x: 1, y: 0, z: 0}
 --- !u!114 &6874400895060276976

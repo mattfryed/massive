@@ -12,6 +12,6 @@ public void MoveToNextScene(bool is2v2)
     // optional: clear previous level selection when starting fresh
     GameFlowContext.Instance.ClearSelection();
 
-    SceneFlow.GoToLevelSelect();
+    SceneFlow.GoToHowToPlay(); 
 }
 }

@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: PU_MassNode
   m_EditorClassIdentifier: 
   displayName: Mass Node
+  description: +6 MASS Score
   spawnWeight: 1
   pickupPrefab: {fileID: 4270921612713813033, guid: 0194914b9ee33f646bcabe79fae5f546,
     type: 3}

@@ -72,15 +72,22 @@ private System.Collections.IEnumerator PrewarmRoutine()
 
             Camera cam = cameraOverride ? cameraOverride : Camera.main;
 
-            // text from definition
-            string text =
+            string title =
                 (def != null && !string.IsNullOrWhiteSpace(def.displayName))
                     ? def.displayName
                     : (def != null ? def.name : "Power Up");
 
+            string desc =
+                (def != null) ? def.description : "";
+
+            // 2-line label (desc optional)
+            string text =
+                string.IsNullOrWhiteSpace(desc)
+                    ? title
+                    : $"{title}\n<size=70%>{desc}</size>";
+
             Vector3 pos = pickupWorldPos + Vector3.up * worldYLift;
 
-            // Screen-up offset (for your top-down camera this prevents it overlapping the icon)
             if (cam)
             {
                 Vector3 up = cam.transform.up;
@@ -93,5 +100,6 @@ private System.Collections.IEnumerator PrewarmRoutine()
             var toast = Instantiate(toastPrefab, pos, Quaternion.identity, parent);
             toast.Play(text, introSeconds, totalSeconds, outroSeconds, cam);
         }
+
     }
 }

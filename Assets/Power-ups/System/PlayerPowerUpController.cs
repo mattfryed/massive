@@ -25,6 +25,19 @@ namespace Massive.PowerUps
         public event Action<PowerUpDefinition> OnEquipped;
         public event Action OnExpired;
 
+        
+public float RemainingSeconds => remaining;
+
+public void OverrideRemainingSeconds(float seconds)
+{
+    if (active == null) return;
+
+    if (float.IsPositiveInfinity(seconds))
+        remaining = float.PositiveInfinity;
+    else
+        remaining = Mathf.Max(0.01f, seconds);
+}
+
         public void StartIgnoreCollisionsTemporarily(PlayerControllerScript a, PlayerControllerScript b, float seconds)
 {
     if (seconds <= 0f) return;
@@ -112,6 +125,44 @@ private static IEnumerator IgnoreCollisionsCo(PlayerControllerScript a, PlayerCo
 
             OnEquipped?.Invoke(def);
         }
+
+        /// <summary>
+        /// Equip a power-up with a duration override.
+        /// Pass float.PositiveInfinity for "never expire" (useful for instruction scenes).
+        /// </summary>
+        public void Equip(PowerUpDefinition def, float durationSecondsOverride)
+        {
+            if (def == null) return;
+
+            // overwrite behavior: replace existing
+            UnequipInternal();
+
+            active = def;
+
+            if (float.IsPositiveInfinity(durationSecondsOverride))
+                remaining = float.PositiveInfinity;
+            else
+                remaining = Mathf.Max(0.01f, durationSecondsOverride);
+
+            cooldownRemaining = 0f;
+
+            _ability = PowerUpAbilityFactory.Create(def, _player, this);
+
+            MovementMultiplier = 1f;
+            MovementMultiplierWhileCharging = 1f;
+
+            _ability?.OnEquip();
+            OnEquipped?.Invoke(def);
+        }
+
+        /// <summary>
+        /// Immediate unequip (useful for scene transitions / disabling pseudo players).
+        /// </summary>
+        public void Clear()
+        {
+            UnequipInternal();
+        }
+
 
         public void ForceExpire()
         {

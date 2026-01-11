@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: PU_TimeDilation
   m_EditorClassIdentifier: 
   displayName: Time Dilation
+  description: Speed boost
   spawnWeight: 1
   pickupPrefab: {fileID: 6081105414855409227, guid: a89c8037d9aa34c1db9e669f6375f003,
     type: 3}

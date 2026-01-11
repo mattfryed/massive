@@ -5,8 +5,14 @@ namespace Massive.PowerUps
     public abstract class PowerUpDefinition : ScriptableObject
     {
         [Header("Identity")]
-public abstract PowerUpType Type { get; }
+        public abstract PowerUpType Type { get; }
         public string displayName = "PowerUp";
+
+        
+        [Header("UI")]
+        [TextArea(1, 3)]
+        public string description = "";
+
         [Tooltip("Weighted random selection. 1 = normal.")]
         public float spawnWeight = 1f;
 

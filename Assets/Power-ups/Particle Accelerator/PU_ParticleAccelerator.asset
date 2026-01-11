@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: PU_ParticleAccelerator
   m_EditorClassIdentifier: 
   displayName: Particle Accelerator
+  description: Ranged laser attack
   spawnWeight: 1
   pickupPrefab: {fileID: 1305589374316551868, guid: b8be357cf873d46ebadf8060e1559a61,
     type: 3}

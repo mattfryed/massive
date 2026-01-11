@@ -13,11 +13,12 @@ MonoBehaviour:
   m_Name: PU_Decoherence
   m_EditorClassIdentifier: 
   displayName: Decoherence
+  description: Phasing stun shield
   spawnWeight: 1
   pickupPrefab: {fileID: 4270921612713813033, guid: 335549c2a3c5a45ffae53340f955b7bd,
     type: 3}
   worldLifetimeSeconds: 12
-  effectDurationSeconds: 44
+  effectDurationSeconds: 16
   activateInputName: Shield
   shieldVfxPrefab: {fileID: 4807030499099527682, guid: dd334a42f6ef34e198988e707cb2a8ca,
     type: 3}

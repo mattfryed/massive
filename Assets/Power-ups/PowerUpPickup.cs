@@ -12,6 +12,12 @@ namespace Massive.PowerUps
         [SerializeField] private bool requireAttackToActivate = true;
 
         [SerializeField] private LayerMask attackActivatorLayers;
+        
+
+        [Header("Tutorial / Debug")]
+        [Tooltip("If enabled, the pickup will NOT despawn from worldLifetimeSeconds timing out (but it WILL still despawn when collected).")]
+        [SerializeField] private bool neverDespawnFromTimeout = false;
+
 
         private float _deathTime;
         private bool _despawning;
@@ -31,7 +37,19 @@ namespace Massive.PowerUps
         {
             _despawning = false;
             _activated = false;
-            _deathTime = Time.time + (definition ? definition.worldLifetimeSeconds : 10f);
+
+            if (neverDespawnFromTimeout)
+            {
+                _deathTime = float.PositiveInfinity;
+            }
+            else
+            {
+                float life = (definition != null) ? definition.worldLifetimeSeconds : 10f;
+
+                // Optional: allow “<= 0 means never”
+                if (life <= 0f) _deathTime = float.PositiveInfinity;
+                else _deathTime = Time.time + life;
+            }
         }
 
         private void Update()
