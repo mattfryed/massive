@@ -1,0 +1,35 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 30814625c5afc4827b9bce544947c099, type: 3}
+  m_Name: ESP_Stage
+  m_EditorClassIdentifier: 
+  enabled: 1
+  initialDelaySeconds: 2
+  minSpawnDelaySeconds: 3
+  maxSpawnDelaySeconds: 4
+  maxAliveTotal: 6
+  maxAliveInert: 2
+  maxAliveRanged: 2
+  maxAliveMelee: 2
+  allowSpawningDuringAnomalies: 0
+  freezeExistingEnemiesDuringAnomalies: 1
+  rules:
+  - enabled: 0
+    enemy: {fileID: 11400000, guid: ab69ef759916b47a89959b1d8ec2f346, type: 2}
+    weightOverride: -1
+    minSecondsSinceMatchStart: 0
+    maxAlive: 0
+  - enabled: 1
+    enemy: {fileID: 11400000, guid: 7b0ed3d8b87fb4fb892c6742e83ed21b, type: 2}
+    weightOverride: -1
+    minSecondsSinceMatchStart: 0
+    maxAlive: 0

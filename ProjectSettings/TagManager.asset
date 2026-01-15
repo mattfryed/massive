@@ -24,12 +24,12 @@ TagManager:
   - 
   - Water
   - UI
-  - 
-  - 
+  - Enemy
+  - PowerUps
   - PostProcessing
   - NoSpawnZone
   - MagPreview
-  - 
+  - Obstacle
   - 
   - 
   - 

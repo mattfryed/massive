@@ -2,14 +2,17 @@
 %TAG !u! tag:unity3d.com,2011:
 --- !u!21 &2100000
 Material:
-  serializedVersion: 6
+  serializedVersion: 8
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: Force Shield
   m_Shader: {fileID: 4800000, guid: 241bbcb7a442a7640a172e70449e212e, type: 3}
-  m_ShaderKeywords: 
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords: []
+  m_InvalidKeywords: []
   m_LightmapFlags: 1
   m_EnableInstancingVariants: 0
   m_DoubleSidedGI: 0
@@ -19,6 +22,7 @@ Material:
     RenderType: Transparent
   disabledShaderPasses:
   - TransparentBackface
+  m_LockedProperties: 
   m_SavedProperties:
     serializedVersion: 3
     m_TexEnvs:
@@ -54,6 +58,7 @@ Material:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
+    m_Ints: []
     m_Floats:
     - _AddPrecomputedVelocity: 1
     - _AlphaCutoff: 0.5
@@ -76,7 +81,7 @@ Material:
     - _HitSize: 7.1
     - _HitTime: 6.83
     - _Intensity: 12.63
-    - _IntersectIntensity: 0.68
+    - _IntersectIntensity: 0
     - _Opacity: 0.609
     - _OpaqueCullMode: 2
     - _ReceivesSSR: 1
@@ -116,7 +121,9 @@ Material:
     - _Color: {r: 0, g: 0, b: 0, a: 0}
     - _DoubleSidedConstants: {r: 1, g: 1, b: -1, a: 0}
     - _EmissionColor: {r: 1, g: 1, b: 1, a: 1}
-    - _HitColor: {r: 0, g: 0.21875858, b: 1, a: 1}
+    - _HitColor: {r: 0.759434, g: 0.81226414, b: 1, a: 1}
     - _HitPosition: {r: 0, g: 0, b: 0, a: 0}
     - _IntersectColor: {r: 0.9607843, g: 0.21960784, b: 0, a: 1}
-    - _ShieldPatternColor: {r: 0.6784314, g: 0.45882353, b: 0.30588236, a: 1}
+    - _ShieldPatternColor: {r: 1, g: 1, b: 1, a: 1}
+  m_BuildTextureStacks: []
+  m_AllowLocking: 1
