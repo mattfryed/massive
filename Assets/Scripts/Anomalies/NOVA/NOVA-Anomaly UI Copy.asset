@@ -1,0 +1,46 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: aed4e97c1e87da44b808a6f2d111d724, type: 3}
+  m_Name: NOVA-Anomaly UI Copy
+  m_EditorClassIdentifier: 
+  topWarning:
+    enabled: 1
+    useCountdown: 1
+    topLabelText: ANOMALY DETECTED
+    typeText: 
+  topActive:
+    enabled: 1
+    useCountdown: 1
+    topLabelText: ANOMALY ACTIVATED
+    typeText: 
+  topPost:
+    enabled: 0
+    useCountdown: 0
+    topLabelText: ANOMALY COMPLETE
+    typeText: 
+  lowerPre:
+    enabled: 0
+    headerText: OBJECTIVE
+    bodyText: 
+  lowerDuring:
+    enabled: 1
+    headerText: STABILIZE THE CORE
+    bodyText: 'Align with the incoming particles
+
+      Match attack button presses
+      to sub-particle count
+
+      Most particles captured gains mass and shielding'
+  lowerPost:
+    enabled: 0
+    headerText: OBJECTIVE
+    bodyText: 

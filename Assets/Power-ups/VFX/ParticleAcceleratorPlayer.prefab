@@ -1,0 +1,81 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &4728341221358630308
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 6279791861799239821}
+  - component: {fileID: 236698191102437848}
+  m_Layer: 0
+  m_Name: ParticleAcceleratorPlayer
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &6279791861799239821
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4728341221358630308}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &236698191102437848
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4728341221358630308}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 345304e3f51bf374c95002fb81492b98, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  owner: {fileID: 0}
+  metaballMaterial: {fileID: 2100000, guid: 93cf9e9095f934d71b6a5cf1b7c0a802, type: 2}
+  ringDots: 16
+  ringRadiusWorld: 0.65
+  ringDotBaseRadiusWorld: 0.02
+  ringDotMaxRadiusWorld: 0.05
+  ringHeightWorld: 0.02
+  ringStartAngleDeg: 90
+  ringClockwise: 1
+  ringVolumePaddingWorld: 0.25
+  vfxPlaneYOffsetWorld: 0.2
+  orbForwardOffsetWorld: 0.9
+  orbMinRadiusWorld: 0.07
+  orbMaxRadiusWorld: 0.22
+  orbVolumePaddingWorld: 0.25
+  orbScaleJitterAmp: 0.08
+  orbScaleJitterFreq: 17
+  orbScaleJitterChargeWeight: 1
+  burstShardsMin: 5
+  burstShardsMax: 12
+  burstSpreadMinWorld: 0.18
+  burstSpreadMaxWorld: 0.45
+  burstShardRadiusMinWorld: 0.04
+  burstShardRadiusMaxWorld: 0.1
+  burstShardSpinDeg: 25
+  burstDuration: 0.3
+  burstRadiusMult: 1.8
+  rayMinDots: 6
+  rayMaxDots: 36
+  rayStartRadiusWorld: 0.65
+  rayDotRadiusWorld: 0.03
+  rayDotSpacingWorld: 0.35
+  rayDotYLiftWorld: 0.03
+  rayEaseSpeed: 14
+  rayFadeAlphaWithScale: 1

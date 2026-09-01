@@ -1,0 +1,114 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0abefd7f5605a46cc96ac2e0c1d26de6, type: 3}
+  m_Name: AudioDatabase_Main
+  m_EditorClassIdentifier: 
+  entries:
+  - id: 17
+    name: Player_Charge
+    value: 17
+    assigned: 1
+    deprecated: 0
+    cue: {fileID: 11400000, guid: 4ec845cc0c0d147e7a162f3c117ac0ed, type: 2}
+  - id: 18
+    name: Player_Death
+    value: 18
+    assigned: 1
+    deprecated: 0
+    cue: {fileID: 11400000, guid: cc8f3c9bac00746ca912cce56e569fdb, type: 2}
+  - id: 19
+    name: Player_Hit
+    value: 19
+    assigned: 1
+    deprecated: 0
+    cue: {fileID: 11400000, guid: ffa61a842aac243819c96df1eacef9c2, type: 2}
+  - id: 20
+    name: Player_MassNugget
+    value: 20
+    assigned: 1
+    deprecated: 0
+    cue: {fileID: 11400000, guid: 9bf0e9ce526054524bcdc3b73724e2f2, type: 2}
+  - id: 21
+    name: Player_Parry
+    value: 21
+    assigned: 1
+    deprecated: 0
+    cue: {fileID: 11400000, guid: e32e36a94580f4561b55045635006ec8, type: 2}
+  - id: 22
+    name: Player_ShieldBreak
+    value: 22
+    assigned: 1
+    deprecated: 0
+    cue: {fileID: 11400000, guid: 9b7c2341f233443bab55827f5454e5f2, type: 2}
+  - id: 23
+    name: Player_ShieldUp
+    value: 23
+    assigned: 1
+    deprecated: 0
+    cue: {fileID: 11400000, guid: 6c5425d79d1e04766ab30987b05311fe, type: 2}
+  - id: 24
+    name: Player_Spawn
+    value: 24
+    assigned: 1
+    deprecated: 0
+    cue: {fileID: 11400000, guid: 698f2835b198146cd945e32eebd4aae6, type: 2}
+  - id: 25
+    name: Player_Stunned
+    value: 25
+    assigned: 1
+    deprecated: 0
+    cue: {fileID: 11400000, guid: f03b731f0ce3c4eee96e7a4d56418bcc, type: 2}
+  - id: 26
+    name: Player_SwordAttack
+    value: 26
+    assigned: 1
+    deprecated: 0
+    cue: {fileID: 11400000, guid: 043b2221ddc354074b8d24b805494ed1, type: 2}
+  uiEntries:
+  - id: 11
+    name: UI_Navigate
+    value: 11
+    assigned: 1
+    deprecated: 0
+    cue: {fileID: 11400000, guid: facde2d76494141bd92e06cde7ccaf03, type: 2}
+  - id: 12
+    name: UI_Confirm
+    value: 12
+    assigned: 1
+    deprecated: 0
+    cue: {fileID: 11400000, guid: ae237c525365441d3a5e5b2b9f64808c, type: 2}
+  - id: 13
+    name: UI_Back
+    value: 13
+    assigned: 1
+    deprecated: 0
+    cue: {fileID: 11400000, guid: 3c886c08bceb24dedb9abdc44740fe17, type: 2}
+  - id: 14
+    name: UI_Error
+    value: 14
+    assigned: 1
+    deprecated: 0
+    cue: {fileID: 11400000, guid: fd619ca71a37243f1afed41bce66df5c, type: 2}
+  - id: 15
+    name: UI_PlayerJoin
+    value: 15
+    assigned: 1
+    deprecated: 0
+    cue: {fileID: 11400000, guid: 0485b7712158c45dfb8700577095da1a, type: 2}
+  - id: 16
+    name: UI_PlayerReady
+    value: 16
+    assigned: 1
+    deprecated: 0
+    cue: {fileID: 11400000, guid: 351f4a717760d4a04ae8fd8b8ffdd9bf, type: 2}
+  ambientEntries: []
+  vgmEntries: []

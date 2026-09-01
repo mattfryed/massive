@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 204a55d09c1e2f143986587b5ddd9e67
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 305806
+  packageName: Shaders Filters Pack
+  packageVersion: 1.0.1
+  assetPath: Assets/Matthew Guz/Shaders Filter Pack/Material/URP/Outline Detection_URP.mat
+  uploadId: 745455

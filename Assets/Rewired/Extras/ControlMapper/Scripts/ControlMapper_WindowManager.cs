@@ -1,12 +1,9 @@
-// Copyright (c) 2015 Augie R. Maddox, Guavaman Enterprises. All rights reserved.
-#pragma warning disable 0219
-#pragma warning disable 0618
+﻿// Copyright (c) 2015 Augie R. Maddox, Guavaman Enterprises. All rights reserved.
 #pragma warning disable 0649
 
 namespace Rewired.UI.ControlMapper {
 
     using UnityEngine;
-    using UnityEngine.UI;
     using System.Collections.Generic;
     using Rewired;
     

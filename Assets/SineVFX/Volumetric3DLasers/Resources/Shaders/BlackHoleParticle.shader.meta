@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 352e38be59194035a6350123d5514ebc
+timeCreated: 1516641317
+licenseType: Store
+ShaderImporter:
+  defaultTextures: []
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 104580
+  packageName: Volumetric 3D Lasers
+  packageVersion: 1.3a
+  assetPath: Assets/SineVFX/Volumetric3DLasers/Resources/Shaders/BlackHoleParticle.shader
+  uploadId: 700963

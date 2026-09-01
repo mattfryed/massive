@@ -57,7 +57,7 @@ namespace FullscreenEditor {
             }
         }
 
-        private void SaveValue() {
+        public void SaveValue() {
             try {
                 EditorPrefs.SetString(Key, JsonUtility.ToJson(this));
                 Logger.Debug("Saved value to key {0}:\n{1}", Key, EditorPrefs.GetString(Key));

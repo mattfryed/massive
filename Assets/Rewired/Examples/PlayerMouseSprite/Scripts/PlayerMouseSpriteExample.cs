@@ -1,7 +1,7 @@
 ﻿// Copyright (c) 2018 Augie R. Maddox, Guavaman Enterprises. All rights reserved.
 
 #region Defines
-#if UNITY_2020 || UNITY_2021 || UNITY_2022 || UNITY_2023 || UNITY_2024 || UNITY_2025
+#if UNITY_2020 || UNITY_2021 || UNITY_2022 || UNITY_2023 || UNITY_6000 || UNITY_6000_0_OR_NEWER
 #define UNITY_2020_PLUS
 #endif
 #if UNITY_2019 || UNITY_2020_PLUS
@@ -182,6 +182,11 @@ namespace Rewired.Demos {
             if (mouse.leftButton.justPressed) CreateClickEffect(new Color(0f, 1f, 0f, 1f)); // green for left
             if (mouse.rightButton.justPressed) CreateClickEffect(new Color(1f, 0f, 0f, 1f)); // red for right
             if(mouse.middleButton.justPressed) CreateClickEffect(new Color(1f, 1f, 0f, 1f)); // yellow for middle
+        }
+
+        void OnDestroy() {
+            if (!ReInput.isReady) return;
+            mouse.ScreenPositionChangedEvent -= OnScreenPositionChanged;
         }
 
         void CreateClickEffect(Color color) {

@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 4b0a1115c09a6404ba3503701b11af17
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 310749
+  packageName: Rhythm Timeline 2 - Rhythm Game Framework & Editor
+  packageVersion: 2.1.1
+  assetPath: Assets/Dypsloom/RhythmTimeline/Demos/PenguinTracks/Prefab/UI/Game Canvas.prefab
+  uploadId: 803332

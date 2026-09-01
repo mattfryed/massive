@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 81ccfc2aae90a4d4eb93a351975a5b18
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 310749
+  packageName: Rhythm Timeline 2 - Rhythm Game Framework & Editor
+  packageVersion: 2.1.1
+  assetPath: Assets/Dypsloom/RhythmTimeline/Demos/OSU/Prefabs/OSU_note_effect.prefab
+  uploadId: 803332

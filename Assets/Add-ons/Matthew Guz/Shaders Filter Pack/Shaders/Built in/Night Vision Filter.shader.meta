@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: 96d9c8871c3ae6b4c82eab176c490a79
+ShaderImporter:
+  externalObjects: {}
+  defaultTextures: []
+  nonModifiableTextures: []
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 305806
+  packageName: Shaders Filters Pack
+  packageVersion: 1.0.1
+  assetPath: Assets/Matthew Guz/Shaders Filter Pack/Shaders/Built in/Night Vision
+    Filter.shader
+  uploadId: 745455

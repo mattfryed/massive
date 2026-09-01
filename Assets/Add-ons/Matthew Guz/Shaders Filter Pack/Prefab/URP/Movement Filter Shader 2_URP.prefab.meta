@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: e2cb777f03002d84e98ee30619686bd5
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 305806
+  packageName: Shaders Filters Pack
+  packageVersion: 1.0.1
+  assetPath: Assets/Matthew Guz/Shaders Filter Pack/Prefab/URP/Movement Filter Shader
+    2_URP.prefab
+  uploadId: 745455

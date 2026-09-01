@@ -1,0 +1,267 @@
+// GridUnlitLines.compute
+// NOTE: This is a compute shader (no Shader{} block).
+#pragma kernel CSMain
+
+// --- Buffers ---
+StructuredBuffer<float3> _OrigPos;
+RWStructuredBuffer<float3> _Pos;
+RWStructuredBuffer<float3> _Vel;
+
+struct Force {
+    float3 position; float radius;      // radius > 0
+    float3 direction; float strength;   // strength can be +/-
+    uint   flags;                       // bit 0: 1 = directional, 0 = radial
+    float  innerFrac;                   // 0..0.9 plateau inside radius (per-force)
+    float4 color;                       // reserved (not used yet)
+};
+StructuredBuffer<Force> _Forces;
+
+// --- Uniforms (compute) ---
+uint  _Count;
+uint  _ForceCount;
+float _DeltaTime;
+float _Kspring;
+float _Damping;
+
+// grid + edges
+int _GridX, _GridY;
+int _PinEdges;
+
+// falloff shaping (global)
+int   _FalloffMode;   // 0=Linear,1=Smooth,2=Quadratic,3=Gaussian,4=InvSq
+float _FalloffExp;    // gamma on weight
+float _InnerFrac;     // extra inner plateau (added to per-force innerFrac)
+float _Sharpness;     // Gaussian/InvSq aggressiveness
+float _MaxSpeed;      // per-step velocity clamp (0 = off)
+
+// “extras”
+float _WeightCap;     // cap on sum of weights per point (0..1, 0.8 is nice)
+float _CrowdStiffness;// scales spring by (1 + _CrowdStiffness * wsum)
+
+// --- Boundary controls ---
+int   _FeatherCells;      // width in cells (0..6 good)
+float _FeatherSharp;      // curve exponent for falloff to the wall
+float _EdgeSpringMul;     // extra spring near edge (>=1)
+float _EdgeDampMul;       // extra damping near edge (>=1)
+float _EdgeForceMin;      // leave a whisper of force at edge (0..0.1)
+int   _FeatherUseExp;   // 0/1 toggle
+float _FeatherExpK;     // >0 steeper ramp near wall (try 4..8)
+
+int  _ProjectAtEdge;     // project/bounce after integration
+float _EdgeAllowance;     // small allowed overshoot distance
+float _Restitution;       // 0=stick, 1=perfect bounce
+
+// ---------- helpers ----------
+
+// t in [0,1] = dist / radius
+float FalloffWeight(float t, float innerFrac)
+{
+    t = saturate(t);
+
+    // combine global + per-force inner plateau
+    float inner = saturate(_InnerFrac + innerFrac);
+    if (inner > 0)
+    {
+        float s = saturate((t - inner) / max(1e-4, (1 - inner)));
+        t = s;
+    }
+
+    float w;
+    if (_FalloffMode == 0)       w = 1.0 - t;                         // Linear
+    else if (_FalloffMode == 1)  w = smoothstep(1.0, 0.0, t);         // Smooth
+    else if (_FalloffMode == 2)  w = saturate(1.0 - t * t);           // Quadratic
+    else if (_FalloffMode == 3)  w = exp(-_Sharpness * t * t);        // Gaussian
+    else                         w = 1.0 / (1.0 + _Sharpness*t*t);    // InvSq (soft)
+
+    if (_FalloffExp != 1.0) w = pow(saturate(w), max(0.001, _FalloffExp));
+    return w;
+}
+
+[numthreads(256,1,1)]
+void CSMain (uint3 id3 : SV_DispatchThreadID)
+{
+    uint id = id3.x;
+    if (id >= _Count) return;
+
+    float3 pos = _Pos[id];
+    float3 vel = _Vel[id];
+
+    // grid coords (for pinned edges)
+    int x = (int)(id % (uint)_GridX);
+    int y = (int)(id / (uint)_GridX);
+
+    // === KEEP: clamp the very outer ring ===
+    if (_PinEdges != 0 && (x == 0 || x == _GridX - 1 || y == 0 || y == _GridY - 1))
+    {
+        pos = _OrigPos[id];
+        vel = 0;
+        _Pos[id] = pos;
+        _Vel[id] = vel;
+        return;
+    }
+
+    // ------------------------------------------------------------------------
+    // NEW: edge factor (0 interior → 1 inside the feather band approaching wall)
+    // ------------------------------------------------------------------------
+    int gx = _GridX;
+    int gy = _GridY;
+
+    int kxEdge = min(x, (gx - 1) - x);
+    int kyEdge = min(y, (gy - 1) - y);
+    int edgeSteps = min(kxEdge, kyEdge);
+
+    // distance inside band: 0 = interior, 1 = at wall
+    float tEdge = 1.0 - saturate((float)edgeSteps / max(1, _FeatherCells));
+
+    // base curve (what you had) to keep the nice smoothstep+power control
+    float edgeLin  = smoothstep(0.0, 1.0, tEdge);
+    float edge     = pow(edgeLin, _FeatherSharp);     // 0..1
+
+    // optional exponential shaping (normalized so edge==1 at the wall)
+    if (_FeatherUseExp != 0)
+    {
+        float kexp   = max(1e-5, _FeatherExpK);
+        float denom  = 1.0 - exp(-kexp);
+        float shaped = (1.0 - exp(-kexp * edge)) / denom;   // 0..1
+        edge = saturate(shaped);
+    }
+
+    // derive masks/multipliers from final edge value
+    float forceMask = lerp(1.0, _EdgeForceMin, edge);
+    float springMul = lerp(1.0, _EdgeSpringMul, edge);
+    float dampMul   = lerp(1.0, _EdgeDampMul,   edge);
+
+    // ------------------------------------------------------------------------
+    // Accumulate external forces with weight cap (+ optional outward reflection)
+    // ------------------------------------------------------------------------
+    float wsum = 0.0;
+
+    [loop]
+    for (uint i = 0; i < _ForceCount; i++)
+    {
+        Force F = _Forces[i];
+
+        float3 d = pos - F.position;
+        float dist = length(d);
+        if (dist <= 1e-6) continue;
+
+        float t = dist / max(1e-4, F.radius);
+        float w = FalloffWeight(t, F.innerFrac);
+
+        // optional cap: prevent total influence > _WeightCap
+        if (_WeightCap > 0)
+        {
+            float remaining = max(0.0, _WeightCap - wsum);
+            w = min(w, remaining);
+            if (w <= 0.0) continue;
+            wsum += w;
+            // (small early-out omitted intentionally to keep uniform control flow)
+        }
+
+        // Base direction: directional (flag 1) or radial inward
+        float3 dir = ((F.flags & 1u) != 0u)
+            ? normalize(F.direction)
+            : (-d / dist);
+
+        // --- NEW: reflect *outward* components near the wall so pressure turns back in ---
+        // Choose outward normal based on which side we’re nearest (index space)
+        float2 n = float2(0,0);
+        if      (x < _FeatherCells)               n = float2(-1,  0);
+        else if (x > gx - 1 - _FeatherCells)      n = float2( 1,  0);
+        else if (y < _FeatherCells)               n = float2( 0, -1);
+        else if (y > gy - 1 - _FeatherCells)      n = float2( 0,  1);
+
+        if (any(n != 0))
+        {
+            float dOut = dot(dir.xy, n);
+if (dOut > 0.0)
+{
+    dir.xy -= dOut * n; // remove outward component (slide)
+    float len = length(dir.xy);
+    if (len > 1e-5) dir.xy /= len;
+}
+
+        }
+
+        // Apply edge force fade (prevents seam kinks)
+        float strength = F.strength * w * forceMask;
+
+        vel += dir * (strength) * _DeltaTime;
+    }
+
+    // ------------------------------------------------------------------------
+    // spring to origin (stiffen under crowds) -- with edge spring multiplier
+    // ------------------------------------------------------------------------
+    float k = _Kspring * (1.0 + _CrowdStiffness * wsum);
+    k *= springMul; // NEW: stiffer toward edge
+    vel += (-k * (pos - _OrigPos[id])) * _DeltaTime;
+
+    // ------------------------------------------------------------------------
+    // damping + optional clamp -- with edge damping multiplier
+    // ------------------------------------------------------------------------
+    // If _Damping is a per-frame factor, raise it by dampMul. If it’s a rate, use exp(-damp*dt*dampMul).
+    // Treat _Damping as a nonnegative "rate" and convert to a factor per step.
+    // This works well whether _Damping is small (e.g., 1..5) or you were using ~0.98 before.
+    float dampRate   = max(0.0, _Damping);
+    float dampFactor = exp(-dampRate * dampMul * _DeltaTime);
+    vel *= dampFactor;
+
+    if (_MaxSpeed > 0.0)
+    {
+        float vlen = length(vel);
+        if (vlen > _MaxSpeed) vel *= (_MaxSpeed / vlen);
+    }
+
+    // Integrate
+    pos += vel * _DeltaTime;
+
+// ------------------------------------------------------------------------
+// Project back inside & bounce at wall (true wall clamp)
+// ------------------------------------------------------------------------
+if (_ProjectAtEdge != 0)
+{
+    // get wall coordinates from the pinned border
+    float xMin = _OrigPos[y * gx + 0].x;
+    float xMax = _OrigPos[y * gx + (gx - 1)].x;
+    float yMin = _OrigPos[0 * gx + x].y;
+    float yMax = _OrigPos[(gy - 1) * gx + x].y;
+
+    float allow = _EdgeAllowance;
+
+    // X walls
+    if (pos.x < xMin - allow)
+    {
+        pos.x = xMin - allow;
+        float2 n = float2(-1, 0);
+        float vOut = dot(vel.xy, n);
+        if (vOut > 0.0) vel.xy -= n * ((1.0 + _Restitution) * vOut);
+    }
+    else if (pos.x > xMax + allow)
+    {
+        pos.x = xMax + allow;
+        float2 n = float2(1, 0);
+        float vOut = dot(vel.xy, n);
+        if (vOut > 0.0) vel.xy -= n * ((1.0 + _Restitution) * vOut);
+    }
+
+    // Y walls
+    if (pos.y < yMin - allow)
+    {
+        pos.y = yMin - allow;
+        float2 n = float2(0, -1);
+        float vOut = dot(vel.xy, n);
+        if (vOut > 0.0) vel.xy -= n * ((1.0 + _Restitution) * vOut);
+    }
+    else if (pos.y > yMax + allow)
+    {
+        pos.y = yMax + allow;
+        float2 n = float2(0, 1);
+        float vOut = dot(vel.xy, n);
+        if (vOut > 0.0) vel.xy -= n * ((1.0 + _Restitution) * vOut);
+    }
+}
+
+
+    _Vel[id] = vel;
+    _Pos[id] = pos;
+}

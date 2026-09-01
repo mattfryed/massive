@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: f2eb3223eb6507148869ab2fb972de05
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 310749
+  packageName: Rhythm Timeline 2 - Rhythm Game Framework & Editor
+  packageVersion: 2.1.1
+  assetPath: Assets/Dypsloom/RhythmTimeline/Demos/Shared/Music/Midi/MIDI - DecisiveBattle_Timeline.asset
+  uploadId: 803332

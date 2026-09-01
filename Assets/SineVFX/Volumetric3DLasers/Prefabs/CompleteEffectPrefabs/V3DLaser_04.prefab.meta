@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: d741ef0fdb154593b3ea77eba334727f
+timeCreated: 1509837361
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 104580
+  packageName: Volumetric 3D Lasers
+  packageVersion: 1.3a
+  assetPath: Assets/SineVFX/Volumetric3DLasers/Prefabs/CompleteEffectPrefabs/V3DLaser_04.prefab
+  uploadId: 700963

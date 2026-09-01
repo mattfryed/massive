@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 7c4796e9e34d4f339843f9fc130babec
+timeCreated: 1510096921
+licenseType: Store
+ShaderImporter:
+  defaultTextures:
+  - _Noise01Distortion: {fileID: 2800000, guid: 257e43786c09482ebde4c6ee7ff0e59c,
+      type: 3}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 104580
+  packageName: Volumetric 3D Lasers
+  packageVersion: 1.3a
+  assetPath: Assets/SineVFX/Volumetric3DLasers/Resources/Shaders/LaserLayerTessOpaqueSolid.shader
+  uploadId: 700963

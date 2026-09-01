@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 45094b0301fb4fe99b829ab5e288ab4e
+timeCreated: 1509031597
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 104580
+  packageName: Volumetric 3D Lasers
+  packageVersion: 1.3a
+  assetPath: Assets/SineVFX/Volumetric3DLasers/Prefabs/StartPointEffect/Waves_SP_01.prefab
+  uploadId: 700963

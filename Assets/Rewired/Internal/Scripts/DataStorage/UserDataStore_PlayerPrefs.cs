@@ -1,6 +1,6 @@
 ﻿// Copyright (c) 2015 Augie R. Maddox, Guavaman Enterprises. All rights reserved.
 
-#if UNITY_2017 || UNITY_2018 || UNITY_2019 || UNITY_2020 || UNITY_2021 || UNITY_2022 || UNITY_2023 || UNITY_2024 || UNITY_2025
+#if UNITY_2017 || UNITY_2018 || UNITY_2019 || UNITY_2020 || UNITY_2021 || UNITY_2022 || UNITY_2023 || UNITY_6000 || UNITY_6000_0_OR_NEWER
 #define UNITY_2017_PLUS
 #endif
 
@@ -331,7 +331,7 @@ namespace Rewired.Data {
 
             // Disallow imprecise joystick assignment matching on some platforms when
             // system id/player Rewired Player alignment needs to stay fixed.
-#if !UNITY_EDITOR && (UNITY_XBOXONE || UNITY_PS4 || UNITY_SWITCH)
+#if !UNITY_EDITOR && (UNITY_XBOXONE || UNITY_PS4 || UNITY_PS5 || UNITY_SWITCH)
             allowImpreciseJoystickAssignmentMatching = false;
 #endif
 
@@ -343,6 +343,7 @@ namespace Rewired.Data {
                 // This will not save over controller assignment data if no joysticks were attached initially.
                 // This is not always saved because of delayed joystick connection on some platforms like iOS.
                 if(loadControllerAssignments && ReInput.controllers.joystickCount > 0) {
+                    wasJoystickEverDetected = true;
                     SaveControllerAssignments();
                 }
             }

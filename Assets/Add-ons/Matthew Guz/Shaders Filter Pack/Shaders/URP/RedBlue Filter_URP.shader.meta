@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 5e2e2efeefc8bc94996071e9db6175c2
+ShaderImporter:
+  externalObjects: {}
+  defaultTextures: []
+  nonModifiableTextures: []
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 305806
+  packageName: Shaders Filters Pack
+  packageVersion: 1.0.1
+  assetPath: Assets/Matthew Guz/Shaders Filter Pack/Shaders/URP/RedBlue Filter_URP.shader
+  uploadId: 745455

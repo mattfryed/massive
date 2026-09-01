@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 10714503d2484200b55fc57aa7873140
+timeCreated: 1507936868
+licenseType: Store
+TextScriptImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 104580
+  packageName: Volumetric 3D Lasers
+  packageVersion: 1.3a
+  assetPath: Assets/SineVFX/Volumetric3DLasers/UI/license.txt
+  uploadId: 700963

@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: b33e2f85a2fc3cd47951bda83b604ff4
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 305806
+  packageName: Shaders Filters Pack
+  packageVersion: 1.0.1
+  assetPath: Assets/Matthew Guz/Shaders Filter Pack/Prefab/URP/Blurred Filter_URP.prefab
+  uploadId: 745455

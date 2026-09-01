@@ -1,0 +1,37 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d06bc94917b2d47fdb851be3eaa8f096, type: 3}
+  m_Name: Anomaly-NOVA-core
+  m_EditorClassIdentifier: 
+  id: 
+  displayName: 
+  shortDescription: ENTER STAR TO POSTPONE CORE COLLAPSE
+  spaceMode: 1
+  arenaMode: 1
+  minStartDelay: 0
+  maxStartDelay: 0
+  minDuration: 16
+  maxDuration: 16
+  selectionWeight: 1
+  participantSelection: 0
+  preferredTeamIndex: -1
+  minigameLogicPrefab: {fileID: 3069076931512185714, guid: a37c6af163c887b4d93beb6ffb7ebf3d,
+    type: 3}
+  warningIcon: {fileID: 0}
+  controlIconA: {fileID: 0}
+  controlIconB: {fileID: 0}
+  uiCopyOverride: {fileID: 11400000, guid: 775eac4e2b2e1934aa12c0825af254d1, type: 2}
+  instructionText: 
+  rewardsOnSuccess:
+  - {fileID: 11400000, guid: aa4ab6ac0a14cb844af84e2626e4a92a, type: 2}
+  rewardsOnFail:
+  - {fileID: 11400000, guid: aa4ab6ac0a14cb844af84e2626e4a92a, type: 2}

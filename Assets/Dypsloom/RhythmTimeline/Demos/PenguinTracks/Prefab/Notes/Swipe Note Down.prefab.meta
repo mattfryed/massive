@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: a12c36b1563f8cd45b1edd045020e13f
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 310749
+  packageName: Rhythm Timeline 2 - Rhythm Game Framework & Editor
+  packageVersion: 2.1.1
+  assetPath: Assets/Dypsloom/RhythmTimeline/Demos/PenguinTracks/Prefab/Notes/Swipe
+    Note Down.prefab
+  uploadId: 803332

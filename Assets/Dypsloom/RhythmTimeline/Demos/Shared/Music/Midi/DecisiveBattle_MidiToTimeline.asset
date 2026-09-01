@@ -1,0 +1,35 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 36a07119850d4c4fa37836ab89d05f77, type: 3}
+  m_Name: DecisiveBattle_MidiToTimeline
+  m_EditorClassIdentifier: 
+  MidiFileAsset: {fileID: 5022602860645237092, guid: cb09ce4d6e88259429d11c29d1d0e8c6,
+    type: 3}
+  RhythmTimelineAsset: {fileID: 11400000, guid: b414cd7d598e0c447885493a8f27bea5,
+    type: 2}
+  NotesToTracks:
+  - Name: Track 1
+    DefinitionbyIDList:
+    - NoteNumber: 0
+      TrackID: 0
+      NoteDefinition: {fileID: 11400000, guid: 206b40c920a39ab4db521f6de114d1b1, type: 2}
+    - NoteNumber: 0
+      TrackID: 0
+      NoteDefinition: {fileID: 0}
+  - Name: Track 2
+    DefinitionbyIDList:
+    - NoteNumber: 0
+      TrackID: 0
+      NoteDefinition: {fileID: 0}
+    - NoteNumber: 0
+      TrackID: 0
+      NoteDefinition: {fileID: 0}

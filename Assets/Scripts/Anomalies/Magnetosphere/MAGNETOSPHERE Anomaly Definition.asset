@@ -1,0 +1,34 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d06bc94917b2d47fdb851be3eaa8f096, type: 3}
+  m_Name: MAGNETOSPHERE Anomaly Definition
+  m_EditorClassIdentifier: 
+  id: 
+  displayName: 
+  shortDescription: 
+  spaceMode: 1
+  arenaMode: 2
+  minStartDelay: 5
+  maxStartDelay: 5
+  minDuration: 8
+  maxDuration: 15
+  selectionWeight: 1
+  participantSelection: 0
+  preferredTeamIndex: -1
+  minigameLogicPrefab: {fileID: 0}
+  warningIcon: {fileID: 0}
+  controlIconA: {fileID: 0}
+  controlIconB: {fileID: 0}
+  uiCopyOverride: {fileID: 0}
+  instructionText: 
+  rewardsOnSuccess: []
+  rewardsOnFail: []

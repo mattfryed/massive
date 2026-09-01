@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 7b46feef41c14aab869cccc4b73026c8
+timeCreated: 1520907871
+licenseType: Store
+ShaderImporter:
+  defaultTextures: []
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 104580
+  packageName: Volumetric 3D Lasers
+  packageVersion: 1.3a
+  assetPath: Assets/SineVFX/Volumetric3DLasers/Resources/Shaders/LaserLayerOpaqueSolidv2.shader
+  uploadId: 700963

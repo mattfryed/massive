@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 3d53c5699936cfe43b6d0c1c8f0381ab
+ScriptedImporter:
+  internalIDToNameTable: []
+  externalObjects: {}
+  serializedVersion: 2
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+  script: {fileID: 11500000, guid: cd7e6c8632ff4a4ab06b74324983e1f9, type: 3}
+AssetOrigin:
+  serializedVersion: 1
+  productId: 310749
+  packageName: Rhythm Timeline 2 - Rhythm Game Framework & Editor
+  packageVersion: 2.1.1
+  assetPath: Assets/Dypsloom/RhythmTimeline/Demos/Shared/Music/Midi/MidiLMMSTest
+    1.mid
+  uploadId: 803332

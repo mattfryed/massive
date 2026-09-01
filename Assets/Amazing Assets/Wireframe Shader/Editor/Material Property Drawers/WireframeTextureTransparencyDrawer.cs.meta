@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 711bd05d8705aff4f9c09564596434b7
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 181386
+  packageName: Wireframe Shader
+  packageVersion: 2025.5
+  assetPath: Assets/Amazing Assets/Wireframe Shader/Editor/Material Property Drawers/WireframeTextureTransparencyDrawer.cs
+  uploadId: 836360

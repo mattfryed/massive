@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: e436a06bb8804b4d970a86146ef79971
+timeCreated: 1508858519
+licenseType: Store
+DefaultImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 104580
+  packageName: Volumetric 3D Lasers
+  packageVersion: 1.3a
+  assetPath: Assets/SineVFX/Volumetric3DLasers/Resources/Meshes/VFXMeshes/QuadForLitParticle.mtl
+  uploadId: 700963

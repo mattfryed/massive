@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: e951188242cd427408981ff5e5fc9721
+ShaderImporter:
+  externalObjects: {}
+  defaultTextures: []
+  nonModifiableTextures: []
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 305806
+  packageName: Shaders Filters Pack
+  packageVersion: 1.0.1
+  assetPath: Assets/Matthew Guz/Shaders Filter Pack/Shaders/Built in/BlackWhite Filter.shader
+  uploadId: 745455

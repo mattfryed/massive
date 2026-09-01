@@ -4,7 +4,7 @@
 // Heavily modified to add multiple pointer support, interchangeable touch and mouse input sources, and 128 buttons per mouse.
 
 #region Defines
-#if UNITY_2020 || UNITY_2021 || UNITY_2022 || UNITY_2023 || UNITY_2024 || UNITY_2025
+#if UNITY_2020 || UNITY_2021 || UNITY_2022 || UNITY_2023 || UNITY_6000 || UNITY_6000_0_OR_NEWER
 #define UNITY_2020_PLUS
 #endif
 #if UNITY_2019 || UNITY_2020_PLUS
@@ -385,7 +385,7 @@ namespace Rewired.Integration.UnityUI {
 
             Vector2 pos = mouseInputSource.screenPosition;
 
-            if(mouseInputSource.locked) {
+            if(mouseInputSource.locked || !mouseInputSource.enabled) {
                 // We don't want to do ANY cursor-based interaction when the mouse is locked
                 leftData.position = new Vector2(-1.0f, -1.0f);
                 leftData.delta = Vector2.zero;
@@ -462,7 +462,7 @@ namespace Rewired.Integration.UnityUI {
             if(pointerEvent.sourceType == PointerEventType.Mouse) {
                 IMouseInputSource source = GetMouseInputSource(pointerEvent.playerId, pointerEvent.inputSourceIndex);
                 if(source != null) {
-                    targetGO = source.locked ? null : pointerEvent.pointerCurrentRaycast.gameObject;
+                    targetGO = !source.enabled || source.locked ? null : pointerEvent.pointerCurrentRaycast.gameObject;
                 } else {
                     targetGO = null;
                 }
@@ -476,7 +476,7 @@ namespace Rewired.Integration.UnityUI {
             if(!pointerEvent.IsPointerMoving() || pointerEvent.pointerDrag == null) return;
             if(pointerEvent.sourceType == PointerEventType.Mouse) {
                 IMouseInputSource source = GetMouseInputSource(pointerEvent.playerId, pointerEvent.inputSourceIndex);
-                if(source == null || source.locked) return;
+                if(source == null || source.locked || !source.enabled) return;
             }
 
             if(!pointerEvent.dragging
@@ -609,8 +609,7 @@ namespace Rewired.Integration.UnityUI {
             bool IMouseInputSource.enabled {
                 get {
                     TryUpdate();
-                    return true;
-                    // return Input.mousePresent; // REMOVED: Input.mousePresent is unreliable. Some platforms will return false when a mouse is present and working.
+                    return Input.mousePresent;
                 }
             }
 

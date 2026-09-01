@@ -1,0 +1,19 @@
+fileFormatVersion: 2
+guid: e56d6ce1b0774290b42dbaec39e49320
+timeCreated: 1507451677
+licenseType: Store
+MonoImporter:
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 104580
+  packageName: Volumetric 3D Lasers
+  packageVersion: 1.3a
+  assetPath: Assets/SineVFX/Volumetric3DLasers/Scripts/UIControllerV3D.cs
+  uploadId: 700963

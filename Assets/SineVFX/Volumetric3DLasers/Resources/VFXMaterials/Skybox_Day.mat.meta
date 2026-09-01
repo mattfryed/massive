@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 00b190593a9f455294e510462e62e7b9
+timeCreated: 1509928903
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 104580
+  packageName: Volumetric 3D Lasers
+  packageVersion: 1.3a
+  assetPath: Assets/SineVFX/Volumetric3DLasers/Resources/VFXMaterials/Skybox_Day.mat
+  uploadId: 700963

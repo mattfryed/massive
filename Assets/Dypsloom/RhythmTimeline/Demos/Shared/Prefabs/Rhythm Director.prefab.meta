@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 73d50a1f61c0c0d449cb4247cfafd1b0
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 310749
+  packageName: Rhythm Timeline 2 - Rhythm Game Framework & Editor
+  packageVersion: 2.1.1
+  assetPath: Assets/Dypsloom/RhythmTimeline/Demos/Shared/Prefabs/Rhythm Director.prefab
+  uploadId: 803332

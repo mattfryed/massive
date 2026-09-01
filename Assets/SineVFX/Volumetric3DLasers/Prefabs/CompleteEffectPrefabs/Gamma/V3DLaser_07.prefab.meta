@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 3db5a22c6884409ca7283250cdb11617
+timeCreated: 1510097453
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 104580
+  packageName: Volumetric 3D Lasers
+  packageVersion: 1.3a
+  assetPath: Assets/SineVFX/Volumetric3DLasers/Prefabs/CompleteEffectPrefabs/Gamma/V3DLaser_07.prefab
+  uploadId: 700963

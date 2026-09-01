@@ -1,0 +1,19 @@
+fileFormatVersion: 2
+guid: f86d8b40d16009a4da8072d5455d6534
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 181386
+  packageName: Wireframe Shader
+  packageVersion: 2025.5
+  assetPath: Assets/Amazing Assets/Wireframe Shader/Editor/Wireframe Mesh Generator/Batch
+    Object/BatchObjectsDrawer.cs
+  uploadId: 836360

@@ -1,0 +1,97 @@
+// NovaCoreSim.compute
+#pragma kernel CSMain
+
+RWStructuredBuffer<float2> _Positions;
+RWStructuredBuffer<float2> _Velocities;
+
+int   _ParticleCount;
+float _Dt;
+float _Time;
+
+float _CenterSpring;
+float _Drag;
+
+float _GlueRadius;
+float _GlueStrength;
+
+float _RepelRadius;
+float _RepelStrength;
+
+float _JitterStrength;
+float _CoreRadius;
+
+// Simple hash-based noise
+float2 Hash2(uint seed, float t)
+{
+    float x = frac(sin((seed + 1u) * 12.9898 + t * 78.233) * 43758.5453);
+    float y = frac(sin((seed + 73u) * 2.1234 + t * 37.719) * 24634.6345);
+    return float2(x, y) * 2.0 - 1.0; // [-1,1]
+}
+
+[numthreads(128, 1, 1)]
+void CSMain(uint id : SV_DispatchThreadID)
+{
+    if (id >= (uint)_ParticleCount) return;
+
+    float2 pos = _Positions[id];
+    float2 vel = _Velocities[id];
+
+    float2 force = float2(0, 0);
+
+    // 1. Center spring toward origin
+    force += -pos * _CenterSpring;
+
+    // 2. Pairwise forces (naive O(N^2), fine for a few hundred particles)
+    for (uint j = 0; j < (uint)_ParticleCount; j++)
+    {
+        if (j == id) continue;
+
+        float2 otherPos = _Positions[j];
+        float2 diff = otherPos - pos;
+        float distSq = dot(diff, diff);
+        if (distSq < 1e-4f) continue;
+
+        float dist = sqrt(distSq);
+        float2 dir = diff / dist;
+
+        // Short-range repulsion
+        if (dist < _RepelRadius)
+        {
+            float t = 1.0 - (dist / _RepelRadius); // 1 near center, 0 at edge
+            force -= dir * (_RepelStrength * t * t);
+        }
+
+        // Glue attraction (just outside repulsion zone, within glue radius)
+        if (dist < _GlueRadius && dist > _RepelRadius * 0.7)
+        {
+            float t = 1.0 - (dist / _GlueRadius);
+            force += dir * (_GlueStrength * t);
+        }
+    }
+
+    // 3. Jitter
+    float2 jitter = Hash2(id, _Time) * _JitterStrength;
+    force += jitter;
+
+    // 4. Drag & integration
+    // approximate exponential drag
+    float dragFactor = exp(-_Drag * _Dt);
+    vel *= dragFactor;
+    vel += force * _Dt;
+    pos += vel * _Dt;
+
+    // 5. Clamp inside circular region
+    float r = length(pos);
+    if (r > _CoreRadius)
+    {
+        float2 dir = pos / r;
+        pos = dir * _CoreRadius;
+
+        // bounce a bit off the edge
+        float vn = dot(vel, dir);
+        vel -= vn * dir * 0.6;
+    }
+
+    _Positions[id]  = pos;
+    _Velocities[id] = vel;
+}

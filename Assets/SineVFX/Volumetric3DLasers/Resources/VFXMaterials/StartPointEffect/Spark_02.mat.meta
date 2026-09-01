@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 3172969cc6414a7c8b2f3bc23edbdce5
+timeCreated: 1508854640
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 104580
+  packageName: Volumetric 3D Lasers
+  packageVersion: 1.3a
+  assetPath: Assets/SineVFX/Volumetric3DLasers/Resources/VFXMaterials/StartPointEffect/Spark_02.mat
+  uploadId: 700963

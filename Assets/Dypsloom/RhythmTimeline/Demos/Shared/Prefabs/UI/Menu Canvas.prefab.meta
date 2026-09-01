@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: fbdec3624e6c74b46b8734a580634e09
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 310749
+  packageName: Rhythm Timeline 2 - Rhythm Game Framework & Editor
+  packageVersion: 2.1.1
+  assetPath: Assets/Dypsloom/RhythmTimeline/Demos/Shared/Prefabs/UI/Menu Canvas.prefab
+  uploadId: 803332

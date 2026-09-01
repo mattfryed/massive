@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 97f603d532e0ab446a83ad8e6f48fe26
+ShaderImporter:
+  externalObjects: {}
+  defaultTextures: []
+  nonModifiableTextures: []
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 305806
+  packageName: Shaders Filters Pack
+  packageVersion: 1.0.1
+  assetPath: Assets/Matthew Guz/Shaders Filter Pack/Shaders/Built in/Pixel Filter.shader
+  uploadId: 745455

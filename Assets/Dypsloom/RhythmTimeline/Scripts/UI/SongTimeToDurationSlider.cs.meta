@@ -1,0 +1,10 @@
+﻿fileFormatVersion: 2
+guid: 8b3a7c7f37be4e828159b086e79de919
+timeCreated: 1703063077
+AssetOrigin:
+  serializedVersion: 1
+  productId: 310749
+  packageName: Rhythm Timeline 2 - Rhythm Game Framework & Editor
+  packageVersion: 2.1.1
+  assetPath: Assets/Dypsloom/RhythmTimeline/Scripts/UI/SongTimeToDurationSlider.cs
+  uploadId: 803332

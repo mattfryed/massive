@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: f5f03b0680e4bca49834c498efd05cab
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 25800000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 104580
+  packageName: Volumetric 3D Lasers
+  packageVersion: 1.3a
+  assetPath: Assets/SineVFX/Volumetric3DLasers/Scenes/DemoSceneGamma/LightingData.asset
+  uploadId: 700963

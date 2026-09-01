@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: a203729537c66ce49b406c8383ffd69d
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 310749
+  packageName: Rhythm Timeline 2 - Rhythm Game Framework & Editor
+  packageVersion: 2.1.1
+  assetPath: Assets/Dypsloom/RhythmTimeline/Demos/Shared/URPSettings/RhythmTimeline_URP_2D_Renderer.asset
+  uploadId: 803332

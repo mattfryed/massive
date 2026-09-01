@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bbeb542d9f49745c5a64ac6bb277e9e0, type: 3}
+  m_Name: PU_Decoherence
+  m_EditorClassIdentifier: 
+  displayName: Decoherence
+  description: Phasing stun shield
+  spawnWeight: 1
+  pickupPrefab: {fileID: 4270921612713813033, guid: 335549c2a3c5a45ffae53340f955b7bd,
+    type: 3}
+  worldLifetimeSeconds: 12
+  effectDurationSeconds: 16
+  activateInputName: Shield
+  shieldVfxPrefab: {fileID: 4807030499099527682, guid: dd334a42f6ef34e198988e707cb2a8ca,
+    type: 3}
+  distanceWindow: 1.25
+  attackerStunSeconds: 0.55
+  passThroughDistance: 1
+  ignoreCollisionSeconds: 0.25

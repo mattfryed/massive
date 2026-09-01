@@ -1,0 +1,19 @@
+fileFormatVersion: 2
+guid: bb4e71449a1e46d585fc3693e230d712
+timeCreated: 1508476523
+licenseType: Store
+MonoImporter:
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 104580
+  packageName: Volumetric 3D Lasers
+  packageVersion: 1.3a
+  assetPath: Assets/SineVFX/Volumetric3DLasers/Scripts/EndPointEffectControllerV3D.cs
+  uploadId: 700963

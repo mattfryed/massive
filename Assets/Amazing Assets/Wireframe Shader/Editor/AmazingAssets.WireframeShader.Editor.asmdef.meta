@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: d4bd48fe25583e24399a93ff0daf64a3
+AssemblyDefinitionImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 181386
+  packageName: Wireframe Shader
+  packageVersion: 2025.5
+  assetPath: Assets/Amazing Assets/Wireframe Shader/Editor/AmazingAssets.WireframeShader.Editor.asmdef
+  uploadId: 836360

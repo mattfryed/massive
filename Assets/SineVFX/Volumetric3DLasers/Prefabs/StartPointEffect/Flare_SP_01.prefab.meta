@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: cf8ecf1723c54d9b845bf11a8498bf90
+timeCreated: 1508861733
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 104580
+  packageName: Volumetric 3D Lasers
+  packageVersion: 1.3a
+  assetPath: Assets/SineVFX/Volumetric3DLasers/Prefabs/StartPointEffect/Flare_SP_01.prefab
+  uploadId: 700963

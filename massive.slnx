@@ -1,0 +1,18 @@
+﻿<Solution>
+  <Project Path="AmplifyShaderEditor.csproj" />
+  <Project Path="Dypsloom.RhythmTimeline.csproj" />
+  <Project Path="Assembly-CSharp.csproj" />
+  <Project Path="ShapesRuntime.csproj" />
+  <Project Path="Assembly-CSharp-Editor.csproj" />
+  <Project Path="ShapesSamples.csproj" />
+  <Project Path="AmazingAssets.WireframeShader.Examples.csproj" />
+  <Project Path="AmazingAssets.WireframeShader.Editor.csproj" />
+  <Project Path="OEBIF.csproj" />
+  <Project Path="ShapesEditor.csproj" />
+  <Project Path="Unity.Postprocessing.Runtime.csproj" />
+  <Project Path="FullscreenEditor.csproj" />
+  <Project Path="AmazingAssets.WireframeShader.csproj" />
+  <Project Path="Dypsloom.RhythmTimeline.Midi.Editor.csproj" />
+  <Project Path="Dypsloom.RhythmTimeline.Editor.csproj" />
+  <Project Path="Dypsloom.Shared.csproj" />
+</Solution>

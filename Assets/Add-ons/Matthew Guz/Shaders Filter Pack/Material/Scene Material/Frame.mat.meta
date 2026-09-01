@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 43a416bd732cbd24b8460748aaeb6b1c
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 305806
+  packageName: Shaders Filters Pack
+  packageVersion: 1.0.1
+  assetPath: Assets/Matthew Guz/Shaders Filter Pack/Material/Scene Material/Frame.mat
+  uploadId: 745455

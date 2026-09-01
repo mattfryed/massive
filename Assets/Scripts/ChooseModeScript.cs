@@ -1,26 +1,17 @@
-﻿using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
+﻿using UnityEngine;
 
 public class ChooseModeScript : MonoBehaviour
 {
-    // Start is called before the first frame update
-    void Start()
-    {
-      
-    }
+    // Hook this up to your UI buttons.
+    // If true = 2v2, else 1v1.
+public void MoveToNextScene(bool is2v2)
+{
+    GameFlowContext.EnsureExists();
+    GameFlowContext.Instance.SetMode(is2v2 ? GameMode.TwoVTwo : GameMode.OneVOne);
 
-    // Update is called once per frame
-    void Update()
-    {
-        
-    }
+    // optional: clear previous level selection when starting fresh
+    GameFlowContext.Instance.ClearSelection();
 
-    public void MoveToNextScene(bool is2v2)
-    {
-        // set a flag here
-        GameObject dm = GameObject.FindWithTag("DataManager");
-        dm.GetComponent<DataManagerScript>().UpdateMode(is2v2);
-        Application.LoadLevel(6);
-    }
+    SceneFlow.GoToHowToPlay(); 
+}
 }

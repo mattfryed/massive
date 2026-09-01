@@ -1,0 +1,197 @@
+// NuggetsSim.compute
+#pragma kernel CSUpdate
+
+#include "BlobDeform.hlsl"
+
+// ---------- Buffers (LOCAL space) ----------
+// CPU ping-pongs _PrevPos <-> _Pos each frame BEFORE dispatch.
+// This kernel READS _PrevPos and WRITES _Pos only (no write to _PrevPos).
+StructuredBuffer<float3> _PrevPos;       // last-frame local offsets (x,0,z)
+RWStructuredBuffer<float3> _Pos;         // current local offsets (x,0,z)
+RWStructuredBuffer<float2> _Vel;         // planar velocities (local XZ)
+StructuredBuffer<float2>   _Seed;        // blue-noise seeds (local XZ)
+
+// ---------- Counts ----------
+uint _DotCount;
+
+// ---------- Blob / deform params (match controller + blob shader) ----------
+float  _BaseRadius;
+float  _OutlineHalf;
+float  _IdleWobble;
+float  _DeformAmt;
+float2 _DeformDir;
+float  _DirFrontGain;
+float  _DirBackGain;
+float  _AreaKeep;
+float  _HitImpulse;
+float  _NoisePhase;
+float  _StretchY;    // (kept for parity; evaluation uses circular space)
+float  _TeardropK1;
+float  _TeardropK2;
+
+// ---------- World/game inputs ----------
+float2 _VelWS;       // player planar velocity (world XZ)
+float  _DotRadius;   // nugget dot radius
+float  _Dt;          // deltaTime
+
+// ---------- "Mass feel" (ported from CPU) ----------
+float  _CenterSpring;   // cohesion toward seed + slosh
+float  _SloshFactor;    // inertia projection strength
+float  _JitterAmp;
+float  _JitterFreq;
+float  _PullAccel;      // forward bunching along motion
+float  _SpinAccel;      // gentle swirl
+float  _RimSoftness;    // inner wall thickness (world units)
+float  _RimRepel;       // soft-wall strength
+float  _RadialDamping;  // remove outward velocity near wall
+float  _Drag;           // exp(-drag*dt)
+float  _TangentialBias; // 0..1 (keep tangential, reduce radial in slosh)
+float  _BounceDamp;     // 0..1 reflect ratio on clamp
+float  _Repel;          // pseudo-neighbor separation strength
+
+[numthreads(128,1,1)]
+void CSUpdate(uint id : SV_DispatchThreadID)
+{
+    if (id >= _DotCount) return;
+
+    // --- Load state (LOCAL space) ---
+    // IMPORTANT: read from previous positions (CPU did the swap)
+    float3 Pl  = _PrevPos[id];
+    float2 rel = float2(Pl.x, Pl.z);
+    float2 v   = _Vel[id];
+
+// --- Rim at this angle (match teardrop-ish blob outline) ---
+float ang = atan2(rel.y, rel.x);
+
+// Use the shared teardrop-based radius so nuggets match the outer blob.
+float rExp = ExpectedRadiusTeardrop(
+    _BaseRadius,
+    _IdleWobble,
+    _DeformAmt,   // interpreted as teardrop strength 0..1
+    _DeformDir,
+    _TeardropK1,
+    _TeardropK2,
+    _HitImpulse,
+    _NoisePhase,
+    ang
+);
+
+
+// Base container radius (just inside the blob edge)
+float baseKeepR = rExp - _OutlineHalf - _DotRadius - 0.002;
+
+// Never let the container collapse below some fraction of the base radius,
+// so chunks of nuggets don't get crushed into the center.
+float minKeepR = _BaseRadius * 0.4; // 40% of base radius – tweak to taste
+float keepR = max(minKeepR, baseKeepR);
+
+
+    float r    = length(rel);
+    float2 nrm = (r > 1e-6) ? rel / r : float2(1, 0);
+
+    // --- 1) Target: seed + slosh (radial reduced) + jitter ---
+    // --- speed gate so slosh dies quickly when stopping ---
+    float2 seed = _Seed[id];
+    
+float  vLen      = length(_VelWS);
+float  sloshGate = saturate((vLen - 0.25) * 3.0);
+
+// Slight extra energy during strong lunge, but not crazy
+float  sloshBoost = 1.0 + 0.5 * _DeformAmt; // up to 1.5x
+float  pullBoost  = 1.0 + 1.0 * _DeformAmt; // up to 2x
+
+float2 rawSlosh = _SloshFactor * _VelWS * sloshGate * sloshBoost;
+
+    float  outComp  = dot(rawSlosh, nrm);
+    float2 sloshTangential = rawSlosh - (1.0 - _TangentialBias) * outComp * nrm;
+
+    float sx = sin(13.1 * seed.x + _JitterFreq * _NoisePhase);
+    float sy = sin(11.9 * seed.y + 1.3 * _JitterFreq * _NoisePhase);
+    float2 jitter = _JitterAmp * float2(sx, sy);
+
+    float2 target = seed + sloshTangential + jitter;
+
+    // --- 2) Cohesion spring ---
+    float2 acc = (target - rel) * _CenterSpring;
+
+    // Gentle bowl toward center (prevents wall camping)
+    const float insideBias = 2.0;
+    acc += (-nrm) * insideBias * (r / max(keepR, 1e-5));
+
+    // --- 3) Forward bunching ---
+    float2 fwd = (vLen > 1e-4) ? (_VelWS / vLen) : float2(0,0);
+acc += fwd * (_PullAccel * sloshGate * pullBoost);
+
+    // --- 4) Signed swirl (liquidy) ---
+    float2 tangential = float2(-nrm.y, nrm.x);
+    float  spinSign   = sign(dot(rel, tangential));
+    acc += tangential * (_SpinAccel * spinSign);
+
+    // --- 5) Soft inner wall + remove outward velocity ---
+    float dToWall = keepR - r; // >0 inside, <0 outside
+    if (dToWall < _RimSoftness)
+    {
+        float k = 1.0 - saturate(dToWall / _RimSoftness); // 0 safe, 1 at/over rim
+        acc += (-nrm) * (_RimRepel * k);
+
+        float vOut = dot(v, nrm);
+        if (vOut > 0.0) v -= nrm * (vOut * _RadialDamping);
+    }
+
+    // --- Separation vs pseudo-neighbor (cheap, stable) ---
+    uint   j   = (id + 53) % _DotCount;
+    float3 Ppr = _PrevPos[j];
+    float2 d   = rel - float2(Ppr.x, Ppr.z);
+    float  d2  = dot(d, d);
+    float  minD  = max(_DotRadius * 2.2, 0.001);
+    float  minD2 = minD * minD;
+    if (d2 < minD2)
+    {
+        float dist  = sqrt(max(d2, 1e-6));
+        float2 away = d / dist;
+        float  push = (1.0 - dist / minD);
+        acc += away * (push * _Repel);
+    }
+
+// --- 6) Integrate (exp drag) ---
+rel += v * _Dt;
+v    = v * exp(-_Drag * _Dt) + acc * _Dt;
+
+// --- 6.5) Velocity clamp to keep sim stable ---
+// Allow movement proportional to the overall blob size, not the local keepR,
+// so nuggets don't effectively freeze when the container narrows.
+float maxStep = _BaseRadius * 0.4 / max(_Dt, 1e-4); // ~40% of base radius per frame at most
+float v2 = dot(v, v);
+if (v2 > maxStep * maxStep)
+{
+    float invLen = rsqrt(v2);
+    v *= maxStep * invLen;
+}
+
+    // --- 7) Safety clamp (bounceDamp) ---
+    float rp = length(rel);
+    if (rp > keepR)
+    {
+        float2 n2 = rel / max(rp, 1e-6);
+        rel = n2 * keepR;
+        float vOut2 = dot(v, n2);
+        if (vOut2 > 0.0) v -= n2 * vOut2 * _BounceDamp;
+    }
+
+
+// --- 7.5) Extra damping near the wall to avoid hyper-bouncy nuggets ---
+if (rp > keepR * 0.96) // within 4% of the wall
+{
+    float speed = length(v);
+    float maxWallSpeed = _BaseRadius * 0.2; // tweak 0.2 → lower if still too fast
+
+    if (speed > maxWallSpeed)
+    {
+        v *= maxWallSpeed / max(speed, 1e-6);
+    }
+}
+
+    // --- 8) Store LOCAL (write only Pos & Vel) ---
+    _Vel[id] = v;
+    _Pos[id] = float3(rel.x, 0, rel.y);
+}

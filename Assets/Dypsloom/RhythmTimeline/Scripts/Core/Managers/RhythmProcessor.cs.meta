@@ -1,0 +1,10 @@
+﻿fileFormatVersion: 2
+guid: 44494cdc917a4ba3ae96c6ab6435ec8e
+timeCreated: 1610652894
+AssetOrigin:
+  serializedVersion: 1
+  productId: 310749
+  packageName: Rhythm Timeline 2 - Rhythm Game Framework & Editor
+  packageVersion: 2.1.1
+  assetPath: Assets/Dypsloom/RhythmTimeline/Scripts/Core/Managers/RhythmProcessor.cs
+  uploadId: 803332

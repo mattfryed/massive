@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: c2709e79ecc0444686d4e2630fd6e48f
+timeCreated: 1509026867
+licenseType: Store
+DefaultImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 104580
+  packageName: Volumetric 3D Lasers
+  packageVersion: 1.3a
+  assetPath: Assets/SineVFX/Volumetric3DLasers/Resources/Meshes/VFXMeshes/VFXMesh_03AngleParticleFat.mtl
+  uploadId: 700963

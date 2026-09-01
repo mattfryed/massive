@@ -1,0 +1,5 @@
+URP is partially supported in this Asset. Firstly, you need to unpack the URP package from the "Packages" folder. Then you can check the DemoSceneLWRP or use the prefabs from new folders. There are only two prefabs in this scene, but they are extremely customizable, so you can replicate any form of laser.
+
+You also need to enable HDR and Opaque Texture in your URP Asset.
+
+Support email "sinevfx@gmail.com"

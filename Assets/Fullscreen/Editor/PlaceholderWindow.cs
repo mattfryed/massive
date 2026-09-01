@@ -127,9 +127,9 @@ namespace FullscreenEditor {
                     GUILayout.FlexibleSpace();
 
                     if (FullscreenContainer && FullscreenContainer.ActualViewPyramid.Container) {
-                        if (GUILayout.Button("Restore view", Styles.buttonStyle))
+                        if (GUILayout.Button("Restore View", Styles.buttonStyle))
                             FullscreenContainer.Close();
-                    } else if (GUILayout.Button("Close placeholder", Styles.buttonStyle))
+                    } else if (GUILayout.Button("Close Placeholder", Styles.buttonStyle))
                         Close();
                     GUILayout.FlexibleSpace();
                 }

@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 97428a5da7cf27a4bb37d821019d37f1
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 305806
+  packageName: Shaders Filters Pack
+  packageVersion: 1.0.1
+  assetPath: Assets/Matthew Guz/Shaders Filter Pack/Material/URP/Vignette Effect_URP.mat
+  uploadId: 745455

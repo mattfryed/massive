@@ -15,6 +15,8 @@ namespace FullscreenEditor {
         [SerializeField] private int m_ourIndex = -1;
         [SerializeField] private bool m_old = false;
 
+        public Action didPresent = () => Logger.Debug("'Did Present' called");
+
         private static int CurrentIndex {
             get { return EditorPrefs.GetInt("FullscreenIdx", 0); }
             set { EditorPrefs.SetInt("FullscreenIdx", value); }
@@ -41,11 +43,19 @@ namespace FullscreenEditor {
                 if (m_dst.Container) {
                     m_dst.Container.InvokeMethod("SetMinMaxSizes", value.size, value.size);
                     m_dst.Container.SetPropertyValue("position", value);
-                }
+                    Logger.Debug("Set {0} rect to {1}", this.name, value);
+                } else
+                    Logger.Debug("No container on {0}, rect will not be set", this.name);
             }
         }
 
+        private void Update() {
+            if (!m_dst.Container)
+                Close(); // Forcefully closed
+        }
+
         protected virtual void OnEnable() {
+
             if (m_ourIndex == -1) {
                 m_ourIndex = CurrentIndex++;
                 name = string.Format("Fullscreen #{0}", m_ourIndex);
@@ -63,9 +73,11 @@ namespace FullscreenEditor {
             }
 
             m_old = true;
+            EditorApplication.update += Update;
         }
 
         protected virtual void OnDisable() {
+            EditorApplication.update -= Update;
             #if UNITY_2018_1_OR_NEWER
             EditorApplication.wantsToQuit += WantsToQuit;
             #endif
@@ -78,12 +90,16 @@ namespace FullscreenEditor {
                 m_dst.Container.InvokeMethod("Close");
                 Logger.Warning("Destroying {0} which has open containers, always close the fullscreen before destroying it", name);
             }
+
+            FullscreenCallbacks.afterFullscreenClose(this);
         }
 
         /// <summary>Destroy this container and exit fullscreen.</summary>
         public virtual void Close() {
 
-            if (!m_dst.Window)
+            FullscreenCallbacks.beforeFullscreenClose(this);
+
+            if (!m_dst.Window && m_dst.Container)
                 Logger.Error("Placeholder window has been closed, Fullscreen Editor won't be able to restore window position");
 
             if (m_dst.Container) // Container may have been destroyed by Alt+F4

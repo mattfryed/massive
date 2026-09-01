@@ -47,10 +47,16 @@ namespace FullscreenEditor {
 
             childWindow.InvokeMethod("MakeParentsSettingsMatchMe");
 
-            if (cw.HasMethod("Show", new [] { typeof(int), typeof(bool), typeof(bool) }))
-                cw.InvokeMethod("Show", (int)ShowMode.NoShadow, false, false); // mode, loadPosition, displayImmediately
+            var loadPosition = false;
+            var displayImmediately = true;
+            var setFocus = true;
+
+            if (cw.HasMethod("Show", new[] { typeof(int), typeof(bool), typeof(bool), typeof(bool), typeof(int) }))
+                cw.InvokeMethod("Show", (int)ShowMode.NoShadow, loadPosition, displayImmediately, setFocus, 0);
+            else if (cw.HasMethod("Show", new[] { typeof(int), typeof(bool), typeof(bool) }))
+                cw.InvokeMethod("Show", (int)ShowMode.NoShadow, loadPosition, displayImmediately);
             else
-                cw.InvokeMethod("Show", (int)ShowMode.NoShadow, false, false, false); // mode, loadPosition, displayImmediately, setFocus
+                cw.InvokeMethod("Show", (int)ShowMode.NoShadow, loadPosition, displayImmediately, setFocus);
 
             // set min/max size now that native window is not null so that it will e.g., use proper styleMask on macOS
             cw.InvokeMethod("SetMinMaxSizes", rect.size, rect.size); // min, max
@@ -73,6 +79,9 @@ namespace FullscreenEditor {
 
         /// <summary>Method that will be called just before creating the ContainerWindow for this fullscreen.</summary>
         protected virtual void BeforeOpening() {
+
+            FullscreenCallbacks.beforeFullscreenOpen(this);
+
             if (m_dst.Container)
                 new Exception("Container already has a fullscreened view");
         }
@@ -80,7 +89,12 @@ namespace FullscreenEditor {
         /// <summary>Method that will be called after the creation of the ContainerWindow for this fullscreen.</summary>
         protected virtual void AfterOpening() {
 
-            After.Frames(2, () => UnityEditorInternal.InternalEditorUtility.RepaintAllViews());
+            After.Frames(2, () => {
+                UnityEditorInternal.InternalEditorUtility.RepaintAllViews();
+
+                didPresent.Invoke();
+                didPresent = null;
+            });
 
             Logger.Debug(this, "{6}\n\nSRC\nWindow: {0}\nView: {1}\nContainer: {2}\n\nDST\nWindow: {3}\nView: {4}\nContainer: {5}\n",
                 m_src.Window,
@@ -91,6 +105,8 @@ namespace FullscreenEditor {
                 m_dst.Container,
                 name
             );
+
+            FullscreenCallbacks.afterFullscreenOpen(this);
         }
 
     }

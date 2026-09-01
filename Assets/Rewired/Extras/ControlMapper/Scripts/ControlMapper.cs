@@ -2,7 +2,7 @@
 
 //#define REWIRED_CONTROL_MAPPER_USE_TMPRO
 
-#if UNITY_2020 || UNITY_2021 || UNITY_2022 || UNITY_2023 || UNITY_2024 || UNITY_2025
+#if UNITY_2020 || UNITY_2021 || UNITY_2022 || UNITY_2023 || UNITY_6000 || UNITY_6000_0_OR_NEWER
 #define UNITY_2020_PLUS
 #endif
 
@@ -62,17 +62,13 @@
 #define SUPPORTS_UNITY_UI
 #endif
 
-#pragma warning disable 0219
-#pragma warning disable 0618
 #pragma warning disable 0649
 
-namespace Rewired.UI.ControlMapper {
-
+namespace Rewired.UI.ControlMapper
+{
     using UnityEngine;
     using UnityEngine.UI;
     using UnityEngine.Events;
-    using UnityEngine.Serialization;
-    using System.Collections;
     using System.Collections.Generic;
     using UnityEngine.EventSystems;
     using Rewired;
@@ -84,7 +80,8 @@ namespace Rewired.UI.ControlMapper {
 #endif
 
     [AddComponentMenu("")]
-    public partial class ControlMapper : MonoBehaviour {
+    public partial class ControlMapper : MonoBehaviour
+    {
 
         #region Consts
 
@@ -190,6 +187,9 @@ namespace Rewired.UI.ControlMapper {
             "In addition, these assignments may cause conflicts when trying to remap the same elements to Actions."
         )]
         private bool _showSplitAxisInputFields = true;
+        [SerializeField]
+        [Tooltip("Show glyphs if available. Glyph Provider must be configured for glyphs to be displayed. See Glyphs documentation for more information.")]
+        private bool _showGlyphs = true;
 
         [SerializeField]
         [Tooltip("If enabled, when an element assignment conflict is found, an option will be displayed that allows the user to make the conflicting assignment anyway.")]
@@ -290,7 +290,7 @@ namespace Rewired.UI.ControlMapper {
 
         [SerializeField]
         [Tooltip("Must be assigned a LanguageData object. Used to retrieve language entries for UI elements.")]
-        private UI.ControlMapper.LanguageData _language;
+        private UI.ControlMapper.LanguageDataBase _language;
 
         [SerializeField]
         [Tooltip("A list of prefabs. You should not have to modify this.")]
@@ -334,6 +334,7 @@ namespace Rewired.UI.ControlMapper {
         private System.Action _PopupWindowClosedEvent;
         private System.Action _InputPollingStartedEvent;
         private System.Action _InputPollingEndedEvent;
+        private System.Action _ThemeAppliedEvent;
 
         /// <summary>
         /// Event sent when the UI is closed.
@@ -535,30 +536,46 @@ namespace Rewired.UI.ControlMapper {
 
         private static ControlMapper Instance;
 
+        [System.NonSerialized]
         private bool initialized;
+        [System.NonSerialized]
         private int playerCount;
 
         private InputGrid inputGrid;
         private WindowManager windowManager;
+        [System.NonSerialized]
         private int currentPlayerId;
+        [System.NonSerialized]
         private int currentMapCategoryId;
+        [System.NonSerialized]
         private List<GUIButton> playerButtons;
+        [System.NonSerialized]
         private List<GUIButton> mapCategoryButtons;
+        [System.NonSerialized]
         private List<GUIButton> assignedControllerButtons;
         private GUIButton assignedControllerButtonsPlaceholder;
+        [System.NonSerialized]
         private List<GameObject> miscInstantiatedObjects;
+        [System.NonSerialized]
         private GameObject canvas;
+        [System.NonSerialized]
         private GameObject lastUISelection;
+        [System.NonSerialized]
         private int currentJoystickId = -1;
+        [System.NonSerialized]
         private float blockInputOnFocusEndTime;
+        [System.NonSerialized]
         private bool isPollingForInput;
+        [System.NonSerialized]
+        private List<ThemedElement> themedElements = new List<ThemedElement>();
 
+        [System.NonSerialized]
         private InputMapping pendingInputMapping;
+        [System.NonSerialized]
         private AxisCalibrator pendingAxisCalibration;
 
         private System.Action<InputFieldInfo> inputFieldActivatedDelegate;
         private System.Action<ToggleInfo, bool> inputFieldInvertToggleStateChangedDelegate;
-
         private System.Action _restoreDefaultsDelegate;
 
         #endregion
@@ -588,6 +605,7 @@ namespace Rewired.UI.ControlMapper {
         public int controllerInputFieldCount { get { return _controllerInputFieldCount; } set { _controllerInputFieldCount = value; InspectorPropertyChanged(true); } }
         public bool showFullAxisInputFields { get { return _showFullAxisInputFields; } set { _showFullAxisInputFields = value; InspectorPropertyChanged(true); } }
         public bool showSplitAxisInputFields { get { return _showSplitAxisInputFields; } set { _showSplitAxisInputFields = value; InspectorPropertyChanged(true); } }
+        public bool showGlyphs { get { return _showGlyphs; } set { _showGlyphs = value; InspectorPropertyChanged(true); } }
         public bool allowElementAssignmentConflicts { get { return _allowElementAssignmentConflicts; } set { _allowElementAssignmentConflicts = value; InspectorPropertyChanged(); } }
         public bool allowElementAssignmentSwap { get { return _allowElementAssignmentSwap; } set { _allowElementAssignmentSwap = value; InspectorPropertyChanged(); } }
         public int actionLabelWidth { get { return _actionLabelWidth; } set { _actionLabelWidth = value; InspectorPropertyChanged(true); } }
@@ -612,8 +630,9 @@ namespace Rewired.UI.ControlMapper {
         //public int universalCancelAction { get { return _universalCancelAction; } set { _universalCancelAction = value; InspectorPropertyChanged(); } }
         public bool universalCancelClosesScreen { get { return _universalCancelClosesScreen; } set { _universalCancelClosesScreen = value; InspectorPropertyChanged(); } }
         public bool showInputBehaviorSettings { get { return _showInputBehaviorSettings; } set { _showInputBehaviorSettings = value; InspectorPropertyChanged(true); } }
-        public bool useThemeSettings { get { return _useThemeSettings; } set { _useThemeSettings = value; InspectorPropertyChanged(true); } }
-        public LanguageData language { get { return _language; } set { _language = value; if(_language != null) _language.Initialize(); InspectorPropertyChanged(true); } }
+        public bool useThemeSettings { get { return _useThemeSettings; } set { _useThemeSettings = value; InspectorPropertyChanged(true); if(value) ApplyTheme(); } }
+        public ThemeSettings themeSettings { get { return _themeSettings; } set { _themeSettings = value; InspectorPropertyChanged(true); ApplyTheme(); } }
+        public LanguageDataBase language { get { return _language; } set { _language = value; if(_language != null) _language.Initialize(); InspectorPropertyChanged(true); } }
 
         public bool showPlayersGroupLabel { get { return _showPlayersGroupLabel; } set { _showPlayersGroupLabel = value; InspectorPropertyChanged(true); } }
         public bool showControllerGroupLabel { get { return _showControllerGroupLabel; } set { _showControllerGroupLabel = value; InspectorPropertyChanged(true); } }
@@ -768,6 +787,10 @@ namespace Rewired.UI.ControlMapper {
         private void Initialize() {
             if(initialized) return;
             if(!ReInput.isReady) return;
+#if UNITY_EDITOR
+            // Prevent accidental initialization in edit mode if Reset or other function is called because serialized data could be modified
+            if (!Application.isPlaying) return;
+#endif
 
             if(_rewiredInputManager == null) {
                 _rewiredInputManager = Object.FindObjectOfType<Rewired.InputManager>();
@@ -851,6 +874,18 @@ namespace Rewired.UI.ControlMapper {
             mapCategoryButtons = new List<GUIButton>();
             assignedControllerButtons = new List<GUIButton>();
             miscInstantiatedObjects = new List<GameObject>();
+
+            // Remove invalid map categories to prevent issues
+            {
+                List<MappingSet> newMappingSets = new List<MappingSet>(_mappingSets.Length);
+                for (int i = 0; i < _mappingSets.Length; i++) {
+                    MappingSet set = _mappingSets[i];
+                    if (set == null) continue;
+                    if (!set.isValid) continue;
+                    newMappingSets.Add(set);
+                }
+                _mappingSets = newMappingSets.ToArray(); // replace array
+            }
 
             // Set default values
             currentMapCategoryId = _mappingSets[0].mapCategoryId;
@@ -942,19 +977,8 @@ namespace Rewired.UI.ControlMapper {
             InputAction action = ReInput.mapping.GetAction(fieldInfo.actionId);
             if(action == null) return;
 
-            string actionName;
-            if(action.type == InputActionType.Button) {
-                actionName = action.descriptiveName;
-            } else if(action.type == InputActionType.Axis) {
-                if(fieldInfo.axisRange == AxisRange.Full) actionName = action.descriptiveName;
-                else if(fieldInfo.axisRange == AxisRange.Positive) {
-                    if(string.IsNullOrEmpty(action.positiveDescriptiveName)) actionName = action.descriptiveName + " +";
-                    else actionName = action.positiveDescriptiveName;
-                } else if(fieldInfo.axisRange == AxisRange.Negative) {
-                    if(string.IsNullOrEmpty(action.negativeDescriptiveName)) actionName = action.descriptiveName + " -";
-                    else actionName = action.negativeDescriptiveName;
-                } else throw new System.NotImplementedException();
-            } else throw new System.NotImplementedException();
+            AxisRange range = action.type == InputActionType.Axis ? fieldInfo.axisRange : AxisRange.Full;
+            string actionName = _language.GetActionName(action.id, range);
 
             ControllerMap map = GetControllerMap(fieldInfo.controllerType);
             if(map == null) return;
@@ -1557,14 +1581,14 @@ namespace Rewired.UI.ControlMapper {
             for(int i = 0; i < players.Count; i++) {
                 if(players[i] == currentPlayer) continue; // skip self
                 if(!players[i].controllers.ContainsController(ControllerType.Joystick, controllerId)) continue;
-                otherPlayer = players[i].descriptiveName;
+                otherPlayer = _language.GetPlayerName(players[i].id);
                 break;
             }
 
             Joystick joystick = ReInput.controllers.GetJoystick(controllerId);
 
             window.CreateTitleText(prefabs.windowTitleText, Vector2.zero, _language.controllerAssignmentConflictWindowTitle);
-            window.AddContentText(prefabs.windowContentText, UI.UIPivot.TopCenter, UI.UIAnchor.TopHStretch, new Vector2(0, -100), _language.GetControllerAssignmentConflictWindowMessage(joystick.name, otherPlayer, currentPlayer.descriptiveName));
+            window.AddContentText(prefabs.windowContentText, UI.UIPivot.TopCenter, UI.UIAnchor.TopHStretch, new Vector2(0, -100), _language.GetControllerAssignmentConflictWindowMessage(_language.GetControllerName(joystick), otherPlayer, _language.GetPlayerName(currentPlayer.id)));
             UnityAction cancelCallback = () => { OnWindowCancel(window.id); };
             window.cancelCallback = cancelCallback;
             window.CreateButton(prefabs.fitButton, UI.UIPivot.BottomLeft, UI.UIAnchor.BottomLeft, Vector2.zero, _language.yes, () => { OnControllerAssignmentConfirmed(window.id, currentPlayer, controllerId); }, cancelCallback, true);
@@ -1733,12 +1757,12 @@ namespace Rewired.UI.ControlMapper {
             for(int i = 0; i < players.Count; i++) {
                 if(players[i] == currentPlayer) continue; // skip self
                 if(!players[i].controllers.hasMouse) continue;
-                otherPlayer = players[i].descriptiveName;
+                otherPlayer = _language.GetPlayerName(players[i].id);
                 break;
             }
 
             window.CreateTitleText(prefabs.windowTitleText, Vector2.zero, _language.mouseAssignmentConflictWindowTitle);
-            window.AddContentText(prefabs.windowContentText, UI.UIPivot.TopCenter, UI.UIAnchor.TopHStretch, new Vector2(0, -100), _language.GetMouseAssignmentConflictWindowMessage(otherPlayer, currentPlayer.descriptiveName));
+            window.AddContentText(prefabs.windowContentText, UI.UIPivot.TopCenter, UI.UIAnchor.TopHStretch, new Vector2(0, -100), _language.GetMouseAssignmentConflictWindowMessage(otherPlayer, _language.GetPlayerName(currentPlayer.id)));
             UnityAction cancelCallback = () => { OnWindowCancel(window.id); };
             window.cancelCallback = cancelCallback;
             window.CreateButton(prefabs.fitButton, UI.UIPivot.BottomLeft, UI.UIAnchor.BottomLeft, Vector2.zero, _language.yes, () => { OnMouseAssignmentConfirmed(window.id, currentPlayer); }, cancelCallback, true);
@@ -1778,7 +1802,7 @@ namespace Rewired.UI.ControlMapper {
             if(axisIndex < 0 || axisIndex >= joystick.axisCount) return;
 
             window.CreateTitleText(prefabs.windowTitleText, Vector2.zero, _language.calibrateAxisStep1WindowTitle);
-            window.AddContentText(prefabs.windowContentText, UI.UIPivot.TopCenter, UI.UIAnchor.TopHStretch, new Vector2(0, -100), _language.GetCalibrateAxisStep1WindowMessage(joystick.AxisElementIdentifiers[axisIndex].name));
+            window.AddContentText(prefabs.windowContentText, UI.UIPivot.TopCenter, UI.UIAnchor.TopHStretch, new Vector2(0, -100), _language.GetCalibrateAxisStep1WindowMessage(_language.GetElementIdentifierName(joystick, joystick.AxisElementIdentifiers[axisIndex].id, AxisRange.Full)));
             if(prefabs.centerStickGraphic != null) window.AddContentImage(prefabs.centerStickGraphic, UI.UIPivot.BottomCenter, UI.UIAnchor.BottomCenter, new Vector2(0, 40));
             window.AddContentText(prefabs.windowContentText, UI.UIPivot.BottomCenter, UI.UIAnchor.BottomHStretch, Vector2.zero, "");
             window.SetUpdateCallback(OnCalibrateAxisStep1WindowUpdate);
@@ -1801,7 +1825,7 @@ namespace Rewired.UI.ControlMapper {
             if(axisIndex < 0 || axisIndex >= joystick.axisCount) return;
 
             window.CreateTitleText(prefabs.windowTitleText, Vector2.zero, _language.calibrateAxisStep2WindowTitle);
-            window.AddContentText(prefabs.windowContentText, UI.UIPivot.TopCenter, UI.UIAnchor.TopHStretch, new Vector2(0, -100), _language.GetCalibrateAxisStep2WindowMessage(joystick.AxisElementIdentifiers[axisIndex].name));
+            window.AddContentText(prefabs.windowContentText, UI.UIPivot.TopCenter, UI.UIAnchor.TopHStretch, new Vector2(0, -100), _language.GetCalibrateAxisStep2WindowMessage(_language.GetElementIdentifierName(joystick, joystick.AxisElementIdentifiers[axisIndex].id, AxisRange.Full)));
             if(prefabs.moveStickGraphic != null) window.AddContentImage(prefabs.moveStickGraphic, UI.UIPivot.BottomCenter, UI.UIAnchor.BottomCenter, new Vector2(0, 40));
             window.AddContentText(prefabs.windowContentText, UI.UIPivot.BottomCenter, UI.UIAnchor.BottomHStretch, Vector2.zero, "");
             window.SetUpdateCallback(OnCalibrateAxisStep2WindowUpdate);
@@ -2046,7 +2070,7 @@ namespace Rewired.UI.ControlMapper {
                         // Draw category label
                         if(_showActionCategoryLabels) {
                             if(categoryCount > 0) yPos -= _inputRowCategorySpacing; // extra space above category
-                            GUILabel label = CreateLabel(category.descriptiveName, columnXform, new Vector2(0, yPos));
+                            GUILabel label = CreateLabel(_language.GetActionCategoryName(category.id), columnXform, new Vector2(0, yPos));
 #if REWIRED_CONTROL_MAPPER_USE_TMPRO
                             label.SetFontStyle(TMPro.FontStyles.Bold);
 #else
@@ -2064,20 +2088,20 @@ namespace Rewired.UI.ControlMapper {
                             if(action.type == InputActionType.Axis) {
 
                                 if(_showFullAxisInputFields) {
-                                    label = CreateLabel(action.descriptiveName, columnXform, new Vector2(0, yPos));
+                                    label = CreateLabel(_language.GetActionName(action.id, AxisRange.Full), columnXform, new Vector2(0, yPos));
                                     label.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, _inputRowHeight);
                                     inputGrid.AddActionLabel(set.mapCategoryId, action.id, AxisRange.Full, label);
                                     yPos -= _inputRowHeight;
                                 }
 
                                 if(_showSplitAxisInputFields) {
-                                    string positiveDescriptiveName = !string.IsNullOrEmpty(action.positiveDescriptiveName) ? action.positiveDescriptiveName : action.descriptiveName + " +";
+                                    string positiveDescriptiveName = _language.GetActionName(action.id, AxisRange.Positive);
                                     label = CreateLabel(positiveDescriptiveName, columnXform, new Vector2(0, yPos));
                                     label.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, _inputRowHeight);
                                     inputGrid.AddActionLabel(set.mapCategoryId, action.id, AxisRange.Positive, label);
                                     yPos -= _inputRowHeight;
 
-                                    string negativeDescriptiveName = !string.IsNullOrEmpty(action.negativeDescriptiveName) ? action.negativeDescriptiveName : action.descriptiveName + " -";
+                                    string negativeDescriptiveName = _language.GetActionName(action.id, AxisRange.Negative);
                                     label = CreateLabel(negativeDescriptiveName, columnXform, new Vector2(0, yPos));
                                     label.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, _inputRowHeight);
                                     inputGrid.AddActionLabel(set.mapCategoryId, action.id, AxisRange.Negative, label);
@@ -2085,7 +2109,7 @@ namespace Rewired.UI.ControlMapper {
                                 }
 
                             } else if(action.type == InputActionType.Button) {
-                                label = CreateLabel(action.descriptiveName, columnXform, new Vector2(0, yPos));
+                                label = CreateLabel(_language.GetActionName(action.id), columnXform, new Vector2(0, yPos));
                                 label.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, _inputRowHeight);
                                 inputGrid.AddActionLabel(set.mapCategoryId, action.id, AxisRange.Positive, label);
                                 yPos -= _inputRowHeight;
@@ -2112,26 +2136,26 @@ namespace Rewired.UI.ControlMapper {
                         if(action.type == InputActionType.Axis) {
 
                             if(_showFullAxisInputFields) {
-                                label = CreateLabel(action.descriptiveName, columnXform, new Vector2(0, yPos));
+                                label = CreateLabel(_language.GetActionName(action.id, AxisRange.Full), columnXform, new Vector2(0, yPos));
                                 label.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, _inputRowHeight);
                                 inputGrid.AddActionLabel(set.mapCategoryId, action.id, AxisRange.Full, label);
                                 yPos -= _inputRowHeight;
                             }
 
                             if(_showSplitAxisInputFields) {
-                                label = CreateLabel(action.positiveDescriptiveName, columnXform, new Vector2(0, yPos));
+                                label = CreateLabel(_language.GetActionName(action.id, AxisRange.Positive), columnXform, new Vector2(0, yPos));
                                 label.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, _inputRowHeight);
                                 inputGrid.AddActionLabel(set.mapCategoryId, action.id, AxisRange.Positive, label);
                                 yPos -= _inputRowHeight;
 
-                                label = CreateLabel(action.negativeDescriptiveName, columnXform, new Vector2(0, yPos));
+                                label = CreateLabel(_language.GetActionName(action.id, AxisRange.Negative), columnXform, new Vector2(0, yPos));
                                 label.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, _inputRowHeight);
                                 inputGrid.AddActionLabel(set.mapCategoryId, action.id, AxisRange.Negative, label);
                                 yPos -= _inputRowHeight;
                             }
 
                         } else if(action.type == InputActionType.Button) {
-                            label = CreateLabel(action.descriptiveName, columnXform, new Vector2(0, yPos));
+                            label = CreateLabel(_language.GetActionName(action.id), columnXform, new Vector2(0, yPos));
                             label.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, _inputRowHeight);
                             inputGrid.AddActionLabel(set.mapCategoryId, action.id, AxisRange.Positive, label);
                             yPos -= _inputRowHeight;
@@ -2243,6 +2267,7 @@ namespace Rewired.UI.ControlMapper {
 
                 GUIInputField field = CreateInputField(hLayoutGroup.transform, Vector2.zero, "", action.id, axisRange, controllerType, fieldIndex);
                 field.SetFirstChildObjectWidth(LayoutElementSizeType.PreferredSize, fieldWidth - toggleWidth); // set max width so buttons will stay equal widths
+                field.SetFirstChildObjectWidth(LayoutElementSizeType.MinSize, 0); // set min width so modifier key chains are constrained
                 inputGrid.AddInputField(mapCategoryId, action, axisRange, controllerType, fieldIndex, field); // add to the system
 
                 if(axisRange == AxisRange.Full) {
@@ -2339,26 +2364,26 @@ namespace Rewired.UI.ControlMapper {
 
                     }
 
-                    inputGrid.PopulateField(currentMapCategoryId, actionSet.actionId, actionSet.axisRange, controllerType, controllerId, count, aem.id, aem.elementIdentifierName, false);
+                    inputGrid.PopulateField(currentMapCategoryId, actionSet.actionId, actionSet.axisRange, controllerType, controllerId, count, aem.id, _language.GetElementIdentifierName(aem), false);
 
                 } else if(aem.elementType == ControllerElementType.Axis) {
 
                     if(actionSet.axisRange == AxisRange.Full) {
                         if(aem.axisRange != AxisRange.Full) continue;
 
-                        inputGrid.PopulateField(currentMapCategoryId, actionSet.actionId, actionSet.axisRange, controllerType, controllerId, count, aem.id, aem.elementIdentifierName, aem.invert);
+                        inputGrid.PopulateField(currentMapCategoryId, actionSet.actionId, actionSet.axisRange, controllerType, controllerId, count, aem.id, _language.GetElementIdentifierName(aem), aem.invert);
 
                     } else if(actionSet.axisRange == AxisRange.Positive) {
                         if(aem.axisRange == AxisRange.Full && ReInput.mapping.GetAction(actionSet.actionId).type != InputActionType.Button) continue;
                         if(aem.axisContribution == Pole.Negative) continue;
 
-                        inputGrid.PopulateField(currentMapCategoryId, actionSet.actionId, actionSet.axisRange, controllerType, controllerId, count, aem.id, aem.elementIdentifierName, false);
+                        inputGrid.PopulateField(currentMapCategoryId, actionSet.actionId, actionSet.axisRange, controllerType, controllerId, count, aem.id, _language.GetElementIdentifierName(aem), false);
 
                     } else if(actionSet.axisRange == AxisRange.Negative) {
                         if(aem.axisRange == AxisRange.Full) continue;
                         if(aem.axisContribution == Pole.Positive) continue;
 
-                        inputGrid.PopulateField(currentMapCategoryId, actionSet.actionId, actionSet.axisRange, controllerType, controllerId, count, aem.id, aem.elementIdentifierName, false);
+                        inputGrid.PopulateField(currentMapCategoryId, actionSet.actionId, actionSet.axisRange, controllerType, controllerId, count, aem.id, _language.GetElementIdentifierName(aem), false);
                     }
                 }
 
@@ -2434,7 +2459,7 @@ namespace Rewired.UI.ControlMapper {
                 if(player == null) continue;
                 GameObject instance = UI.ControlMapper.UITools.InstantiateGUIObject<ButtonInfo>(prefabs.button, references.playersGroup.content, "Player" + i + "Button");
                 GUIButton button = new GUIButton(instance);
-                button.SetLabel(player.descriptiveName);
+                button.SetLabel(_language.GetPlayerName(player.id));
                 button.SetButtonInfoData(buttonIdentifier_playerSelection, player.id);
                 button.SetOnClickCallback(OnButtonActivated);
                 button.buttonInfo.OnSelectedEvent += OnUIElementSelected;
@@ -2498,13 +2523,13 @@ namespace Rewired.UI.ControlMapper {
 
             for(int i = 0; i < _mappingSets.Length; i++) {
                 MappingSet set = _mappingSets[i];
-                if(set == null) continue;
+                if(set == null || !set.isValid) continue;
                 InputMapCategory cat = ReInput.mapping.GetMapCategory(set.mapCategoryId);
                 if(cat == null) continue; // invalid map category id
 
                 GameObject instance = UI.ControlMapper.UITools.InstantiateGUIObject<ButtonInfo>(prefabs.button, references.mapCategoriesGroup.content, cat.name + "Button");
                 GUIButton button = new GUIButton(instance);
-                button.SetLabel(cat.descriptiveName);
+                button.SetLabel(_language.GetMapCategoryName(cat.id));
                 button.SetButtonInfoData(buttonIdentifier_mapCategorySelection, cat.id);
                 button.SetOnClickCallback(OnButtonActivated);
                 button.buttonInfo.OnSelectedEvent += OnUIElementSelected;
@@ -2574,7 +2599,7 @@ namespace Rewired.UI.ControlMapper {
 
                 // Create buttons for the assigned controllers
                 foreach(Joystick joystick in player.controllers.Joysticks) {
-                    GUIButton button = CreateButton(joystick.name, references.assignedControllersGroup.content, Vector2.zero);
+                    GUIButton button = CreateButton(_language.GetControllerName(joystick), references.assignedControllersGroup.content, Vector2.zero);
                     button.SetButtonInfoData(buttonIdentifier_assignedControllerSelection, joystick.id);
                     button.SetOnClickCallback(OnButtonActivated);
                     button.buttonInfo.OnSelectedEvent += OnUIElementSelected;
@@ -2613,7 +2638,7 @@ namespace Rewired.UI.ControlMapper {
                 references.removeControllerButton.interactable = true;
 
                 // Controller name label
-                references.controllerNameLabel.text = currentJoystick.name;
+                references.controllerNameLabel.text = _language.GetControllerName(currentJoystick);
 
                 // Calibrate Controller button
                 if(currentJoystick.axisCount > 0) references.calibrateControllerButton.interactable = true;
@@ -2658,7 +2683,7 @@ namespace Rewired.UI.ControlMapper {
         #region Create UI Objects
 
         private void CreateInputCategoryRow(ref int rowCount, InputCategory category) {
-            CreateLabel(category.descriptiveName, references.inputGridActionColumn, new Vector2(0, rowCount * _inputRowHeight * -1.0f));
+            CreateLabel(_language.GetMapCategoryName(category.id), references.inputGridActionColumn, new Vector2(0, rowCount * _inputRowHeight * -1.0f));
             rowCount++;
         }
 
@@ -2694,6 +2719,7 @@ namespace Rewired.UI.ControlMapper {
             field.SetFieldInfoData(actionId, axisRange, controllerType, fieldIndex);
             field.SetOnClickCallback(inputFieldActivatedDelegate);
             field.fieldInfo.OnSelectedEvent += OnUIElementSelected;
+            if(field.fieldInfo.glyphOrText != null) field.fieldInfo.glyphOrText.allowedTypes = _showGlyphs ? Glyphs.UnityUI.UnityUIControllerElementGlyphBase.AllowedTypes.All : Glyphs.UnityUI.UnityUIControllerElementGlyphBase.AllowedTypes.Text;
             return field;
         }
         private GUIInputField CreateInputField(Transform parent, Vector2 offset) {
@@ -2971,10 +2997,9 @@ namespace Rewired.UI.ControlMapper {
                     // do nothing because we don't want to assign modified modifier key presses such as Control + Alt, but you could if you wanted to.
 
                     // Show the modifier keys being held
-                    label = Keyboard.ModifierKeyFlagsToString(curModifiers);
+                    label = _language.ModifierKeyFlagsToString(curModifiers);
 
                 }
-
             }
         }
 
@@ -3112,6 +3137,7 @@ namespace Rewired.UI.ControlMapper {
             if(!initialized) return; // failed to init
             if(!force && isOpen) return;
             Clear();
+            if(Instance == null) Instance = this; // set the singleton
             canvas.SetActive(true);
             OnPlayerSelected(0, false);
             SelectDefaultMapCategory(false);
@@ -3130,6 +3156,7 @@ namespace Rewired.UI.ControlMapper {
             Clear();
             canvas.SetActive(false);
             SetUISelection(null); // deselect
+            if(Instance == this) Instance = null; // clear the singleton
             if(_ScreenClosedEvent != null) _ScreenClosedEvent();
             if(_onScreenClosed != null) _onScreenClosed.Invoke();
         }
@@ -3139,7 +3166,7 @@ namespace Rewired.UI.ControlMapper {
         #region Clear / Reset
 
         private void Clear() {
-            windowManager.CancelAll();
+            CloseAllWindows();
             lastUISelection = null;
             pendingInputMapping = null;
             pendingAxisCalibration = null;
@@ -3147,6 +3174,7 @@ namespace Rewired.UI.ControlMapper {
         }
 
         private void ClearCompletely() {
+            Clear();
             ClearSpawnedObjects();
             ClearAllVars();
         }
@@ -3190,7 +3218,7 @@ namespace Rewired.UI.ControlMapper {
 
         private void ClearAllVars() {
             initialized = false;
-            Instance = null; // clear singleton instance
+            if(Instance == this) Instance = null; // clear singleton instance
             playerCount = 0;
 
             inputGrid = null;
@@ -3215,9 +3243,11 @@ namespace Rewired.UI.ControlMapper {
 
         public void Reset() {
             if(!initialized) return;
+            bool wasOpen = isOpen;
+            Close(false);
             ClearCompletely();
             Initialize();
-            if(isOpen) Open(true);
+            if(wasOpen) Open(true);
         }
 
         #endregion
@@ -3564,6 +3594,13 @@ namespace Rewired.UI.ControlMapper {
             return false;
         }
 
+        private void ApplyTheme() {
+            for(int i = 0; i < themedElements.Count; i++) {
+                if(themedElements == null) continue;
+                themedElements[i].ApplyTheme();
+            }
+        }
+
         #endregion
 
         #region Editor Recompile
@@ -3593,6 +3630,19 @@ namespace Rewired.UI.ControlMapper {
 
         #region Static Methods
 
+        public static void Register(ThemedElement themedElement) {
+            if(themedElement == null) return;
+            if(Instance == null) return;
+            if(Instance.themedElements.Contains(themedElement)) return;
+            Instance.themedElements.Add(themedElement);
+        }
+
+        public static void Unregister(ThemedElement themedElement) {
+            if(themedElement == null) return;
+            if(Instance == null) return;
+            Instance.themedElements.Remove(themedElement);
+        }
+
         public static void ApplyTheme(ThemedElement.ElementInfo[] elementInfo) {
             if(Instance == null) return;
             if(Instance._themeSettings == null) return;
@@ -3600,9 +3650,15 @@ namespace Rewired.UI.ControlMapper {
             Instance._themeSettings.Apply(elementInfo);
         }
 
-        public static UI.ControlMapper.LanguageData GetLanguage() {
+        public static UI.ControlMapper.LanguageDataBase GetLanguage() {
             if(Instance == null) return null;
             return Instance._language;
+        }
+
+        public static ControlMapper current {
+            get {
+                return Instance;
+            }
         }
 
         #endregion

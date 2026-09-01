@@ -1,0 +1,25 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5fbe94a6bd03940b9a5a78c567bc6665, type: 3}
+  m_Name: LevelDefinition-PULSAR
+  m_EditorClassIdentifier: 
+  levelNumber: 4
+  levelTitle: PULSAR
+  gameplayScene:
+    sceneName: S-5_PULSAR
+    sceneAsset: {fileID: 102900000, guid: bb7730e7f14d8434e9290237f30c9a70, type: 3}
+  iconPrefab: {fileID: 7826837974850644721, guid: e72257220b16f8b4aa77f7a501ffa2e4,
+    type: 3}
+  instructionsPanelPrefab: {fileID: 7889573251582337184, guid: 70c27a905e9a042c3b467e27b2d79460,
+    type: 3}
+  anomalyTypeName: ASTRAL RHYTHMS
+  audioProfile: {fileID: 11400000, guid: 7acbe58a564814946ab33dbd32f1afe0, type: 2}

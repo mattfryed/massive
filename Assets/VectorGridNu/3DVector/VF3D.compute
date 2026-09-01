@@ -1,0 +1,332 @@
+// VF3D.compute
+// Dipole (+ optional curl) streamline integration with a magnetopause pressure boundary.
+// Design goals:
+// - Calm: cohesive dipole loops, bounded by magnetopause.
+// - Storm: keep the core dipole readable; wind deforms magnetopause (compressed day-side + stretched tail).
+// - Top-down readability: allow projecting wind to XZ in C#; keep magnetopause stable even while internal spin animates.
+
+#pragma kernel IntegrateCS
+
+#include "Packages/jp.keijiro.noiseshader/Shader/ClassicNoise3D.hlsl"
+#ifndef snoise
+#define snoise ClassicNoise
+#endif
+
+// -------------------- Buffers --------------------
+StructuredBuffer<float3> _Seeds;
+
+struct Segment { float3 a; float3 b; float mag; };
+AppendStructuredBuffer<Segment> _Segments;
+
+// -------------------- Integration --------------------
+int   _SeedCount;
+int   _MaxSteps;
+float _Step;
+
+float _MinMag;     // stop when |B| too weak
+float _StepNear;   // step multiplier near core
+
+float3 _BoundsMin;
+float3 _BoundsMax;
+
+// -------------------- Model/local transform (internal spin) --------------------
+// Field math is evaluated in MODEL space, then rotated back to LOCAL.
+float3   _Center;      // local-space center
+float4x4 _R;           // model->local (rotation)
+float4x4 _Rinv;        // local->model (rotation inverse)
+
+// -------------------- Dipole field --------------------
+float3 _Moment0;       // model-space dipole axis
+float  _DipoleK;
+float  _DipoleWeight;
+float  _SoftCore2;
+
+// -------------------- Pole capture (model space) --------------------
+float  _PoleCenter;
+float  _CaptureRadius;
+
+// -------------------- Curl (optional) --------------------
+float  _CurlScale;
+float3 _CurlOffset;
+float  _CurlWeight;
+float  _CurlEpsilon;
+float3 _CurlSeed;
+
+// -------------------- Wind axis (direction for magnetopause) --------------------
+// Interpretation depends on _WindAxisMode.
+// - mode 0: _WindDir is LOCAL fixed (recommended for top-down storms)
+// - mode 1: _WindDir is MODEL and follows spin (converted via R)
+float3 _WindDir;
+float  _WindWeight;
+int    _WindAxisMode; // 0 = LocalFixed, 1 = ModelFollowsSpin
+
+// -------------------- Magnetopause boundary --------------------
+float _MPEnable;
+float _MPDayRadius;
+float _MPTailRadius;
+float _MPLateralRadius;
+float _MPBlend;
+
+// Wind deformation (normalized by _MPWindNorm)
+float _MPWindNorm;
+float _MPWindCompress;
+float _MPWindTailGain;
+float _MPWindLateralSqueeze;
+
+// -------------------- Helpers --------------------
+bool InsideBounds(float3 p) { return all(p >= _BoundsMin) && all(p <= _BoundsMax); }
+
+float WindI()
+{
+    return saturate(_WindWeight / max(1e-3, _MPWindNorm));
+}
+
+float3 WindAxisLocal()
+{
+    float3 w = _WindDir;
+
+    // If the user wants the magnetopause direction to “follow spin”, interpret wind as MODEL and rotate into LOCAL.
+    if (_WindAxisMode != 0)
+        w = mul(_R, float4(w, 0)).xyz;
+
+    if (dot(w, w) < 1e-6) w = float3(1, 0, 0);
+    return normalize(w);
+}
+
+float MPAlongRadius(float u)
+{
+    // u is along the wind axis (LOCAL space)
+    float bw = max(1e-4, _MPBlend);
+    float t  = smoothstep(-bw, bw, u); // u<0 => day-side, u>0 => tail
+
+    float wi = WindI();
+    float day  = _MPDayRadius  * (1.0 - _MPWindCompress * wi);
+    float tail = _MPTailRadius * (1.0 + _MPWindTailGain  * wi);
+
+    day  = max(1e-3, day);
+    tail = max(1e-3, tail);
+
+    return lerp(day, tail, t);
+}
+
+// Magnetopause implicit function in LOCAL space: F <= 1 inside.
+float MagnetopauseF_Local(float3 pl, float3 windAxisL)
+{
+    float u = dot(pl, windAxisL);
+    float3 perp = pl - u * windAxisL;
+
+    float rA = MPAlongRadius(u);
+
+    float wi = WindI();
+    float rL = _MPLateralRadius * (1.0 - _MPWindLateralSqueeze * wi);
+    rL = max(1e-3, rL);
+
+    return (u * u) / (rA * rA) + dot(perp, perp) / (rL * rL);
+}
+
+float3 MagnetopauseIntersect_Local(float3 pl0, float3 pl1, float3 windAxisL)
+{
+    // pl0 inside, pl1 outside
+    float t0 = 0.0, t1 = 1.0;
+    [unroll] for (int k = 0; k < 8; k++)
+    {
+        float tm = 0.5 * (t0 + t1);
+        float3 pl = lerp(pl0, pl1, tm);
+        if (MagnetopauseF_Local(pl, windAxisL) > 1.0) t1 = tm;
+        else t0 = tm;
+    }
+    return lerp(pl0, pl1, t1);
+}
+
+float3 DipoleModel(float3 pm, float3 mAxis, float k, float soft2)
+{
+    float3 r = pm;
+    float r2 = dot(r, r) + soft2;
+    float r1 = sqrt(r2);
+    float r5 = r2 * r2 * r1;
+
+    float mdotr = dot(mAxis, r);
+    float3 term1 = (3.0 * r * mdotr) / r5;
+    float3 term2 = mAxis / (r2 * r1);
+    return k * (term1 - term2);
+}
+
+float3 CurlClassic(float3 uvw)
+{
+    float e = max(0.0005, _CurlEpsilon);
+
+    float n1p = snoise(uvw + _CurlSeed + float3( e,0,0));
+    float n1m = snoise(uvw + _CurlSeed - float3( e,0,0));
+    float n2p = snoise(uvw + _CurlSeed + float3(0, e,0));
+    float n2m = snoise(uvw + _CurlSeed - float3(0, e,0));
+    float n3p = snoise(uvw + _CurlSeed + float3(0,0, e));
+    float n3m = snoise(uvw + _CurlSeed - float3(0,0, e));
+
+    float dx = (n1p - n1m) / (2 * e);
+    float dy = (n2p - n2m) / (2 * e);
+    float dz = (n3p - n3m) / (2 * e);
+
+    float3 curl;
+    curl.x = dz - dy;
+    curl.y = dx - dz;
+    curl.z = dy - dx;
+    return curl;
+}
+
+float3 FieldLocal(float3 pLocal)
+{
+    // Convert local point to model point, do field math, rotate back to local.
+    float3 pm = mul(_Rinv, float4(pLocal - _Center, 0)).xyz;
+
+    float3 mAxis = normalize(_Moment0);
+    float3 Bm = _DipoleWeight * DipoleModel(pm, mAxis, _DipoleK, _SoftCore2);
+
+    if (_CurlWeight > 0.0001)
+    {
+        float3 uvw = pm * _CurlScale + _CurlOffset;
+        Bm += _CurlWeight * CurlClassic(uvw);
+    }
+
+    return mul(_R, float4(Bm, 0)).xyz;
+}
+
+void StepDirRK(float3 p, float h, out float3 pNext, out float avgMag, out float3 dirN)
+{
+    float3 k1 = FieldLocal(p);                 float m1 = length(k1); float3 d1 = (m1 > 1e-6) ? k1 / m1 : 0;
+    float3 k2 = FieldLocal(p + 0.5 * h * d1);  float m2 = length(k2); float3 d2 = (m2 > 1e-6) ? k2 / m2 : 0;
+    float3 k3 = FieldLocal(p + 0.5 * h * d2);  float m3 = length(k3); float3 d3 = (m3 > 1e-6) ? k3 / m3 : 0;
+    float3 k4 = FieldLocal(p +       h * d3);  float m4 = length(k4); float3 d4 = (m4 > 1e-6) ? k4 / m4 : 0;
+
+    float3 d = normalize(d1 + 2 * d2 + 2 * d3 + d4);
+    avgMag = (m1 + 2 * m2 + 2 * m3 + m4) / 6.0;
+    dirN = d;
+    pNext = p + h * d;
+}
+
+bool ReachedPole(float3 pmNext, float3 mAxis, float poleCenter, float capR)
+{
+    float3 north =  mAxis * poleCenter;
+    float3 south = -mAxis * poleCenter;
+    return (distance(pmNext, north) <= capR) || (distance(pmNext, south) <= capR);
+}
+
+// -------------------- Kernel --------------------
+[numthreads(64,1,1)]
+void IntegrateCS(uint3 tid : SV_DispatchThreadID)
+{
+    uint id = tid.x;
+    if (id >= (uint)_SeedCount) return;
+
+    float3 seed = _Seeds[id];
+    if (!InsideBounds(seed)) return;
+
+    float3 windAxisL = WindAxisLocal();
+
+// Seed clamp: if storms compress the boundary and a seed starts outside,
+// push it inward instead of returning nothing (keeps core density coherent).
+if (_MPEnable > 0.5)
+{
+    float3 pl = seed - _Center;
+    float fSeed = MagnetopauseF_Local(pl, windAxisL);
+
+    if (fSeed > 1.0)
+    {
+        [unroll] for (int k = 0; k < 3; k++)
+        {
+            float f = MagnetopauseF_Local(pl, windAxisL);
+            if (f <= 1.0001) break;
+            pl *= rsqrt(max(f, 1e-6)); // pull toward boundary
+        }
+
+        seed = _Center + pl;
+    }
+}
+
+
+    float3 mAxis = normalize(_Moment0);
+
+    // Trace forward (+B) and backward (-B).
+    [loop] for (int dirIdx = 0; dirIdx < 2; dirIdx++)
+    {
+        float sgn = (dirIdx == 0) ? 1.0 : -1.0;
+
+        float3 prev = seed;
+        float3 prevDir = 0;
+
+        [loop] for (int i = 0; i < _MaxSteps - 1; i++)
+        {
+            // Adaptive step near core (based on MODEL-space distance)
+            float3 pm = mul(_Rinv, float4(prev - _Center, 0)).xyz;
+            float pmLen = length(pm);
+            float softR = sqrt(max(_SoftCore2, 1e-6));
+            float adapt = lerp(_StepNear, 1.0, saturate((pmLen - softR) / max(softR, 1e-3)));
+            float h = _Step * adapt;
+
+            float3 pRK; float mag; float3 dRK;
+            StepDirRK(prev, h, pRK, mag, dRK);
+
+            float3 stepDir = normalize(pRK - prev) * sgn;
+
+            // Mild smoothing to avoid harsh kinks
+            if (i > 0)
+            {
+                const float minCos = 0.95;
+                float c = dot(prevDir, stepDir);
+                if (c < minCos) stepDir = normalize(lerp(prevDir, stepDir, 0.35));
+            }
+
+            float3 pNext = prev + stepDir * h;
+
+            if (!InsideBounds(pNext)) break;
+
+            // Magnetopause clip: terminate at the boundary intersection
+            if (_MPEnable > 0.5)
+            {
+                float3 pl0 = prev - _Center;
+                float3 pl1 = pNext - _Center;
+
+                float f1 = MagnetopauseF_Local(pl1, windAxisL);
+                if (f1 > 1.0)
+                {
+                    float f0 = MagnetopauseF_Local(pl0, windAxisL);
+                    if (f0 <= 1.0)
+                    {
+                        float3 plHit = MagnetopauseIntersect_Local(pl0, pl1, windAxisL);
+                        float3 pHit = _Center + plHit;
+
+                        Segment clipSeg;
+                        clipSeg.a = prev;
+                        clipSeg.b = pHit;
+                        clipSeg.mag = mag;
+                        _Segments.Append(clipSeg);
+                    }
+                    break;
+                }
+            }
+
+
+            if (mag < _MinMag) break;
+
+            // Pole capture (model space): snap to pole and stop
+            {
+                float3 pmNext = mul(_Rinv, float4(pNext - _Center, 0)).xyz;
+                if (ReachedPole(pmNext, mAxis, _PoleCenter, _CaptureRadius))
+                {
+                    float s = sign(dot(pmNext, mAxis));
+                    float3 poleM = mAxis * (_PoleCenter * s);
+                    float3 poleW = _Center + mul(_R, float4(poleM, 0)).xyz;
+
+                    Segment capSeg; capSeg.a = prev; capSeg.b = poleW; capSeg.mag = mag;
+                    _Segments.Append(capSeg);
+                    break;
+                }
+            }
+
+            Segment seg; seg.a = prev; seg.b = pNext; seg.mag = mag;
+            _Segments.Append(seg);
+
+            prev = pNext;
+            prevDir = stepDir;
+        }
+    }
+}

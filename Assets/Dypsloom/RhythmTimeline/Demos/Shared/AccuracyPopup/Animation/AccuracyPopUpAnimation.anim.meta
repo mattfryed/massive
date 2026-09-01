@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: bfb71d7446b007a41a540008dbb07048
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 7400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 310749
+  packageName: Rhythm Timeline 2 - Rhythm Game Framework & Editor
+  packageVersion: 2.1.1
+  assetPath: Assets/Dypsloom/RhythmTimeline/Demos/Shared/AccuracyPopup/Animation/AccuracyPopUpAnimation.anim
+  uploadId: 803332

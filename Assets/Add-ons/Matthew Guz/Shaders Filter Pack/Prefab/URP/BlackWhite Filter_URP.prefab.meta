@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 6308874601e4ab646b897b3390df08f5
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 305806
+  packageName: Shaders Filters Pack
+  packageVersion: 1.0.1
+  assetPath: Assets/Matthew Guz/Shaders Filter Pack/Prefab/URP/BlackWhite Filter_URP.prefab
+  uploadId: 745455

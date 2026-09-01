@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 163d4b4c47594cb29b5f05ba9baa0106
+timeCreated: 1508192366
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 104580
+  packageName: Volumetric 3D Lasers
+  packageVersion: 1.3a
+  assetPath: Assets/SineVFX/Volumetric3DLasers/Resources/VFXMaterials/SmartWaveParticles/SmartWaveParticle_03_04_05_06.mat
+  uploadId: 700963
