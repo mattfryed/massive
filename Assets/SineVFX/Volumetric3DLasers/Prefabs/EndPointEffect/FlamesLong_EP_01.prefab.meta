@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 96c1b2eba46b4e1ba6253b74052ff8bc
+timeCreated: 1509362067
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 104580
+  packageName: Volumetric 3D Lasers
+  packageVersion: 1.3a
+  assetPath: Assets/SineVFX/Volumetric3DLasers/Prefabs/EndPointEffect/FlamesLong_EP_01.prefab
+  uploadId: 700963

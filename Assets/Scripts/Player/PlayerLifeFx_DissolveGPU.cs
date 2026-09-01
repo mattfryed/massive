@@ -1,17 +1,15 @@
 using System.Collections;
 using UnityEngine;
 
-/// <summary>
-/// Default GPU-friendly dissolve/form FX:
-/// - Shrinks PlayerVisualController.baseRadius + outlineHalf
-/// - Shrinks PlayerNuggetsGPU.dotRadius
-/// No Animator needed.
-/// </summary>
 public class PlayerLifeFx_DissolveGPU : MonoBehaviour, IPlayerLifeFx
 {
     [Header("Refs (auto-filled if empty)")]
     [SerializeField] private PlayerVisualController visuals;
     [SerializeField] private PlayerNuggetsGPU nuggets;
+
+    [Header("Time")]
+    [Tooltip("Turn this ON for menus / attract screens that set Time.timeScale = 0.")]
+    [SerializeField] private bool useUnscaledTime = true;
 
     [Header("Ease")]
     [SerializeField] private AnimationCurve ease = AnimationCurve.EaseInOut(0, 0, 1, 1);
@@ -28,6 +26,8 @@ public class PlayerLifeFx_DissolveGPU : MonoBehaviour, IPlayerLifeFx
     private float _outlineHalf0;
     private float _dotRadius0;
     private float _jitterAmp0;
+
+    private float Dt => useUnscaledTime ? Time.unscaledDeltaTime : Time.deltaTime;
 
     private void Awake()
     {
@@ -68,7 +68,6 @@ public class PlayerLifeFx_DissolveGPU : MonoBehaviour, IPlayerLifeFx
             return;
         }
 
-        // hidden
         if (visuals)
         {
             visuals.baseRadius = 0f;
@@ -108,7 +107,7 @@ public class PlayerLifeFx_DissolveGPU : MonoBehaviour, IPlayerLifeFx
         float t = 0f;
         while (t < duration)
         {
-            t += Time.deltaTime;
+            t += Dt;
             float u = Mathf.Clamp01(t / duration);
             float e = (ease != null) ? ease.Evaluate(u) : u;
 
@@ -128,11 +127,7 @@ public class PlayerLifeFx_DissolveGPU : MonoBehaviour, IPlayerLifeFx
 
         if (nuggets) nuggets.jitterAmp = jitter0;
 
-        if (visuals) { visuals.baseRadius = 0f; visuals.outlineHalf = 0f; }
-        if (nuggets) nuggets.dotRadius = 0f;
-
-    // ✅ HARD HIDE at the end so no 1px artifact remains
-    SetVisibleInstant(player, false);
+        SetVisibleInstant(player, false);
     }
 
     public IEnumerator PlayRespawn(PlayerControllerScript player, float duration)
@@ -143,39 +138,37 @@ public class PlayerLifeFx_DissolveGPU : MonoBehaviour, IPlayerLifeFx
             yield break;
         }
 
-        if (visuals)
-        {
-            visuals.enabled = true;
-            visuals.baseRadius = 0f;
-            visuals.outlineHalf = 0f;
-        }
+        if (visuals) visuals.enabled = true;
 
         if (nuggets)
         {
             nuggets.enabled = true;
-            nuggets.dotRadius = 0f;
             nuggets.jitterAmp = _jitterAmp0;
         }
+
+        // start from current (safe for rapid toggling)
+        float rStart  = visuals ? visuals.baseRadius  : 0f;
+        float oStart  = visuals ? visuals.outlineHalf : 0f;
+        float drStart = nuggets ? nuggets.dotRadius  : 0f;
 
         float t = 0f;
         while (t < duration)
         {
-            t += Time.deltaTime;
+            t += Dt;
             float u = Mathf.Clamp01(t / duration);
             float e = (ease != null) ? ease.Evaluate(u) : u;
 
-            // quick overshoot then settle
             float overshoot = 1f + respawnOvershoot * Mathf.Sin(e * Mathf.PI);
             float k = e * overshoot;
 
             if (visuals)
             {
-                visuals.baseRadius  = _baseRadius0  * k;
-                visuals.outlineHalf = _outlineHalf0 * k;
+                visuals.baseRadius  = Mathf.LerpUnclamped(rStart, _baseRadius0, k);
+                visuals.outlineHalf = Mathf.LerpUnclamped(oStart, _outlineHalf0, k);
             }
 
             if (nuggets)
-                nuggets.dotRadius = _dotRadius0 * k;
+                nuggets.dotRadius = Mathf.LerpUnclamped(drStart, _dotRadius0, k);
 
             yield return null;
         }

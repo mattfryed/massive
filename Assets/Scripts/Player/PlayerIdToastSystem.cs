@@ -35,6 +35,8 @@ namespace Massive.Players.UI
         [SerializeField] private bool prewarmOnStart = true;
         [SerializeField] private string prewarmText = "P4";
 
+        
+
         private void Awake()
         {
             if (Instance != null && Instance != this)
@@ -69,38 +71,40 @@ namespace Massive.Players.UI
             if (toast) Destroy(toast.gameObject);
         }
 
-        public void ShowForPlayer(PlayerControllerScript player, float overrideTotalSeconds = -1f)
-        {
-            if (!toastPrefab || !player) return;
+public void ShowForPlayer(PlayerControllerScript player, float overrideTotalSeconds = -1f, string subtitle = null)
+{
+    if (!toastPrefab || player == null) return;
 
-            Camera cam = cameraOverride ? cameraOverride : Camera.main;
+    Camera cam = cameraOverride ? cameraOverride : Camera.main;
 
-            // Display 1-based player label even though Rewired IDs are 0-based.
-            string text = $"Player {player.playerID + 1}";
+    string primary = $"Player {player.playerID + 1}";
 
-            Vector3 offset = Vector3.up * worldYLift;
+    string text = primary;
+    if (!string.IsNullOrEmpty(subtitle))
+        text = $"{primary}\n<size=70%><alpha=#AA>{subtitle}</alpha></size>";
 
-            if (cam)
-            {
-                Vector3 up = cam.transform.up;
-                up.y = 0f;
-                if (up.sqrMagnitude < 1e-4f) up = Vector3.forward;
-                up.Normalize();
+    Vector3 offset = Vector3.up * worldYLift;
 
-                offset += up * screenUpOffsetWorld;
-            }
+    if (cam)
+    {
+        Vector3 up = cam.transform.up;
+        up.y = 0f;
+        if (up.sqrMagnitude < 1e-4f) up = Vector3.forward;
+        up.Normalize();
 
-            Vector3 pos = player.transform.position + offset;
+        offset += up * screenUpOffsetWorld;
+    }
 
-            var toast = Instantiate(toastPrefab, pos, Quaternion.identity, parent);
+    Vector3 pos = player.transform.position + offset;
 
-            // IMPORTANT: make follow use the SAME offset so LateUpdate doesn't wipe it out
-            toast.SetFollowOffset(offset);
+    var toast = Instantiate(toastPrefab, pos, Quaternion.identity, parent);
 
-            float t = (overrideTotalSeconds > 0f) ? overrideTotalSeconds : totalSeconds;
-            toast.Play(player.transform, text, introSeconds, t, outroSeconds, cam);
+    // IMPORTANT toast follows the player:
+    toast.SetFollowOffset(offset); // (the follow-offset fix you already applied)
 
-        }
+    float t = (overrideTotalSeconds > 0f) ? overrideTotalSeconds : totalSeconds;
+    toast.Play(player.transform, text, introSeconds, t, outroSeconds, cam);
+}
 
         private void OnDestroy()
 {

@@ -1450,6 +1450,8 @@ MonoBehaviour:
     m_PostInfinity: 2
     m_RotationOrder: 4
   startIndex: 0
+  confirmLockoutSecondsOnSceneLoad: 2
+  confirmLockoutUsesUnscaledTime: 1
 --- !u!4 &381858411
 Transform:
   m_ObjectHideFlags: 0

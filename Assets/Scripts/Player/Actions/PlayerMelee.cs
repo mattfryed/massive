@@ -155,82 +155,65 @@ private bool IsFriendly(PlayerControllerScript otherPlayer)
         // Sword vs Shield
         // Default: attacker gets stunned.
         // Power-up override: defender can "Decohere" while shielding, letting attacker phase through + get briefly stunned.
-    if (other.CompareTag(shieldTag))
-    {
-        var defender = other.GetComponentInParent<PlayerControllerScript>();
-
-        // NEW: ignore teammate shields (prevents grief-stunning your own team)
-        if (defender != null && IsFriendly(defender))
-            return;
-
-        // Power-up override still gets first shot (existing behavior)
-        var defenderPU = other.GetComponentInParent<PlayerPowerUpController>();
-        if (defenderPU != null)
+        if (other.CompareTag(shieldTag))
         {
-            Vector3 dir = other.transform.position - owner.transform.position;
-            dir.y = 0;
-            if (dir.magnitude > 0.01f)
+            var defender = other.GetComponentInParent<PlayerControllerScript>();
+
+            // Ignore teammate shields (prevents grief-stunning your own team)
+            if (defender != null && IsFriendly(defender))
+                return;
+
+            // Power-up override still gets first shot
+            var defenderPU = other.GetComponentInParent<PlayerPowerUpController>();
+            if (defenderPU != null)
             {
-                dir.Normalize();
-                if (defenderPU.TryHandleShieldImpact(owner, other, dir))
-                    return;
+                Vector3 dir = other.transform.position - owner.transform.position;
+                dir.y = 0;
+                if (dir.magnitude > 0.01f)
+                {
+                    dir.Normalize();
+                    if (defenderPU.TryHandleShieldImpact(owner, other, dir))
+                        return;
+                }
             }
+
+            var defenderShield = other.GetComponentInParent<Massive.Player.PlayerShieldAbility>();
+
+            float strength = 1f;
+            if (defenderShield != null && defenderShield.IsActive)
+                strength = defenderShield.CurrentStrength01;
+
+            owner.Stun(other.transform.position, strength);
+            AudioSystem.I?.Play(AudioEventId.Player_Parry, transform.position);
+
+            float leak01 = Mathf.Clamp01(1f - strength);
+
+            // Only leak-through damage if defender is an enemy
+            if (defender != null && leak01 > 0.001f && !IsFriendly(defender))
+            {
+                owner.GrowScaled(leak01);
+                defender.ShrinkScaled(owner.gameObject, leak01);
+                defender.playSFX("struckSFX");
+            }
+
+            return;
         }
 
-        var defenderShield = other.GetComponentInParent<Massive.Player.PlayerShieldAbility>();
-
-        float strength = 1f;
-        if (defenderShield != null && defenderShield.IsActive)
-            strength = defenderShield.CurrentStrength01;
-
-        owner.Stun(other.transform.position, strength);
-        AudioSystem.I?.Play(AudioEventId.Player_Parry, transform.position);
-
-        float leak01 = Mathf.Clamp01(1f - strength);
-
-        // NEW: only leak-through damage if defender is an enemy
-        if (defender != null && leak01 > 0.001f && !IsFriendly(defender))
-        {
-            owner.GrowScaled(leak01);
-            defender.ShrinkScaled(owner.gameObject, leak01);
-            defender.playSFX("struckSFX");
-        }
-
-        return;
-    }
-
-    // Sword vs Player
-    if (other.CompareTag(playerTag))
-    {
-        // Slight robustness improvement: collider might be on a child
-        var victim = other.GetComponentInParent<PlayerControllerScript>();
-        if (!victim) return;
-
-        // NEW: ignore self + teammates
-        if (victim == owner) return;
-        if (IsFriendly(victim)) return;
-
-        if (!victim.shieldOn)
-        {
-            owner.Grow();
-            victim.Shrink(owner.gameObject);
-            AudioSystem.I?.Play(AudioEventId.Player_Hit, transform.position);
-        }
-    }
-
-
-
-        // Sword vs Player (damage if victim not shielding)
+        // Sword vs Player
         if (other.CompareTag(playerTag))
         {
-            var victim = other.GetComponent<PlayerControllerScript>();
+            // Robustness: collider might be on a child
+            var victim = other.GetComponentInParent<PlayerControllerScript>();
             if (!victim) return;
+
+            // Ignore self + teammates
+            if (victim == owner) return;
+            if (IsFriendly(victim)) return;
 
             if (!victim.shieldOn)
             {
-                owner.Grow();                    // Attacker grows
-                victim.Shrink(owner.gameObject); // Victim shrinks + blob eject to attacker
-                // victim.playSFX("struckSFX");
+                owner.Grow();
+                victim.Shrink(owner.gameObject);
                 AudioSystem.I?.Play(AudioEventId.Player_Hit, transform.position);
             }
         }

@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 903d1a11bd134eb2bc9fe1792b81dc75
+timeCreated: 1509822838
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 104580
+  packageName: Volumetric 3D Lasers
+  packageVersion: 1.3a
+  assetPath: Assets/SineVFX/Volumetric3DLasers/Prefabs/EndPointEffect/PointLight_EP_01.prefab
+  uploadId: 700963

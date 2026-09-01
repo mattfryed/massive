@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 614ce60e8f4e4ffd94da5b8a317adc08
+timeCreated: 1509655446
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 104580
+  packageName: Volumetric 3D Lasers
+  packageVersion: 1.3a
+  assetPath: Assets/SineVFX/Volumetric3DLasers/Prefabs/LaserLayers/LaserLayer_Large_v3.prefab
+  uploadId: 700963

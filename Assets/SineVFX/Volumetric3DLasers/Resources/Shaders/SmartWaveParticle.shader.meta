@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 1508ffa566714a4fbf6d5fb957318377
+timeCreated: 1516641634
+licenseType: Store
+ShaderImporter:
+  defaultTextures: []
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 104580
+  packageName: Volumetric 3D Lasers
+  packageVersion: 1.3a
+  assetPath: Assets/SineVFX/Volumetric3DLasers/Resources/Shaders/SmartWaveParticle.shader
+  uploadId: 700963

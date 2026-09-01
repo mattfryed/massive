@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: f76fb40c62015ed4ca0b70cf0e656f5c
+timeCreated: 1510018220
+licenseType: Store
+TextScriptImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 104580
+  packageName: Volumetric 3D Lasers
+  packageVersion: 1.3a
+  assetPath: Assets/SineVFX/Volumetric3DLasers/Packages/URP.txt
+  uploadId: 700963

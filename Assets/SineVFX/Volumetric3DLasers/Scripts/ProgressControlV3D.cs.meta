@@ -1,0 +1,19 @@
+fileFormatVersion: 2
+guid: 4dbb8691d7544962857c6d74c85aa081
+timeCreated: 1508011315
+licenseType: Store
+MonoImporter:
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 104580
+  packageName: Volumetric 3D Lasers
+  packageVersion: 1.3a
+  assetPath: Assets/SineVFX/Volumetric3DLasers/Scripts/ProgressControlV3D.cs
+  uploadId: 700963

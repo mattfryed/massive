@@ -13,8 +13,10 @@ namespace Massive.Enemies
     /// - Faces are real, separate triangle meshes (solid fill).
     /// - Each face gets a crisp volumetric outline (Shapes) to preserve the vector aesthetic.
     /// - Breathing expands/contracts by lifting + insetting the panels, opening gaps that reveal the core.
-    /// - One random face "shatters" off per health lost (1 health ~= 1 panel).
+    /// - One random face "shatters" off per health lost (panel count reflects health).
     /// - During attacks, panels bias toward a spear formation along the sphere's local +Z.
+    /// - Spawn-in: core emission ramps from 0 and panels "draw in" with easing.
+    /// - Stun: panels jitter with intensity driven by the controller.
     ///
     /// Gameplay coupling:
     /// - Panel count syncs to <see cref="EnemyBase.HealthRemaining"/>.
@@ -30,13 +32,35 @@ namespace Massive.Enemies
             Dead
         }
 
+        public enum SpawnPanelMode
+        {
+            /// <summary>Panels reveal in a deterministic sequence (panel-by-panel / wave-like), using <see cref="spawnPanelOrder"/>.</summary>
+            OrderedSequence = 0,
+            /// <summary>Panels reveal with a random (stable) time offset up to <see cref="spawnPanelStaggerSeconds"/>.</summary>
+            RandomStagger = 1,
+            /// <summary>All panels reveal together (no staggering / ordering).</summary>
+            AllTogether = 2
+        }
+
+        public enum SpawnPanelOrder
+        {
+            /// <summary>Reveals panels from the visually-dominant top hemisphere first (highest +Y normals), sweeping around in angle.</summary>
+            TopDownSpiral = 0,
+            /// <summary>Deterministic shuffle order (stable per-panel random).</summary>
+            Random = 1
+        }
+
         [Serializable]
         private sealed class Panel
         {
             public bool available;
             public PanelState state;
 
-            public float phase;
+            // Stable randoms
+            public float phase;   // 0..2π (used for breathe/jitter)
+            public float rand01;  // 0..1 (used for spawn staggering)
+            public float order01; // 0..1 (spawn sequence order)
+
 
             // Base geometry, in this component's local space.
             public Vector3 baseCentroidLocal;
@@ -54,6 +78,14 @@ namespace Massive.Enemies
             public Vector3 v1;
             public Vector3 v2;
 
+            // Cached vertex array to avoid allocations when animating draw-in.
+            public Vector3[] meshVerts;
+            public float lastMeshFill01 = -1f;
+
+            // Runtime draw-in values (fed into DrawShapes)
+            public float spawnEdge01 = 1f; // 0..1
+            public float spawnFill01 = 1f; // 0..1
+
             // Shatter animation
             public float alpha01 = 1f;
             public float shatterStartTime;
@@ -64,9 +96,17 @@ namespace Massive.Enemies
             public Vector3 shatterAxisLocal;
         }
 
+        private struct CoreParticleDefaults
+        {
+            public ParticleSystem ps;
+            public float rateOverTimeMul;
+            public float rateOverDistanceMul;
+        }
+
         [Header("Refs")]
         [SerializeField] private EnemyBase enemy;
-        [Tooltip("Optional: core transform (e.g., inner particle system root) to pulse slightly during breathing.")]
+
+        [Tooltip("Optional: core transform (e.g., inner particle system root) to pulse slightly during breathing + scale during spawn.")]
         [SerializeField] private Transform core;
 
         [Header("Generation")]
@@ -103,6 +143,37 @@ namespace Massive.Enemies
         [Tooltip("If enabled, breathing only expands outward from the base shell (no inward motion). This prevents face overlap when baseLift = 0.")]
         public bool breatheOutOnly = true;
 
+        [Header("Spawn In")]
+        [Tooltip("If enabled, the shell will animate in when this object is enabled (good for Instantiate spawns & pooling).")]
+        public bool playSpawnIn = true;
+
+        [Min(0.05f)] public float spawnSeconds = 0.65f;
+
+        [Tooltip("When the outlines begin drawing (0..1 of spawn).")]
+        [Range(0f, 1f)] public float spawnOutlineStart01 = 0f;
+
+        [Tooltip("When the fill begins drawing (0..1 of spawn). Outlines will usually draw first.")]
+        [Range(0f, 1f)] public float spawnFillStart01 = 0.25f;
+
+        [Tooltip("Exponent shaping for outline edge draw. 1=linear, >1 slower start, <1 faster start.")]
+        [Min(0.01f)] public float spawnEdgeExponent = 1.6f;
+
+        [Header("Spawn Panels")]
+        [Tooltip("How panel reveal timing is distributed during spawn-in.")]
+        public SpawnPanelMode spawnPanelMode = SpawnPanelMode.OrderedSequence;
+
+        [Tooltip("Ordering pattern used when Spawn Panel Mode is OrderedSequence.")]
+        public SpawnPanelOrder spawnPanelOrder = SpawnPanelOrder.TopDownSpiral;
+
+        [Tooltip("When using OrderedSequence, this is the portion of the GLOBAL spawn (0..1) reserved for EACH panel's draw-in.\n\nSmaller = more panel-by-panel, larger = more overlap.")]
+        [Range(0.01f, 1f)] public float spawnOrderWindow01 = 0.22f;
+
+        [Tooltip("When Spawn Panel Mode is RandomStagger, panels start at random offsets up to this many seconds. 0 = no staggering.")]
+        [Min(0f)] public float spawnPanelStaggerSeconds = 0.0f;
+
+        [Tooltip("Whether to restart/clear core particle systems at spawn-in.")]
+        public bool restartCoreParticlesOnSpawn = true;
+
         [Header("Spear Formation")]
         [Tooltip("Runtime value set by DysonSphereController. 0 = sphere, 1 = full spear.")]
         [Range(0f, 1f)]
@@ -115,6 +186,15 @@ namespace Massive.Enemies
         [Range(0f, 1f)] public float spearPinch = 0.75f;
         [Range(0f, 1f)] public float spearRotate = 0.75f;
 
+        [Header("Stun Jitter")]
+        [Tooltip("Runtime value set by DysonSphereController. 0 = no stun jitter, 1 = max.")]
+        [Range(0f, 1f)]
+        [SerializeField] private float stun01 = 0f;
+
+        [Min(0f)] public float stunJitterPos = 0.04f;
+        [Min(0f)] public float stunJitterRotDegrees = 10f;
+        [Min(0f)] public float stunJitterSpeed = 24f;
+
         [Header("Fill")]
         [Tooltip("Unlit material for the solid panel faces.")]
         public Material panelFillMaterial;
@@ -126,8 +206,10 @@ namespace Massive.Enemies
         public LineGeometry lineGeometry = LineGeometry.Volumetric3D;
         public ThicknessSpace thicknessSpace = ThicknessSpace.Meters;
         [Min(0.0001f)] public float outlineThickness = 0.05f;
+
         [Tooltip("Pushes the outline slightly outward along each panel's normal so it reads on top of the fill (avoids z-fighting and makes per-panel borders much more readable).")]
         [Min(0f)] public float outlineSurfaceOffset = 0.003f;
+
         public Color outlineColor = Color.white;
         [Range(0f, 1f)] public float outlineAlpha = 1f;
 
@@ -136,6 +218,7 @@ namespace Massive.Enemies
         [Min(0f)] public float shatterDistance = 0.45f;
         [Min(0f)] public float shatterSpinDegrees = 320f;
         [Range(0f, 1f)] public float shatterRandomness = 0.35f;
+
         [Tooltip("If true, panels can be restored if enemy health increases (not typical).")]
         public bool allowPanelRestore = false;
 
@@ -144,6 +227,10 @@ namespace Massive.Enemies
         [Min(0f)] public float corePulseAmplitude = 0.08f;
         [Min(0f)] public float corePulseSpeed = 1.8f;
         [Min(0f)] public float coreAttackBoost = 0.18f;
+
+        // -------------------------
+        // Runtime state
+        // -------------------------
 
         private Transform _panelsRoot;
         private readonly List<Panel> _panels = new(20);
@@ -159,11 +246,96 @@ namespace Massive.Enemies
         private System.Random _rng;
         private MaterialPropertyBlock _mpb;
 
-        public float Spear01 => spear01;
+        // Spawn
+        private bool _spawnActive;
+        private float _spawnStartTime;
+        private float _spawn01 = 1f; // eased 0..1
 
-        public void SetSpear01(float value01)
+        // Core emission cache (spawn-in)
+        private readonly List<CoreParticleDefaults> _coreDefaults = new(4);
+        private Vector3 _coreBaseLocalScale = Vector3.one;
+        private bool _coreCached = false;
+
+        public float Spear01 => spear01;
+        public float Stun01 => stun01;
+
+        public float Spawn01 => Mathf.Clamp01(_spawn01);
+        public bool IsSpawning => Application.isPlaying && playSpawnIn && (_spawnActive || _spawn01 < 0.999f);
+
+        public void SetSpear01(float value01) => spear01 = Mathf.Clamp01(value01);
+
+        public void SetStun01(float value01) => stun01 = Mathf.Clamp01(value01);
+
+        /// <summary>Restarts the spawn animation (useful for pooling).</summary>
+        public void PlaySpawnIn()
         {
-            spear01 = Mathf.Clamp01(value01);
+            if (!Application.isPlaying || !playSpawnIn)
+            {
+                _spawnActive = false;
+                _spawn01 = 1f;
+                ApplyCoreEmissionMul(1f);
+                return;
+            }
+
+            _spawnActive = true;
+            _spawnStartTime = Time.time;
+            _spawn01 = 0f;
+
+            CacheCoreIfNeeded();
+
+            // Core: begin at emission=0 and scale=0.
+            ApplyCoreEmissionMul(0f);
+            if (core != null)
+                core.localScale = Vector3.zero;
+
+            if (restartCoreParticlesOnSpawn)
+            {
+                for (int i = 0; i < _coreDefaults.Count; i++)
+                {
+                    var ps = _coreDefaults[i].ps;
+                    if (ps == null) continue;
+                    ps.Clear(true);
+                    ps.Play(true);
+                }
+            }
+
+            // Panels: immediately reset draw-in state so we don't get a 1-frame flash of full outlines/fill.
+            for (int i = 0; i < _panels.Count; i++)
+            {
+                var p = _panels[i];
+                if (!p.available) continue;
+                if (p.state != PanelState.Alive) continue;
+
+                p.spawnEdge01 = 0f;
+                p.spawnFill01 = 0f;
+                p.lastMeshFill01 = -1f;
+
+                if (p.mesh != null && p.meshVerts != null && p.meshVerts.Length == 3)
+                {
+                    p.meshVerts[0] = Vector3.zero;
+                    p.meshVerts[1] = Vector3.zero;
+                    p.meshVerts[2] = Vector3.zero;
+                    p.mesh.vertices = p.meshVerts;
+                    p.mesh.RecalculateBounds();
+                }
+
+                // Ensure fill is fully transparent at time 0 (even if mesh is briefly visible).
+                if (p.mr != null)
+                {
+                    _mpb ??= new MaterialPropertyBlock();
+                    _mpb.Clear();
+                    Color fc = panelFillColor;
+                    fc.a = 0f;
+                    var mat = p.mr.sharedMaterial;
+                    if (mat != null && mat.HasProperty("_BaseColor"))
+                        _mpb.SetColor("_BaseColor", fc);
+                    else
+                        _mpb.SetColor("_Color", fc);
+                    p.mr.SetPropertyBlock(_mpb);
+                }
+            }
+
+            // Panels: their mesh vertices will be driven by spawnFill01 each Update.
         }
 
         private void Reset()
@@ -181,15 +353,10 @@ namespace Massive.Enemies
                 return;
 
             RebuildIfNeeded(force: true);
+            CacheCoreIfNeeded();
         }
-
         private void OnEnable()
         {
-            // NOTE: Shapes' ImmediateModeShapeDrawer registers itself for rendering in its own OnEnable.
-            // Since this class defines its own OnEnable, we MUST call the base method or DrawShapes()
-            // will never be invoked (resulting in missing outlines).
-            base.OnEnable();
-
             if (_rng == null) _rng = new System.Random(GetInstanceID());
             if (_mpb == null) _mpb = new MaterialPropertyBlock();
 
@@ -203,7 +370,28 @@ namespace Massive.Enemies
             }
 
             RebuildIfNeeded(force: true);
+
+            CacheCoreIfNeeded();
+
+            // Spawn-in animation (runtime only)
+            if (Application.isPlaying && playSpawnIn)
+                PlaySpawnIn();
+            else
+            {
+                _spawnActive = false;
+                _spawn01 = 1f;
+                ApplyCoreEmissionMul(1f);
+            }
+
+            // NOTE: Shapes' ImmediateModeShapeDrawer registers itself for rendering in its own OnEnable.
+            // Since this class defines its own OnEnable, we MUST call the base method or DrawShapes()
+            // will never be invoked (resulting in missing outlines).
+            //
+            // We call base.OnEnable() LAST so spawn state is initialized before the first draw, preventing
+            // a 1-frame outline flash.
+            base.OnEnable();
         }
+
 
         private void OnDisable()
         {
@@ -241,20 +429,150 @@ namespace Massive.Enemies
 
             RebuildIfNeeded(force: false);
 
+            // Tick spawn progress (runtime only)
+            TickSpawn();
+
             // Pulse the core (runtime only by default).
             if (core != null)
             {
-                float t = (Application.isPlaying ? Time.time : Time.realtimeSinceStartup) * Mathf.Max(0f, corePulseSpeed);
+                float now = (Application.isPlaying ? Time.time : Time.realtimeSinceStartup);
+
+                float t = now * Mathf.Max(0f, corePulseSpeed);
                 float sin = Mathf.Sin(t);
                 float pulse = 1f + (sin * corePulseAmplitude);
                 pulse += spear01 * coreAttackBoost;
-                float s = Mathf.Max(0.001f, coreBaseScale * pulse);
-                core.localScale = new Vector3(s, s, s);
+
+                // Spawn multiplier scales core from 0→1.
+                float spawnMul = Mathf.Clamp01(_spawn01);
+                float s = Mathf.Max(0.0001f, coreBaseScale * pulse * spawnMul);
+
+                // Preserve authored local scale as a base.
+                core.localScale = _coreBaseLocalScale * s;
             }
 
             SyncPanelsToHealth();
             TickPanelsPoseAndMaterials();
         }
+
+        // -------------------------
+        // Spawn
+        // -------------------------
+
+        private void CacheCoreIfNeeded()
+        {
+            if (_coreCached) return;
+
+            _coreDefaults.Clear();
+
+            if (core != null)
+            {
+                _coreBaseLocalScale = core.localScale;
+
+                var systems = core.GetComponentsInChildren<ParticleSystem>(includeInactive: true);
+                for (int i = 0; i < systems.Length; i++)
+                {
+                    var ps = systems[i];
+                    if (ps == null) continue;
+
+                    var em = ps.emission;
+                    _coreDefaults.Add(new CoreParticleDefaults
+                    {
+                        ps = ps,
+                        rateOverTimeMul = em.rateOverTimeMultiplier,
+                        rateOverDistanceMul = em.rateOverDistanceMultiplier
+                    });
+                }
+            }
+            else
+            {
+                _coreBaseLocalScale = Vector3.one;
+            }
+
+            _coreCached = true;
+        }
+
+        private void TickSpawn()
+        {
+            if (!Application.isPlaying || !_spawnActive)
+                return;
+
+            float dur = Mathf.Max(0.05f, spawnSeconds);
+            float raw = Mathf.Clamp01((Time.time - _spawnStartTime) / dur);
+
+            // SmoothStep easing (feel free to swap to another curve later)
+            float eased = raw * raw * (3f - 2f * raw);
+            _spawn01 = eased;
+
+            // Drive core emission multiplier
+            ApplyCoreEmissionMul(eased);
+
+            if (raw >= 0.999f)
+            {
+                _spawnActive = false;
+                _spawn01 = 1f;
+                ApplyCoreEmissionMul(1f);
+            }
+        }
+
+        private void ApplyCoreEmissionMul(float mul01)
+        {
+            mul01 = Mathf.Clamp01(mul01);
+            if (_coreDefaults.Count == 0) return;
+
+            for (int i = 0; i < _coreDefaults.Count; i++)
+            {
+                var d = _coreDefaults[i];
+                if (d.ps == null) continue;
+
+                var em = d.ps.emission;
+                em.rateOverTimeMultiplier = d.rateOverTimeMul * mul01;
+                em.rateOverDistanceMultiplier = d.rateOverDistanceMul * mul01;
+            }
+        }
+
+        
+        private float GetPanelSpawn01(Panel p, float now)
+        {
+            if (!Application.isPlaying || !playSpawnIn) return 1f;
+            if (!_spawnActive && _spawn01 >= 0.999f) return 1f;
+
+            float dur = Mathf.Max(0.05f, spawnSeconds);
+            float globalRaw = Mathf.Clamp01((now - _spawnStartTime) / dur);
+
+            static float Smooth(float t)
+            {
+                t = Mathf.Clamp01(t);
+                return t * t * (3f - 2f * t);
+            }
+
+            switch (spawnPanelMode)
+            {
+                case SpawnPanelMode.AllTogether:
+                    return Smooth(globalRaw);
+
+                case SpawnPanelMode.RandomStagger:
+                {
+                    if (spawnPanelStaggerSeconds <= 0.0001f)
+                        return Smooth(globalRaw);
+
+                    float start = _spawnStartTime + (p.rand01 * spawnPanelStaggerSeconds);
+                    float raw = Mathf.Clamp01((now - start) / dur);
+                    return Smooth(raw);
+                }
+
+                case SpawnPanelMode.OrderedSequence:
+                default:
+                {
+                    // Reveal panels in sequence across the GLOBAL spawn time.
+                    // Each panel gets a window of the global progress to animate in.
+                    float win = Mathf.Clamp(spawnOrderWindow01, 0.01f, 1f);
+                    float start01 = p.order01 * (1f - win);
+                    float localRaw = Mathf.Clamp01((globalRaw - start01) / win);
+                    return Smooth(localRaw);
+                }
+            }
+        }
+
 
         // -------------------------
         // Build
@@ -443,32 +761,49 @@ namespace Massive.Enemies
                 {
                     name = $"DysonPanelMesh_{f:000}"
                 };
-                mesh.vertices = new[] { la, lb, lc };
+                mesh.MarkDynamic();
+
+                // Start fully built; spawn-in will animate vertices down to 0 if enabled.
+                Vector3[] mv = { la, lb, lc };
+                mesh.vertices = mv;
                 mesh.triangles = new[] { 0, 1, 2 };
                 mesh.normals = new[] { Vector3.forward, Vector3.forward, Vector3.forward };
                 mesh.RecalculateBounds();
                 mf.sharedMesh = mesh;
 
-                float phase = Hash01(f, GetInstanceID()) * Mathf.PI * 2f;
+                float rand01 = Hash01(f, GetInstanceID());
+                float phase = rand01 * Mathf.PI * 2f;
 
                 _panels.Add(new Panel
                 {
                     available = true,
                     state = PanelState.Alive,
+
+                    rand01 = rand01,
                     phase = phase,
+
                     baseCentroidLocal = centroid,
                     baseNormalLocal = n,
                     baseUpLocal = up,
                     baseRotLocal = rot,
+
                     tf = go.transform,
                     mesh = mesh,
                     mr = mr,
+
                     v0 = la,
                     v1 = lb,
                     v2 = lc,
-                    alpha01 = 1f
+
+                    meshVerts = mv,
+
+                    alpha01 = 1f,
+                    spawnEdge01 = 1f,
+                    spawnFill01 = 1f
                 });
             }
+
+            ComputeSpawnOrder();
 
             // Populate alive list
             for (int i = 0; i < _panels.Count; i++)
@@ -477,6 +812,54 @@ namespace Massive.Enemies
                     _alive.Add(i);
                 else if (_panels[i].available)
                     _dead.Add(i);
+            }
+        }
+
+
+        private void ComputeSpawnOrder()
+        {
+            int n = _panels.Count;
+            if (n <= 0) return;
+
+            // Build an index list we can sort.
+            var indices = new List<int>(n);
+            for (int i = 0; i < n; i++)
+                indices.Add(i);
+
+            // Sort based on the chosen order mode.
+            switch (spawnPanelOrder)
+            {
+                case SpawnPanelOrder.Random:
+                    indices.Sort((ia, ib) => _panels[ia].rand01.CompareTo(_panels[ib].rand01));
+                    break;
+
+                case SpawnPanelOrder.TopDownSpiral:
+                default:
+                    indices.Sort((ia, ib) =>
+                    {
+                        Panel a = _panels[ia];
+                        Panel b = _panels[ib];
+
+                        // Sort by +Y normal (top hemisphere first)
+                        int yCmp = b.baseNormalLocal.y.CompareTo(a.baseNormalLocal.y); // desc
+                        if (yCmp != 0) return yCmp;
+
+                        // Then sweep around Y by angle (spiral-ish ordering)
+                        float angA = Mathf.Atan2(a.baseNormalLocal.z, a.baseNormalLocal.x);
+                        float angB = Mathf.Atan2(b.baseNormalLocal.z, b.baseNormalLocal.x);
+                        if (angA < 0f) angA += Mathf.PI * 2f;
+                        if (angB < 0f) angB += Mathf.PI * 2f;
+                        return angA.CompareTo(angB);
+                    });
+                    break;
+            }
+
+            float denom = Mathf.Max(1, n - 1);
+            for (int rank = 0; rank < n; rank++)
+            {
+                int idx = indices[rank];
+                Panel p = _panels[idx];
+                p.order01 = rank / denom;
             }
         }
 
@@ -495,8 +878,6 @@ namespace Massive.Enemies
             if (enemy != null)
             {
                 // Capture a stable "max health" snapshot so we can map health → panel count cleanly.
-                // This allows high-panel-count shells (icosphere subdivisions) to start fully intact
-                // while still dying in a reasonable number of hits.
                 if (_healthMaxSnapshot <= 0f)
                 {
                     float defMax = (enemy.Definition != null) ? enemy.Definition.healthMassEq : enemy.HealthRemaining;
@@ -605,7 +986,6 @@ namespace Massive.Enemies
             p.alpha01 = 0f;
             if (p.mr != null) p.mr.enabled = false;
             if (p.tf != null) p.tf.gameObject.SetActive(false);
-            _panels[idx] = p;
         }
 
         private void RestorePanel(int idx)
@@ -618,7 +998,15 @@ namespace Massive.Enemies
             p.alpha01 = 1f;
             if (p.tf != null) p.tf.gameObject.SetActive(true);
             if (p.mr != null) p.mr.enabled = true;
-            _panels[idx] = p;
+
+            // Ensure mesh is fully formed when restored.
+            if (p.mesh != null && p.meshVerts != null && p.meshVerts.Length == 3)
+            {
+                p.meshVerts[0] = p.v0;
+                p.meshVerts[1] = p.v1;
+                p.meshVerts[2] = p.v2;
+                p.mesh.vertices = p.meshVerts;
+            }
         }
 
         private void BeginShatter(int idx)
@@ -650,8 +1038,6 @@ namespace Massive.Enemies
             p.shatterAxisLocal = HashDir(idx + 1337, GetInstanceID());
             if (p.shatterAxisLocal.sqrMagnitude < 0.0001f) p.shatterAxisLocal = Vector3.up;
             p.shatterAxisLocal.Normalize();
-
-            _panels[idx] = p;
         }
 
         // -------------------------
@@ -662,12 +1048,18 @@ namespace Massive.Enemies
         {
             if (_panels.Count == 0) return;
 
-            float t = (Application.isPlaying ? Time.time : Time.realtimeSinceStartup);
+            float now = (Application.isPlaying ? Time.time : Time.realtimeSinceStartup);
 
             float spd = Mathf.Max(0f, breatheSpeed);
             float s01 = Mathf.Clamp01(spear01);
 
             float baseFillA = Mathf.Clamp01(panelFillAlpha);
+
+            // Stun
+            float st01 = Mathf.Clamp01(stun01);
+            float stPosAmp = Mathf.Max(0f, stunJitterPos) * st01;
+            float stRotAmp = Mathf.Max(0f, stunJitterRotDegrees) * st01;
+            float stSpd = Mathf.Max(0f, stunJitterSpeed);
 
             for (int i = 0; i < _panels.Count; i++)
             {
@@ -675,11 +1067,24 @@ namespace Massive.Enemies
                 if (!p.available) continue;
                 if (p.tf == null) continue;
 
+                // Spawn draw-in values
+                float panelSpawn01 = GetPanelSpawn01(p, now);
+
+                // Outline drawing begins at spawnOutlineStart01
+                float edgeRaw = Mathf.InverseLerp(spawnOutlineStart01, 1f, panelSpawn01);
+                edgeRaw = Mathf.Clamp01(edgeRaw);
+                p.spawnEdge01 = Mathf.Clamp01(Mathf.Pow(edgeRaw, Mathf.Max(0.01f, spawnEdgeExponent)));
+
+                // Fill drawing begins at spawnFillStart01
+                float fillRaw = Mathf.InverseLerp(spawnFillStart01, 1f, panelSpawn01);
+                fillRaw = Mathf.Clamp01(fillRaw);
+                // smoothstep the fill itself
+                p.spawnFill01 = fillRaw * fillRaw * (3f - 2f * fillRaw);
+
                 if (p.state == PanelState.Alive)
                 {
-                    float breatheSin = Mathf.Sin(t * spd + (p.phase * perPanelPhaseJitter));
+                    float breatheSin = Mathf.Sin(now * spd + (p.phase * perPanelPhaseJitter));
                     // If breatheOutOnly is enabled, we remap to 0..1 so panels never move "inward".
-                    // This avoids coplanar overlap at the contracted point (especially when baseLift = 0).
                     float breathe = breatheOutOnly ? (0.5f + 0.5f * breatheSin) : breatheSin;
 
                     float lift = baseLift + (breatheLiftAmplitude * breathe);
@@ -725,6 +1130,28 @@ namespace Massive.Enemies
                         rot = Quaternion.Slerp(p.baseRotLocal, spearRot, (s01 * front) * spearRotate);
                     }
 
+                    // Stun jitter (degrading intensity is driven by controller via stun01)
+                    if (st01 > 0.001f && (stPosAmp > 0.000001f || stRotAmp > 0.000001f))
+                    {
+                        float j0 = Mathf.Sin(now * stSpd + (p.phase * 11.17f));
+                        float j1 = Mathf.Cos(now * (stSpd * 1.37f) + (p.phase * 7.31f));
+
+                        if (stPosAmp > 0.000001f)
+                        {
+                            // Jitter in the panel plane (panel local XY), then rotate into shell space.
+                            Vector3 jitterLocal = new Vector3(j0, j1, 0f) * stPosAmp;
+                            pos += (rot * jitterLocal);
+                        }
+
+                        if (stRotAmp > 0.000001f)
+                        {
+                            float ang = j0 * stRotAmp;
+                            Vector3 nAxis = (rot * Vector3.forward);
+                            if (nAxis.sqrMagnitude < 0.000001f) nAxis = p.baseNormalLocal;
+                            rot = Quaternion.AngleAxis(ang, nAxis) * rot;
+                        }
+                    }
+
                     p.tf.localPosition = pos;
                     p.tf.localRotation = rot;
                     p.tf.localScale = new Vector3(scale, scale, scale);
@@ -734,7 +1161,6 @@ namespace Massive.Enemies
                 else if (p.state == PanelState.Shattering)
                 {
                     float start = p.shatterStartTime;
-                    float now = (Application.isPlaying ? Time.time : Time.realtimeSinceStartup);
                     float dur = Mathf.Max(0.05f, shatterSeconds);
                     float u = Mathf.Clamp01((now - start) / dur);
                     float ease = 1f - Mathf.Pow(1f - u, 3f); // ease-out cubic
@@ -743,6 +1169,10 @@ namespace Massive.Enemies
                     p.tf.localPosition = p.shatterStartPos + p.shatterDirLocal * (shatterDistance * ease);
                     p.tf.localRotation = p.shatterStartRot * Quaternion.AngleAxis(shatterSpinDegrees * ease, p.shatterAxisLocal);
                     p.tf.localScale = p.shatterStartScale * Mathf.Lerp(1f, 0.15f, u);
+
+                    // Shattering panels should remain fully formed (not spawn-drawn).
+                    p.spawnFill01 = 1f;
+                    p.spawnEdge01 = 1f;
 
                     if (u >= 0.999f)
                     {
@@ -753,12 +1183,43 @@ namespace Massive.Enemies
                     }
                 }
 
+                // Animate panel mesh "draw in" (robust even with opaque materials)
+                if (p.mesh != null && p.meshVerts != null && p.meshVerts.Length == 3 && p.state == PanelState.Alive)
+                {
+                    float fill01 = Mathf.Clamp01(p.spawnFill01);
+                    // Only touch the mesh while it is still drawing in.
+                    if (fill01 < 0.999f || p.lastMeshFill01 < 0f)
+                    {
+                        // Cheap thresholding avoids extra mesh writes after spawn finishes.
+                        if (Mathf.Abs(fill01 - p.lastMeshFill01) > 0.0005f)
+                        {
+                            p.lastMeshFill01 = fill01;
+
+                            p.meshVerts[0] = Vector3.Lerp(Vector3.zero, p.v0, fill01);
+                            p.meshVerts[1] = Vector3.Lerp(Vector3.zero, p.v1, fill01);
+                            p.meshVerts[2] = Vector3.Lerp(Vector3.zero, p.v2, fill01);
+                            p.mesh.vertices = p.meshVerts;
+                        }
+                    }
+                    else if (p.lastMeshFill01 < 0.999f)
+                    {
+                        // Snap back to exact base verts once at the end.
+                        p.lastMeshFill01 = 1f;
+                        p.meshVerts[0] = p.v0;
+                        p.meshVerts[1] = p.v1;
+                        p.meshVerts[2] = p.v2;
+                        p.mesh.vertices = p.meshVerts;
+                    }
+                }
+
                 // Apply fill color via MaterialPropertyBlock
                 if (p.mr != null)
                 {
                     float a = baseFillA * Mathf.Clamp01(p.alpha01);
 
-                    // Some shaders use _BaseColor (URP), some use _Color.
+                    // During spawn-in, we also fade the fill (helps readability even if material is transparent).
+                    a *= Mathf.Clamp01(p.spawnFill01);
+
                     _mpb.Clear();
                     Color fc = panelFillColor;
                     fc.a *= a;
@@ -771,13 +1232,11 @@ namespace Massive.Enemies
 
                     p.mr.SetPropertyBlock(_mpb);
                 }
-
-                _panels[i] = p;
             }
         }
 
         // -------------------------
-        // Outlines
+        // Outlines (Shapes)
         // -------------------------
 
         public override void DrawShapes(Camera cam)
@@ -803,6 +1262,9 @@ namespace Massive.Enemies
                     if (p.tf == null) continue;
 
                     float a = Mathf.Clamp01(outlineAlpha) * Mathf.Clamp01(p.alpha01);
+                    // During spawn, fade outlines in too (in addition to edge draw).
+                    a *= Mathf.Clamp01(p.spawnEdge01);
+
                     if (a <= 0.001f) continue;
 
                     oc.a = a;
@@ -811,12 +1273,18 @@ namespace Massive.Enemies
                     // Build a matrix from panel local -> shell local
                     Matrix4x4 m = Matrix4x4.TRS(p.tf.localPosition, p.tf.localRotation, p.tf.localScale);
 
-                    Vector3 a0 = m.MultiplyPoint3x4(p.v0);
-                    Vector3 b0 = m.MultiplyPoint3x4(p.v1);
-                    Vector3 c0 = m.MultiplyPoint3x4(p.v2);
+                    // Use the same draw-in factor as the fill so outlines don't "jump" larger than the face.
+                    float fill01 = Mathf.Clamp01(p.spawnFill01);
+
+                    Vector3 av = Vector3.Lerp(Vector3.zero, p.v0, fill01);
+                    Vector3 bv = Vector3.Lerp(Vector3.zero, p.v1, fill01);
+                    Vector3 cv = Vector3.Lerp(Vector3.zero, p.v2, fill01);
+
+                    Vector3 a0 = m.MultiplyPoint3x4(av);
+                    Vector3 b0 = m.MultiplyPoint3x4(bv);
+                    Vector3 c0 = m.MultiplyPoint3x4(cv);
 
                     // Lift outlines slightly off the face plane so they don't get swallowed by the fill mesh.
-                    // This also helps the "each panel has its own border" readability you're after.
                     float offMag = Mathf.Max(0f, outlineSurfaceOffset);
                     if (offMag > 0.000001f)
                     {
@@ -829,17 +1297,36 @@ namespace Massive.Enemies
                         c0 += off;
                     }
 
-                    Draw.Line(a0, b0);
-                    Draw.Line(b0, c0);
-                    Draw.Line(c0, a0);
+                    // Draw-in along the perimeter with easing:
+                    // - edge01 = 0..1
+                    // - we draw edges sequentially (1/3 each) for a "tracing" feel.
+                    float e01 = Mathf.Clamp01(p.spawnEdge01);
+                    float t3 = e01 * 3f;
+
+                    DrawEdge(a0, b0, t3 - 0f);
+                    DrawEdge(b0, c0, t3 - 1f);
+                    DrawEdge(c0, a0, t3 - 2f);
                 }
+            }
+        }
+
+        private static void DrawEdge(Vector3 p0, Vector3 p1, float u)
+        {
+            if (u <= 0.001f) return;
+            if (u >= 0.999f)
+            {
+                Draw.Line(p0, p1);
+            }
+            else
+            {
+                Draw.Line(p0, Vector3.Lerp(p0, p1, Mathf.Clamp01(u)));
             }
         }
 
         // -------------------------
         // Icosphere generation
         // -------------------------
-  
+
         private static int SubdivFromPanelCount(int panelCount)
         {
             // Base icosahedron has 20 faces. Each subdivision step splits every triangle into 4.
@@ -946,12 +1433,11 @@ namespace Massive.Enemies
 
         private static int SnapPanelCount(int requested)
         {
-            // Supported "sane" topologies:
+            // Supported topologies:
             // 20   = icosahedron (subdiv 0)
             // 80   = icosphere (subdiv 1)
             // 320  = icosphere (subdiv 2)
             // 1280 = icosphere (subdiv 3)
-
             int[] options = { 20, 80, 320, 1280 };
             int best = options[0];
             int bestDist = Mathf.Abs(requested - best);

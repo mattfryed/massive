@@ -32,6 +32,10 @@ namespace Massive.Enemies
         [SerializeField] private DysonSpherePanels panels;
         [SerializeField] private EnemyObstacleAvoidance avoidance;
 
+        [Header("Spawn")]
+        [Tooltip("If true, the Dyson Sphere will not move or attack until its spawn-in animation is finished.")]
+        [SerializeField] private bool lockMovementDuringSpawn = true;
+
         [Header("Targeting")]
         [SerializeField, Min(0.05f)] private float reacquireIntervalSeconds = 0.35f;
         [SerializeField, Min(0f)] private float ignoreTargetsFartherThan = 0f; // 0 = no limit
@@ -60,7 +64,14 @@ namespace Massive.Enemies
         [SerializeField, Min(0f)] private float parryRecoilSpeed = 8f;
         [SerializeField, Min(0f)] private float stunnedLinearDamping = 10f;
 
-        [Header("Collision Tags")]
+        
+        [Header("Stun Visual")]
+        [Tooltip("Exponent for how quickly the stun jitter decays over time. Higher = strong at start, quickly fades.")]
+        [SerializeField, Min(0.1f)] private float stunVisualDecayPower = 1.6f;
+        [Tooltip("Multiplier on the visual stun intensity sent to DysonSpherePanels.")]
+        [SerializeField, Min(0f)] private float stunVisualIntensity = 1f;
+
+[Header("Collision Tags")]
         [SerializeField] private string playerTag = "Player";
         [SerializeField] private string shieldTag = "Shield";
 
@@ -82,6 +93,10 @@ namespace Massive.Enemies
         private bool _lungeResolved;
 
         private float _spear01;
+
+        // stun visual timing
+        private float _stunStartTime = -Mathf.Infinity;
+        private float _stunDuration = 0f;
 
         private void Reset()
         {
@@ -114,6 +129,9 @@ namespace Massive.Enemies
             _stateEndTime = -Mathf.Infinity;
             _lungeResolved = false;
             _spear01 = 0f;
+            _stunStartTime = -Mathf.Infinity;
+            _stunDuration = 0f;
+            if (panels != null) panels.SetStun01(0f);
             _nextReacquireTime = -Mathf.Infinity;
         }
 
@@ -122,6 +140,20 @@ namespace Massive.Enemies
             if (enemy == null || rb == null) return;
             if (enemy.IsDead) return;
             if (enemy.IsPaused) { rb.linearVelocity = Vector3.zero; return; }
+
+
+            // Spawn lock: keep the Dyson Sphere inert until the panels finish spawning in.
+            if (lockMovementDuringSpawn && panels != null && panels.IsSpawning)
+            {
+                _state = State.Chase;
+                _stateEndTime = -Mathf.Infinity;
+                _lungeResolved = false;
+                _spear01 = 0f;
+                rb.linearVelocity = Vector3.zero;
+                panels.SetSpear01(0f);
+                panels.SetStun01(0f);
+                return;
+            }
             if (rb.isKinematic) return;
 
             // Targeting refresh
@@ -158,7 +190,10 @@ namespace Massive.Enemies
 
             // Drive visuals
             if (panels != null)
+            {
                 panels.SetSpear01(_spear01);
+                panels.SetStun01(GetStunVisual01());
+            }
         }
 
         // -------------------------
@@ -356,10 +391,28 @@ namespace Massive.Enemies
         private void BeginStunned(float durationSeconds)
         {
             _state = State.Stunned;
-            _stateEndTime = Time.time + Mathf.Max(0.05f, durationSeconds);
+            _stunStartTime = Time.time;
+            _stunDuration = Mathf.Max(0.05f, durationSeconds);
+            _stateEndTime = _stunStartTime + _stunDuration;
         }
 
-        // -------------------------
+        
+        private float GetStunVisual01()
+        {
+            if (_state != State.Stunned) return 0f;
+            if (_stunDuration <= 0.0001f) return 0f;
+
+            // remaining fraction (1 at start, 0 at end)
+            float elapsed = Time.time - _stunStartTime;
+            float t01 = Mathf.Clamp01(elapsed / _stunDuration);
+            float remaining01 = 1f - t01;
+
+            float pow = Mathf.Max(0.1f, stunVisualDecayPower);
+            float mul = Mathf.Max(0f, stunVisualIntensity);
+            return Mathf.Clamp01(Mathf.Pow(remaining01, pow) * mul);
+        }
+
+// -------------------------
         // Collisions / parry / damage
         // -------------------------
 

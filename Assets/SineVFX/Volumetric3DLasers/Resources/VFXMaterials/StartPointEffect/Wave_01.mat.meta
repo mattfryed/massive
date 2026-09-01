@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 700d0f48aabe49449ec67aa4e05f9397
+timeCreated: 1509031335
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 104580
+  packageName: Volumetric 3D Lasers
+  packageVersion: 1.3a
+  assetPath: Assets/SineVFX/Volumetric3DLasers/Resources/VFXMaterials/StartPointEffect/Wave_01.mat
+  uploadId: 700963

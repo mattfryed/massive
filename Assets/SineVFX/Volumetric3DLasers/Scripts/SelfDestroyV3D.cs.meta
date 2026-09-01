@@ -1,0 +1,19 @@
+fileFormatVersion: 2
+guid: 9cea6220897b4d7bad5c685d14b021ab
+timeCreated: 1506817867
+licenseType: Store
+MonoImporter:
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 104580
+  packageName: Volumetric 3D Lasers
+  packageVersion: 1.3a
+  assetPath: Assets/SineVFX/Volumetric3DLasers/Scripts/SelfDestroyV3D.cs
+  uploadId: 700963

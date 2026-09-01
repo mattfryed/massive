@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: a4184b90c7284d408b8de1e26e75e7dc
+timeCreated: 1509112823
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 104580
+  packageName: Volumetric 3D Lasers
+  packageVersion: 1.3a
+  assetPath: Assets/SineVFX/Volumetric3DLasers/Prefabs/EndPointEffect/Flames_EP_02_Distorted.prefab
+  uploadId: 700963

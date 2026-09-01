@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 99d3f696292d4d2abf5991465c2e8370
+timeCreated: 1516641586
+licenseType: Store
+ShaderImporter:
+  defaultTextures: []
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 104580
+  packageName: Volumetric 3D Lasers
+  packageVersion: 1.3a
+  assetPath: Assets/SineVFX/Volumetric3DLasers/Resources/Shaders/FlipBookMotionVectorABv01.shader
+  uploadId: 700963

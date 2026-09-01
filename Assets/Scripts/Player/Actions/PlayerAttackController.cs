@@ -84,6 +84,21 @@ namespace Massive.Player
         [SerializeField, Min(0f)]
         private float comboInputBuffer = 0.15f;
 
+        [Header("Combo Window")]
+        [Tooltip("If true, combo presses are accepted AFTER the stage's activation window (useful for recovery-cancel style combos).\nIf false, combos use the activation window itself (legacy behavior).")]
+        [SerializeField] private bool comboWindowAfterActivationWindow = true;
+
+        [Tooltip("Normalized end of combo window when comboWindowAfterActivationWindow is true. 1 = end of stage.")]
+        [SerializeField, Range(0f, 1f)] private float comboWindowEndNormalized = 1f;
+
+        [Header("Combo Swipe")]
+        [Tooltip("Easing for the swipe arc across the stage. X=time(0..1), Y=lerp(0..1).")]
+        [SerializeField] private AnimationCurve swipeArcCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
+
+        [Header("Attack Visual Direction")]
+        [Tooltip("If true, visuals (trail direction, sword arc base) follow the current CombatFacingRoot direction (ForwardReference.right).\nIf false, visuals follow the stage-locked direction used for dash motion.")]
+        [SerializeField] private bool visualDirectionFollowsCombatFacing = true;
+
         [Header("Scene References")]
         [SerializeField]
         public Transform forwardReference = null;
@@ -106,6 +121,9 @@ namespace Massive.Player
         private float lastAttackPressTime = float.NegativeInfinity;
         private int swipeDirection = 1;
         private Vector3 stageAttackDirectionWS = Vector3.right;
+
+        // Combo-swipe arc offset (degrees). 0 for non-swipe stages.
+        private float currentWeaponYawOffsetDeg = 0f;
 
         public bool IsAttacking => isAttacking;
         public AttackStage CurrentStage => currentStage;
@@ -230,11 +248,24 @@ namespace Massive.Player
         if (dir.sqrMagnitude > 0.0001f) return dir.normalized;
     }
 
-    Vector3 fwd = ForwardReference.forward;
+    // NOTE: in MASSIVE, the blob front is local +X, so we use .right as our gameplay "forward".
+    Vector3 fwd = ForwardReference.right;
     fwd.y = 0f;
-    if (fwd.sqrMagnitude < 0.0001f) fwd = Vector3.forward;
+    if (fwd.sqrMagnitude < 0.0001f) fwd = Vector3.right;
     return fwd.normalized;
 }
+
+        private Vector3 GetCombatFacingDirectionWS()
+        {
+            // NOTE: in MASSIVE, the blob front is local +X, so we use .right as our gameplay "forward".
+            Vector3 fwd = ForwardReference.right;
+            fwd.y = 0f;
+
+            if (fwd.sqrMagnitude < 0.0001f)
+                fwd = Vector3.right;
+
+            return fwd.normalized;
+        }
 
 
 private Vector3 GetAttackDirection()
@@ -247,7 +278,41 @@ private Vector3 GetAttackDirection()
     return ComputeAttackDirectionFromInput();
 }
 
-public Vector3 CurrentAttackDirectionWS => GetAttackDirection();
+        /// <summary>
+        /// Direction used for movement/dash during the current stage (locked at stage start).
+        /// </summary>
+        public Vector3 CurrentAttackDirectionWS => GetAttackDirection();
+
+        /// <summary>
+        /// Visual/weapon direction (includes combo-swipe arc while StageType == ComboSwipe).
+        /// Use this for trails / sword visuals / hitboxes that should arc.
+        /// </summary>
+        public Vector3 CurrentAttackVisualDirectionWS
+        {
+            get
+            {
+                Vector3 baseDir = visualDirectionFollowsCombatFacing
+                    ? GetCombatFacingDirectionWS()
+                    : GetAttackDirection();
+
+                // Only apply arc during the swipe stage.
+                if (currentStage != null && currentStage.StageType == AttackStageType.ComboSwipe && Mathf.Abs(currentWeaponYawOffsetDeg) > 0.001f)
+                {
+                    return Quaternion.AngleAxis(currentWeaponYawOffsetDeg, Vector3.up) * baseDir;
+                }
+
+                return baseDir;
+            }
+        }
+
+        /// <summary>
+        /// Current combat-facing direction (ForwardReference.right, flattened to XZ).
+        /// </summary>
+        public Vector3 CombatFacingDirectionWS => GetCombatFacingDirectionWS();
+
+        public float CurrentWeaponYawOffsetDeg => currentWeaponYawOffsetDeg;
+
+        public int CurrentSwipeDirection => swipeDirection;
 
 
 
@@ -269,15 +334,8 @@ public Vector3 CurrentAttackDirectionWS => GetAttackDirection();
         Move(displacement);
     }
 
-            switch (currentStage.StageType)
-            {
-                case AttackStageType.ComboSwipe:
-                    ApplySwipeRotation(deltaNormalized);
-                    break;
-                case AttackStageType.FinisherRepulsor:
-                    // No additional motion required for repulsor stage by default.
-                    break;
-            }
+            // Drive the combo-swipe arc (visuals + hitboxes) without rotating the player root.
+            UpdateSwipeArc(normalized);
         }
 
         private void Move(Vector3 displacement)
@@ -300,19 +358,37 @@ public Vector3 CurrentAttackDirectionWS => GetAttackDirection();
         }
 
 
-        private void ApplySwipeRotation(float deltaNormalized)
+        private void UpdateSwipeArc(float stageNormalized)
         {
+            // Reset by default.
+            currentWeaponYawOffsetDeg = 0f;
+
+            if (currentStage == null)
+                return;
+
+            if (currentStage.StageType != AttackStageType.ComboSwipe)
+                return;
+
+            if (Mathf.Approximately(currentStage.RotationArc, 0f))
+                return;
+
+            // Allow dynamic swipe direction changes if the player changes input mid-swing.
             int desiredDirection = CalculateSwipeDirection();
             if (desiredDirection != 0)
             {
                 swipeDirection = desiredDirection;
             }
 
-            if (Mathf.Approximately(currentStage.RotationArc, 0f))
-                return;
+            // Drive a symmetric arc around the base attack direction.
+            // Example: RotationArc=60 => starts at -30 and ends at +30 degrees.
+            float arcHalf = currentStage.RotationArc * 0.5f;
+            float t = Mathf.Clamp01(stageNormalized);
 
-            float rotationAmount = currentStage.RotationArc * deltaNormalized * swipeDirection;
-            transform.Rotate(Vector3.up, rotationAmount, Space.World);
+            float eased = swipeArcCurve != null ? swipeArcCurve.Evaluate(t) : t;
+            float baseOffset = Mathf.Lerp(-arcHalf, +arcHalf, eased);
+
+            // swipeDirection = +1 means left->right; -1 flips it.
+            currentWeaponYawOffsetDeg = baseOffset * swipeDirection;
         }
 
         private void UpdateComboQueue(float normalized)
@@ -334,8 +410,26 @@ public Vector3 CurrentAttackDirectionWS => GetAttackDirection();
             if (currentStage == null)
                 return false;
 
-            float start = currentStage.ActivationStartNormalized;
-            float end = currentStage.ActivationEndNormalized;
+            float start;
+            float end;
+
+            if (comboWindowAfterActivationWindow)
+            {
+                // "After-window" combos: let the player chain during recovery.
+                start = currentStage.ActivationEndNormalized;
+                end = Mathf.Clamp01(comboWindowEndNormalized);
+
+                // Safety: ensure end is never before start.
+                if (end < start)
+                    end = 1f;
+            }
+            else
+            {
+                // Legacy behavior: combos only within the activation window.
+                start = currentStage.ActivationStartNormalized;
+                end = currentStage.ActivationEndNormalized;
+            }
+
             return normalized >= start && normalized <= end;
         }
 
@@ -374,22 +468,26 @@ public Vector3 CurrentAttackDirectionWS => GetAttackDirection();
             comboQueued = false;
             isAttacking = true;
 
-            // lock attack direction for this stage (your existing behavior)
-stageAttackDirectionWS = ComputeAttackDirectionFromInput();
+            // Clear any buffered press that was used to ENTER this stage,
+            // so we don't accidentally auto-chain into the next stage.
+            lastAttackPressTime = float.NegativeInfinity;
 
-// per-stage travel (so we never edit the AttackStage asset)
-stageTravelDistanceWS = currentStage.TravelDistance;
-stageStopDistanceWS = stageTravelDistanceWS;
-lockedTarget = null;
+            // Reset swipe offset at stage start.
+            currentWeaponYawOffsetDeg = 0f;
 
-// Only apply lock-on to the primary lunge (stage 0)
-if (lockOnEnabled && stageIndex == 0)
-{
-    TryApplyLungeLockOn();
-}
-
-            // lock attack direction for this stage
+            // Lock attack direction for this stage (movement direction).
             stageAttackDirectionWS = ComputeAttackDirectionFromInput();
+
+            // Per-stage travel (so we never edit the AttackStage asset)
+            stageTravelDistanceWS = currentStage.TravelDistance;
+            stageStopDistanceWS = stageTravelDistanceWS;
+            lockedTarget = null;
+
+            // Only apply lock-on to the primary lunge (stage 0)
+            if (lockOnEnabled && stageIndex == 0)
+            {
+                TryApplyLungeLockOn();
+            }
 
             DetermineSwipeDirection();
 
@@ -416,11 +514,12 @@ if (lockOnEnabled && stageIndex == 0)
 
         private int CalculateSwipeDirection()
         {
-            Vector3 referenceForward = ForwardReference.forward;
+            // NOTE: in MASSIVE, the blob front is local +X, so we use .right as our gameplay "forward".
+            Vector3 referenceForward = ForwardReference.right;
             referenceForward.y = 0f;
             if (referenceForward.sqrMagnitude < 0.001f)
             {
-                referenceForward = Vector3.forward;
+                referenceForward = Vector3.right;
             }
             else
             {
@@ -451,6 +550,7 @@ if (lockOnEnabled && stageIndex == 0)
             previousNormalizedTime = 0f;
             comboQueued = false;
             isAttacking = false;
+            currentWeaponYawOffsetDeg = 0f;
             lastAttackEndTime = Time.time;
         }
 

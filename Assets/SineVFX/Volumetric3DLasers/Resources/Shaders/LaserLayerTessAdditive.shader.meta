@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 88e0de890af94e58977037076e8981dd
+timeCreated: 1516644428
+licenseType: Store
+ShaderImporter:
+  defaultTextures: []
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 104580
+  packageName: Volumetric 3D Lasers
+  packageVersion: 1.3a
+  assetPath: Assets/SineVFX/Volumetric3DLasers/Resources/Shaders/LaserLayerTessAdditive.shader
+  uploadId: 700963

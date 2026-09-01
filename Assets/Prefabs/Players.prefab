@@ -549,6 +549,21 @@ MonoBehaviour:
   deathFxSeconds: 0.5
   respawnDelaySeconds: 1.25
   respawnFxSeconds: 0.75
+  respawnQueryMaxHits: 32
+  respawnTreatFullBufferAsBlocked: 1
+  deathDistortionBubblePrefab: {fileID: 8942209640182647904, guid: 1af534a4f77e47141add26fdd8eb439a,
+    type: 3}
+  respawnDistortionBubblePrefab: {fileID: 8942209640182647904, guid: 1af534a4f77e47141add26fdd8eb439a,
+    type: 3}
+  distortionBubbleAnchor: {fileID: 1642557640334243339}
+  distortionBubbleOffsetWS: {x: 0, y: 0, z: 0}
+  parentDistortionToAnchor: 0
+  deathDistortionAutoDestroySeconds: 2
+  respawnDistortionAutoDestroySeconds: 2
+  showPlayerToastOnRespawn: 1
+  respawnToastLifetime: 1.25
+  respawnToastPenaltyAsPercent: 1
+  respawnToastPenaltyLabel: TEAM MASS
   playMatchSpawnOnSceneLoad: 1
   matchSpawnFxSeconds: -2
   showPlayerIdToastOnMatchStart: 1
@@ -557,7 +572,7 @@ MonoBehaviour:
   respawnCheckRadius: 1
   respawnBlockMask:
     serializedVersion: 2
-    m_Bits: 4294967295
+    m_Bits: 2752
   stunNuggetDragMaxMul: 10
   stunNuggetRampUpSeconds: 0.08
   stunNuggetRampDownSeconds: 0.12
@@ -3023,9 +3038,24 @@ MonoBehaviour:
   legacyGoalShrink01: 0.0045
   lifeFx: {fileID: 5812985964868278873}
   respawnPointOverride: {fileID: 4965124703129042962}
-  deathFxSeconds: 0.5
-  respawnDelaySeconds: 1.25
-  respawnFxSeconds: 0.75
+  deathFxSeconds: 1
+  respawnDelaySeconds: 1
+  respawnFxSeconds: 2
+  respawnQueryMaxHits: 32
+  respawnTreatFullBufferAsBlocked: 1
+  deathDistortionBubblePrefab: {fileID: 8942209640182647904, guid: 1af534a4f77e47141add26fdd8eb439a,
+    type: 3}
+  respawnDistortionBubblePrefab: {fileID: 8942209640182647904, guid: 1af534a4f77e47141add26fdd8eb439a,
+    type: 3}
+  distortionBubbleAnchor: {fileID: 8268123285256121554}
+  distortionBubbleOffsetWS: {x: 0, y: 0, z: 0}
+  parentDistortionToAnchor: 0
+  deathDistortionAutoDestroySeconds: 2
+  respawnDistortionAutoDestroySeconds: 2
+  showPlayerToastOnRespawn: 1
+  respawnToastLifetime: 1.25
+  respawnToastPenaltyAsPercent: 1
+  respawnToastPenaltyLabel: TEAM MASS
   playMatchSpawnOnSceneLoad: 1
   matchSpawnFxSeconds: -2
   showPlayerIdToastOnMatchStart: 1
@@ -3034,7 +3064,7 @@ MonoBehaviour:
   respawnCheckRadius: 1
   respawnBlockMask:
     serializedVersion: 2
-    m_Bits: 4294967295
+    m_Bits: 2752
   stunNuggetDragMaxMul: 10
   stunNuggetRampUpSeconds: 0.08
   stunNuggetRampDownSeconds: 0.12
@@ -4487,6 +4517,21 @@ MonoBehaviour:
   deathFxSeconds: 0.5
   respawnDelaySeconds: 1.25
   respawnFxSeconds: 0.75
+  respawnQueryMaxHits: 32
+  respawnTreatFullBufferAsBlocked: 1
+  deathDistortionBubblePrefab: {fileID: 8942209640182647904, guid: 1af534a4f77e47141add26fdd8eb439a,
+    type: 3}
+  respawnDistortionBubblePrefab: {fileID: 8942209640182647904, guid: 1af534a4f77e47141add26fdd8eb439a,
+    type: 3}
+  distortionBubbleAnchor: {fileID: 3771797657263773121}
+  distortionBubbleOffsetWS: {x: 0, y: 0, z: 0}
+  parentDistortionToAnchor: 0
+  deathDistortionAutoDestroySeconds: 2
+  respawnDistortionAutoDestroySeconds: 2
+  showPlayerToastOnRespawn: 1
+  respawnToastLifetime: 1.25
+  respawnToastPenaltyAsPercent: 1
+  respawnToastPenaltyLabel: TEAM MASS
   playMatchSpawnOnSceneLoad: 1
   matchSpawnFxSeconds: -2
   showPlayerIdToastOnMatchStart: 1
@@ -4495,7 +4540,7 @@ MonoBehaviour:
   respawnCheckRadius: 1
   respawnBlockMask:
     serializedVersion: 2
-    m_Bits: 4294967295
+    m_Bits: 2752
   stunNuggetDragMaxMul: 10
   stunNuggetRampUpSeconds: 0.08
   stunNuggetRampDownSeconds: 0.12
@@ -5046,10 +5091,10 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
-  deathExtraHitImpulse: 0.8
-  deathJitterMul: 1.8
+  deathExtraHitImpulse: 1.494
+  deathJitterMul: 1.04
   disableComponentsWhenHidden: 1
-  respawnOvershoot: 0.12
+  respawnOvershoot: 0.266
 --- !u!1 &8100155771192399295
 GameObject:
   m_ObjectHideFlags: 0
@@ -5349,6 +5394,21 @@ MonoBehaviour:
   deathFxSeconds: 0.5
   respawnDelaySeconds: 1.25
   respawnFxSeconds: 0.75
+  respawnQueryMaxHits: 32
+  respawnTreatFullBufferAsBlocked: 1
+  deathDistortionBubblePrefab: {fileID: 8942209640182647904, guid: 1af534a4f77e47141add26fdd8eb439a,
+    type: 3}
+  respawnDistortionBubblePrefab: {fileID: 8942209640182647904, guid: 1af534a4f77e47141add26fdd8eb439a,
+    type: 3}
+  distortionBubbleAnchor: {fileID: 6389561842378151905}
+  distortionBubbleOffsetWS: {x: 0, y: 0, z: 0}
+  parentDistortionToAnchor: 0
+  deathDistortionAutoDestroySeconds: 2
+  respawnDistortionAutoDestroySeconds: 2
+  showPlayerToastOnRespawn: 1
+  respawnToastLifetime: 1.25
+  respawnToastPenaltyAsPercent: 1
+  respawnToastPenaltyLabel: TEAM MASS
   playMatchSpawnOnSceneLoad: 1
   matchSpawnFxSeconds: -2
   showPlayerIdToastOnMatchStart: 1
@@ -5357,7 +5417,7 @@ MonoBehaviour:
   respawnCheckRadius: 1
   respawnBlockMask:
     serializedVersion: 2
-    m_Bits: 4294967295
+    m_Bits: 2752
   stunNuggetDragMaxMul: 10
   stunNuggetRampUpSeconds: 0.08
   stunNuggetRampDownSeconds: 0.12

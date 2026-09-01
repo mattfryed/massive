@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 8968dcb86b2e4ac1b1266e7ed989a4ef
+timeCreated: 1508640963
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 104580
+  packageName: Volumetric 3D Lasers
+  packageVersion: 1.3a
+  assetPath: Assets/SineVFX/Volumetric3DLasers/Resources/VFXMaterials/EndPointEffect/Flames_03.mat
+  uploadId: 700963

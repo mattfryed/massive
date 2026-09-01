@@ -1,5 +1,14 @@
 {
   "dependencies": {
+    "com.simonvs.realtimeblackhole": {
+      "version": "file:com.simonvs.realtimeblackhole",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {
+        "com.unity.render-pipelines.universal": "14.0.8",
+        "com.unity.shadergraph": "14.0.8"
+      }
+    },
     "com.tayx.graphy": {
       "version": "3.0.5",
       "depth": 0,
@@ -12,11 +21,11 @@
       "depth": 1,
       "source": "registry",
       "dependencies": {
+        "com.unity.burst": "1.8.4",
         "com.unity.2d.sprite": "1.0.0",
         "com.unity.mathematics": "1.1.0",
-        "com.unity.modules.uielements": "1.0.0",
         "com.unity.modules.animation": "1.0.0",
-        "com.unity.burst": "1.8.4"
+        "com.unity.modules.uielements": "1.0.0"
       },
       "url": "https://packages.unity.com"
     },
@@ -151,6 +160,15 @@
         "com.unity.modules.imgui": "1.0.0",
         "com.unity.test-framework": "1.4.5",
         "com.unity.modules.jsonserialize": "1.0.0"
+      },
+      "url": "https://packages.unity.com"
+    },
+    "com.unity.postprocessing": {
+      "version": "3.4.0",
+      "depth": 0,
+      "source": "registry",
+      "dependencies": {
+        "com.unity.modules.physics": "1.0.0"
       },
       "url": "https://packages.unity.com"
     },

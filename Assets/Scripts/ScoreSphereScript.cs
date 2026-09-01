@@ -98,4 +98,20 @@ public class ScoreSphereScript : MonoBehaviour
             AddScore01(sizeChangeOnGoalHit / Mathf.Max(0.0001f, maxSize));
         }
     }
+
+// public float LoseScoreAndReturnLoss01(int whichTeam)
+// {
+//     if (teamID != whichTeam) return 0f;
+
+//     float before = score01;        // direct field is fine inside the class
+//     LoseScore(whichTeam);
+//     return Mathf.Max(0f, before - score01);
+// }
+
+public float ComputeRespawnLossIfApplied01(int whichTeam)
+{
+    if (teamID != whichTeam) return 0f;
+    return Mathf.Min(score01, respawnPenalty01);
+}
+
 }

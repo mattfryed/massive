@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 8784c96d808277d4d8eb791f0f4683d2
+timeCreated: 1520909653
+licenseType: Store
+ShaderImporter:
+  defaultTextures: []
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 104580
+  packageName: Volumetric 3D Lasers
+  packageVersion: 1.3a
+  assetPath: Assets/SineVFX/Volumetric3DLasers/Resources/Shaders/NEW/NEWLaserLayerOpaqueMasked.shader
+  uploadId: 700963

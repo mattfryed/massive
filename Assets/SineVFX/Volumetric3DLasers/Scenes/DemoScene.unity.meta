@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 676f29f84d2d45c7a5f8ba3d19e203ae
+timeCreated: 1505494901
+licenseType: Store
+DefaultImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 104580
+  packageName: Volumetric 3D Lasers
+  packageVersion: 1.3a
+  assetPath: Assets/SineVFX/Volumetric3DLasers/Scenes/DemoScene.unity
+  uploadId: 700963

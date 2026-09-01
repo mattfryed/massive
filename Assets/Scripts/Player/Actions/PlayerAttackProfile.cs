@@ -65,6 +65,15 @@ namespace Massive.Player
         [SerializeField]
         private float animationTransitionDuration = 0.05f;
 
+        [Header("Repulsor (Finisher)")]
+        [Tooltip("Max world radius for FinisherRepulsor hitbox / VFX.")]
+        [SerializeField]
+        private float repulsorMaxRadius = 3.0f;
+
+        [Tooltip("Radius over time (0..1 stage normalized -> 0..1 radius).")]
+        [SerializeField]
+        private AnimationCurve repulsorRadiusCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
+
         // Note: particle-prefab-based FX have been removed.
         // GPU-based attack trails are driven by AttackTrailGPU,
         // using stage events + StageType / StageNormalizedTime.
@@ -86,6 +95,10 @@ namespace Massive.Player
         public string AnimationStateName => animationStateName;
 
         public float AnimationTransitionDuration => animationTransitionDuration;
+
+        public float RepulsorMaxRadius => Mathf.Max(0f, repulsorMaxRadius);
+
+        public AnimationCurve RepulsorRadiusCurve => repulsorRadiusCurve;
 
         public float ActivationFrameStart => activationFrameStart;
 

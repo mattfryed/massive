@@ -306,7 +306,8 @@ public class AttackTrailGPU : MonoBehaviour
 
         if (attackActive)
         {
-            fwdWS = attackController.CurrentAttackDirectionWS;
+            // Use visual direction so the trail can follow combo-swipe arcs.
+            fwdWS = attackController.CurrentAttackVisualDirectionWS;
         }
         else if (extT > 0.001f && extVel.sqrMagnitude > 0.0001f)
         {
@@ -328,6 +329,13 @@ public class AttackTrailGPU : MonoBehaviour
 
         // Stage time 0..1 (attack uses real stage time; external uses extT)
         float stageT = attackActive ? attackController.StageNormalizedTime : extT;
+
+        // Repulsor (stage 3) has its own dedicated VFX; suppress the forward "sword" trail.
+        if (attackActive && attackController.CurrentStage != null &&
+            attackController.CurrentStage.StageType == AttackStageType.FinisherRepulsor)
+        {
+            stageT = 0f;
+        }
 
         // Defaults (attack look)
         float useTrailLength  = trailLength;

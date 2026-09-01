@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 18358a27a82c41b2998edb4231d61765
+timeCreated: 1516641212
+licenseType: Store
+ShaderImporter:
+  defaultTextures: []
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 104580
+  packageName: Volumetric 3D Lasers
+  packageVersion: 1.3a
+  assetPath: Assets/SineVFX/Volumetric3DLasers/Resources/Shaders/FlareCustom.shader
+  uploadId: 700963

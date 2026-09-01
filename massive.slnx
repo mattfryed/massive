@@ -9,6 +9,7 @@
   <Project Path="AmazingAssets.WireframeShader.Editor.csproj" />
   <Project Path="OEBIF.csproj" />
   <Project Path="ShapesEditor.csproj" />
+  <Project Path="Unity.Postprocessing.Runtime.csproj" />
   <Project Path="FullscreenEditor.csproj" />
   <Project Path="AmazingAssets.WireframeShader.csproj" />
   <Project Path="Dypsloom.RhythmTimeline.Midi.Editor.csproj" />

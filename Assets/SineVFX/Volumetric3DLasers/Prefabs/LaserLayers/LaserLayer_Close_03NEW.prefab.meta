@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 616a8fb7775f4564ba2f7d18104aa6d3
+timeCreated: 1520909957
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 104580
+  packageName: Volumetric 3D Lasers
+  packageVersion: 1.3a
+  assetPath: Assets/SineVFX/Volumetric3DLasers/Prefabs/LaserLayers/LaserLayer_Close_03NEW.prefab
+  uploadId: 700963

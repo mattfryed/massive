@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 74c38f4451f9bf14d90ef553839413c2
+DefaultImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 104580
+  packageName: Volumetric 3D Lasers
+  packageVersion: 1.3a
+  assetPath: Assets/SineVFX/Volumetric3DLasers/Packages/LasersURP_2022_ShadersUpdate.unitypackage
+  uploadId: 700963

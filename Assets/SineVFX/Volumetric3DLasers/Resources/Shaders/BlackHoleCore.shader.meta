@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: f4652e871f2043d7b30e8acee00a08ba
+timeCreated: 1516642653
+licenseType: Store
+ShaderImporter:
+  defaultTextures: []
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 104580
+  packageName: Volumetric 3D Lasers
+  packageVersion: 1.3a
+  assetPath: Assets/SineVFX/Volumetric3DLasers/Resources/Shaders/BlackHoleCore.shader
+  uploadId: 700963

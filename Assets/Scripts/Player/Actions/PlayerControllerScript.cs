@@ -196,6 +196,42 @@ public class PlayerControllerScript : MonoBehaviour
     [SerializeField] private float respawnDelaySeconds = 0.5f;
     [SerializeField] private float respawnFxSeconds = 0.25f;
 
+    [Header("Respawn Safety - Physics Query")]
+    [SerializeField, Min(8)] private int respawnQueryMaxHits = 32;
+
+    // Optional: treat “too many hits” as blocked (safer)
+    [SerializeField] private bool respawnTreatFullBufferAsBlocked = true;
+
+    private Collider[] _respawnHits;
+
+    [SerializeField] private bool useSafeRespawnSearch = true;
+
+
+
+    [Header("Death/Respawn Distortion FX")]
+    [SerializeField] private GameObject deathDistortionBubblePrefab;
+    [SerializeField] private GameObject respawnDistortionBubblePrefab;
+
+    [Tooltip("Optional anchor for spawning distortion bubbles (defaults to visuals root, else player root).")]
+    [SerializeField] private Transform distortionBubbleAnchor;
+
+    [Tooltip("Optional world offset applied when spawning the bubble.")]
+    [SerializeField] private Vector3 distortionBubbleOffsetWS = Vector3.zero;
+
+    [Tooltip("If true, parent the bubble to the anchor. If false, spawn unparented in world.")]
+    [SerializeField] private bool parentDistortionToAnchor = false;
+
+    [SerializeField] private float deathDistortionAutoDestroySeconds = 2.0f;
+    [SerializeField] private float respawnDistortionAutoDestroySeconds = 2.0f;
+
+    [Header("Respawn Toast")]
+    [SerializeField] private bool showPlayerToastOnRespawn = true;
+    [SerializeField] private float respawnToastLifetime = 1.25f;
+
+    [SerializeField] private bool respawnToastPenaltyAsPercent = true;
+    [SerializeField] private string respawnToastPenaltyLabel = "TEAM MASS";
+
+
     
     
 [Header("Match Start Spawn")]
@@ -257,6 +293,8 @@ private bool _matchSpawning;
     [SerializeField] private float idleTime = 60f;
     public float timeSinceLastActivity;
     public float lastActivityTime;
+    private float _lastRespawnTeamScoreLost01 = 0f;
+
 
     // Input snapshots (legacy exposed)
     public float moveHorizontal;
@@ -442,6 +480,10 @@ if (showPlayerIdToastOnMatchStart)
 
         if (nuggetsGPU != null)
         _baseNuggetDrag = nuggetsGPU.drag;
+
+        if (_respawnHits == null || _respawnHits.Length != respawnQueryMaxHits)
+        _respawnHits = new Collider[respawnQueryMaxHits];
+
 
         
         // Determine respawn anchor. If you assign respawnPointOverride, that becomes authoritative.
@@ -1071,9 +1113,33 @@ public void ShrinkScaled(GameObject hitSource, float scale01)
         if (shield) shield.SetActive(false);
         if (sword) sword.SetActive(false);
 
-        // Apply team respawn penalty (ScoreSphereScript clamps at 0)
-        if (_teamScoreSphere != null) _teamScoreSphere.LoseScore(teamID);
-        else if (goalZone != null) goalZone.BroadcastMessage("LoseScore", teamID, SendMessageOptions.DontRequireReceiver);
+// Apply team respawn penalty AND cache how much was actually lost
+_lastRespawnTeamScoreLost01 = _teamScoreSphere.ComputeRespawnLossIfApplied01(teamID);
+_teamScoreSphere.LoseScore(teamID);
+if (_teamScoreSphere != null)
+{
+    // Read before
+    float before = _teamScoreSphere.Score01;
+
+    // The original behavior (known-good)
+    _teamScoreSphere.LoseScore(teamID);
+
+    // Read after
+    float after = _teamScoreSphere.Score01;
+
+    // Delta (clamped, and NaN-safe)
+    float delta = before - after;
+    if (!float.IsNaN(delta) && !float.IsInfinity(delta))
+        _lastRespawnTeamScoreLost01 = Mathf.Max(0f, delta);
+    else
+        _lastRespawnTeamScoreLost01 = 0f;
+}
+else if (goalZone != null)
+{
+    // Fallback path cannot compute delta (unless you stop using BroadcastMessage)
+    goalZone.BroadcastMessage("LoseScore", teamID, SendMessageOptions.DontRequireReceiver);
+}
+
 
         // playSFX("diedSFX");
         AudioSystem.I?.Play(AudioEventId.Player_Death, transform.position);
@@ -1100,6 +1166,9 @@ public void ShrinkScaled(GameObject hitSource, float scale01)
     {
         DeathStarted?.Invoke(this);
 
+        SpawnDistortionBubble(deathDistortionBubblePrefab, deathDistortionAutoDestroySeconds);
+
+
         // --- Death FX (shrink/dissolve) ---
         if (_lifeFx != null) yield return _lifeFx.PlayDeath(this, deathFxSeconds);
         else if (deathFxSeconds > 0f) yield return new WaitForSeconds(deathFxSeconds);
@@ -1113,6 +1182,7 @@ public void ShrinkScaled(GameObject hitSource, float scale01)
         }
 
         DeathHidden?.Invoke(this);
+        
 
         // --- Respawn delay ---
         if (respawnDelaySeconds > 0f)
@@ -1122,13 +1192,23 @@ public void ShrinkScaled(GameObject hitSource, float scale01)
         Vector3 basePos = respawnPointOverride ? respawnPointOverride.position : spawnAnchorWS;
         basePos.y = transform.position.y;
 
-        Vector3 respawnPos = FindSafeRespawnPosition(basePos);
+        Vector3 respawnPos = useSafeRespawnSearch ? FindSafeRespawnPosition(basePos) : basePos;
 
         TeleportTo(respawnPos);
 
         // Critical: snap visuals child immediately so the first render frame is correct
         if (visualsController != null && visualsController.visuals != null)
             visualsController.visuals.position = respawnPos;
+
+        SpawnDistortionBubble(respawnDistortionBubblePrefab, respawnDistortionAutoDestroySeconds);
+
+        if (showPlayerToastOnRespawn)
+    {
+        string subtitle = BuildRespawnPenaltySubtitle();
+        Massive.Players.UI.PlayerIdToastSystem.Instance?.ShowForPlayer(this, respawnToastLifetime, subtitle);
+    }
+
+
 
         // Reset mass now (but rebuild nugget buffers AFTER form finishes)
         massScore = spawnMassScore01;
@@ -1208,20 +1288,42 @@ isActive = timeSinceLastActivity <= idleTime;
 
     private bool IsRespawnSpotClear(Vector3 pos)
     {
-        var hits = Physics.OverlapSphere(pos, respawnCheckRadius, respawnBlockMask, QueryTriggerInteraction.Ignore);
-        foreach (var h in hits)
+        if (_respawnHits == null || _respawnHits.Length == 0)
+            _respawnHits = new Collider[Mathf.Max(8, respawnQueryMaxHits)];
+
+        int hitCount = Physics.OverlapSphereNonAlloc(
+            pos,
+            respawnCheckRadius,
+            _respawnHits,
+            respawnBlockMask,
+            QueryTriggerInteraction.Ignore
+        );
+
+        // If we filled the buffer completely, that means there may be MORE colliders we didn't even see.
+        // In dense scenes, this is a good early-out to avoid “respawn stalls”.
+        if (respawnTreatFullBufferAsBlocked && hitCount >= _respawnHits.Length)
+            return false;
+
+        for (int i = 0; i < hitCount; i++)
         {
+            var h = _respawnHits[i];
+            _respawnHits[i] = null; // clear slot for next call (keeps inspector cleaner / avoids stale refs)
+
             if (!h || !h.enabled) continue;
             if (rb != null && h.attachedRigidbody == rb) continue; // self
 
+            // block other players
             if (h.CompareTag("Player"))
                 return false;
 
+            // optionally block other rigidbodies (pushables, hazards, etc.)
             if (h.attachedRigidbody != null)
                 return false;
         }
+
         return true;
     }
+
 
 private void SetCollidersEnabled(bool enabled)
 {
@@ -1246,6 +1348,40 @@ private void SetCollidersEnabled(bool enabled)
         c.enabled = enabled;
     }
 }
+
+
+private void SpawnDistortionBubble(GameObject prefab, float autoDestroySeconds)
+{
+    if (!prefab) return;
+
+    Transform anchor = distortionBubbleAnchor;
+
+    // Prefer visuals root if available
+    if (!anchor && visualsController != null && visualsController.visuals != null)
+        anchor = visualsController.visuals;
+
+    if (!anchor) anchor = transform;
+
+    Vector3 pos = anchor.position + distortionBubbleOffsetWS;
+
+    Transform parent = parentDistortionToAnchor ? anchor : null;
+    GameObject fx = Instantiate(prefab, pos, Quaternion.identity, parent);
+
+    if (autoDestroySeconds > 0f)
+        Destroy(fx, autoDestroySeconds);
+}
+
+private string BuildRespawnPenaltySubtitle()
+{
+    if (_lastRespawnTeamScoreLost01 <= 0.0001f)
+        return null;
+
+    if (respawnToastPenaltyAsPercent)
+        return $"-{_lastRespawnTeamScoreLost01 * 100f:0}% {respawnToastPenaltyLabel}";
+
+    return $"-{_lastRespawnTeamScoreLost01:0.00} {respawnToastPenaltyLabel}";
+}
+
 
 
     // ===== Mass blob VFX =====

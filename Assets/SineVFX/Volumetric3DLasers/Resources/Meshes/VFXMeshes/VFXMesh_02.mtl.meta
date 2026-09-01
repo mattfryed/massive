@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: fb86de1d92be425aba60606e205a889f
+timeCreated: 1508099388
+licenseType: Store
+DefaultImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 104580
+  packageName: Volumetric 3D Lasers
+  packageVersion: 1.3a
+  assetPath: Assets/SineVFX/Volumetric3DLasers/Resources/Meshes/VFXMeshes/VFXMesh_02.mtl
+  uploadId: 700963

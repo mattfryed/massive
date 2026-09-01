@@ -17,18 +17,18 @@ MonoBehaviour:
     stageType: 0
     duration: 0.3
     activationFrameStart: 3
-    activationFrameEnd: 16
+    activationFrameEnd: 36
     animationFrameRate: 60
     allowComboCancel: 1
-    travelDistance: 3
+    travelDistance: 2
     distanceCurve:
       serializedVersion: 2
       m_Curve:
       - serializedVersion: 3
         time: 0
         value: 0
-        inSlope: 2
-        outSlope: 2
+        inSlope: 0
+        outSlope: 0
         tangentMode: 0
         weightedMode: 0
         inWeight: 0
@@ -48,8 +48,93 @@ MonoBehaviour:
     rotationArc: 0
     animationStateName: Thrust
     animationTransitionDuration: 0
+    repulsorMaxRadius: 3
+    repulsorRadiusCurve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
   - stageName: 1
     stageType: 1
+    duration: 0.4
+    activationFrameStart: 4
+    activationFrameEnd: 10
+    animationFrameRate: 60
+    allowComboCancel: 0
+    travelDistance: 1
+    distanceCurve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    rotationArc: 120
+    animationStateName: 
+    animationTransitionDuration: 0.1
+    repulsorMaxRadius: 3
+    repulsorRadiusCurve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+  - stageName: 1
+    stageType: 2
     duration: 0.3
     activationFrameStart: 4
     activationFrameEnd: 10
@@ -83,3 +168,28 @@ MonoBehaviour:
     rotationArc: 180
     animationStateName: 
     animationTransitionDuration: 0
+    repulsorMaxRadius: 3
+    repulsorRadiusCurve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4

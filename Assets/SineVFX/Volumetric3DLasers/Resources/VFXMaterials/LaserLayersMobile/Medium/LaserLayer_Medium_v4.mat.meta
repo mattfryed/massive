@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: ce71c95018884f9b93b768dd6233eb18
+timeCreated: 1508014778
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 104580
+  packageName: Volumetric 3D Lasers
+  packageVersion: 1.3a
+  assetPath: Assets/SineVFX/Volumetric3DLasers/Resources/VFXMaterials/LaserLayersMobile/Medium/LaserLayer_Medium_v4.mat
+  uploadId: 700963

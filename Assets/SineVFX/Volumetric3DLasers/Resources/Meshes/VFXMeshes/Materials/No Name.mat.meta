@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: da9e1bb2d05342908c4b89af9b48bf38
+timeCreated: 1509392404
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 104580
+  packageName: Volumetric 3D Lasers
+  packageVersion: 1.3a
+  assetPath: Assets/SineVFX/Volumetric3DLasers/Resources/Meshes/VFXMeshes/Materials/No
+    Name.mat
+  uploadId: 700963

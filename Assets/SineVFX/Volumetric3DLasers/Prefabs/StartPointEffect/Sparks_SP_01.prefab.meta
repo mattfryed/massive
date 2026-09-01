@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 948110469b6c4f6bba5bd4d9919f913e
+timeCreated: 1508856051
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 104580
+  packageName: Volumetric 3D Lasers
+  packageVersion: 1.3a
+  assetPath: Assets/SineVFX/Volumetric3DLasers/Prefabs/StartPointEffect/Sparks_SP_01.prefab
+  uploadId: 700963

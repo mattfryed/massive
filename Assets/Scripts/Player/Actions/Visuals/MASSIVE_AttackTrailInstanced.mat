@@ -26,6 +26,7 @@ Material:
     m_Ints: []
     m_Floats:
     - _OutlineHalf: 0.04
+    - _SizeScale: 1
     m_Colors:
     - _OutlineColor: {r: 1, g: 1, b: 1, a: 1}
     - _Team1Color: {r: 1, g: 1, b: 1, a: 1}

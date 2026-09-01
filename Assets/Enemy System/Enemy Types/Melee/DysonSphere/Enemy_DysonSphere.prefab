@@ -127,6 +127,13 @@ MonoBehaviour:
   breatheInsetAmplitude: 0
   perPanelPhaseJitter: 0.2
   breatheOutOnly: 1
+  playSpawnIn: 1
+  spawnSeconds: 3
+  spawnOutlineStart01: 0.097
+  spawnFillStart01: 0.25
+  spawnEdgeExponent: 1.6
+  spawnPanelStaggerSeconds: 0.5
+  restartCoreParticlesOnSpawn: 1
   spear01: 1
   spearLength: 0.5
   spearDotStart: -1
@@ -134,6 +141,10 @@ MonoBehaviour:
   spearInsetMultiplier: 0.927
   spearPinch: 0.961
   spearRotate: 0.994
+  stun01: 0
+  stunJitterPos: 0.04
+  stunJitterRotDegrees: 10
+  stunJitterSpeed: 24
   panelFillMaterial: {fileID: 2100000, guid: 2b7a8ee4325eb483bbe04d47b52ef0a9, type: 2}
   panelFillColor: {r: 0, g: 0, b: 0, a: 1}
   panelFillAlpha: 1
@@ -293,9 +304,11 @@ MonoBehaviour:
   lungeSeconds: 0.1
   postLungeCooldownSeconds: 1.65
   lungeDamageMultiplier: 1.25
-  parryStunSeconds: 3
+  parryStunSeconds: 4
   parryRecoilSpeed: 18
   stunnedLinearDamping: 10
+  stunVisualDecayPower: 1.6
+  stunVisualIntensity: 1.4
   playerTag: Player
   shieldTag: Shield
   requireLineOfSightToAttack: 1
@@ -5225,7 +5238,7 @@ SphereCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Radius: 0.85
+  m_Radius: 1
   m_Center: {x: 0, y: 0, z: 0}
 --- !u!114 &8995775192395696798
 MonoBehaviour:

@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: b2ca62a55a084c6dbba514c983d672ba
+timeCreated: 1510025948
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 104580
+  packageName: Volumetric 3D Lasers
+  packageVersion: 1.3a
+  assetPath: Assets/SineVFX/Volumetric3DLasers/Prefabs/SFXPrefsbs/StartWave_01.prefab
+  uploadId: 700963

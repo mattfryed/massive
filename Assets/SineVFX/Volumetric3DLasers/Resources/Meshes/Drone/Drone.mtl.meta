@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: b4e9714c99a84880a2ed93512be8149e
+timeCreated: 1508184162
+licenseType: Store
+DefaultImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 104580
+  packageName: Volumetric 3D Lasers
+  packageVersion: 1.3a
+  assetPath: Assets/SineVFX/Volumetric3DLasers/Resources/Meshes/Drone/Drone.mtl
+  uploadId: 700963
