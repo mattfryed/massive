@@ -1,14 +1,13 @@
 using System;
-using UnityEngine;
+using Massive.Scoring;
 
 [Serializable]
 public struct MatchResult
 {
     public TeamSide winner;
 
-    public float lightRaw;
-    public float darkRaw;
-    public float winScale;
+    public long lightMilliElectronVolts;
+    public long darkMilliElectronVolts;
 
     public GameMode mode;
 
@@ -16,6 +15,17 @@ public struct MatchResult
     public string stageTitle;
     public string gameplaySceneName;
 
-    public float Light01 => winScale > 0f ? Mathf.Clamp01(lightRaw / winScale) : 0f;
-    public float Dark01  => winScale > 0f ? Mathf.Clamp01(darkRaw / winScale)  : 0f;
+    public float regulationDurationSeconds;
+    public float bonusDurationSeconds;
+
+    public string scoringRulesetId;
+    public int scoringRulesetVersion;
+
+    public PlayerScoreContribution[] playerContributions;
+    public ScoreTelemetryRecord[] scoreTelemetry;
+
+    public long LightScore => Math.Max(0L, lightMilliElectronVolts);
+    public long DarkScore => Math.Max(0L, darkMilliElectronVolts);
+    public EnergyUnit LightUnit => EnergyScoreFormatter.GetUnit(LightScore);
+    public EnergyUnit DarkUnit => EnergyScoreFormatter.GetUnit(DarkScore);
 }

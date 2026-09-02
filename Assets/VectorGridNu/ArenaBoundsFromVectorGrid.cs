@@ -1,131 +1,205 @@
 using System;
 using UnityEngine;
 
-
-
 [ExecuteAlways]
+[DisallowMultipleComponent]
 public class ArenaBoundsFromVectorGrid : MonoBehaviour
 {
     [SerializeField] private VectorGridGPU grid;
 
-    [Header("Playable inset (optional)")]
-    [Tooltip("Positive shrinks the playable rect inward (world units). Useful if you want the inner edge of the thick border to be the 'true' playable area.")]
-    [Min(0f)] public float insetWorld = 0f;
+    [Header("Playable Inset (Optional)")]
+    [Tooltip("Positive values shrink the queryable playable rectangle inward in world units. " +
+             "The physical wall builder may still use the full VectorGridGPU.Size.")]
+    [Min(0f)]
+    public float insetWorld;
 
-// Broadcast (not shown in inspector)
-public event Action<BoundsSnapshot> OnBoundsChanged;
-
+    // C# event: intentionally not serialized or shown in the Inspector.
+    public event Action<BoundsSnapshot> OnBoundsChanged;
 
     [Serializable]
     public struct BoundsSnapshot
     {
         public Vector3 centerWS;
-        public Vector3 axisX_WS;   // grid local +X in world
-        public Vector3 axisY_WS;   // grid local +Y in world (often maps to world +Z in top-down)
-        public Vector3 normalWS;   // grid local +Z in world (often maps to world +Y in top-down)
-        public Vector2 halfSizeLocal;      // before inset
-        public Vector2 halfSizeLocalInset; // after inset
+        public Vector3 axisX_WS;
+        public Vector3 axisY_WS;
+        public Vector3 normalWS;
+        public Vector2 halfSizeLocal;
+        public Vector2 halfSizeLocalInset;
     }
 
+    public VectorGridGPU Grid => grid;
+    public float InsetWorld => insetWorld;
+    public bool IsValid => grid != null;
     public BoundsSnapshot Current { get; private set; }
 
-    void Reset()
+    private Transform GridTransform =>
+        grid != null ? grid.transform : transform;
+
+    private void Reset()
     {
-        if (!grid) grid = GetComponent<VectorGridGPU>();
+        AutoAssignGrid();
     }
 
-    void OnEnable() => RecomputeAndNotify(force: true);
-    void Update()   => RecomputeAndNotify(force: false);
-    void OnValidate() => RecomputeAndNotify(force: true);
+    private void OnEnable()
+    {
+        AutoAssignGrid();
+        RecomputeAndNotify(force: true);
+    }
+
+    private void OnValidate()
+    {
+        insetWorld = Mathf.Max(0f, insetWorld);
+        AutoAssignGrid();
+        RecomputeAndNotify(force: true);
+    }
+
+    private void Update()
+    {
+        RecomputeAndNotify(force: false);
+    }
+
+    public void RefreshNow(bool forceNotification = true)
+    {
+        AutoAssignGrid();
+        RecomputeAndNotify(forceNotification);
+    }
 
     public Vector2 GetHalfSizeLocalInset()
     {
-        if (!grid) return Vector2.zero;
+        if (grid == null)
+            return Vector2.zero;
 
         Vector2 half = grid.size * 0.5f;
-
-        // Convert world inset to local inset per-axis (handles scaled grid object)
-        Vector3 ls = transform.lossyScale;
-        float sx = Mathf.Max(1e-6f, Mathf.Abs(ls.x));
-        float sy = Mathf.Max(1e-6f, Mathf.Abs(ls.y));
-        Vector2 insetLocal = new Vector2(insetWorld / sx, insetWorld / sy);
+        Vector2 insetLocal = WorldDistanceToGridLocalAxes(insetWorld);
 
         return new Vector2(
             Mathf.Max(0f, half.x - insetLocal.x),
-            Mathf.Max(0f, half.y - insetLocal.y)
-        );
+            Mathf.Max(0f, half.y - insetLocal.y));
     }
 
-    public bool ContainsWorldPoint(Vector3 worldPos, float extraPaddingWorld = 0f)
+    public bool ContainsWorldPoint(
+        Vector3 worldPosition,
+        float extraPaddingWorld = 0f)
     {
-        if (!grid) return false;
+        if (grid == null)
+            return false;
 
-        // Convert to grid-local space (accounts for grid transform + scale)
-        Vector3 pL = transform.InverseTransformPoint(worldPos);
+        Transform gridTransform = GridTransform;
+        Vector3 localPosition =
+            gridTransform.InverseTransformPoint(worldPosition);
 
-        // Convert extra padding from world to local (per axis)
-        Vector3 ls = transform.lossyScale;
-        float sx = Mathf.Max(1e-6f, Mathf.Abs(ls.x));
-        float sy = Mathf.Max(1e-6f, Mathf.Abs(ls.y));
-        float padLX = extraPaddingWorld / sx;
-        float padLY = extraPaddingWorld / sy;
+        Vector2 paddingLocal = WorldDistanceToGridLocalAxes(
+            Mathf.Max(0f, extraPaddingWorld));
 
-        Vector2 halfInset = GetHalfSizeLocalInset();
-        return (Mathf.Abs(pL.x) <= (halfInset.x - padLX)) && (Mathf.Abs(pL.y) <= (halfInset.y - padLY));
+        Vector2 half = GetHalfSizeLocalInset();
+        float halfX = Mathf.Max(0f, half.x - paddingLocal.x);
+        float halfY = Mathf.Max(0f, half.y - paddingLocal.y);
+
+        return Mathf.Abs(localPosition.x) <= halfX &&
+               Mathf.Abs(localPosition.y) <= halfY;
     }
 
-    public Vector3 ClampWorldPointInside(Vector3 worldPos, float extraPaddingWorld = 0f)
+    public Vector3 ClampWorldPointInside(
+        Vector3 worldPosition,
+        float extraPaddingWorld = 0f)
     {
-        if (!grid) return worldPos;
+        if (grid == null)
+            return worldPosition;
 
-        Vector3 pL = transform.InverseTransformPoint(worldPos);
+        Transform gridTransform = GridTransform;
+        Vector3 localPosition =
+            gridTransform.InverseTransformPoint(worldPosition);
 
-        Vector3 ls = transform.lossyScale;
-        float sx = Mathf.Max(1e-6f, Mathf.Abs(ls.x));
-        float sy = Mathf.Max(1e-6f, Mathf.Abs(ls.y));
-        float padLX = extraPaddingWorld / sx;
-        float padLY = extraPaddingWorld / sy;
+        Vector2 paddingLocal = WorldDistanceToGridLocalAxes(
+            Mathf.Max(0f, extraPaddingWorld));
 
-        Vector2 halfInset = GetHalfSizeLocalInset();
-        float hx = Mathf.Max(0f, halfInset.x - padLX);
-        float hy = Mathf.Max(0f, halfInset.y - padLY);
+        Vector2 half = GetHalfSizeLocalInset();
+        float halfX = Mathf.Max(0f, half.x - paddingLocal.x);
+        float halfY = Mathf.Max(0f, half.y - paddingLocal.y);
 
-        pL.x = Mathf.Clamp(pL.x, -hx, hx);
-        pL.y = Mathf.Clamp(pL.y, -hy, hy);
+        localPosition.x = Mathf.Clamp(localPosition.x, -halfX, halfX);
+        localPosition.y = Mathf.Clamp(localPosition.y, -halfY, halfY);
 
-        return transform.TransformPoint(pL);
+        return gridTransform.TransformPoint(localPosition);
     }
 
-    void RecomputeAndNotify(bool force)
+    private Vector2 WorldDistanceToGridLocalAxes(float worldDistance)
     {
-        if (!grid) { Current = default; return; }
+        Vector3 scale = GridTransform.lossyScale;
+        float scaleX = Mathf.Max(0.000001f, Mathf.Abs(scale.x));
+        float scaleY = Mathf.Max(0.000001f, Mathf.Abs(scale.y));
 
-        var next = new BoundsSnapshot
+        return new Vector2(
+            worldDistance / scaleX,
+            worldDistance / scaleY);
+    }
+
+    private void RecomputeAndNotify(bool force)
+    {
+        if (grid == null)
         {
-            centerWS = transform.TransformPoint(Vector3.zero),
-            axisX_WS = transform.TransformVector(Vector3.right).normalized,
-            axisY_WS = transform.TransformVector(Vector3.up).normalized,
-            normalWS = transform.TransformVector(Vector3.forward).normalized,
+            BoundsSnapshot empty = default;
+
+            if (force || HasMeaningfulDifference(Current, empty))
+            {
+                Current = empty;
+                OnBoundsChanged?.Invoke(Current);
+            }
+
+            return;
+        }
+
+        Transform gridTransform = GridTransform;
+
+        BoundsSnapshot next = new BoundsSnapshot
+        {
+            centerWS = gridTransform.TransformPoint(Vector3.zero),
+            axisX_WS = gridTransform.TransformDirection(Vector3.right).normalized,
+            axisY_WS = gridTransform.TransformDirection(Vector3.up).normalized,
+            normalWS = gridTransform.TransformDirection(Vector3.forward).normalized,
             halfSizeLocal = grid.size * 0.5f,
             halfSizeLocalInset = GetHalfSizeLocalInset()
         };
 
-        if (force || HasMeaningfulDiff(Current, next))
-        {
-            Current = next;
-            OnBoundsChanged?.Invoke(Current);
-        }
+        if (!force && !HasMeaningfulDifference(Current, next))
+            return;
+
+        Current = next;
+        OnBoundsChanged?.Invoke(Current);
     }
 
-    static bool HasMeaningfulDiff(BoundsSnapshot a, BoundsSnapshot b)
+    private void AutoAssignGrid()
     {
-        const float eps = 1e-4f;
-        if ((a.centerWS - b.centerWS).sqrMagnitude > eps) return true;
-        if ((a.axisX_WS - b.axisX_WS).sqrMagnitude > eps) return true;
-        if ((a.axisY_WS - b.axisY_WS).sqrMagnitude > eps) return true;
-        if ((a.normalWS - b.normalWS).sqrMagnitude > eps) return true;
-        if ((a.halfSizeLocal - b.halfSizeLocal).sqrMagnitude > eps) return true;
-        if ((a.halfSizeLocalInset - b.halfSizeLocalInset).sqrMagnitude > eps) return true;
+        if (grid == null)
+            grid = GetComponent<VectorGridGPU>();
+    }
+
+    private static bool HasMeaningfulDifference(
+        BoundsSnapshot a,
+        BoundsSnapshot b)
+    {
+        const float epsilon = 0.0001f;
+        const float epsilonSquared = epsilon * epsilon;
+
+        if ((a.centerWS - b.centerWS).sqrMagnitude > epsilonSquared)
+            return true;
+
+        if ((a.axisX_WS - b.axisX_WS).sqrMagnitude > epsilonSquared)
+            return true;
+
+        if ((a.axisY_WS - b.axisY_WS).sqrMagnitude > epsilonSquared)
+            return true;
+
+        if ((a.normalWS - b.normalWS).sqrMagnitude > epsilonSquared)
+            return true;
+
+        if ((a.halfSizeLocal - b.halfSizeLocal).sqrMagnitude > epsilonSquared)
+            return true;
+
+        if ((a.halfSizeLocalInset - b.halfSizeLocalInset).sqrMagnitude >
+            epsilonSquared)
+            return true;
+
         return false;
     }
 }

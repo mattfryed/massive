@@ -146,7 +146,8 @@ public class PlayerControllerScript : MonoBehaviour
     [SerializeField, Range(0.05f, 0.6f)] private float aimDeadzone = 0.18f;
     private Vector3 lastStickAimWS = Vector3.right;
 
-    [Header("Mass v2 (Carry Cap + Overflow → Team Score)")]
+    [Header("Mass / Integrity")]
+    [Tooltip("Bounded body mass used for survivability and nugget density. It no longer converts to team score.")]
     [Range(0f, 1f)]
     public float massScore = 0.5f;
 
@@ -155,32 +156,22 @@ public class PlayerControllerScript : MonoBehaviour
 
     [SerializeField, Range(0f, 1f)] private float spawnMassScore01 = 0.5f;
 
-    [Tooltip("Mass gained by attacker per melee hit (0..1 massScore space).")]
+    [Tooltip("Mass restored to the attacker after a confirmed melee hit.")]
     [SerializeField] private float massGainPerHit = 0.08f;
 
-    [Tooltip("Mass lost by victim per melee hit (0..1 massScore space).")]
+    [Tooltip("Mass removed from the victim by a full melee hit.")]
     [SerializeField] private float massLossPerHit = 0.08f;
 
-    [Tooltip("Continuous drain while shield is held (massScore units per second).")]
+    [Tooltip("Continuous drain while shield is held, if that legacy behavior is re-enabled.")]
     [SerializeField] private float shieldDrainPerSecond01 = 0.004f;
 
-    [Tooltip("Minimum seconds between valid Shrink() applications (prevents multi-hit spam).")]
+    [Tooltip("Minimum seconds between accepted combat hits.")]
     [SerializeField] private float hitShrinkCooldownSeconds = 0.10f;
 
     [Header("Mass → Nuggets")]
     public int minNuggets = 5;
     public int midNuggets = 50;
     public int maxNuggets = 300;
-
-    [Header("Overflow Scoring")]
-    [SerializeField] private bool overflowScoresToTeam = true;
-
-    [Tooltip("Team score (0..1) gained per 1.0 overflow mass. Example: overflow 0.08 with k=0.25 => +0.02 score.")]
-    [SerializeField, Range(0f, 2f)] private float overflowScorePerMass = 0.25f;
-
-    [Header("Overflow VFX")]
-    [SerializeField] private bool spawnOverflowScoreVFX = true;
-    [SerializeField, Range(0, 10)] private int overflowVfxMaxBlobsPerEvent = 3;
 
     [Header("Legacy Deposit Helpers (kept for compatibility; ScoreSphere legacy mode should be OFF)")]
     [SerializeField] private float legacyGoalShrink01 = 0.0045f;
@@ -196,42 +187,6 @@ public class PlayerControllerScript : MonoBehaviour
     [SerializeField] private float respawnDelaySeconds = 0.5f;
     [SerializeField] private float respawnFxSeconds = 0.25f;
 
-    [Header("Respawn Safety - Physics Query")]
-    [SerializeField, Min(8)] private int respawnQueryMaxHits = 32;
-
-    // Optional: treat “too many hits” as blocked (safer)
-    [SerializeField] private bool respawnTreatFullBufferAsBlocked = true;
-
-    private Collider[] _respawnHits;
-
-    [SerializeField] private bool useSafeRespawnSearch = true;
-
-
-
-    [Header("Death/Respawn Distortion FX")]
-    [SerializeField] private GameObject deathDistortionBubblePrefab;
-    [SerializeField] private GameObject respawnDistortionBubblePrefab;
-
-    [Tooltip("Optional anchor for spawning distortion bubbles (defaults to visuals root, else player root).")]
-    [SerializeField] private Transform distortionBubbleAnchor;
-
-    [Tooltip("Optional world offset applied when spawning the bubble.")]
-    [SerializeField] private Vector3 distortionBubbleOffsetWS = Vector3.zero;
-
-    [Tooltip("If true, parent the bubble to the anchor. If false, spawn unparented in world.")]
-    [SerializeField] private bool parentDistortionToAnchor = false;
-
-    [SerializeField] private float deathDistortionAutoDestroySeconds = 2.0f;
-    [SerializeField] private float respawnDistortionAutoDestroySeconds = 2.0f;
-
-    [Header("Respawn Toast")]
-    [SerializeField] private bool showPlayerToastOnRespawn = true;
-    [SerializeField] private float respawnToastLifetime = 1.25f;
-
-    [SerializeField] private bool respawnToastPenaltyAsPercent = true;
-    [SerializeField] private string respawnToastPenaltyLabel = "TEAM MASS";
-
-
     
     
 [Header("Match Start Spawn")]
@@ -241,6 +196,7 @@ public class PlayerControllerScript : MonoBehaviour
 [SerializeField] private float playerIdToastLifetime = 1.25f;
 
 private bool _matchSpawning;
+private bool _matchInputLocked;
 
 
 
@@ -293,8 +249,6 @@ private bool _matchSpawning;
     [SerializeField] private float idleTime = 60f;
     public float timeSinceLastActivity;
     public float lastActivityTime;
-    private float _lastRespawnTeamScoreLost01 = 0f;
-
 
     // Input snapshots (legacy exposed)
     public float moveHorizontal;
@@ -311,10 +265,6 @@ private bool _matchSpawning;
         externalStunUntil = Mathf.Max(externalStunUntil, Time.time + Mathf.Max(0f, seconds));
     }
 
-    // Team score refs
-    private ScoreSphereScript _teamScoreSphere;
-    private GameObject _teamScoreTarget;
-
     // Colliders cache
     private Collider[] _allColliders;
 
@@ -325,10 +275,16 @@ private bool _matchSpawning;
     private Coroutine _deathRoutine;
 
     // Events
+    public event Action<PlayerHitResult> HitAccepted;
+    public event Action<PlayerDeathContext> DeathResolved;
     public event Action<PlayerControllerScript> DeathStarted;
     public event Action<PlayerControllerScript> DeathHidden;
     public event Action<PlayerControllerScript> RespawnStarted;
     public event Action<PlayerControllerScript> RespawnCompleted;
+    public event Action<PlayerControllerScript> MatchSpawnCompleted;
+
+    private int _lifeSequence = 1;
+    public int LifeSequence => _lifeSequence;
 
     public bool IsInvulnerable => Time.time < _invulnUntil;
 
@@ -454,6 +410,7 @@ if (showPlayerIdToastOnMatchStart)
     if (attackController != null) attackController.enabled = true;
 
     _matchSpawning = false;
+    MatchSpawnCompleted?.Invoke(this);
 }
 
 
@@ -481,10 +438,6 @@ if (showPlayerIdToastOnMatchStart)
         if (nuggetsGPU != null)
         _baseNuggetDrag = nuggetsGPU.drag;
 
-        if (_respawnHits == null || _respawnHits.Length != respawnQueryMaxHits)
-        _respawnHits = new Collider[respawnQueryMaxHits];
-
-
         
         // Determine respawn anchor. If you assign respawnPointOverride, that becomes authoritative.
         spawnAnchorWS = respawnPointOverride ? respawnPointOverride.position : transform.position;
@@ -504,8 +457,6 @@ if (showPlayerIdToastOnMatchStart)
     {
         if (goalZone == null)
             goalZone = (teamID == 1) ? GameObject.Find("TEAM 1") : GameObject.Find("TEAM 2");
-
-        CacheTeamScoreRefs();
 
         // Initialize aim from visual if possible
         if (visualsController != null && visualsController.visuals != null)
@@ -533,25 +484,34 @@ if (showPlayerIdToastOnMatchStart)
 }
 
 
-    private void CacheTeamScoreRefs()
-    {
-        _teamScoreSphere = null;
-        _teamScoreTarget = null;
-
-        if (!goalZone) return;
-
-        _teamScoreSphere = goalZone.GetComponentInChildren<ScoreSphereScript>(true);
-
-        var scoreSphereT = goalZone.transform.Find("Score Sphere");
-        _teamScoreTarget = scoreSphereT ? scoreSphereT.gameObject : null;
-    }
-
     private void Update()
     {
 
         if (_matchSpawning)
         {
             // Don’t read inputs while spawning; also don’t go “inactive”
+            lastActivityTime = Time.time;
+            timeSinceLastActivity = 0f;
+            isActive = true;
+            return;
+        }
+
+        if (_matchInputLocked)
+        {
+            moveHorizontal = 0f;
+            moveVertical = 0f;
+            movement = Vector3.zero;
+            didPlayerTapActionThisFrame = false;
+            shieldOn = false;
+
+            if (shield != null) shield.SetActive(false);
+            if (visualsController != null)
+            {
+                visualsController.SetMoveInput(Vector2.zero);
+                if (rb != null)
+                    visualsController.velocityWS = new Vector2(rb.linearVelocity.x, rb.linearVelocity.z);
+            }
+
             lastActivityTime = Time.time;
             timeSinceLastActivity = 0f;
             isActive = true;
@@ -753,7 +713,7 @@ if (showPlayerIdToastOnMatchStart)
 
     private void FixedUpdate()
     {
-        if (_worldGameplaySuppressed) return;
+        if (_worldGameplaySuppressed || _matchInputLocked) return;
 
         if (temporarilyEliminated || isStunned || IsExternallyStunned) return;
         if (!rb) return;
@@ -875,52 +835,16 @@ if (showPlayerIdToastOnMatchStart)
         if (sm != null) sm.GetComponent<SfxPlayerScript>()?.SafePlay(sfxName);
     }
 
-    // ===== Mass / Score =====
-    private void GainMass_WithOverflowScore(float delta01, bool allowOverflowScore)
+    // ===== Mass / Integrity =====
+    private float RestoreMass(float delta01)
     {
-        if (delta01 <= 0f) return;
+        if (temporarilyEliminated || delta01 <= 0f)
+            return 0f;
 
-        float cap = Mathf.Max(massScoreMin, massScoreMax);
-        float before = massScore;
-        float after = before + delta01;
-
-        float overflow = 0f;
-
-        if (after > cap)
-        {
-            overflow = after - cap;
-            massScore = cap;
-        }
-        else
-        {
-            massScore = after;
-        }
-
-        // Update only clamps + (optional) dotcount; safe during normal play
+        float before = Mathf.Clamp(massScore, massScoreMin, massScoreMax);
+        massScore = Mathf.Clamp(before + delta01, massScoreMin, massScoreMax);
         UpdateMassAndNuggets(forceRebuild: false);
-
-        if (!allowOverflowScore || !overflowScoresToTeam || overflow <= 0f) return;
-
-        float scoreDelta01 = overflow * overflowScorePerMass;
-        if (!Mathf.Approximately(scoreDelta01, 0f))
-        {
-            if (_teamScoreSphere != null) _teamScoreSphere.AddScore01(scoreDelta01);
-            else if (goalZone != null) goalZone.BroadcastMessage("AddScore01", scoreDelta01, SendMessageOptions.DontRequireReceiver);
-        }
-
-        if (spawnOverflowScoreVFX)
-            EmitOverflowScoreBlobs(overflow);
-    }
-
-    private void EmitOverflowScoreBlobs(float overflowMass01)
-    {
-        if (!massBlobPrefab || _teamScoreTarget == null) return;
-
-        float denom = Mathf.Max(0.0001f, massGainPerHit);
-        int count = Mathf.Clamp(Mathf.RoundToInt(overflowMass01 / denom), 1, overflowVfxMaxBlobsPerEvent);
-
-        for (int i = 0; i < count; i++)
-            EjectBlob(_teamScoreTarget);
+        return Mathf.Max(0f, massScore - before);
     }
 
     private void SyncNuggetsGeometryFromVisuals()
@@ -977,91 +901,171 @@ if (showPlayerIdToastOnMatchStart)
     // ===== Combat API (called by PlayerMelee / hazards) =====
     public void Grow()
     {
-        if (temporarilyEliminated) return;
-        GainMass_WithOverflowScore(massGainPerHit, allowOverflowScore: true);
+        RestoreMass(massGainPerHit);
     }
 
+    public void GrowScaled(float scale01)
+    {
+        float scale = Mathf.Clamp01(scale01);
+        if (scale <= 0f) return;
+        RestoreMass(massGainPerHit * scale);
+    }
+
+    /// <summary>
+    /// Resolves a combat hit transaction. No attacker benefit should be granted
+    /// until this method returns accepted=true.
+    /// </summary>
+    public PlayerHitResult TryApplyHit(GameObject hitSource, float scale01 = 1f)
+    {
+        float scale = Mathf.Clamp01(scale01);
+        return ApplyMassLoss(
+            requestedLoss01: massLossPerHit * scale,
+            hitSource: hitSource,
+            requestedScale01: scale,
+            allowDeath: true,
+            respectInvulnerability: true,
+            respectHitCooldown: true,
+            emitTransferVfx: true,
+            disruptsScoreChain: true);
+    }
+
+    // Legacy call sites remain source-compatible while using the transactional path.
     public void Shrink(GameObject hitSource)
     {
-        if (temporarilyEliminated) return;
-        if (IsInvulnerable) return;
+        TryApplyHit(hitSource, 1f);
+    }
 
-        if (Time.time - _timeOfLastShrink < hitShrinkCooldownSeconds)
-            return;
-
-        massScore -= massLossPerHit;
-        UpdateMassAndNuggets(forceRebuild: false);
-
-        if (hitSource != null)
-        {
-            for (int i = 0; i < 5; i++)
-                EjectBlob(hitSource);
-        }
-
-        if (massScore <= massScoreMin)
-            Die();
-
-        _timeOfLastShrink = Time.time;
+    public void ShrinkScaled(GameObject hitSource, float scale01)
+    {
+        TryApplyHit(hitSource, scale01);
     }
 
     public void ApplyExternalMassDelta(float delta, bool allowDeath = true)
     {
-        if (temporarilyEliminated) return;
+        ApplyExternalMassDelta(delta, null, allowDeath);
+    }
 
+    public PlayerHitResult ApplyExternalMassDelta(
+        float delta,
+        GameObject hitSource,
+        bool allowDeath = true,
+        bool disruptsScoreChain = false)
+    {
         if (delta >= 0f)
         {
-            GainMass_WithOverflowScore(delta, allowOverflowScore: true);
-            return;
+            float restored = RestoreMass(delta);
+            return new PlayerHitResult
+            {
+                accepted = restored > 0f,
+                causedDeath = false,
+                disruptsScoreChain = false,
+                victim = this,
+                attacker = ResolvePlayerFromSource(hitSource),
+                source = hitSource,
+                requestedScale01 = 0f,
+                appliedScale01 = 0f,
+                massLost01 = 0f,
+                victimLifeSequence = _lifeSequence,
+                worldPosition = transform.position
+            };
         }
 
-        massScore += delta;
+        return ApplyMassLoss(
+            requestedLoss01: -delta,
+            hitSource: hitSource,
+            requestedScale01: massLossPerHit > 0.0001f ? (-delta / massLossPerHit) : 1f,
+            allowDeath: allowDeath,
+            respectInvulnerability: false,
+            respectHitCooldown: false,
+            emitTransferVfx: false,
+            disruptsScoreChain: disruptsScoreChain);
+    }
+
+    private PlayerHitResult ApplyMassLoss(
+        float requestedLoss01,
+        GameObject hitSource,
+        float requestedScale01,
+        bool allowDeath,
+        bool respectInvulnerability,
+        bool respectHitCooldown,
+        bool emitTransferVfx,
+        bool disruptsScoreChain)
+    {
+        PlayerControllerScript attacker = ResolvePlayerFromSource(hitSource);
+        PlayerHitResult result = new PlayerHitResult
+        {
+            accepted = false,
+            causedDeath = false,
+            disruptsScoreChain = disruptsScoreChain,
+            victim = this,
+            attacker = attacker,
+            source = hitSource,
+            requestedScale01 = Mathf.Max(0f, requestedScale01),
+            appliedScale01 = 0f,
+            massLost01 = 0f,
+            victimLifeSequence = _lifeSequence,
+            worldPosition = transform.position
+        };
+
+        if (temporarilyEliminated || (respectInvulnerability && IsInvulnerable) || requestedLoss01 <= 0f)
+            return result;
+
+        if (respectHitCooldown && Time.time - _timeOfLastShrink < hitShrinkCooldownSeconds)
+            return result;
+
+        float before = Mathf.Clamp(massScore, massScoreMin, massScoreMax);
+        float available = Mathf.Max(0f, before - massScoreMin);
+        float actualLoss = Mathf.Min(requestedLoss01, available);
+        if (actualLoss <= 0f)
+            return result;
+
+        massScore = Mathf.Clamp(before - actualLoss, massScoreMin, massScoreMax);
         UpdateMassAndNuggets(forceRebuild: false);
 
-        if (allowDeath && massScore <= massScoreMin)
-            Die();
+        if (respectHitCooldown)
+            _timeOfLastShrink = Time.time;
+
+        float appliedScale = massLossPerHit > 0.0001f
+            ? Mathf.Clamp01(actualLoss / massLossPerHit)
+            : Mathf.Clamp01(requestedScale01);
+
+        if (emitTransferVfx && hitSource != null)
+        {
+            const int maxBlobs = 5;
+            int count = Mathf.Clamp(Mathf.RoundToInt(maxBlobs * Mathf.Max(0.01f, appliedScale)), 1, maxBlobs);
+            for (int i = 0; i < count; i++)
+                EjectBlob(hitSource);
+        }
+
+        bool causedDeath = allowDeath && massScore <= massScoreMin + 0.00001f;
+
+        result.accepted = true;
+        result.causedDeath = causedDeath;
+        result.appliedScale01 = appliedScale;
+        result.massLost01 = actualLoss;
+        result.worldPosition = transform.position;
+
+        HitAccepted?.Invoke(result);
+
+        if (causedDeath)
+        {
+            Die(new PlayerDeathContext
+            {
+                victim = this,
+                killer = attacker,
+                source = hitSource,
+                victimLifeSequence = _lifeSequence,
+                worldPosition = transform.position
+            });
+        }
+
+        return result;
     }
 
-public void GrowScaled(float scale01)
-{
-    if (temporarilyEliminated) return;
-
-    float s = Mathf.Clamp01(scale01);
-    if (s <= 0f) return;
-
-    GainMass_WithOverflowScore(massGainPerHit * s, allowOverflowScore: true);
-}
-
-public void ShrinkScaled(GameObject hitSource, float scale01)
-{
-    if (temporarilyEliminated) return;
-    if (IsInvulnerable) return;
-
-    float s = Mathf.Clamp01(scale01);
-    if (s <= 0f) return;
-
-    if (Time.time - _timeOfLastShrink < hitShrinkCooldownSeconds)
-        return;
-
-    float loss = massLossPerHit * s;
-    massScore -= loss;
-    UpdateMassAndNuggets(forceRebuild: false);
-
-    // VFX: eject fewer blobs proportional to the scaled hit
-    if (hitSource != null)
+    private static PlayerControllerScript ResolvePlayerFromSource(GameObject source)
     {
-        const int maxBlobs = 5;
-        int num = Mathf.Clamp(Mathf.RoundToInt(maxBlobs * s), 1, maxBlobs);
-
-        for (int i = 0; i < num; i++)
-            EjectBlob(hitSource);
+        return source != null ? source.GetComponentInParent<PlayerControllerScript>() : null;
     }
-
-    if (massScore <= massScoreMin)
-        Die();
-
-    _timeOfLastShrink = Time.time;
-}
-
 
     // Legacy deposit helpers (kept for compatibility)
     public void ShrinkSlow(GameObject target)
@@ -1098,11 +1102,28 @@ public void ShrinkScaled(GameObject hitSource, float scale01)
     // ===== Death / Respawn =====
     private void Die()
     {
+        Die(new PlayerDeathContext
+        {
+            victim = this,
+            killer = null,
+            source = null,
+            victimLifeSequence = _lifeSequence,
+            worldPosition = transform.position
+        });
+    }
+
+    private void Die(PlayerDeathContext deathContext)
+    {
         if (temporarilyEliminated) return;
         if (_deathRoutine != null) return;
 
         temporarilyEliminated = true;
         isActive = false;
+
+        deathContext.victim = this;
+        deathContext.victimLifeSequence = _lifeSequence;
+        deathContext.worldPosition = transform.position;
+        DeathResolved?.Invoke(deathContext);
 
         CancelInvoke();
         isStunned = false;
@@ -1113,35 +1134,6 @@ public void ShrinkScaled(GameObject hitSource, float scale01)
         if (shield) shield.SetActive(false);
         if (sword) sword.SetActive(false);
 
-// Apply team respawn penalty AND cache how much was actually lost
-_lastRespawnTeamScoreLost01 = _teamScoreSphere.ComputeRespawnLossIfApplied01(teamID);
-_teamScoreSphere.LoseScore(teamID);
-if (_teamScoreSphere != null)
-{
-    // Read before
-    float before = _teamScoreSphere.Score01;
-
-    // The original behavior (known-good)
-    _teamScoreSphere.LoseScore(teamID);
-
-    // Read after
-    float after = _teamScoreSphere.Score01;
-
-    // Delta (clamped, and NaN-safe)
-    float delta = before - after;
-    if (!float.IsNaN(delta) && !float.IsInfinity(delta))
-        _lastRespawnTeamScoreLost01 = Mathf.Max(0f, delta);
-    else
-        _lastRespawnTeamScoreLost01 = 0f;
-}
-else if (goalZone != null)
-{
-    // Fallback path cannot compute delta (unless you stop using BroadcastMessage)
-    goalZone.BroadcastMessage("LoseScore", teamID, SendMessageOptions.DontRequireReceiver);
-}
-
-
-        // playSFX("diedSFX");
         AudioSystem.I?.Play(AudioEventId.Player_Death, transform.position);
 
         // Disable collisions immediately so we can't keep interacting while dissolving
@@ -1166,9 +1158,6 @@ else if (goalZone != null)
     {
         DeathStarted?.Invoke(this);
 
-        SpawnDistortionBubble(deathDistortionBubblePrefab, deathDistortionAutoDestroySeconds);
-
-
         // --- Death FX (shrink/dissolve) ---
         if (_lifeFx != null) yield return _lifeFx.PlayDeath(this, deathFxSeconds);
         else if (deathFxSeconds > 0f) yield return new WaitForSeconds(deathFxSeconds);
@@ -1182,7 +1171,6 @@ else if (goalZone != null)
         }
 
         DeathHidden?.Invoke(this);
-        
 
         // --- Respawn delay ---
         if (respawnDelaySeconds > 0f)
@@ -1192,7 +1180,7 @@ else if (goalZone != null)
         Vector3 basePos = respawnPointOverride ? respawnPointOverride.position : spawnAnchorWS;
         basePos.y = transform.position.y;
 
-        Vector3 respawnPos = useSafeRespawnSearch ? FindSafeRespawnPosition(basePos) : basePos;
+        Vector3 respawnPos = FindSafeRespawnPosition(basePos);
 
         TeleportTo(respawnPos);
 
@@ -1200,18 +1188,14 @@ else if (goalZone != null)
         if (visualsController != null && visualsController.visuals != null)
             visualsController.visuals.position = respawnPos;
 
-        SpawnDistortionBubble(respawnDistortionBubblePrefab, respawnDistortionAutoDestroySeconds);
-
-        if (showPlayerToastOnRespawn)
-    {
-        string subtitle = BuildRespawnPenaltySubtitle();
-        Massive.Players.UI.PlayerIdToastSystem.Instance?.ShowForPlayer(this, respawnToastLifetime, subtitle);
-    }
-
-
-
         // Reset mass now (but rebuild nugget buffers AFTER form finishes)
         massScore = spawnMassScore01;
+
+        unchecked
+        {
+            _lifeSequence++;
+            if (_lifeSequence <= 0) _lifeSequence = 1;
+        }
 
         RespawnStarted?.Invoke(this);
 
@@ -1288,42 +1272,20 @@ isActive = timeSinceLastActivity <= idleTime;
 
     private bool IsRespawnSpotClear(Vector3 pos)
     {
-        if (_respawnHits == null || _respawnHits.Length == 0)
-            _respawnHits = new Collider[Mathf.Max(8, respawnQueryMaxHits)];
-
-        int hitCount = Physics.OverlapSphereNonAlloc(
-            pos,
-            respawnCheckRadius,
-            _respawnHits,
-            respawnBlockMask,
-            QueryTriggerInteraction.Ignore
-        );
-
-        // If we filled the buffer completely, that means there may be MORE colliders we didn't even see.
-        // In dense scenes, this is a good early-out to avoid “respawn stalls”.
-        if (respawnTreatFullBufferAsBlocked && hitCount >= _respawnHits.Length)
-            return false;
-
-        for (int i = 0; i < hitCount; i++)
+        var hits = Physics.OverlapSphere(pos, respawnCheckRadius, respawnBlockMask, QueryTriggerInteraction.Ignore);
+        foreach (var h in hits)
         {
-            var h = _respawnHits[i];
-            _respawnHits[i] = null; // clear slot for next call (keeps inspector cleaner / avoids stale refs)
-
             if (!h || !h.enabled) continue;
             if (rb != null && h.attachedRigidbody == rb) continue; // self
 
-            // block other players
             if (h.CompareTag("Player"))
                 return false;
 
-            // optionally block other rigidbodies (pushables, hazards, etc.)
             if (h.attachedRigidbody != null)
                 return false;
         }
-
         return true;
     }
-
 
 private void SetCollidersEnabled(bool enabled)
 {
@@ -1348,40 +1310,6 @@ private void SetCollidersEnabled(bool enabled)
         c.enabled = enabled;
     }
 }
-
-
-private void SpawnDistortionBubble(GameObject prefab, float autoDestroySeconds)
-{
-    if (!prefab) return;
-
-    Transform anchor = distortionBubbleAnchor;
-
-    // Prefer visuals root if available
-    if (!anchor && visualsController != null && visualsController.visuals != null)
-        anchor = visualsController.visuals;
-
-    if (!anchor) anchor = transform;
-
-    Vector3 pos = anchor.position + distortionBubbleOffsetWS;
-
-    Transform parent = parentDistortionToAnchor ? anchor : null;
-    GameObject fx = Instantiate(prefab, pos, Quaternion.identity, parent);
-
-    if (autoDestroySeconds > 0f)
-        Destroy(fx, autoDestroySeconds);
-}
-
-private string BuildRespawnPenaltySubtitle()
-{
-    if (_lastRespawnTeamScoreLost01 <= 0.0001f)
-        return null;
-
-    if (respawnToastPenaltyAsPercent)
-        return $"-{_lastRespawnTeamScoreLost01 * 100f:0}% {respawnToastPenaltyLabel}";
-
-    return $"-{_lastRespawnTeamScoreLost01:0.00} {respawnToastPenaltyLabel}";
-}
-
 
 
     // ===== Mass blob VFX =====
@@ -1425,7 +1353,7 @@ private string BuildRespawnPenaltySubtitle()
 
         // Cancel any in-progress attack sequence (prevents “ghost” attack motion)
         if (attackController != null)
-            attackController.CancelAttack(); // :contentReference[oaicite:10]{index=10}
+            attackController.CancelAttack(); //
 
         
         // shieldAbility?.ForceStopShield();
@@ -1466,7 +1394,7 @@ private string BuildRespawnPenaltySubtitle()
         // Blob jitter (re-using your Particle Accelerator style external modifier)
         if (visualsController != null)
             visualsController.SetExternalChargeJitter01(Mathf.Clamp01(stunBlobJitterMul * s));
-        // (This ultimately drives the amp*sin/cos render jitter):contentReference[oaicite:12]{index=12}
+        // (This ultimately drives the amp*sin/cos render jitter)
 
         // Nuggets drag ramp
         if (nuggetsGPU != null && _baseNuggetDrag <= 0f)
@@ -1539,6 +1467,38 @@ private string BuildRespawnPenaltySubtitle()
     }
 
     return transform.Find(childName);
+}
+
+public bool IsMatchInputLocked => _matchInputLocked;
+
+public void SetMatchInputLocked(bool locked)
+{
+    if (_matchInputLocked == locked)
+        return;
+
+    _matchInputLocked = locked;
+
+    if (!locked)
+        return;
+
+    moveHorizontal = 0f;
+    moveVertical = 0f;
+    movement = Vector3.zero;
+    didPlayerTapActionThisFrame = false;
+    shieldOn = false;
+
+    if (shield != null) shield.SetActive(false);
+    if (attackController != null) attackController.CancelAttack(signalComplete: false);
+
+    if (rb != null)
+    {
+#if UNITY_6000_0_OR_NEWER
+        rb.linearVelocity = Vector3.zero;
+#else
+        rb.velocity = Vector3.zero;
+#endif
+        rb.angularVelocity = Vector3.zero;
+    }
 }
 
 public void SetWorldGameplaySuppressed(bool suppressed)

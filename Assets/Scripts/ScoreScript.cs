@@ -1,25 +1,27 @@
-﻿using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
+﻿using UnityEngine;
 
+/// <summary>
+/// Retained only so legacy scene references do not become missing scripts during
+/// the scoring migration. Physical goal deposit is not part of the timed energy
+/// economy and this component no longer mutates player mass or team score.
+/// </summary>
+[DisallowMultipleComponent]
 public class ScoreScript : MonoBehaviour
 {
-    // Start is called before the first frame update
-
+    [SerializeField] private bool logLegacyContact;
     public GameObject Goal;
 
-
+    private bool _warned;
 
     private void OnTriggerStay(Collider other)
     {
-        Debug.Log("Trigger entered");
-        if (other.gameObject.tag == "Body")
-        {
-            Debug.Log("Player identified");
-            other.gameObject.transform.parent.gameObject.BroadcastMessage("GoalShrink");
-            transform.parent.BroadcastMessage("Grow");
-        }
+        if (!logLegacyContact || _warned || other == null || !other.CompareTag("Body"))
+            return;
+
+        _warned = true;
+        Debug.LogWarning(
+            "[ScoreScript] Legacy physical deposit was contacted. This component is intentionally inert; " +
+            "route scoring through MatchScoreService/ScoreRewardEmitter instead.",
+            this);
     }
-
-
 }

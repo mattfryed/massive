@@ -1,4 +1,5 @@
 using UnityEngine;
+using Massive.Scoring;
 
 namespace Massive.PowerUps
 {
@@ -12,7 +13,10 @@ namespace Massive.PowerUps
         [SerializeField] private bool requireAttackToActivate = true;
 
         [SerializeField] private LayerMask attackActivatorLayers;
-        
+
+        [Header("Scoring (Optional)")]
+        [Tooltip("Add a ScoreRewardEmitter to this prefab to award the centrally configured POWER_UP_CLAIM reward.")]
+        [SerializeField] private ScoreRewardEmitter scoreRewardEmitter;
 
         [Header("Tutorial / Debug")]
         [Tooltip("If enabled, the pickup will NOT despawn from worldLifetimeSeconds timing out (but it WILL still despawn when collected).")]
@@ -29,8 +33,10 @@ namespace Massive.PowerUps
         private void Awake()
         {
             _anim = GetComponent<PowerUpIconManifestAnimator>();
-             _iconParticles = GetComponentInChildren<PowerUpIconParticleSizeEase>(true);
+            _iconParticles = GetComponentInChildren<PowerUpIconParticleSizeEase>(true);
 
+            if (scoreRewardEmitter == null)
+                scoreRewardEmitter = GetComponent<ScoreRewardEmitter>();
         }
 
         private void OnEnable()
@@ -113,11 +119,15 @@ private void OnTriggerEnter(Collider other)
 
     // Apply effect:
     // - Instant power-ups apply immediately and DO NOT occupy the equipped slot.
-    // - Normal power-ups Equip() (overwrite behavior lives in the controller). :contentReference[oaicite:2]{index=2}
+    // - Normal power-ups Equip() (overwrite behavior lives in the controller).
     if (definition is IInstantPowerUpEffect instant)
         instant.ApplyInstant(player, p, gameObject);
     else
         p.Equip(definition);
+
+    // Score is committed immediately on the confirmed claim. The emitter stores
+    // only a reward key; its numeric value comes from ScoreEconomyProfile.
+    scoreRewardEmitter?.TryAward(player, transform.position);
 
     // Toast ALWAYS (you wanted mass nodes to still show it)
     if (PowerUpPickupToastSystem.Instance != null)

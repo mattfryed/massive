@@ -1,3 +1,6 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 public class PlayerRosterController : MonoBehaviour
@@ -14,10 +17,16 @@ public class PlayerRosterController : MonoBehaviour
     [Header("Safety")]
     [SerializeField] private bool autoAssignByPlayerIdIfMissing = true;
 
+    private readonly HashSet<PlayerControllerScript> _pendingMatchSpawns = new HashSet<PlayerControllerScript>();
+    private bool _rosterReady;
+
+    public event Action RosterReady;
+
     public GameObject P1 => player1;
     public GameObject P2 => player2;
     public GameObject P3 => player3;
     public GameObject P4 => player4;
+    public bool IsRosterReady => _rosterReady;
 
     private void Awake()
     {
@@ -29,58 +38,117 @@ public class PlayerRosterController : MonoBehaviour
         bool is2v2 = GameFlowContext.Instance.IsTwoVTwo;
         ApplyRoster(is2v2);
 
-        // Optional: log once so you can confirm it’s working in play mode.
-        Debug.Log($"[Roster] Mode={GameFlowContext.Instance.Mode} | Active: " +
-                  $"P1={IsActive(player1)} P2={IsActive(player2)} P3={IsActive(player3)} P4={IsActive(player4)}", this);
+        Debug.Log(
+            $"[Roster] Mode={GameFlowContext.Instance.Mode} | Active: " +
+            $"P1={IsActive(player1)} P2={IsActive(player2)} P3={IsActive(player3)} P4={IsActive(player4)}",
+            this);
     }
 
     private void Start()
-{
-    // Start AFTER Awake has activated/deactivated players.
-    // Wait one frame so newly enabled players have run Awake/OnEnable.
-    StartCoroutine(BeginMatchSpawnAfterOneFrame());
-}
+    {
+        StartCoroutine(BeginMatchSpawnAfterOneFrame());
+    }
 
-private System.Collections.IEnumerator BeginMatchSpawnAfterOneFrame()
-{
-    yield return null;
+    private void OnDestroy()
+    {
+        UnsubscribeFromPendingPlayers();
+    }
 
-    TryBegin(player1);
-    TryBegin(player2);
-    TryBegin(player3);
-    TryBegin(player4);
-}
+    private IEnumerator BeginMatchSpawnAfterOneFrame()
+    {
+        yield return null;
 
-private void TryBegin(GameObject playerGO)
-{
-    if (!playerGO || !playerGO.activeInHierarchy) return;
+        _rosterReady = false;
+        _pendingMatchSpawns.Clear();
 
-    var pc = playerGO.GetComponent<PlayerControllerScript>();
-    if (pc) pc.BeginMatchStartSpawn();
-}
+        CollectPendingPlayer(player1);
+        CollectPendingPlayer(player2);
+        CollectPendingPlayer(player3);
+        CollectPendingPlayer(player4);
+
+        if (_pendingMatchSpawns.Count == 0)
+        {
+            MarkRosterReady();
+            yield break;
+        }
+
+        PlayerControllerScript[] players = new PlayerControllerScript[_pendingMatchSpawns.Count];
+        _pendingMatchSpawns.CopyTo(players);
+
+        for (int i = 0; i < players.Length; i++)
+            players[i].MatchSpawnCompleted += OnPlayerMatchSpawnCompleted;
+
+        for (int i = 0; i < players.Length; i++)
+            players[i].BeginMatchStartSpawn();
+    }
+
+    private void CollectPendingPlayer(GameObject playerObject)
+    {
+        if (playerObject == null || !playerObject.activeInHierarchy)
+            return;
+
+        PlayerControllerScript player = playerObject.GetComponent<PlayerControllerScript>();
+        if (player != null)
+            _pendingMatchSpawns.Add(player);
+    }
+
+    private void OnPlayerMatchSpawnCompleted(PlayerControllerScript player)
+    {
+        if (player != null)
+            player.MatchSpawnCompleted -= OnPlayerMatchSpawnCompleted;
+
+        _pendingMatchSpawns.Remove(player);
+
+        if (_pendingMatchSpawns.Count == 0)
+            MarkRosterReady();
+    }
+
+    private void MarkRosterReady()
+    {
+        if (_rosterReady) return;
+        _rosterReady = true;
+        RosterReady?.Invoke();
+    }
+
+    private void UnsubscribeFromPendingPlayers()
+    {
+        foreach (PlayerControllerScript player in _pendingMatchSpawns)
+        {
+            if (player != null)
+                player.MatchSpawnCompleted -= OnPlayerMatchSpawnCompleted;
+        }
+
+        _pendingMatchSpawns.Clear();
+    }
 
     private void AutoAssignIfMissing()
     {
         if (player1 && player2 && player3 && player4) return;
 
-        // IMPORTANT: includes inactive objects so “all players off” still wires.
-        var players = FindObjectsByType<PlayerControllerScript>(FindObjectsInactive.Include, FindObjectsSortMode.None);
-        foreach (var p in players)
-        {
-            if (!p) continue;
+        PlayerControllerScript[] players = FindObjectsByType<PlayerControllerScript>(
+            FindObjectsInactive.Include,
+            FindObjectsSortMode.None);
 
-            switch (p.playerID)
+        foreach (PlayerControllerScript player in players)
+        {
+            if (!player) continue;
+
+            switch (player.playerID)
             {
-                case 0: player1 ??= p.gameObject; break;
-                case 1: player2 ??= p.gameObject; break;
-                case 2: player3 ??= p.gameObject; break;
-                case 3: player4 ??= p.gameObject; break;
+                case 0: player1 ??= player.gameObject; break;
+                case 1: player2 ??= player.gameObject; break;
+                case 2: player3 ??= player.gameObject; break;
+                case 3: player4 ??= player.gameObject; break;
             }
         }
 
         if (!player1 || !player2 || !player3 || !player4)
-            Debug.LogWarning($"[Roster] Missing player refs after auto-assign. " +
-                             $"P1={player1} P2={player2} P3={player3} P4={player4}", this);
+        {
+            Debug.LogWarning(
+                $"[Roster] Missing player refs after auto-assign. " +
+                $"P1={player1} P2={player2} P3={player3} P4={player4}",
+                this);
+        }
     }
 
     public void ApplyRoster(bool is2v2)
@@ -110,10 +178,14 @@ private void TryBegin(GameObject playerGO)
         }
     }
 
-    private static void SetActiveSafe(GameObject go, bool active)
+    private static void SetActiveSafe(GameObject target, bool active)
     {
-        if (go != null) go.SetActive(active);
+        if (target != null)
+            target.SetActive(active);
     }
 
-    private static bool IsActive(GameObject go) => go != null && go.activeInHierarchy;
+    private static bool IsActive(GameObject target)
+    {
+        return target != null && target.activeInHierarchy;
+    }
 }

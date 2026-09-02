@@ -1,117 +1,287 @@
-﻿using UnityEngine;
+﻿using System;
+using System.Collections;
+using Massive.Scoring;
+using UnityEngine;
 
+/// <summary>
+/// Presentation-only score void/sphere driver. MatchScoreService owns score.
+/// The visual grows across the current engineering tier, bursts on promotion,
+/// then collapses to the beginning of the next tier.
+/// </summary>
+[DisallowMultipleComponent]
 public class ScoreSphereScript : MonoBehaviour
 {
     [Header("Identity")]
     public int teamID = 1;
 
-    [Header("Score State (0..1 = 0..100)")]
-    [SerializeField, Range(0f, 1f)] private float score01 = 0.5f;
+    [Header("Score Source")]
+    [SerializeField] private MatchScoreService scoreService;
 
-    [Header("Visuals")]
-    public GameObject sphereGraphic;   // the thing that scales
-    public GameObject scoreboard;      // has ScoreboardManagerScript
-    [SerializeField] private float maxSize = 11f; // “100%” size of the score graphic
+    [Header("Visual")]
+    [SerializeField] private GameObject sphereGraphic;
+    [SerializeField, Min(0f)] private float minSize = 0.15f;
+    [SerializeField, Min(0.01f)] private float maxSize = 11f;
+    [SerializeField] private AnimationCurve progressToScale = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
+    [SerializeField, Min(0f)] private float followSharpness = 16f;
 
-    [Header("Respawn Penalty")]
-    [SerializeField, Range(0f, 1f)]
-    private float respawnPenalty01 = 0.05f;
+    [Header("Tier Promotion")]
+    [SerializeField] private Animator promotionAnimator;
+    [SerializeField] private string promotionTrigger = "Promote";
+    [SerializeField, Min(0f)] private float promotionSeconds = 0.28f;
+    [SerializeField, Min(1f)] private float promotionOvershoot = 1.08f;
+    [SerializeField] private bool useUnscaledTime = true;
 
-    [Header("Legacy Deposit Mode (OFF for Mass v2)")]
-    [SerializeField] private bool enableGoalDeposit = false;
+    [Header("Optional Legacy Scoreboard Object")]
+    [Tooltip("Only used to auto-locate a ScoreboardManagerScript. The scoreboard subscribes to MatchScoreService directly.")]
+    [SerializeField] private GameObject scoreboard;
 
-    // old pacing knob retained so deposit feels identical if re-enabled later
-    [SerializeField] private float sizeChangeOnGoalHit = 0.01f;
+    private Coroutine _bindRoutine;
+    private Coroutine _promotionRoutine;
+    private Vector3 _targetScale;
+    private float _tierProgress01;
+    private long _rawScore;
+    private EnergyUnit _unit;
+    private bool _bound;
+    private bool _warnedLegacyApi;
 
-    public float Score01 => score01;
+    [Obsolete("Score01 now means current-tier visual progress only. Use MatchScoreService for score data.")]
+    public float Score01 => _tierProgress01;
+    public float TierProgress01 => _tierProgress01;
     public float MaxSize => maxSize;
+    public long RawMilliElectronVolts => _rawScore;
+    public EnergyUnit CurrentUnit => _unit;
 
-    private void Start()
+    private Transform GraphicTransform => sphereGraphic != null ? sphereGraphic.transform : transform;
+
+    private void OnEnable()
     {
-        // Treat score01 as authoritative at runtime.
-        ApplyVisuals();
+        _targetScale = Vector3.one * Mathf.Max(0f, minSize);
+        GraphicTransform.localScale = _targetScale;
+        if (_bindRoutine == null)
+            _bindRoutine = StartCoroutine(BindWhenAvailable());
     }
 
-    private void ApplyVisuals()
+    private void OnDisable()
     {
-        if (sphereGraphic != null)
-        {
-            float s = score01 * maxSize;
+        Unbind();
 
-            if (sphereGraphic.TryGetComponent<RectTransform>(out var rt))
-                rt.localScale = new Vector3(s, s, s);
-            else
-                sphereGraphic.transform.localScale = new Vector3(s, s, s);
+        if (_bindRoutine != null)
+        {
+            StopCoroutine(_bindRoutine);
+            _bindRoutine = null;
         }
 
-        if (scoreboard != null)
+        if (_promotionRoutine != null)
         {
-            var sb = scoreboard.GetComponent<ScoreboardManagerScript>();
-            if (sb != null) sb.UpdateScoreboard(score01);
-        }
-    }
-
-    public void SetScore01(float newScore01)
-    {
-        score01 = Mathf.Clamp01(newScore01);
-        ApplyVisuals();
-    }
-
-    public void AddScore01(float delta01)
-    {
-        if (Mathf.Approximately(delta01, 0f)) return;
-        SetScore01(score01 + delta01);
-    }
-
-    public void RemoveScore01(float delta01)
-    {
-        if (Mathf.Approximately(delta01, 0f)) return;
-        SetScore01(score01 - delta01);
-    }
-
-    // ---- Compatibility: PlayerControllerScript currently calls LoseScore(teamID) on death ----
-    public void LoseScore(int whichTeam)
-    {
-        if (teamID != whichTeam) return;
-        RemoveScore01(respawnPenalty01);
-    }
-
-    // Optional explicit penalty API (useful later)
-    public void LoseScore01(float penalty01)
-    {
-        RemoveScore01(penalty01);
-    }
-
-    // ---- Legacy deposit loop (disabled for Mass v2) ----
-    private void OnTriggerStay(Collider other)
-    {
-        if (!enableGoalDeposit) return;
-        if (!other.CompareTag("Player")) return;
-
-        var pcs = other.GetComponent<PlayerControllerScript>();
-        if (pcs == null || pcs.teamID != teamID) return;
-
-        if (pcs.GoalShrink())
-        {
-            // old behavior was: add sizeChangeOnGoalHit to scale.
-            // In score01 space, that’s:
-            AddScore01(sizeChangeOnGoalHit / Mathf.Max(0.0001f, maxSize));
+            StopCoroutine(_promotionRoutine);
+            _promotionRoutine = null;
         }
     }
 
-// public float LoseScoreAndReturnLoss01(int whichTeam)
-// {
-//     if (teamID != whichTeam) return 0f;
+    private void Update()
+    {
+        if (_promotionRoutine != null)
+            return;
 
-//     float before = score01;        // direct field is fine inside the class
-//     LoseScore(whichTeam);
-//     return Mathf.Max(0f, before - score01);
-// }
+        Transform graphic = GraphicTransform;
+        float t = followSharpness <= 0f
+            ? 1f
+            : 1f - Mathf.Exp(-followSharpness * (useUnscaledTime ? Time.unscaledDeltaTime : Time.deltaTime));
 
-public float ComputeRespawnLossIfApplied01(int whichTeam)
-{
-    if (teamID != whichTeam) return 0f;
-    return Mathf.Min(score01, respawnPenalty01);
-}
+        graphic.localScale = Vector3.Lerp(graphic.localScale, _targetScale, t);
+    }
 
+    private IEnumerator BindWhenAvailable()
+    {
+        while (isActiveAndEnabled && scoreService == null)
+        {
+            scoreService = MatchScoreService.Instance;
+            if (scoreService == null)
+                scoreService = FindFirstObjectByType<MatchScoreService>();
+
+            if (scoreService == null)
+                yield return null;
+        }
+
+        _bindRoutine = null;
+        if (!isActiveAndEnabled || scoreService == null)
+            yield break;
+
+        Bind();
+    }
+
+    private void Bind()
+    {
+        if (_bound || scoreService == null)
+            return;
+
+        scoreService.TeamScoreChanged += OnTeamScoreChanged;
+        scoreService.TierPromoted += OnTierPromoted;
+        scoreService.ScoresReset += OnScoresReset;
+        _bound = true;
+
+        ScoreboardManagerScript manager = scoreboard != null
+            ? scoreboard.GetComponent<ScoreboardManagerScript>()
+            : null;
+        if (manager != null)
+            manager.SetTeamID(teamID);
+
+        ApplyScore(scoreService.GetTeamScore(teamID), instant: true);
+    }
+
+    private void Unbind()
+    {
+        if (!_bound || scoreService == null)
+            return;
+
+        scoreService.TeamScoreChanged -= OnTeamScoreChanged;
+        scoreService.TierPromoted -= OnTierPromoted;
+        scoreService.ScoresReset -= OnScoresReset;
+        _bound = false;
+    }
+
+    private void OnScoresReset()
+    {
+        ApplyScore(0L, instant: true);
+    }
+
+    private void OnTeamScoreChanged(TeamScoreSnapshot snapshot)
+    {
+        if (snapshot.teamID != teamID)
+            return;
+
+        ApplyScore(snapshot.currentMilliElectronVolts, instant: false);
+    }
+
+    private void OnTierPromoted(EnergyTierPromotion promotion)
+    {
+        if (promotion.teamID != teamID)
+            return;
+
+        if (_promotionRoutine != null)
+            StopCoroutine(_promotionRoutine);
+
+        _promotionRoutine = StartCoroutine(PlayPromotionRoutine());
+    }
+
+    private void ApplyScore(long rawMilliElectronVolts, bool instant)
+    {
+        _rawScore = Math.Max(0L, rawMilliElectronVolts);
+        _unit = EnergyScoreFormatter.GetUnit(_rawScore);
+        _tierProgress01 = EnergyScoreFormatter.GetTierProgress01(_rawScore);
+
+        float curved = progressToScale != null
+            ? Mathf.Clamp01(progressToScale.Evaluate(_tierProgress01))
+            : _tierProgress01;
+
+        float size = Mathf.Lerp(Mathf.Max(0f, minSize), Mathf.Max(minSize, maxSize), curved);
+        _targetScale = Vector3.one * size;
+
+        if (instant)
+            GraphicTransform.localScale = _targetScale;
+    }
+
+    private IEnumerator PlayPromotionRoutine()
+    {
+        if (promotionAnimator != null && !string.IsNullOrWhiteSpace(promotionTrigger))
+            promotionAnimator.SetTrigger(promotionTrigger);
+
+        Transform graphic = GraphicTransform;
+        float duration = Mathf.Max(0f, promotionSeconds);
+        if (duration <= 0f)
+        {
+            graphic.localScale = _targetScale;
+            _promotionRoutine = null;
+            yield break;
+        }
+
+        Vector3 start = graphic.localScale;
+        Vector3 peak = Vector3.one * Mathf.Max(maxSize, maxSize * promotionOvershoot);
+        float burstSeconds = duration * 0.38f;
+        float collapseSeconds = Mathf.Max(0.0001f, duration - burstSeconds);
+
+        float elapsed = 0f;
+        while (elapsed < burstSeconds)
+        {
+            elapsed += PromotionDeltaTime();
+            float t = burstSeconds <= 0f ? 1f : Mathf.Clamp01(elapsed / burstSeconds);
+            graphic.localScale = Vector3.LerpUnclamped(start, peak, Smooth01(t));
+            yield return null;
+        }
+
+        elapsed = 0f;
+        while (elapsed < collapseSeconds)
+        {
+            elapsed += PromotionDeltaTime();
+            float t = Mathf.Clamp01(elapsed / collapseSeconds);
+            graphic.localScale = Vector3.LerpUnclamped(peak, _targetScale, Smooth01(t));
+            yield return null;
+        }
+
+        graphic.localScale = _targetScale;
+        _promotionRoutine = null;
+    }
+
+    private float PromotionDeltaTime()
+    {
+        return useUnscaledTime ? Time.unscaledDeltaTime : Time.deltaTime;
+    }
+
+    private static float Smooth01(float t)
+    {
+        t = Mathf.Clamp01(t);
+        return t * t * (3f - 2f * t);
+    }
+
+    // ---------------------------------------------------------------------
+    // Legacy normalized-score compatibility. These methods intentionally do
+    // not mutate the new score system; they warn so missed integrations are
+    // visible during migration rather than silently corrupting the economy.
+    // ---------------------------------------------------------------------
+
+    [Obsolete("ScoreSphereScript is presentation-only. Award score through MatchScoreService.")]
+    public void SetScore01(float _)
+    {
+        WarnLegacyApi();
+    }
+
+    [Obsolete("ScoreSphereScript is presentation-only. Award score through MatchScoreService.")]
+    public void AddScore01(float _)
+    {
+        WarnLegacyApi();
+    }
+
+    [Obsolete("ScoreSphereScript is presentation-only. Team score is not removed on death.")]
+    public void RemoveScore01(float _)
+    {
+        WarnLegacyApi();
+    }
+
+    [Obsolete("Death no longer applies a team-score penalty.")]
+    public void LoseScore(int _)
+    {
+        WarnLegacyApi();
+    }
+
+    [Obsolete("Death no longer applies a team-score penalty.")]
+    public void LoseScore01(float _)
+    {
+        WarnLegacyApi();
+    }
+
+    [Obsolete("Death no longer applies a team-score penalty.")]
+    public float ComputeRespawnLossIfApplied01(int _)
+    {
+        WarnLegacyApi();
+        return 0f;
+    }
+
+    private void WarnLegacyApi()
+    {
+        if (_warnedLegacyApi) return;
+        _warnedLegacyApi = true;
+        Debug.LogWarning(
+            $"[{name}] A legacy normalized score API was called. Replace the caller with MatchScoreService/ScoreRewardEmitter.",
+            this);
+    }
 }

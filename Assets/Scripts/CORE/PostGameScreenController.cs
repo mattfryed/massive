@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
+using Massive.Scoring;
 using TMPro;
 using UnityEngine;
 using Rewired;
@@ -14,6 +15,8 @@ public class PostGameScreenController : MonoBehaviour
     [SerializeField] private TMP_Text winnerText;      // "LIGHT WINS"
     [SerializeField] private TMP_Text scoreLightText;
     [SerializeField] private TMP_Text scoreDarkText;
+    [SerializeField] private TMP_Text scoreLightUnitText;
+    [SerializeField] private TMP_Text scoreDarkUnitText;
 
     [Header("Optional UI")]
     [SerializeField] private TMP_Text modeText;        // "1v1" / "2v2"
@@ -22,6 +25,9 @@ public class PostGameScreenController : MonoBehaviour
     [Header("Formatting")]
     [SerializeField] private string stagePrefix = "STAGE_";
     [SerializeField] private int stageDigits = 3;
+    [SerializeField, Min(1)] private int scoreIntegerDigits = 3;
+    [SerializeField, Range(0, 3)] private int scoreFractionDigits = 3;
+    [SerializeField] private bool spaceScoreCharacters = true;
 
     [Header("Return")]
     [SerializeField] private float minHoldSeconds = 1.25f;   // prevents accidental instant skip
@@ -116,8 +122,8 @@ public class PostGameScreenController : MonoBehaviour
             };
         }
 
-        if (scoreLightText != null) scoreLightText.text = FormatScore0100Spaced(r.Light01);
-        if (scoreDarkText  != null) scoreDarkText.text  = FormatScore0100Spaced(r.Dark01);
+        ApplyEnergyScore(scoreLightText, scoreLightUnitText, r.LightScore);
+        ApplyEnergyScore(scoreDarkText, scoreDarkUnitText, r.DarkScore);
 
         if (modeText != null)
             modeText.text = r.mode == GameMode.TwoVTwo ? "2v2" : "1v1";
@@ -317,25 +323,20 @@ private void ApplyWinnerTheme(MatchResult r)
 
     private float Now() => useUnscaledTime ? Time.unscaledTime : Time.time;
 
-    // Matches your old end-screen formatting style (0100 with spaces).
-    private static string FormatScore0100Spaced(float normalized01)
+    private void ApplyEnergyScore(TMP_Text valueText, TMP_Text unitText, long rawMilliElectronVolts)
     {
-        float newDisplay = Mathf.Round(Mathf.Clamp01(normalized01) * 100f);
-        string scoreString = newDisplay.ToString();
+        EnergyDisplayValue display = EnergyScoreFormatter.GetDisplayValue(rawMilliElectronVolts);
+        string value = EnergyScoreFormatter.FormatValue(
+            rawMilliElectronVolts,
+            scoreIntegerDigits,
+            scoreFractionDigits,
+            spaceScoreCharacters);
 
-        // Insert spaces between digits (legacy style)
-        for (int i = 1; i <= scoreString.Length; i += 1)
-        {
-            scoreString = scoreString.Insert(i, " ");
-            i++;
-        }
+        if (valueText != null)
+            valueText.text = unitText == null ? $"{value} {display.unitLabel}" : value;
 
-        string precedingZeroes;
-        if (newDisplay < 10f)       precedingZeroes = "0 0 0 ";
-        else if (newDisplay < 100f) precedingZeroes = "0 0 ";
-        else                        precedingZeroes = "0 ";
-
-        return precedingZeroes + scoreString + "/ 0 1 0 0";
+        if (unitText != null)
+            unitText.text = display.unitLabel;
     }
 
     /// <summary>

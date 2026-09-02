@@ -105,11 +105,22 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a0f139f9db4b147b494b3852a12b07c6, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  gridX: 64
-  gridY: 32
-  size: {x: 23.85, y: 10.9}
-  visibleX: 17
-  visibleY: 9
+  size: {x: 24, y: 11}
+  gridScale: 1
+  simulationSubdivisionsPerCell: 2
+  renderSubdivisionsPerSimulationInterval: 5
+  minimumPresentationScale: 0.5
+  maximumPresentationScale: 4
+  presentationScale: 1
+  presentationIgnoresBounds: 0
+  gridX: 49
+  gridY: 23
+  visibleX: 25
+  visibleY: 11
+  renderX: 241
+  renderY: 111
+  resolvedGridScale: 1
+  yEdgeRemainderPerSide: 0.5
   springK: 12
   damping: 2.2
   pinEdges: 1
@@ -124,8 +135,6 @@ MonoBehaviour:
   lineThickness: 1.3
   lineColor: {r: 1, g: 1, b: 1, a: 1}
   displacementBrightness: 2
-  renderX: 129
-  renderY: 65
   vectorCompute: {fileID: 7200000, guid: bad68b3817bf14ef6bbbd72c6fc787ce, type: 3}
   boundary:
     featherCells: 3
@@ -602,7 +611,7 @@ Transform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 2334461887812328825}
+  m_Father: {fileID: 8149576421207424142}
   m_LocalEulerAnglesHint: {x: 90, y: 0, z: 0}
 --- !u!23 &6919930271903862292
 MeshRenderer:
@@ -683,6 +692,22 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 13ed93ddb26f74f43b41de930015e578, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  teamID: 1
+  scoreService: {fileID: 0}
+  scoreValueText: {fileID: 0}
+  activeUnitText: {fileID: 0}
+  tierLabels: []
+  legacyTextMesh: {fileID: 0}
+  integerDigits: 3
+  fractionDigits: 3
+  spaceCharacters: 1
+  includeUnitInValueWhenNoUnitText: 1
+  activeTierColor: {r: 1, g: 1, b: 1, a: 1}
+  completedTierColor: {r: 0.32, g: 0.32, b: 0.32, a: 1}
+  futureTierColor: {r: 0.12, g: 0.12, b: 0.12, a: 1}
+  promotionAnimator: {fileID: 0}
+  promotionTrigger: Promote
+  tierVisualController: {fileID: 0}
   score: 0
 --- !u!1 &1834681065871240559
 GameObject:
@@ -5784,9 +5809,46 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fa043c43977e2054fbe1f35972cc2d19, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  scoreService: {fileID: 0}
+  driveFromMatchScoreService: 1
+  autoFindScoreService: 1
+  teamIDOverride: 1
+  scoreFollowSharpness: 18
+  useUnscaledTime: 1
   scoreSource: {fileID: 2734299642689843533}
   score01Debug: 0.5
   driveFromScoreSource: 1
+  promotionAnimator: {fileID: 0}
+  promotionTrigger: Promote
+  promotionParticles: []
+  promotionSeconds: 0.42
+  promotionChargeFraction: 0.38
+  promotionRadiusBurst: 1.1
+  promotionMotionBurst: 1.55
+  promotionEase:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
   sdf: {fileID: 6669087206352585929}
   minBalls: 3
   maxBalls: 32
@@ -5816,14 +5878,15 @@ MonoBehaviour:
   ballCenterY_OS: 0
   applyMaterialColors: 1
   readTeamFromScoreSource: 1
-  teamIDOverride: 1
   team1Fill: {r: 1, g: 1, b: 1, a: 1}
   team1Outline: {r: 0, g: 0, b: 0, a: 1}
   team2Fill: {r: 0, g: 0, b: 0, a: 1}
   team2Outline: {r: 1, g: 1, b: 1, a: 1}
   seed: 12345
   lastBallCount: 3
-  lastScore01: 0.001
+  lastScore01: 0
+  lastRawMilliElectronVolts: 0
+  lastEnergyUnit: 0
 --- !u!114 &6669087206352585929
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -5946,9 +6009,46 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fa043c43977e2054fbe1f35972cc2d19, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  scoreService: {fileID: 0}
+  driveFromMatchScoreService: 1
+  autoFindScoreService: 1
+  teamIDOverride: 1
+  scoreFollowSharpness: 18
+  useUnscaledTime: 1
   scoreSource: {fileID: 5817534518095436475}
   score01Debug: 0.5
   driveFromScoreSource: 1
+  promotionAnimator: {fileID: 0}
+  promotionTrigger: Promote
+  promotionParticles: []
+  promotionSeconds: 0.42
+  promotionChargeFraction: 0.38
+  promotionRadiusBurst: 1.1
+  promotionMotionBurst: 1.55
+  promotionEase:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
   sdf: {fileID: 3951999870232377156}
   minBalls: 3
   maxBalls: 32
@@ -5978,14 +6078,15 @@ MonoBehaviour:
   ballCenterY_OS: 0
   applyMaterialColors: 1
   readTeamFromScoreSource: 1
-  teamIDOverride: 1
   team1Fill: {r: 1, g: 1, b: 1, a: 1}
   team1Outline: {r: 0, g: 0, b: 0, a: 1}
   team2Fill: {r: 0, g: 0, b: 0, a: 1}
   team2Outline: {r: 1, g: 1, b: 1, a: 1}
   seed: 12345
   lastBallCount: 3
-  lastScore01: 0.001
+  lastScore01: 0
+  lastRawMilliElectronVolts: 0
+  lastEnergyUnit: 0
 --- !u!114 &3951999870232377156
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -6120,13 +6221,41 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   teamID: 1
-  score01: 0.001
+  scoreService: {fileID: 0}
   sphereGraphic: {fileID: 8171395670892400361}
-  scoreboard: {fileID: 6838813222149281552}
+  minSize: 0.15
   maxSize: 11
-  respawnPenalty01: 0.05
-  enableGoalDeposit: 0
-  sizeChangeOnGoalHit: 0.0175
+  progressToScale:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  followSharpness: 16
+  promotionAnimator: {fileID: 0}
+  promotionTrigger: Promote
+  promotionSeconds: 0.28
+  promotionOvershoot: 1.08
+  useUnscaledTime: 1
+  scoreboard: {fileID: 0}
 --- !u!1 &5285268824367659479
 GameObject:
   m_ObjectHideFlags: 0
@@ -6574,6 +6703,22 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 13ed93ddb26f74f43b41de930015e578, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  teamID: 1
+  scoreService: {fileID: 0}
+  scoreValueText: {fileID: 0}
+  activeUnitText: {fileID: 0}
+  tierLabels: []
+  legacyTextMesh: {fileID: 0}
+  integerDigits: 3
+  fractionDigits: 3
+  spaceCharacters: 1
+  includeUnitInValueWhenNoUnitText: 1
+  activeTierColor: {r: 1, g: 1, b: 1, a: 1}
+  completedTierColor: {r: 0.32, g: 0.32, b: 0.32, a: 1}
+  futureTierColor: {r: 0.12, g: 0.12, b: 0.12, a: 1}
+  promotionAnimator: {fileID: 0}
+  promotionTrigger: Promote
+  tierVisualController: {fileID: 0}
   score: 0
 --- !u!1 &6851100437965884450
 GameObject:
@@ -7260,7 +7405,7 @@ PrefabInstance:
         type: 3}
       propertyPath: scoreboard
       value: 
-      objectReference: {fileID: 7001572869234710939}
+      objectReference: {fileID: 0}
     - target: {fileID: 9015369086367158159, guid: 18761c972c6104c768b7b26af03fed9b,
         type: 3}
       propertyPath: respawnPenalty01
@@ -7652,37 +7797,19 @@ PrefabInstance:
     - {fileID: 2854111776094833419, guid: e969ac83d0dc53d46af4f400e458bd5d, type: 3}
     - {fileID: 5465173375088860855, guid: e969ac83d0dc53d46af4f400e458bd5d, type: 3}
     m_AddedGameObjects:
+    - targetCorrespondingSourceObject: {fileID: 3906757715838245731, guid: e969ac83d0dc53d46af4f400e458bd5d,
+        type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 7216157369666494387}
     - targetCorrespondingSourceObject: {fileID: 8728129888716073568, guid: e969ac83d0dc53d46af4f400e458bd5d,
         type: 3}
       insertIndex: -1
       addedObject: {fileID: 307133688941347923}
-    - targetCorrespondingSourceObject: {fileID: 7443086058931387028, guid: e969ac83d0dc53d46af4f400e458bd5d,
-        type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 7216157369666494387}
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: e969ac83d0dc53d46af4f400e458bd5d, type: 3}
---- !u!4 &2334461887812328825 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: 7443086058931387028, guid: e969ac83d0dc53d46af4f400e458bd5d,
-    type: 3}
-  m_PrefabInstance: {fileID: 5129190829272442861}
-  m_PrefabAsset: {fileID: 0}
 --- !u!4 &4471511487837212045 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 8728129888716073568, guid: e969ac83d0dc53d46af4f400e458bd5d,
-    type: 3}
-  m_PrefabInstance: {fileID: 5129190829272442861}
-  m_PrefabAsset: {fileID: 0}
---- !u!1 &6838813222149281552 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 1857404470502781181, guid: e969ac83d0dc53d46af4f400e458bd5d,
-    type: 3}
-  m_PrefabInstance: {fileID: 5129190829272442861}
-  m_PrefabAsset: {fileID: 0}
---- !u!1 &7001572869234710939 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 2739348075163614838, guid: e969ac83d0dc53d46af4f400e458bd5d,
     type: 3}
   m_PrefabInstance: {fileID: 5129190829272442861}
   m_PrefabAsset: {fileID: 0}

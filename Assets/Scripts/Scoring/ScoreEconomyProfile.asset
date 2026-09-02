@@ -1,0 +1,69 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9230166d98d22ba42a4024baa8238d6a, type: 3}
+  m_Name: ScoreEconomyProfile
+  m_EditorClassIdentifier: 
+  rulesetId: MASSIVE_SCORE_V1
+  rulesetVersion: 1
+  regulationDurationSeconds: 120
+  chainSettings:
+    multiplierSteps: 0100000002000000040000000800000010000000
+    timeoutSeconds: 3.25
+    useUnscaledTime: 1
+    hitPenalty: 2
+    hitTimePenaltySeconds: 1
+  rewards:
+  - key: PLAYER_DEFEAT
+    enabled: 1
+    amount: 2
+    unit: 1
+    multiplierEligible: 1
+    chainEffect: 2
+    repeatPolicy: 1
+    feedbackId: PLAYER_DEFEAT
+    expectedOccurrencesPerRound: 4
+  - key: ENEMY_DEFEAT
+    enabled: 1
+    amount: 1
+    unit: 1
+    multiplierEligible: 1
+    chainEffect: 2
+    repeatPolicy: 1
+    feedbackId: ENEMY_DEFEAT
+    expectedOccurrencesPerRound: 20
+  - key: POWER_UP_CLAIM
+    enabled: 1
+    amount: 500
+    unit: 0
+    multiplierEligible: 1
+    chainEffect: 2
+    repeatPolicy: 1
+    feedbackId: PICKUP
+    expectedOccurrencesPerRound: 6
+  - key: ENERGY_PICKUP_SMALL
+    enabled: 1
+    amount: 125
+    unit: 0
+    multiplierEligible: 1
+    chainEffect: 2
+    repeatPolicy: 1
+    feedbackId: ENERGY_PICKUP
+    expectedOccurrencesPerRound: 12
+  - key: OBJECTIVE_TICK
+    enabled: 1
+    amount: 25
+    unit: 0
+    multiplierEligible: 1
+    chainEffect: 1
+    repeatPolicy: 0
+    feedbackId: OBJECTIVE
+    expectedOccurrencesPerRound: 20

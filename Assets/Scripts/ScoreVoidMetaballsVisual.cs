@@ -1,15 +1,65 @@
 using System;
+using System.Collections;
 using System.Reflection;
+using Massive.Scoring;
 using UnityEngine;
 
+/// <summary>
+/// World-space metaball presentation for a team's energy score.
+///
+/// MatchScoreService is the preferred runtime source. The metaball body grows
+/// across the current engineering tier, then charges to full and collapses when
+/// the team promotes to the next tier. The older reflection-based Score01 source
+/// remains available as a migration/debug fallback.
+/// </summary>
 [ExecuteAlways]
 [DisallowMultipleComponent]
 public class ScoreVoidMetaballsVisual : MonoBehaviour
 {
-    [Header("Score Source (0..1)")]
-    public MonoBehaviour scoreSource;                 // ScoreSphereScript or anything with Score01
+    [Header("Energy Score Source (Preferred)")]
+    [SerializeField] private MatchScoreService scoreService;
+    [SerializeField] private bool driveFromMatchScoreService = true;
+    [SerializeField] private bool autoFindScoreService = true;
+
+    [Tooltip("1 = Light, 2 = Dark. This also remains compatible with the PostGame team override path.")]
+    public int teamIDOverride = 1;
+
+    [Tooltip("How quickly normal within-tier score changes are followed. 0 = instant.")]
+    [Min(0f)]
+    [SerializeField] private float scoreFollowSharpness = 18f;
+
+    [SerializeField] private bool useUnscaledTime = true;
+
+    [Header("Legacy Score Source (0..1 fallback)")]
+    [Tooltip("Optional legacy source, such as ScoreSphereScript or anything exposing Score01/GetScore01.")]
+    public MonoBehaviour scoreSource;
+
     [Range(0f, 1f)] public float score01Debug = 0f;
     public bool driveFromScoreSource = true;
+
+    [Header("Tier Promotion")]
+    [SerializeField] private Animator promotionAnimator;
+    [SerializeField] private string promotionTrigger = "Promote";
+    [SerializeField] private ParticleSystem[] promotionParticles;
+
+    [Tooltip("Total charge-to-full and collapse duration.")]
+    [Min(0f)]
+    [SerializeField] private float promotionSeconds = 0.42f;
+
+    [Tooltip("Fraction of the promotion spent charging the previous tier to full. The rest is the collapse.")]
+    [Range(0.05f, 0.95f)]
+    [SerializeField] private float promotionChargeFraction = 0.38f;
+
+    [Tooltip("Temporary radius multiplier at the promotion peak.")]
+    [Min(1f)]
+    [SerializeField] private float promotionRadiusBurst = 1.10f;
+
+    [Tooltip("Temporary motion/jitter multiplier at the promotion peak.")]
+    [Min(1f)]
+    [SerializeField] private float promotionMotionBurst = 1.55f;
+
+    [SerializeField] private AnimationCurve promotionEase =
+        AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
 
     [Header("Metaballs Driver")]
     public MetaballSDFInstance sdf;
@@ -52,10 +102,10 @@ public class ScoreVoidMetaballsVisual : MonoBehaviour
     [Header("Core Ball (index 0) — scales with score")]
     public bool enableCoreBallScaling = true;
 
-    [Tooltip("Core ball radius when score = 0")]
+    [Tooltip("Core ball radius when tier progress = 0")]
     [Range(0.005f, 0.49f)] public float coreRadiusMinOS = 0.10f;
 
-    [Tooltip("Core ball radius when score = 1")]
+    [Tooltip("Core ball radius when tier progress = 1")]
     [Range(0.005f, 0.49f)] public float coreRadiusMaxOS = 0.22f;
 
     [Tooltip("Curve shaping for core radius vs score (1 = linear, >1 = slower start)")]
@@ -74,11 +124,8 @@ public class ScoreVoidMetaballsVisual : MonoBehaviour
     [Header("Team Look (optional) — no separate shader needed")]
     public bool applyMaterialColors = true;
 
-    [Tooltip("If true, tries to read teamID from scoreSource via reflection (ScoreSphereScript.teamID).")]
+    [Tooltip("Legacy fallback only: tries to read teamID from scoreSource via reflection.")]
     public bool readTeamFromScoreSource = true;
-
-    [Tooltip("Fallback team id if scoreSource has no teamID (1 = Team1, anything else = Team2).")]
-    public int teamIDOverride = 1;
 
     public Color team1Fill = Color.white;
     public Color team1Outline = Color.black;
@@ -92,92 +139,455 @@ public class ScoreVoidMetaballsVisual : MonoBehaviour
     [Header("Debug")]
     [SerializeField] private int lastBallCount;
     [SerializeField] private float lastScore01;
+    [SerializeField] private long lastRawMilliElectronVolts;
+    [SerializeField] private EnergyUnit lastEnergyUnit;
 
     private struct Candidate
     {
         public Vector3 center;
-        public float dist;        // radial distance from region center in OS
+        public float dist;
         public bool isEdge;
-        public float edgeJit01;   // stable per-ball radius jitter
+        public float edgeJit01;
     }
 
-    Vector3[] _baseCenters;
-    float[] _baseRadii;
-    float[] _spawnTimes;
+    private Vector3[] _baseCenters;
+    private float[] _baseRadii;
+    private float[] _spawnTimes;
 
-    int _cachedForMaxBalls = -1;
-    int _cacheKey = 0;
-    int _lastDesiredCount = -1;
+    private int _cachedForMaxBalls = -1;
+    private int _cacheKey;
+    private int _lastDesiredCount = -1;
 
-    int _lastTeamID = int.MinValue;
-    Color _lastFill, _lastOutline;
+    private int _lastTeamID = int.MinValue;
+    private Color _lastFill;
+    private Color _lastOutline;
 
-    void OnEnable()
+    private Coroutine _bindRoutine;
+    private Coroutine _promotionRoutine;
+    private bool _bound;
+
+    private float _targetScore01;
+    private float _displayScore01;
+    private float _promotionRadiusMultiplier = 1f;
+    private float _promotionMotionMultiplier = 1f;
+    private long _rawMilliElectronVolts;
+    private EnergyUnit _currentUnit;
+
+    public float TierProgress01 => _displayScore01;
+    public long RawMilliElectronVolts => _rawMilliElectronVolts;
+    public EnergyUnit CurrentUnit => _currentUnit;
+    public int TeamID => ResolveTeamID();
+
+    private void OnEnable()
     {
         if (!sdf) sdf = GetComponent<MetaballSDFInstance>();
         EnsureBaseCache();
+
+        RefreshFromFallback(instant: true);
+
+        if (Application.isPlaying && driveFromMatchScoreService)
+            BeginBinding();
+
         RebuildAndApply(force: true);
     }
 
-    void OnValidate()
+    private void OnDisable()
     {
+        Unbind();
+
+        if (_bindRoutine != null)
+        {
+            StopCoroutine(_bindRoutine);
+            _bindRoutine = null;
+        }
+
+        StopPromotion(resetVisualMultipliers: true);
+    }
+
+    private void OnValidate()
+    {
+        teamIDOverride = NormalizeTeamID(teamIDOverride);
+        promotionChargeFraction = Mathf.Clamp(promotionChargeFraction, 0.05f, 0.95f);
+
         if (!sdf) sdf = GetComponent<MetaballSDFInstance>();
         EnsureBaseCache();
+
+        if (!Application.isPlaying)
+            RefreshFromFallback(instant: true);
+        else if (_bound && scoreService != null)
+            RefreshFromService(instant: true);
+
         RebuildAndApply(force: true);
     }
 
-    void Update()
+    private void Update()
     {
+        if (Application.isPlaying && driveFromMatchScoreService && _bound)
+        {
+            if (_promotionRoutine == null)
+                FollowTargetScore();
+        }
+        else
+        {
+            float fallback = ReadFallbackScore01();
+            _targetScore01 = fallback;
+
+            if (!Application.isPlaying || scoreFollowSharpness <= 0f)
+                _displayScore01 = fallback;
+            else if (_promotionRoutine == null)
+                FollowTargetScore();
+        }
+
         RebuildAndApply(force: false);
     }
 
-    float Now()
+    /// <summary>
+    /// Public compatibility hook used by PostGame and inspector-driven refreshes.
+    /// </summary>
+    public void Refresh()
     {
-        return Application.isPlaying ? Time.time : Time.realtimeSinceStartup;
+        if (Application.isPlaying && driveFromMatchScoreService)
+        {
+            if (!_bound)
+            {
+                RefreshFromFallback(instant: true);
+                BeginBinding();
+            }
+            else
+            {
+                RefreshFromService(instant: true);
+            }
+        }
+        else
+        {
+            RefreshFromFallback(instant: true);
+        }
+
+        ApplyTeamColorsIfNeeded(force: true);
+        RebuildAndApply(force: true);
     }
 
-    float ReadScore01()
+    public void Rebuild()
+    {
+        EnsureBaseCache();
+        RebuildAndApply(force: true);
+    }
+
+    public void Apply()
+    {
+        RebuildAndApply(force: true);
+    }
+
+    public void SetTeamID(int teamID)
+    {
+        teamIDOverride = NormalizeTeamID(teamID);
+        ApplyTeamColorsIfNeeded(force: true);
+
+        if (_bound && scoreService != null)
+            RefreshFromService(instant: true);
+
+        RebuildAndApply(force: true);
+    }
+
+    private void BeginBinding()
+    {
+        if (!Application.isPlaying || !driveFromMatchScoreService || _bound)
+            return;
+
+        if (scoreService == null && autoFindScoreService)
+        {
+            scoreService = MatchScoreService.Instance;
+            if (scoreService == null)
+                scoreService = FindFirstObjectByType<MatchScoreService>();
+        }
+
+        if (scoreService != null)
+        {
+            Bind();
+            return;
+        }
+
+        if (_bindRoutine == null)
+            _bindRoutine = StartCoroutine(BindWhenAvailable());
+    }
+
+    private IEnumerator BindWhenAvailable()
+    {
+        while (isActiveAndEnabled && scoreService == null)
+        {
+            scoreService = MatchScoreService.Instance;
+            if (scoreService == null && autoFindScoreService)
+                scoreService = FindFirstObjectByType<MatchScoreService>();
+
+            if (scoreService == null)
+                yield return null;
+        }
+
+        _bindRoutine = null;
+
+        if (isActiveAndEnabled && scoreService != null)
+            Bind();
+    }
+
+    private void Bind()
+    {
+        if (_bound || scoreService == null)
+            return;
+
+        scoreService.TeamScoreChanged += OnTeamScoreChanged;
+        scoreService.TierPromoted += OnTierPromoted;
+        scoreService.ScoresReset += OnScoresReset;
+        _bound = true;
+
+        RefreshFromService(instant: true);
+    }
+
+    private void Unbind()
+    {
+        if (!_bound || scoreService == null)
+            return;
+
+        scoreService.TeamScoreChanged -= OnTeamScoreChanged;
+        scoreService.TierPromoted -= OnTierPromoted;
+        scoreService.ScoresReset -= OnScoresReset;
+        _bound = false;
+    }
+
+    private void OnScoresReset()
+    {
+        StopPromotion(resetVisualMultipliers: true);
+        _rawMilliElectronVolts = 0L;
+        _currentUnit = EnergyUnit.MilliElectronVolt;
+        _targetScore01 = 0f;
+        _displayScore01 = 0f;
+        RebuildAndApply(force: true);
+    }
+
+    private void OnTeamScoreChanged(TeamScoreSnapshot snapshot)
+    {
+        if (snapshot.teamID != TeamID)
+            return;
+
+        _rawMilliElectronVolts = Math.Max(0L, snapshot.currentMilliElectronVolts);
+        _currentUnit = snapshot.currentUnit;
+        _targetScore01 = Mathf.Clamp01(snapshot.tierProgress01);
+    }
+
+    private void OnTierPromoted(EnergyTierPromotion promotion)
+    {
+        if (promotion.teamID != TeamID)
+            return;
+
+        _rawMilliElectronVolts = Math.Max(0L, promotion.totalMilliElectronVolts);
+        _currentUnit = promotion.currentUnit;
+        _targetScore01 = EnergyScoreFormatter.GetTierProgress01(_rawMilliElectronVolts);
+
+        StopPromotion(resetVisualMultipliers: true);
+        _promotionRoutine = StartCoroutine(PlayPromotionRoutine());
+    }
+
+    private void RefreshFromService(bool instant)
+    {
+        if (scoreService == null)
+        {
+            RefreshFromFallback(instant);
+            return;
+        }
+
+        _rawMilliElectronVolts = Math.Max(0L, scoreService.GetTeamScore(TeamID));
+        _currentUnit = EnergyScoreFormatter.GetUnit(_rawMilliElectronVolts);
+        _targetScore01 = EnergyScoreFormatter.GetTierProgress01(_rawMilliElectronVolts);
+
+        if (instant)
+            _displayScore01 = _targetScore01;
+    }
+
+    private void RefreshFromFallback(bool instant)
+    {
+        float value = ReadFallbackScore01();
+        _targetScore01 = value;
+
+        if (instant)
+            _displayScore01 = value;
+    }
+
+    private void FollowTargetScore()
+    {
+        if (scoreFollowSharpness <= 0f)
+        {
+            _displayScore01 = _targetScore01;
+            return;
+        }
+
+        float dt = DeltaTime();
+        float t = 1f - Mathf.Exp(-scoreFollowSharpness * Mathf.Max(0f, dt));
+        _displayScore01 = Mathf.Lerp(_displayScore01, _targetScore01, t);
+
+        if (Mathf.Abs(_displayScore01 - _targetScore01) < 0.0001f)
+            _displayScore01 = _targetScore01;
+    }
+
+    private IEnumerator PlayPromotionRoutine()
+    {
+        if (promotionAnimator != null && !string.IsNullOrWhiteSpace(promotionTrigger))
+            promotionAnimator.SetTrigger(promotionTrigger);
+
+        if (promotionParticles != null)
+        {
+            for (int i = 0; i < promotionParticles.Length; i++)
+            {
+                ParticleSystem ps = promotionParticles[i];
+                if (ps != null)
+                    ps.Play(true);
+            }
+        }
+
+        float duration = Mathf.Max(0f, promotionSeconds);
+        if (duration <= 0f)
+        {
+            _displayScore01 = _targetScore01;
+            _promotionRadiusMultiplier = 1f;
+            _promotionMotionMultiplier = 1f;
+            _promotionRoutine = null;
+            yield break;
+        }
+
+        float chargeSeconds = Mathf.Max(0.0001f, duration * promotionChargeFraction);
+        float collapseSeconds = Mathf.Max(0.0001f, duration - chargeSeconds);
+        float startProgress = Mathf.Clamp01(_displayScore01);
+
+        float elapsed = 0f;
+        while (elapsed < chargeSeconds)
+        {
+            elapsed += DeltaTime();
+            float t = Mathf.Clamp01(elapsed / chargeSeconds);
+            float eased = EvaluatePromotionEase(t);
+
+            _displayScore01 = Mathf.Lerp(startProgress, 1f, eased);
+            _promotionRadiusMultiplier = Mathf.Lerp(1f, promotionRadiusBurst, eased);
+            _promotionMotionMultiplier = Mathf.Lerp(1f, promotionMotionBurst, eased);
+            yield return null;
+        }
+
+        elapsed = 0f;
+        while (elapsed < collapseSeconds)
+        {
+            elapsed += DeltaTime();
+            float t = Mathf.Clamp01(elapsed / collapseSeconds);
+            float eased = EvaluatePromotionEase(t);
+
+            _displayScore01 = Mathf.Lerp(1f, 0f, eased);
+            _promotionRadiusMultiplier = Mathf.Lerp(promotionRadiusBurst, 1f, eased);
+            _promotionMotionMultiplier = Mathf.Lerp(promotionMotionBurst, 1f, eased);
+            yield return null;
+        }
+
+        _displayScore01 = 0f;
+        _promotionRadiusMultiplier = 1f;
+        _promotionMotionMultiplier = 1f;
+        _promotionRoutine = null;
+
+        // Normal score following resumes on the next Update and settles toward
+        // the exact progress already earned inside the destination tier.
+    }
+
+    private void StopPromotion(bool resetVisualMultipliers)
+    {
+        if (_promotionRoutine != null)
+        {
+            StopCoroutine(_promotionRoutine);
+            _promotionRoutine = null;
+        }
+
+        if (resetVisualMultipliers)
+        {
+            _promotionRadiusMultiplier = 1f;
+            _promotionMotionMultiplier = 1f;
+        }
+    }
+
+    private float EvaluatePromotionEase(float t)
+    {
+        return promotionEase != null
+            ? Mathf.Clamp01(promotionEase.Evaluate(Mathf.Clamp01(t)))
+            : Smooth01(t);
+    }
+
+    private float DeltaTime()
+    {
+        if (!Application.isPlaying)
+            return 0f;
+
+        return useUnscaledTime ? Time.unscaledDeltaTime : Time.deltaTime;
+    }
+
+    private float Now()
+    {
+        if (!Application.isPlaying)
+            return Time.realtimeSinceStartup;
+
+        return useUnscaledTime ? Time.unscaledTime : Time.time;
+    }
+
+    private float ReadFallbackScore01()
     {
         if (!driveFromScoreSource || !scoreSource)
-            return score01Debug;
+            return Mathf.Clamp01(score01Debug);
 
-        var t = scoreSource.GetType();
+        Type type = scoreSource.GetType();
 
-        var pScore01 = t.GetProperty("Score01", BindingFlags.Public | BindingFlags.Instance);
-        if (pScore01 != null && pScore01.PropertyType == typeof(float))
-            return Mathf.Clamp01((float)pScore01.GetValue(scoreSource));
+        PropertyInfo scoreProperty = type.GetProperty(
+            "Score01",
+            BindingFlags.Public | BindingFlags.Instance);
 
-        var mGet = t.GetMethod("GetScore01", BindingFlags.Public | BindingFlags.Instance);
-        if (mGet != null && mGet.ReturnType == typeof(float))
-            return Mathf.Clamp01((float)mGet.Invoke(scoreSource, null));
+        if (scoreProperty != null && scoreProperty.PropertyType == typeof(float))
+            return Mathf.Clamp01((float)scoreProperty.GetValue(scoreSource));
 
-        return score01Debug;
+        MethodInfo getter = type.GetMethod(
+            "GetScore01",
+            BindingFlags.Public | BindingFlags.Instance);
+
+        if (getter != null && getter.ReturnType == typeof(float))
+            return Mathf.Clamp01((float)getter.Invoke(scoreSource, null));
+
+        return Mathf.Clamp01(score01Debug);
     }
 
-    int ReadTeamID()
+    private int ResolveTeamID()
     {
-        if (!readTeamFromScoreSource || !scoreSource)
-            return teamIDOverride;
+        if (readTeamFromScoreSource && scoreSource)
+        {
+            Type type = scoreSource.GetType();
 
-        var t = scoreSource.GetType();
+            PropertyInfo property = type.GetProperty(
+                "teamID",
+                BindingFlags.Public | BindingFlags.Instance);
 
-        var p = t.GetProperty("teamID", BindingFlags.Public | BindingFlags.Instance);
-        if (p != null && p.PropertyType == typeof(int))
-            return (int)p.GetValue(scoreSource);
+            if (property != null && property.PropertyType == typeof(int))
+                return NormalizeTeamID((int)property.GetValue(scoreSource));
 
-        var f = t.GetField("teamID", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-        if (f != null && f.FieldType == typeof(int))
-            return (int)f.GetValue(scoreSource);
+            FieldInfo field = type.GetField(
+                "teamID",
+                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
 
-        return teamIDOverride;
+            if (field != null && field.FieldType == typeof(int))
+                return NormalizeTeamID((int)field.GetValue(scoreSource));
+        }
+
+        return NormalizeTeamID(teamIDOverride);
     }
 
-    void ApplyTeamColorsIfNeeded(bool force)
+    private int ReadTeamID()
+    {
+        return ResolveTeamID();
+    }
+
+    private void ApplyTeamColorsIfNeeded(bool force)
     {
         if (!applyMaterialColors || !sdf) return;
 
         int teamID = ReadTeamID();
-        bool isTeam2 = teamID != 1;
+        bool isTeam2 = teamID == 2;
 
         Color fill = isTeam2 ? team2Fill : team1Fill;
         Color outline = isTeam2 ? team2Outline : team1Outline;
@@ -189,12 +599,12 @@ public class ScoreVoidMetaballsVisual : MonoBehaviour
         _lastFill = fill;
         _lastOutline = outline;
 
-        // Your shader has _LitColor, _UnlitColor, _OutlineColor.
-        // For a crisp vector look, we typically set lit+unlit the same.
+        // The SDF shader exposes _LitColor, _UnlitColor, and _OutlineColor.
+        // Matching lit/unlit preserves the crisp vector presentation.
         sdf.SetMaterialColors(fill, fill, outline);
     }
 
-    int ComputeDesiredCount(float score01)
+    private int ComputeDesiredCount(float score01)
     {
         int a = Mathf.Clamp(minBalls, 0, MetaballSDFInstance.MaxBalls);
         int b = Mathf.Clamp(maxBalls, 1, MetaballSDFInstance.MaxBalls);
@@ -205,7 +615,7 @@ public class ScoreVoidMetaballsVisual : MonoBehaviour
         return Mathf.Clamp(desired, a, b);
     }
 
-    int ComputeCacheKey(int b)
+    private int ComputeCacheKey(int b)
     {
         unchecked
         {
@@ -220,19 +630,17 @@ public class ScoreVoidMetaballsVisual : MonoBehaviour
             h = h * 31 + radiusCenterOS.GetHashCode();
             h = h * 31 + radiusEdgeOS.GetHashCode();
             h = h * 31 + radialIndexPow.GetHashCode();
-
             h = h * 31 + edgeBallFraction.GetHashCode();
             h = h * 31 + edgeBandStart01.GetHashCode();
             h = h * 31 + edgeRadialBiasPow.GetHashCode();
             h = h * 31 + edgeRadiusMul.GetHashCode();
             h = h * 31 + edgeOuterRadiusMul.GetHashCode();
             h = h * 31 + edgeRadiusJitter01.GetHashCode();
-
             return h;
         }
     }
 
-    void EnsureBaseCache()
+    private void EnsureBaseCache()
     {
         int b = Mathf.Clamp(maxBalls, 1, MetaballSDFInstance.MaxBalls);
         int key = ComputeCacheKey(b);
@@ -241,7 +649,9 @@ public class ScoreVoidMetaballsVisual : MonoBehaviour
             _cacheKey == key &&
             _baseCenters != null &&
             _baseCenters.Length == b)
+        {
             return;
+        }
 
         _cachedForMaxBalls = b;
         _cacheKey = key;
@@ -249,14 +659,11 @@ public class ScoreVoidMetaballsVisual : MonoBehaviour
         _baseCenters = new Vector3[b];
         _baseRadii = new float[b];
         _spawnTimes = new float[b];
-
-        // Reset desired count so appear animation re-stamps if needed
         _lastDesiredCount = -1;
 
         float rr = Mathf.Clamp(regionRadiusOS - boundaryPaddingOS, 0.01f, 0.5f);
         float denom = Mathf.Max(0.0001f, rr);
 
-        // Core ball (index 0) is always at the center.
         _baseCenters[0] = new Vector3(centerOS_XZ.x, ballCenterY_OS, centerOS_XZ.y);
         _baseRadii[0] = Mathf.Max(0.0005f, radiusCenterOS);
         _spawnTimes[0] = 0f;
@@ -270,39 +677,32 @@ public class ScoreVoidMetaballsVisual : MonoBehaviour
         float edgePow = Mathf.Max(0.01f, edgeRadialBiasPow);
         float centerPow = Mathf.Max(0.01f, radialIndexPow);
 
-        int candCount = b - 1;
-        var candidates = new Candidate[candCount];
+        int candidateCount = b - 1;
+        var candidates = new Candidate[candidateCount];
 
-        for (int i = 0; i < candCount; i++)
+        for (int i = 0; i < candidateCount; i++)
         {
-            // Angle across half-circle
-            double v = rng.NextDouble(); // 0..1
-            float phi = (float)((v * 2.0 - 1.0) * (Math.PI * 0.5)); // [-pi/2..pi/2]
-            float ang = (halfPlane == HalfPlane.PositiveX) ? phi : (phi + Mathf.PI);
+            double v = rng.NextDouble();
+            float phi = (float)((v * 2.0 - 1.0) * (Math.PI * 0.5));
+            float angle = halfPlane == HalfPlane.PositiveX ? phi : phi + Mathf.PI;
 
-            // Decide edge vs bulk
             bool isEdge = rng.NextDouble() < edgeFrac;
-
-            // Radius distribution
-            double u = rng.NextDouble(); // 0..1
+            double u = rng.NextDouble();
             float r01;
 
             if (isEdge)
             {
-                // sample within [bandStart..1], biased toward 1.0
                 float uEdge = 1f - Mathf.Pow((float)u, edgePow);
                 r01 = Mathf.Lerp(bandStart, 1f, uEdge);
             }
             else
             {
-                // center-biased bulk fill
                 r01 = Mathf.Pow((float)u, centerPow);
             }
 
             float r = rr * r01;
-
-            float x = Mathf.Cos(ang) * r;
-            float z = Mathf.Sin(ang) * r;
+            float x = Mathf.Cos(angle) * r;
+            float z = Mathf.Sin(angle) * r;
 
             candidates[i] = new Candidate
             {
@@ -313,57 +713,53 @@ public class ScoreVoidMetaballsVisual : MonoBehaviour
             };
         }
 
-        // Growth order: center -> edge
         Array.Sort(candidates, (a, b2) => a.dist.CompareTo(b2.dist));
 
-        float edgeJ = Mathf.Clamp01(edgeRadiusJitter01);
-        float edgeMul = Mathf.Max(0.01f, edgeRadiusMul);
-        float edgeOuterMul = Mathf.Max(0.01f, edgeOuterRadiusMul);
+        float edgeJitter = Mathf.Clamp01(edgeRadiusJitter01);
+        float edgeMultiplier = Mathf.Max(0.01f, edgeRadiusMul);
+        float outerMultiplier = Mathf.Max(0.01f, edgeOuterRadiusMul);
 
-        for (int i = 0; i < candCount; i++)
+        for (int i = 0; i < candidateCount; i++)
         {
-            int idx = i + 1;
-            var cand = candidates[i];
+            int index = i + 1;
+            Candidate candidate = candidates[i];
 
-            _baseCenters[idx] = cand.center;
+            _baseCenters[index] = candidate.center;
 
-            float r01 = Mathf.Clamp01(cand.dist / denom);
-
-            // Base radius from center -> edge
+            float r01 = Mathf.Clamp01(candidate.dist / denom);
             float tRad = Mathf.Pow(r01, centerPow);
-            float rad = Mathf.Lerp(radiusCenterOS, radiusEdgeOS, tRad);
+            float radius = Mathf.Lerp(radiusCenterOS, radiusEdgeOS, tRad);
 
-            if (cand.isEdge)
+            if (candidate.isEdge)
             {
-                // Make edge balls smaller + varied
-                rad *= edgeMul;
+                radius *= edgeMultiplier;
 
-                float jitter = Mathf.Lerp(1f - edgeJ, 1f + edgeJ, cand.edgeJit01);
-                rad *= jitter;
+                float jitter = Mathf.Lerp(
+                    1f - edgeJitter,
+                    1f + edgeJitter,
+                    candidate.edgeJit01);
+                radius *= jitter;
 
-                // shrink even more as we approach the outer rim
-                float edgeT = (bandStart >= 0.999f) ? 1f : Mathf.InverseLerp(bandStart, 1f, r01);
-                rad *= Mathf.Lerp(1f, edgeOuterMul, edgeT);
+                float edgeT = bandStart >= 0.999f
+                    ? 1f
+                    : Mathf.InverseLerp(bandStart, 1f, r01);
+                radius *= Mathf.Lerp(1f, outerMultiplier, edgeT);
             }
 
-            _baseRadii[idx] = Mathf.Max(0.0005f, rad);
-            _spawnTimes[idx] = 0f;
+            _baseRadii[index] = Mathf.Max(0.0005f, radius);
+            _spawnTimes[index] = 0f;
         }
     }
 
-    void RebuildAndApply(bool force)
+    private void RebuildAndApply(bool force)
     {
         if (!sdf) return;
 
-        float score01 = ReadScore01();
+        float score01 = Mathf.Clamp01(_displayScore01);
         ApplyTeamColorsIfNeeded(force);
-
-        int desired = ComputeDesiredCount(score01);
-
-        // This is what makes your "dials" work again:
-        // layout is rebuilt when any relevant dial changes (cache key).
         EnsureBaseCache();
 
+        int desired = ComputeDesiredCount(score01);
         float now = Now();
 
         if (force || desired != _lastDesiredCount)
@@ -374,35 +770,40 @@ public class ScoreVoidMetaballsVisual : MonoBehaviour
                 for (int i = start; i < desired && i < _spawnTimes.Length; i++)
                     _spawnTimes[i] = now;
             }
+
             _lastDesiredCount = desired;
         }
 
         sdf.Clear();
 
-        int n = Mathf.Min(desired, _baseCenters.Length);
-
-        float coreT = Mathf.Pow(Mathf.Clamp01(score01), Mathf.Max(0.0001f, coreRadiusScorePow));
+        int count = Mathf.Min(desired, _baseCenters.Length);
+        float coreT = Mathf.Pow(score01, Mathf.Max(0.0001f, coreRadiusScorePow));
         float coreBaseRadius = Mathf.Lerp(coreRadiusMinOS, coreRadiusMaxOS, coreT);
 
-        for (int i = 0; i < n; i++)
+        for (int i = 0; i < count; i++)
         {
             float phase = i * 0.73f + seed * 0.001f;
 
-            // jitter
             Vector3 jitter = Vector3.zero;
             if (jitterAmplitudeOS > 0.0001f)
             {
                 float t = now * 1.1f;
+                float motionMultiplier = _promotionMotionMultiplier;
                 jitter = new Vector3(
                     Mathf.Sin(t * 1.13f + phase),
                     Mathf.Sin(t * 1.41f + phase * 1.7f) * yWobbleOS,
                     Mathf.Sin(t * 0.97f + phase * 2.1f)
-                ) * jitterAmplitudeOS;
+                ) * (jitterAmplitudeOS * motionMultiplier);
             }
 
             float pulse = 1f;
             if (radiusPulseAmp > 0.0001f)
-                pulse = 1f + radiusPulseAmp * Mathf.Sin(now * radiusPulseSpeed + phase);
+            {
+                pulse = 1f +
+                    radiusPulseAmp *
+                    _promotionMotionMultiplier *
+                    Mathf.Sin(now * radiusPulseSpeed + phase);
+            }
 
             float appear = 1f;
             if (appearSpeed > 0.0001f)
@@ -411,22 +812,35 @@ public class ScoreVoidMetaballsVisual : MonoBehaviour
                 appear = Mathf.Clamp01(dt * appearSpeed);
             }
 
-            Vector3 c = _baseCenters[i] + jitter;
+            Vector3 center = _baseCenters[i] + jitter;
+            float baseRadius = _baseRadii[i];
 
-            float baseR = _baseRadii[i];
-
-            // Core ball scaling (index 0)
             if (i == 0 && enableCoreBallScaling)
-                baseR = coreBaseRadius;
+                baseRadius = coreBaseRadius;
 
-            float r = Mathf.Max(0.0005f, baseR * pulse * appear);
+            float radius = Mathf.Max(
+                0.0005f,
+                baseRadius * pulse * appear * _promotionRadiusMultiplier);
 
-            sdf.AddBall(c, r);
+            sdf.AddBall(center, radius);
         }
 
         sdf.Apply();
 
-        lastBallCount = n;
+        lastBallCount = count;
         lastScore01 = score01;
+        lastRawMilliElectronVolts = _rawMilliElectronVolts;
+        lastEnergyUnit = _currentUnit;
+    }
+
+    private static int NormalizeTeamID(int teamID)
+    {
+        return teamID == 2 ? 2 : 1;
+    }
+
+    private static float Smooth01(float t)
+    {
+        t = Mathf.Clamp01(t);
+        return t * t * (3f - 2f * t);
     }
 }

@@ -6,6 +6,8 @@ Shader "MASSIVE/GridUnlitLines"
         _LineColor("Line Color", Color) = (1,1,1,1)
         _DispBrightness("Displacement Brightness", Float) = 2.0
         _GridSize("Grid Size (XY)", Vector) = (16,8,0,0)
+        [HideInInspector] _PresentationScale("Presentation Scale", Float) = 1
+        [HideInInspector] _ClipToGridBounds("Clip To Grid Bounds", Float) = 1
     }
     SubShader
     {
@@ -28,6 +30,8 @@ Shader "MASSIVE/GridUnlitLines"
           float _LinePixelWidth;   // kept for future AA work
           float _DispBrightness;
           float2 _GridSize;
+          float _PresentationScale;
+          float _ClipToGridBounds;
             // --- Border overlay controls (set via MPB from C#) ---
             int     _BorderOnly;        // 0 = normal draw, 1 = draw only border lines
             float   _BorderWidthMul;    // placeholder until quad lines (no effect with GL lines)
@@ -46,11 +50,21 @@ Shader "MASSIVE/GridUnlitLines"
               float2 uv      : TEXCOORD1;
           };
 
-          // Bilinear sample from simulated grid at uv in 0..1
-          float3 SampleSimPos(float2 uv)
+          float3 FlatPositionFromUV(float2 uv)
           {
-              float fx = saturate(uv.x) * (_SimGridX - 1);
-              float fy = saturate(uv.y) * (_SimGridY - 1);
+              return float3(
+                  (uv.x - 0.5) * _GridSize.x,
+                  (uv.y - 0.5) * _GridSize.y,
+                  0.0);
+          }
+
+          // Bilinear sample from the simulated grid inside its authoritative
+          // 0..1 domain.
+          float3 SampleSimPosClamped(float2 uv)
+          {
+              float2 clampedUV = saturate(uv);
+              float fx = clampedUV.x * (_SimGridX - 1);
+              float fy = clampedUV.y * (_SimGridY - 1);
 
               int x0 = (int)floor(fx), y0 = (int)floor(fy);
               int x1 = min(x0 + 1, _SimGridX - 1);
@@ -71,40 +85,64 @@ Shader "MASSIVE/GridUnlitLines"
               return lerp(lerp(p00, p10, tx), lerp(p01, p11, tx), ty);
           }
 
+          // Presentation overscan may request UVs outside 0..1. Continue the
+          // flat lattice beyond the arena while carrying the nearest edge's
+          // deformation offset outward. With pinned edges this becomes a
+          // perfectly flat extension, which is ideal for intro/outro zooms.
+          float3 SampleSimPosExtended(float2 uv)
+          {
+              float2 edgeUV = saturate(uv);
+              float3 edgeDisplaced = SampleSimPosClamped(edgeUV);
+              float3 edgeFlat = FlatPositionFromUV(edgeUV);
+              float3 requestedFlat = FlatPositionFromUV(uv);
+              return requestedFlat + (edgeDisplaced - edgeFlat);
+          }
+
           v2f vert (appdata v)
           {
               v2f o;
-              float3 displaced = SampleSimPos(v.uv);
-              float3 flat = float3(lerp(-_GridSize.x*0.5, _GridSize.x*0.5, v.uv.x),
-                                   lerp(-_GridSize.y*0.5, _GridSize.y*0.5, v.uv.y), 0);
+
+              float visualScale = max(0.0001, _PresentationScale);
+              float2 presentedUV =
+                  0.5 + (v.uv - 0.5) * visualScale;
+
+              float3 displaced = SampleSimPosExtended(presentedUV);
+              float3 flat = FlatPositionFromUV(presentedUV);
 
               o.dispMag = length(displaced - flat);
-              o.pos = UnityObjectToClipPos(float4(displaced,1));
-              o.uv  = v.uv; 
+              o.pos = UnityObjectToClipPos(float4(displaced, 1));
+              o.uv = presentedUV;
               return o;
           }
 
-            float4 frag (v2f i) : SV_Target
-            {
-                // A line lies on the outer frame if either UV axis is at 0 or 1.
-                // We allow a tiny epsilon for floating error and rounding in your mesh mapping.
-                const float eps = 1e-4;
-                bool isBorder = (i.uv.x <= eps) || (i.uv.x >= 1.0 - eps) ||
-                                (i.uv.y <= eps) || (i.uv.y >= 1.0 - eps);
+          float4 frag (v2f i) : SV_Target
+          {
+              const float eps = 1e-4;
 
-                // If this is the overlay pass, draw ONLY the frame and discard everything else.
-                if (_BorderOnly == 1 && !isBorder) discard;
+              bool outsideArena =
+                  i.uv.x < -eps || i.uv.x > 1.0 + eps ||
+                  i.uv.y < -eps || i.uv.y > 1.0 + eps;
 
-                // Pick base color depending on whether we're in the overlay pass.
-                float4 baseCol = (_BorderOnly == 1) ? _BorderColor : _LineColor;
+              if (_ClipToGridBounds > 0.5 && outsideArena)
+                  discard;
 
-                // Existing brightness boost from displacement magnitude
-                float bright = 1.0 + _DispBrightness * saturate(i.dispMag);
+              // Legacy main-pass border filtering remains available, though
+              // the current C# path uses the dedicated BorderStrip pass.
+              bool isBorder =
+                  abs(i.uv.x) <= eps || abs(i.uv.x - 1.0) <= eps ||
+                  abs(i.uv.y) <= eps || abs(i.uv.y - 1.0) <= eps;
 
-                // NOTE: _BorderWidthMul is a no-op with core GL/Raster lines; to get true thicker lines,
-                // we need a quad-line pass (see note below).
-                return float4(baseCol.rgb * bright, baseCol.a);
-            }
+              if (_BorderOnly == 1 && !isBorder)
+                  discard;
+
+              float4 baseCol =
+                  (_BorderOnly == 1) ? _BorderColor : _LineColor;
+
+              float bright =
+                  1.0 + _DispBrightness * saturate(i.dispMag);
+
+              return float4(baseCol.rgb * bright, baseCol.a);
+          }
           ENDHLSL
         }
         Pass

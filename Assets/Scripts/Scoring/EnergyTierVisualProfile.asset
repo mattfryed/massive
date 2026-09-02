@@ -1,0 +1,357 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 27564220aece6694d9d02a365a4fa38d, type: 3}
+  m_Name: EnergyTierVisualProfile
+  m_EditorClassIdentifier: 
+  tiers:
+  - unit: 0
+    scoreColor: {r: 0.96, g: 0.96, b: 0.96, a: 1}
+    activeUnitColor: {r: 0.96, g: 0.96, b: 0.96, a: 1}
+    activeIndicatorColor: {r: 0.96, g: 0.96, b: 0.96, a: 1}
+    outlineColor: {r: 0.96, g: 0.96, b: 0.96, a: 1}
+    outlineWidth: 0
+    faceDilate: 0
+    softness: 0
+    enableGlow: 0
+    glowColor: {r: 0.96, g: 0.96, b: 0.96, a: 1}
+    glowOffset: 0
+    glowInner: 0
+    glowOuter: 0
+    glowPower: 0.4
+    promotionSeconds: 0.12
+    punchScale: 1.025
+    shakePosition: 0
+    shakeRotationDegrees: 0
+    shakeFrequency: 22
+    promotionEnvelope:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 0
+        outSlope: 4
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.45
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 0
+        inSlope: -3
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    animatorTrigger: 
+    promotionVfxPrefab: {fileID: 0}
+    promotionVfxLifetime: 2
+    promotionAudio: {fileID: 0}
+    activeLoopVfxPrefab: {fileID: 0}
+  - unit: 2
+    scoreColor: {r: 0.38, g: 0.72, b: 1, a: 1}
+    activeUnitColor: {r: 0.38, g: 0.72, b: 1, a: 1}
+    activeIndicatorColor: {r: 0.38, g: 0.72, b: 1, a: 1}
+    outlineColor: {r: 0.38, g: 0.72, b: 1, a: 1}
+    outlineWidth: 0.08
+    faceDilate: 0.042000003
+    softness: 0.0224
+    enableGlow: 1
+    glowColor: {r: 0.38, g: 0.72, b: 1, a: 1}
+    glowOffset: 0
+    glowInner: 0.098
+    glowOuter: 0.28
+    glowPower: 0.526
+    promotionSeconds: 0.22
+    punchScale: 1.08
+    shakePosition: 1.8
+    shakeRotationDegrees: 0.5
+    shakeFrequency: 26.48
+    promotionEnvelope:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 0
+        outSlope: 4
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.45
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 0
+        inSlope: -3
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    animatorTrigger: 
+    promotionVfxPrefab: {fileID: 0}
+    promotionVfxLifetime: 2
+    promotionAudio: {fileID: 0}
+    activeLoopVfxPrefab: {fileID: 0}
+  - unit: 3
+    scoreColor: {r: 0.7, g: 0.46, b: 1, a: 1}
+    activeUnitColor: {r: 0.7, g: 0.46, b: 1, a: 1}
+    activeIndicatorColor: {r: 0.7, g: 0.46, b: 1, a: 1}
+    outlineColor: {r: 0.7, g: 0.46, b: 1, a: 1}
+    outlineWidth: 0.12
+    faceDilate: 0.057
+    softness: 0.030399999
+    enableGlow: 1
+    glowColor: {r: 0.7, g: 0.46, b: 1, a: 1}
+    glowOffset: 0
+    glowInner: 0.133
+    glowOuter: 0.38
+    glowPower: 0.571
+    promotionSeconds: 0.27
+    punchScale: 1.11
+    shakePosition: 2.8
+    shakeRotationDegrees: 0.9
+    shakeFrequency: 28.08
+    promotionEnvelope:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 0
+        outSlope: 4
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.45
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 0
+        inSlope: -3
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    animatorTrigger: 
+    promotionVfxPrefab: {fileID: 0}
+    promotionVfxLifetime: 2
+    promotionAudio: {fileID: 0}
+    activeLoopVfxPrefab: {fileID: 0}
+  - unit: 4
+    scoreColor: {r: 1, g: 0.48, b: 0.16, a: 1}
+    activeUnitColor: {r: 1, g: 0.48, b: 0.16, a: 1}
+    activeIndicatorColor: {r: 1, g: 0.48, b: 0.16, a: 1}
+    outlineColor: {r: 1, g: 0.48, b: 0.16, a: 1}
+    outlineWidth: 0.16
+    faceDilate: 0.075
+    softness: 0.04
+    enableGlow: 1
+    glowColor: {r: 1, g: 0.48, b: 0.16, a: 1}
+    glowOffset: 0
+    glowInner: 0.175
+    glowOuter: 0.5
+    glowPower: 0.625
+    promotionSeconds: 0.34
+    punchScale: 1.15
+    shakePosition: 4.2
+    shakeRotationDegrees: 1.5
+    shakeFrequency: 30
+    promotionEnvelope:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 0
+        outSlope: 4
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.45
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 0
+        inSlope: -3
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    animatorTrigger: 
+    promotionVfxPrefab: {fileID: 0}
+    promotionVfxLifetime: 2
+    promotionAudio: {fileID: 0}
+    activeLoopVfxPrefab: {fileID: 0}
+  - unit: 1
+    scoreColor: {r: 0.72, g: 0.94, b: 1, a: 1}
+    activeUnitColor: {r: 0.72, g: 0.94, b: 1, a: 1}
+    activeIndicatorColor: {r: 0.72, g: 0.94, b: 1, a: 1}
+    outlineColor: {r: 0.72, g: 0.94, b: 1, a: 1}
+    outlineWidth: 0.04
+    faceDilate: 0.027000003
+    softness: 0.014400001
+    enableGlow: 0
+    glowColor: {r: 0.72, g: 0.94, b: 1, a: 1}
+    glowOffset: 0.396
+    glowInner: 0.063
+    glowOuter: 0.567
+    glowPower: 0.784
+    promotionSeconds: 1
+    punchScale: 1.2
+    shakePosition: 0.2
+    shakeRotationDegrees: 0.2
+    shakeFrequency: 24.880001
+    promotionEnvelope:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 0
+        outSlope: 4
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.45
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 0
+        inSlope: -3
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    animatorTrigger: 
+    promotionVfxPrefab: {fileID: 0}
+    promotionVfxLifetime: 2
+    promotionAudio: {fileID: 0}
+    activeLoopVfxPrefab: {fileID: 0}
+  - unit: 5
+    scoreColor: {r: 1, g: 0.78, b: 0.18, a: 1}
+    activeUnitColor: {r: 1, g: 0.78, b: 0.18, a: 1}
+    activeIndicatorColor: {r: 1, g: 0.78, b: 0.18, a: 1}
+    outlineColor: {r: 1, g: 0.78, b: 0.18, a: 1}
+    outlineWidth: 0.22
+    faceDilate: 0.102000006
+    softness: 0.0544
+    enableGlow: 1
+    glowColor: {r: 1, g: 0.78, b: 0.18, a: 1}
+    glowOffset: 0
+    glowInner: 0.238
+    glowOuter: 0.68
+    glowPower: 0.70600003
+    promotionSeconds: 0.48
+    punchScale: 1.22
+    shakePosition: 6.5
+    shakeRotationDegrees: 2.4
+    shakeFrequency: 32.88
+    promotionEnvelope:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 0
+        outSlope: 4
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.45
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 0
+        inSlope: -3
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    animatorTrigger: 
+    promotionVfxPrefab: {fileID: 0}
+    promotionVfxLifetime: 2
+    promotionAudio: {fileID: 0}
+    activeLoopVfxPrefab: {fileID: 0}

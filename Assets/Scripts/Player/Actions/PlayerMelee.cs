@@ -1,61 +1,66 @@
 using System.Collections;
 using UnityEngine;
-using Massive.Player;     // for PlayerAttackController / AttackStage
-using Massive.PowerUps;   // for PlayerPowerUpController (Decoherence intercept)
+using Massive.Player;
+using Massive.PowerUps;
 
 /// <summary>
 /// Event-driven melee hitbox for the player's weapon.
-/// - Gates the collider to be active only during the current AttackStage activation window.
-/// - Handles Player vs Player, Sword vs Sword, and Sword vs Shield interactions.
-/// - Routes gameplay effects directly to PlayerControllerScript.
+/// The victim resolves a hit transaction first; attacker mass/feedback is only
+/// granted after the victim confirms that damage was accepted.
 /// </summary>
 [DisallowMultipleComponent]
 [RequireComponent(typeof(Collider))]
 public class PlayerMelee : MonoBehaviour
 {
     [Header("Owners & Controllers")]
-    [SerializeField] private PlayerControllerScript owner;              // Assign (or auto-found)
-    [SerializeField] private PlayerAttackController attackController;   // Assign (or auto-found)
+    [SerializeField] private PlayerControllerScript owner;
+    [SerializeField] private PlayerAttackController attackController;
 
     [Header("Hitbox")]
-    [SerializeField] private Collider hitbox;                           // Must be a trigger collider
-    [SerializeField] private bool gateHitboxToActivationWindow = true;  // If true, collider enabled only during stage window
+    [SerializeField] private Collider hitbox;
+    [SerializeField] private bool gateHitboxToActivationWindow = true;
 
     [Header("Tags")]
     [SerializeField] private string playerTag = "Player";
     [SerializeField] private string shieldTag = "Shield";
-    [SerializeField] private string swordTag  = "Sword";
+    [SerializeField] private string swordTag = "Sword";
 
     [Header("VFX / SFX")]
-    [SerializeField] private GameObject swordClashPrefab;               // optional
+    [SerializeField] private GameObject swordClashPrefab;
 
     private Coroutine gateRoutine;
 
-    
-private bool IsFriendly(PlayerControllerScript otherPlayer)
-{
-    if (owner == null || otherPlayer == null) return false;
-    return otherPlayer.teamID == owner.teamID;
-}
+    public PlayerControllerScript Owner => owner;
+
+    private bool IsFriendly(PlayerControllerScript otherPlayer)
+    {
+        return owner != null && otherPlayer != null && otherPlayer.teamID == owner.teamID;
+    }
 
     private void Reset()
     {
         hitbox = GetComponent<Collider>();
-        if (hitbox) hitbox.isTrigger = true;
+        if (hitbox != null)
+            hitbox.isTrigger = true;
     }
 
     private void Awake()
     {
-        if (!owner) owner = GetComponentInParent<PlayerControllerScript>();
-        if (!attackController) attackController = GetComponentInParent<PlayerAttackController>();
-        if (!hitbox) hitbox = GetComponent<Collider>();
+        if (owner == null)
+            owner = GetComponentInParent<PlayerControllerScript>();
+        if (attackController == null)
+            attackController = GetComponentInParent<PlayerAttackController>();
+        if (hitbox == null)
+            hitbox = GetComponent<Collider>();
 
-        if (hitbox) hitbox.isTrigger = true;
+        if (hitbox != null)
+            hitbox.isTrigger = true;
     }
 
     private void OnEnable()
     {
-        if (gateHitboxToActivationWindow && hitbox) hitbox.enabled = false;
+        if (gateHitboxToActivationWindow && hitbox != null)
+            hitbox.enabled = false;
 
         if (attackController != null)
         {
@@ -78,24 +83,26 @@ private bool IsFriendly(PlayerControllerScript otherPlayer)
             gateRoutine = null;
         }
 
-        if (hitbox) hitbox.enabled = false;
+        if (hitbox != null)
+            hitbox.enabled = false;
     }
-
-    // --- Stage gating ---
 
     private void OnStageStarted(AttackStage stage)
     {
-        if (!gateHitboxToActivationWindow || hitbox == null) return;
+        if (!gateHitboxToActivationWindow || hitbox == null)
+            return;
 
-        if (gateRoutine != null) StopCoroutine(gateRoutine);
+        if (gateRoutine != null)
+            StopCoroutine(gateRoutine);
+
         gateRoutine = StartCoroutine(GateHitboxRoutine(stage));
     }
 
     private void OnStageCompleted(AttackStage stage)
     {
-        if (!gateHitboxToActivationWindow || hitbox == null) return;
+        if (!gateHitboxToActivationWindow || hitbox == null)
+            return;
 
-        // Hard shut-off on stage end
         hitbox.enabled = false;
 
         if (gateRoutine != null)
@@ -107,7 +114,6 @@ private bool IsFriendly(PlayerControllerScript otherPlayer)
 
     private IEnumerator GateHitboxRoutine(AttackStage stage)
     {
-        // Wait until activation window opens
         while (attackController != null &&
                attackController.CurrentStage == stage &&
                attackController.StageNormalizedTime < stage.ActivationStartNormalized)
@@ -115,10 +121,9 @@ private bool IsFriendly(PlayerControllerScript otherPlayer)
             yield return null;
         }
 
-        if (attackController != null && attackController.CurrentStage == stage && hitbox)
+        if (attackController != null && attackController.CurrentStage == stage && hitbox != null)
             hitbox.enabled = true;
 
-        // Keep enabled through the activation window
         while (attackController != null &&
                attackController.CurrentStage == stage &&
                attackController.StageNormalizedTime <= stage.ActivationEndNormalized)
@@ -126,108 +131,105 @@ private bool IsFriendly(PlayerControllerScript otherPlayer)
             yield return null;
         }
 
-        if (hitbox) hitbox.enabled = false;
+        if (hitbox != null)
+            hitbox.enabled = false;
+
         gateRoutine = null;
     }
 
-    // --- Collisions ---
-
     private void OnTriggerEnter(Collider other)
     {
-        if (!owner) return;
+        if (owner == null || other == null)
+            return;
 
-        // Sword vs Sword (clash)
-        // if (other.CompareTag(swordTag))
-        // {
-        //     if (swordClashPrefab)
-        //     {
-        //         var sc = Instantiate(swordClashPrefab);
-        //         sc.transform.position = transform.position;
-        //     }
-
-        //     // Apply your existing clash behavior to BOTH owners
-        //     owner.SwordClash();
-        //     var otherOwner = other.GetComponentInParent<PlayerControllerScript>();
-        //     if (otherOwner) otherOwner.SwordClash();
-        //     return;
-        // }
-
-        // Sword vs Shield
-        // Default: attacker gets stunned.
-        // Power-up override: defender can "Decohere" while shielding, letting attacker phase through + get briefly stunned.
-        if (other.CompareTag(shieldTag))
+        // Sword-vs-sword remains disabled until the clash system is re-enabled.
+        // Keeping the branch in one place prevents the former duplicate player-hit path.
+        if (other.CompareTag(swordTag))
         {
-            var defender = other.GetComponentInParent<PlayerControllerScript>();
-
-            // Ignore teammate shields (prevents grief-stunning your own team)
-            if (defender != null && IsFriendly(defender))
-                return;
-
-            // Power-up override still gets first shot
-            var defenderPU = other.GetComponentInParent<PlayerPowerUpController>();
-            if (defenderPU != null)
-            {
-                Vector3 dir = other.transform.position - owner.transform.position;
-                dir.y = 0;
-                if (dir.magnitude > 0.01f)
-                {
-                    dir.Normalize();
-                    if (defenderPU.TryHandleShieldImpact(owner, other, dir))
-                        return;
-                }
-            }
-
-            var defenderShield = other.GetComponentInParent<Massive.Player.PlayerShieldAbility>();
-
-            float strength = 1f;
-            if (defenderShield != null && defenderShield.IsActive)
-                strength = defenderShield.CurrentStrength01;
-
-            owner.Stun(other.transform.position, strength);
-            AudioSystem.I?.Play(AudioEventId.Player_Parry, transform.position);
-
-            float leak01 = Mathf.Clamp01(1f - strength);
-
-            // Only leak-through damage if defender is an enemy
-            if (defender != null && leak01 > 0.001f && !IsFriendly(defender))
-            {
-                owner.GrowScaled(leak01);
-                defender.ShrinkScaled(owner.gameObject, leak01);
-                defender.playSFX("struckSFX");
-            }
-
+            // Optional future clash implementation:
+            // Spawn clash VFX, then call SwordClash on both owners.
             return;
         }
 
-        // Sword vs Player
-        if (other.CompareTag(playerTag))
+        if (other.CompareTag(shieldTag))
         {
-            // Robustness: collider might be on a child
-            var victim = other.GetComponentInParent<PlayerControllerScript>();
-            if (!victim) return;
+            ResolveShieldImpact(other);
+            return;
+        }
 
-            // Ignore self + teammates
-            if (victim == owner) return;
-            if (IsFriendly(victim)) return;
+        if (other.CompareTag(playerTag))
+            ResolvePlayerImpact(other);
+    }
 
-            if (!victim.shieldOn)
+    private void ResolveShieldImpact(Collider shieldCollider)
+    {
+        PlayerControllerScript defender = shieldCollider.GetComponentInParent<PlayerControllerScript>();
+        if (defender != null && IsFriendly(defender))
+            return;
+
+        PlayerPowerUpController defenderPowerUps = shieldCollider.GetComponentInParent<PlayerPowerUpController>();
+        if (defenderPowerUps != null)
+        {
+            Vector3 direction = shieldCollider.transform.position - owner.transform.position;
+            direction.y = 0f;
+
+            if (direction.sqrMagnitude > 0.0001f)
             {
-                owner.Grow();
-                victim.Shrink(owner.gameObject);
-                AudioSystem.I?.Play(AudioEventId.Player_Hit, transform.position);
+                direction.Normalize();
+                if (defenderPowerUps.TryHandleShieldImpact(owner, shieldCollider, direction))
+                    return;
             }
         }
+
+        Massive.Player.PlayerShieldAbility defenderShield =
+            shieldCollider.GetComponentInParent<Massive.Player.PlayerShieldAbility>();
+
+        float strength = 1f;
+        if (defenderShield != null && defenderShield.IsActive)
+            strength = defenderShield.CurrentStrength01;
+
+        owner.Stun(shieldCollider.transform.position, strength);
+        AudioSystem.I?.Play(AudioEventId.Player_Parry, transform.position);
+
+        float leak01 = Mathf.Clamp01(1f - strength);
+        if (defender == null || IsFriendly(defender) || leak01 <= 0.001f)
+            return;
+
+        PlayerHitResult hit = defender.TryApplyHit(owner.gameObject, leak01);
+        if (!hit.accepted)
+            return;
+
+        owner.GrowScaled(hit.appliedScale01);
+        defender.playSFX("struckSFX");
+        AudioSystem.I?.Play(AudioEventId.Player_Hit, transform.position);
+    }
+
+    private void ResolvePlayerImpact(Collider playerCollider)
+    {
+        PlayerControllerScript victim = playerCollider.GetComponentInParent<PlayerControllerScript>();
+        if (victim == null || victim == owner || IsFriendly(victim))
+            return;
+
+        if (victim.shieldOn)
+            return;
+
+        PlayerHitResult hit = victim.TryApplyHit(owner.gameObject, 1f);
+        if (!hit.accepted)
+            return;
+
+        // Restore attacker mass only after the victim accepted the hit. If the
+        // victim had less than a full hit of mass remaining, gain is proportional.
+        owner.GrowScaled(hit.appliedScale01);
+        AudioSystem.I?.Play(AudioEventId.Player_Hit, transform.position);
     }
 
 #if UNITY_EDITOR
-    // Simple viz
     private void OnDrawGizmosSelected()
     {
-        if (hitbox)
-        {
-            Gizmos.color = (hitbox.enabled ? Color.green : Color.red);
-            Gizmos.DrawWireCube(hitbox.bounds.center, hitbox.bounds.size);
-        }
+        if (hitbox == null) return;
+
+        Gizmos.color = hitbox.enabled ? Color.green : Color.red;
+        Gizmos.DrawWireCube(hitbox.bounds.center, hitbox.bounds.size);
     }
 #endif
 }
