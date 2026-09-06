@@ -30,6 +30,9 @@ namespace Massive.Enemies
         [Tooltip("If true, a shielded player can reflect this projectile.")]
         public bool reflectable = true;
 
+        [Tooltip("Damage to the firing enemy when this projectile is reflected back into it.")]
+        [Min(0f)] public float reflectedDamageToEnemyMassEq = 1f;
+
         [Tooltip("If true, projectile can bounce off world colliders.")]
         public bool canBounceOffWorld = false;
 
@@ -45,6 +48,8 @@ namespace Massive.Enemies
         private int _bounces;
 
         private bool _isReflected;
+        private bool _impactResolved;
+        public PlayerControllerScript ReflectedBy { get; private set; }
 
         public EnemyBase Owner { get; private set; }
 
@@ -62,6 +67,10 @@ namespace Massive.Enemies
         public virtual void Init(EnemyBase owner, Vector3 directionWS)
         {
             Owner = owner;
+            _isReflected = false;
+            _impactResolved = false;
+            ReflectedBy = null;
+            _bounces = 0;
             _dir = directionWS.sqrMagnitude > 0.0001f ? directionWS.normalized : Vector3.forward;
 
             _dieTime = (lifetimeSeconds > 0f) ? (Time.time + lifetimeSeconds) : float.PositiveInfinity;
@@ -88,6 +97,8 @@ namespace Massive.Enemies
         // --- Trigger hits (player/shield) ---
         protected virtual void OnTriggerEnter(Collider other)
         {
+            if (_impactResolved) return;
+            if (TryHandleEnemy(other)) return;
             if (TryHandleShield(other)) return;
             if (TryHandlePlayer(other)) return;
         }
@@ -96,6 +107,8 @@ namespace Massive.Enemies
         protected virtual void OnCollisionEnter(Collision collision)
         {
             if (collision == null) return;
+            if (_impactResolved) return;
+            if (TryHandleEnemy(collision.collider)) return;
 
             // Shield as non-trigger collider
             if (TryHandleShield(collision.collider)) return;
@@ -146,6 +159,11 @@ namespace Massive.Enemies
             var shieldAbility = other.GetComponentInParent<Massive.Player.PlayerShieldAbility>();
             if (shieldAbility != null && !shieldAbility.IsActive) return false;
 
+            var player = other.GetComponentInParent<PlayerControllerScript>();
+            if (player == null || player.temporarilyEliminated) return false;
+            if (shieldAbility == null && !player.shieldOn) return false;
+            ReflectedBy = player;
+
             ReflectFrom(other.transform.position);
             return true;
         }
@@ -194,6 +212,20 @@ namespace Massive.Enemies
             if (dmg > 0f)
                 player.ApplyExternalMassDelta(-dmg, allowDeath: true);
 
+            _impactResolved = true;
+            Destroy(gameObject);
+            return true;
+        }
+
+        protected bool TryHandleEnemy(Collider other)
+        {
+            if (_impactResolved || !_isReflected || Owner == null || other == null) return false;
+            var target = other.GetComponentInParent<EnemyBase>();
+            if (target != Owner || target.IsDead || target.IsPaused) return false;
+            if (reflectedDamageToEnemyMassEq <= 0f) return false;
+
+            _impactResolved = true;
+            target.TakeDamage(reflectedDamageToEnemyMassEq, EnemyDamageSource.ShieldReflect, ReflectedBy);
             Destroy(gameObject);
             return true;
         }

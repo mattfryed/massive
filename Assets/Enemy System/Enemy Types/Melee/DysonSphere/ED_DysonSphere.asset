@@ -14,6 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 1
   category: 2
+  defeatRewardKey: ENEMY_DYSON_DEFEAT
   prefab: {fileID: 1372990175634676515, guid: 9e6465d4250ed49cab65e21aa60ba643, type: 3}
   spawnWeight: 1
   spawnRadiusWorld: 0.8

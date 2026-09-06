@@ -1,4 +1,5 @@
 using System;
+using Massive.TextAnimation;
 using UnityEngine;
 
 namespace Massive.Scoring
@@ -15,6 +16,11 @@ namespace Massive.Scoring
         menuName = "MASSIVE/Scoring/Energy Tier Visual Profile")]
     public sealed class EnergyTierVisualProfile : ScriptableObject
     {
+        [Header("Tier Indicator State")]
+        [Tooltip("Color used by every tier indicator except the currently active tier.")]
+        [SerializeField] private Color inactiveTierIndicatorColor =
+            new Color(0.30f, 0.32f, 0.36f, 1f);
+
         [Serializable]
         public sealed class TierStyle
         {
@@ -25,6 +31,10 @@ namespace Massive.Scoring
             public Color scoreColor = Color.white;
             public Color activeUnitColor = Color.white;
             public Color activeIndicatorColor = Color.white;
+
+            [Header("Tier Indicator Font Size")]
+            [Tooltip("Multiplier applied to the active tier label's authored TMP font size. Every inactive tier returns to its authored size and inactive gray.")]
+            [Min(0.01f)] public float activeIndicatorFontSizeMultiplier = 1f;
 
             [Header("TMP SDF")]
             public Color outlineColor = Color.black;
@@ -38,6 +48,29 @@ namespace Massive.Scoring
             [Range(0f, 1f)] public float glowInner;
             [Range(0f, 1f)] public float glowOuter;
             [Range(0f, 1f)] public float glowPower = 0.5f;
+
+            [Header("Reusable Text Animation")]
+            [Tooltip("Optional preset played on the destination tier label. When assigned, this replaces generic tier-root motion unless the controller explicitly enables both.")]
+            public TextAnimationPreset promotionTextPreset;
+
+            [Min(0f)] public float promotionTextIntensity = 1f;
+            public Vector2 promotionTextDirection = Vector2.right;
+
+            [Tooltip("When enabled, the text preset owns this tier's motion root. Generic tier-root punch and shake remain the fallback when no usable preset is available.")]
+            public bool promotionTextPresetReplacesGenericMotion = true;
+
+            [Tooltip("Pass this tier's score color into the preset as its runtime accent color.")]
+            public bool useTierColorAsAnimationAccent = true;
+
+            [Header("Active Tier Baseline Animation")]
+            [Tooltip("Optional low-intensity looping preset played after this tier's activation transition completes. It stops as soon as the tier becomes inactive.")]
+            public TextAnimationPreset activeLoopTextPreset;
+
+            [Min(0f)] public float activeLoopTextIntensity = 0.25f;
+            public Vector2 activeLoopTextDirection = Vector2.right;
+
+            [Tooltip("Pass this tier's score color into the active-loop preset as its runtime accent color.")]
+            public bool useTierColorAsActiveLoopAccent = true;
 
             [Header("Generic Promotion Motion")]
             [Min(0f)] public float promotionSeconds = 0.20f;
@@ -63,6 +96,8 @@ namespace Massive.Scoring
         }
 
         [SerializeField] private TierStyle[] tiers = new TierStyle[0];
+
+        public Color InactiveTierIndicatorColor => inactiveTierIndicatorColor;
 
         public TierStyle GetStyle(EnergyUnit unit)
         {
@@ -166,6 +201,17 @@ namespace Massive.Scoring
             {
                 TierStyle style = tiers[i];
                 if (style == null) continue;
+
+                style.promotionTextIntensity = Mathf.Max(0f, style.promotionTextIntensity);
+                if (style.promotionTextDirection.sqrMagnitude < 0.000001f)
+                    style.promotionTextDirection = Vector2.right;
+
+                style.activeIndicatorFontSizeMultiplier =
+                    Mathf.Max(0.01f, style.activeIndicatorFontSizeMultiplier);
+
+                style.activeLoopTextIntensity = Mathf.Max(0f, style.activeLoopTextIntensity);
+                if (style.activeLoopTextDirection.sqrMagnitude < 0.000001f)
+                    style.activeLoopTextDirection = Vector2.right;
 
                 style.promotionSeconds = Mathf.Max(0f, style.promotionSeconds);
                 style.punchScale = Mathf.Max(1f, style.punchScale);

@@ -3,6 +3,15 @@ using UnityEngine;
 
 namespace Massive.Enemies
 {
+    public struct EnemyDefeatContext
+    {
+        public EnemyBase enemy;
+        public PlayerControllerScript creditedPlayer;
+        public EnemyDamageSource source;
+        public string sourceLifeToken;
+        public Vector3 worldPosition;
+    }
+
     /// <summary>
     /// Shared base component for all enemy + inert world entities spawned by EnemyDirector.
     ///
@@ -31,6 +40,8 @@ namespace Massive.Enemies
         public int OwnerTeamId { get; set; } = -1;
 
         public event Action<EnemyBase, EnemyDamageSource> Died;
+        public event Action<EnemyDefeatContext> Defeated;
+        public string SourceLifeToken { get; private set; }
 
         private Rigidbody _rb;
         private bool _savedKinematic;
@@ -41,11 +52,19 @@ namespace Massive.Enemies
 
         public void Init(EnemyDefinition def, EnemyDirector director)
         {
+            if (IsPaused && !IsDead) Pause(false);
+            IsPaused = false;
+            OwnerTeamId = -1;
             Definition = def;
             Director = director;
 
             SpawnTime = Time.time;
             IsDead = false;
+            SourceLifeToken = Guid.NewGuid().ToString("N");
+
+            // Existing prefabs gain the adapter when initialized by the director.
+            if (GetComponent<EnemyScoreReward>() == null)
+                gameObject.AddComponent<EnemyScoreReward>();
 
             HealthRemaining = (def != null) ? def.healthMassEq : 1f;
 
@@ -104,8 +123,13 @@ namespace Massive.Enemies
 
         public void TakeDamage(float amountMassEq, EnemyDamageSource source = EnemyDamageSource.Unknown)
         {
-            if (IsDead) return;
-            if (amountMassEq <= 0f) return;
+            TakeDamage(amountMassEq, source, null);
+        }
+
+        public void TakeDamage(float amountMassEq, EnemyDamageSource source, PlayerControllerScript creditedPlayer)
+        {
+            if (IsDead || IsPaused || Definition == null) return;
+            if (amountMassEq <= 0f || float.IsNaN(amountMassEq) || float.IsInfinity(amountMassEq)) return;
 
             HealthRemaining -= amountMassEq;
 
@@ -114,7 +138,7 @@ namespace Massive.Enemies
                 TryPlaySfx(Definition.sfxHit);
 
             if (HealthRemaining <= 0f)
-                Kill(source);
+                ResolveDeath(source, creditedPlayer, defeated: true);
         }
 
         /// <summary>
@@ -129,8 +153,24 @@ namespace Massive.Enemies
 
         public void Kill(EnemyDamageSource source = EnemyDamageSource.Unknown)
         {
+            // Administrative removal and lifetime expiry never count as a defeat.
+            ResolveDeath(source, null, defeated: false);
+        }
+
+        private void ResolveDeath(EnemyDamageSource source, PlayerControllerScript creditedPlayer, bool defeated)
+        {
             if (IsDead) return;
             IsDead = true;
+
+            if (defeated)
+                Defeated?.Invoke(new EnemyDefeatContext
+                {
+                    enemy = this,
+                    creditedPlayer = creditedPlayer,
+                    source = source,
+                    sourceLifeToken = SourceLifeToken,
+                    worldPosition = transform.position
+                });
 
             if (Definition != null)
                 TryPlaySfx(Definition.sfxDeath);

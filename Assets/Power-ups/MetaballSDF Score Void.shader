@@ -13,6 +13,9 @@ Shader "MASSIVE/MetaballSDF-ScoreVoid"
         _MaxSteps("Max Steps", Range(8, 128)) = 64
         _SurfaceEps("Surface Epsilon", Range(0.0005, 0.02)) = 0.005
         _MaxDistance("Max Distance", Range(0.5, 10)) = 3.0
+
+        [HideInInspector] _ContainerClipEnabled("Container Clip Enabled", Float) = 0
+        [HideInInspector] _ContainerCenterRadius("Container Center Radius", Vector) = (0,0,0.5,1)
     }
 
     SubShader
@@ -33,10 +36,12 @@ Shader "MASSIVE/MetaballSDF-ScoreVoid"
             float _ShadeThreshold, _OutlineThreshold;
             float _SmoothK, _SurfaceEps, _MaxDistance;
             int _MaxSteps;
+            float _ContainerClipEnabled;
+            float4 _ContainerCenterRadius;
 
             // Driven via MaterialPropertyBlock
             int _BallCount;
-            float4 _Balls[32]; // xyz=center (object space), w=radius
+            float4 _Balls[48]; // xyz=center (object space), w=radius
 
             struct appdata
             {
@@ -67,8 +72,8 @@ Shader "MASSIVE/MetaballSDF-ScoreVoid"
             float sceneSDF(float3 pOS)
             {
                 float d = 1e9;
-                [unroll]
-                for (int i = 0; i < 32; i++)
+                [loop]
+                for (int i = 0; i < 48; i++)
                 {
                     if (i >= _BallCount) break;
                     float3 c = _Balls[i].xyz;
@@ -76,6 +81,16 @@ Shader "MASSIVE/MetaballSDF-ScoreVoid"
                     float sd = length(pOS - c) - r;
                     d = (i == 0) ? sd : smin(d, sd, _SmoothK);
                 }
+
+                if (_ContainerClipEnabled > 0.5)
+                {
+                    float2 fromCenter = pOS.xz - _ContainerCenterRadius.xy;
+                    float radialBoundary = length(fromCenter) - _ContainerCenterRadius.z;
+                    float diameterBoundary =
+                        _ContainerCenterRadius.w * (pOS.x - _ContainerCenterRadius.x);
+                    d = max(d, max(radialBoundary, diameterBoundary));
+                }
+
                 return d;
             }
 

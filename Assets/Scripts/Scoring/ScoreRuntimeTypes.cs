@@ -39,6 +39,17 @@ namespace Massive.Scoring
     }
 
     [Serializable]
+    public struct TeamAmplifierSnapshot
+    {
+        public int teamID;
+        public int previousTierIndex;
+        public int currentTierIndex;
+        public int previousMultiplier;
+        public int currentMultiplier;
+        public bool isAtMaximum;
+    }
+
+    [Serializable]
     public struct ScoreAwardResult
     {
         public bool accepted;
@@ -50,7 +61,12 @@ namespace Massive.Scoring
         public Vector3 worldPosition;
         public long quantity;
         public long baseMilliElectronVolts;
+
+        // Personal multiplier. Retained under the original field name for
+        // compatibility with existing scoring presentation and telemetry.
         public int multiplier;
+        public int teamAmplifierMultiplier;
+        public int combinedMultiplier;
         public long finalMilliElectronVolts;
         public long previousTeamTotalMilliElectronVolts;
         public long newTeamTotalMilliElectronVolts;

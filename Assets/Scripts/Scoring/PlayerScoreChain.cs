@@ -12,7 +12,7 @@ namespace Massive.Scoring
 
         private ScoreChainSettings _settings;
         private int _tierIndex;
-        private float _timeRemaining;
+        private float _charge;
         private bool _configured;
 
         public event Action<PlayerScoreChain> Changed;
@@ -20,10 +20,18 @@ namespace Massive.Scoring
         public PlayerControllerScript Player => player;
         public int TierIndex => _tierIndex;
         public int CurrentMultiplier => _settings.GetMultiplier(_tierIndex);
-        public float TimeRemaining => Mathf.Max(0f, _timeRemaining);
-        public float TimeRemaining01 => _settings.timeoutSeconds > 0f
-            ? Mathf.Clamp01(_timeRemaining / _settings.timeoutSeconds)
-            : 0f;
+        public bool IsAtMaxTier => _tierIndex >= _settings.MaxIndex;
+        public float Charge => Mathf.Max(0f, _charge);
+        public float ChargeRequired => _settings.GetChargeRequired(_tierIndex);
+        public float Progress01 => IsAtMaxTier
+            ? 1f
+            : Mathf.Clamp01(_charge / Mathf.Max(0.01f, ChargeRequired));
+
+        [Obsolete("Personal multipliers now use persistent charge. Use Charge instead.")]
+        public float TimeRemaining => Charge;
+
+        [Obsolete("Personal multipliers now use persistent charge. Use Progress01 instead.")]
+        public float TimeRemaining01 => Progress01;
         public bool IsChaining => _tierIndex > 0;
 
         private void Awake()
@@ -53,22 +61,6 @@ namespace Massive.Scoring
             }
         }
 
-        private void Update()
-        {
-            if (!_configured || _tierIndex <= 0)
-                return;
-
-            MatchScoreService service = MatchScoreService.Instance;
-            if (service != null && !service.IsChainClockRunning)
-                return;
-
-            float dt = _settings.useUnscaledTime ? Time.unscaledDeltaTime : Time.deltaTime;
-            _timeRemaining -= dt;
-
-            if (_timeRemaining <= 0f)
-                ResetChain();
-        }
-
         public void Configure(ScoreChainSettings settings, bool reset = true)
         {
             _settings = settings;
@@ -82,27 +74,40 @@ namespace Massive.Scoring
 
         public void ApplyAward(ScoreChainAwardMode mode)
         {
-            if (!_configured || mode == ScoreChainAwardMode.None)
+            ApplyAward(mode, 1f);
+        }
+
+        public void ApplyAward(ScoreChainAwardMode mode, float charge)
+        {
+            if (!_configured || mode == ScoreChainAwardMode.None || charge <= 0f || IsAtMaxTier)
                 return;
 
             int oldTier = _tierIndex;
-            float oldTime = _timeRemaining;
+            float oldCharge = _charge;
+            _charge += Mathf.Max(0f, charge);
 
-            if (mode == ScoreChainAwardMode.AdvanceAndRefresh)
-                _tierIndex = Mathf.Min(_tierIndex + 1, _settings.MaxIndex);
+            while (_tierIndex < _settings.MaxIndex)
+            {
+                float required = _settings.GetChargeRequired(_tierIndex);
+                if (_charge + 0.0001f < required)
+                    break;
 
-            if (_tierIndex > 0)
-                _timeRemaining = _settings.timeoutSeconds;
+                _charge = Mathf.Max(0f, _charge - required);
+                _tierIndex++;
+            }
 
-            if (oldTier != _tierIndex || !Mathf.Approximately(oldTime, _timeRemaining))
+            if (IsAtMaxTier)
+                _charge = 0f;
+
+            if (oldTier != _tierIndex || !Mathf.Approximately(oldCharge, _charge))
                 NotifyChanged("award");
         }
 
         public void ResetChain()
         {
-            bool changed = _tierIndex != 0 || _timeRemaining > 0f;
+            bool changed = _tierIndex != 0 || _charge > 0f;
             _tierIndex = 0;
-            _timeRemaining = 0f;
+            _charge = 0f;
 
             if (changed)
                 NotifyChanged("reset");
@@ -126,21 +131,13 @@ namespace Massive.Scoring
                     return;
 
                 case ScoreChainHitPenalty.LoseTime:
-                    _timeRemaining = Mathf.Max(0f, _timeRemaining - _settings.hitTimePenaltySeconds);
-                    if (_timeRemaining <= 0f)
-                    {
-                        ResetChain();
-                        return;
-                    }
-                    NotifyChanged("hit-time");
+                    _charge = Mathf.Max(0f, _charge - _settings.hitTimePenaltySeconds);
+                    NotifyChanged("hit-charge");
                     return;
 
                 case ScoreChainHitPenalty.DropOneTier:
                     _tierIndex = Mathf.Max(0, _tierIndex - 1);
-                    if (_tierIndex == 0)
-                        _timeRemaining = 0f;
-                    else
-                        _timeRemaining = Mathf.Min(_timeRemaining, _settings.timeoutSeconds);
+                    _charge = 0f;
                     NotifyChanged("hit-drop");
                     return;
 
@@ -153,7 +150,9 @@ namespace Massive.Scoring
         private void ClampState()
         {
             _tierIndex = Mathf.Clamp(_tierIndex, 0, _settings.MaxIndex);
-            _timeRemaining = Mathf.Clamp(_timeRemaining, 0f, _settings.timeoutSeconds);
+            _charge = IsAtMaxTier
+                ? 0f
+                : Mathf.Clamp(_charge, 0f, _settings.GetChargeRequired(_tierIndex));
         }
 
         private void NotifyChanged(string reason)
@@ -162,7 +161,8 @@ namespace Massive.Scoring
             {
                 Debug.Log(
                     $"[PlayerScoreChain] P{(player != null ? player.playerID + 1 : 0)} {reason}: " +
-                    $"tier={_tierIndex}, multiplier=x{CurrentMultiplier}, time={_timeRemaining:0.00}",
+                    $"tier={_tierIndex}, multiplier=x{CurrentMultiplier}, " +
+                    $"charge={_charge:0.##}/{ChargeRequired:0.##}",
                     this);
             }
 

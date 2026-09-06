@@ -32,6 +32,9 @@ namespace Massive.Scoring
         [Tooltip("Multiplier values in ascending order. Index 0 should normally be x1.")]
         public int[] multiplierSteps;
 
+        [Tooltip("Charge needed to advance from each multiplier tier. The last multiplier has no next tier, so this array normally has one fewer entry than Multiplier Steps.")]
+        public float[] chargeRequiredPerTier;
+
         [Min(0.05f)]
         public float timeoutSeconds;
 
@@ -55,15 +58,56 @@ namespace Massive.Scoring
             ? 0
             : multiplierSteps.Length - 1;
 
+        public float GetChargeRequired(int tierIndex)
+        {
+            if (tierIndex >= MaxIndex)
+                return 0f;
+
+            if (chargeRequiredPerTier == null || chargeRequiredPerTier.Length == 0)
+                return 1f;
+
+            tierIndex = Mathf.Clamp(tierIndex, 0, chargeRequiredPerTier.Length - 1);
+            return Mathf.Max(0.01f, chargeRequiredPerTier[tierIndex]);
+        }
+
         public static ScoreChainSettings RecommendedDefaults()
         {
             return new ScoreChainSettings
             {
                 multiplierSteps = new[] { 1, 2, 4, 8, 16 },
+                chargeRequiredPerTier = new[] { 4f, 6f, 8f, 10f },
                 timeoutSeconds = 3.25f,
                 useUnscaledTime = true,
-                hitPenalty = ScoreChainHitPenalty.DropOneTier,
+                hitPenalty = ScoreChainHitPenalty.None,
                 hitTimePenaltySeconds = 1f
+            };
+        }
+    }
+
+    [Serializable]
+    public struct TeamAmplifierSettings
+    {
+        [Tooltip("Shared team multiplier values in ascending order. Index 0 should normally be x1.")]
+        public int[] multiplierSteps;
+
+        public int GetMultiplier(int index)
+        {
+            if (multiplierSteps == null || multiplierSteps.Length == 0)
+                return 1;
+
+            index = Mathf.Clamp(index, 0, multiplierSteps.Length - 1);
+            return Mathf.Max(1, multiplierSteps[index]);
+        }
+
+        public int MaxIndex => multiplierSteps == null || multiplierSteps.Length == 0
+            ? 0
+            : multiplierSteps.Length - 1;
+
+        public static TeamAmplifierSettings RecommendedDefaults()
+        {
+            return new TeamAmplifierSettings
+            {
+                multiplierSteps = new[] { 1, 2, 4, 8 }
             };
         }
     }
@@ -83,6 +127,11 @@ namespace Massive.Scoring
         public EnergyUnit unit = EnergyUnit.ElectronVolt;
         public bool multiplierEligible = true;
         public ScoreChainAwardMode chainEffect = ScoreChainAwardMode.AdvanceAndRefresh;
+
+        [Tooltip("Personal multiplier-bar charge granted to the attributed player. Ignored when Chain Effect is None.")]
+        [Min(0f)]
+        public float chainCharge = 1f;
+
         public ScoreRepeatPolicy repeatPolicy = ScoreRepeatPolicy.OncePerSourceToken;
 
         [Tooltip("Optional presentation/telemetry category. It does not affect score math.")]
@@ -99,6 +148,7 @@ namespace Massive.Scoring
     {
         public const string PlayerDefeat = "PLAYER_DEFEAT";
         public const string EnemyDefeat = "ENEMY_DEFEAT";
+        public const string DysonDefeat = "ENEMY_DYSON_DEFEAT";
         public const string PowerUpClaim = "POWER_UP_CLAIM";
         public const string EnergyPickupSmall = "ENERGY_PICKUP_SMALL";
         public const string ObjectiveTick = "OBJECTIVE_TICK";
@@ -117,6 +167,9 @@ namespace Massive.Scoring
         [Header("Personal Chain")]
         [SerializeField] private ScoreChainSettings chainSettings = default;
 
+        [Header("Team Amplifier")]
+        [SerializeField] private TeamAmplifierSettings teamAmplifierSettings = default;
+
         [Header("Central Reward Table")]
         [SerializeField] private List<ScoreRewardRule> rewards = new List<ScoreRewardRule>();
 
@@ -126,6 +179,8 @@ namespace Massive.Scoring
         public int RulesetVersion => Mathf.Max(1, rulesetVersion);
         public float RegulationDurationSeconds => Mathf.Max(1f, regulationDurationSeconds);
         public ScoreChainSettings ChainSettings => SanitizedChainSettings(chainSettings);
+        public TeamAmplifierSettings TeamAmplifierSettings =>
+            SanitizedTeamAmplifierSettings(teamAmplifierSettings);
         public IReadOnlyList<ScoreRewardRule> Rewards => rewards;
 
         private void Reset()
@@ -138,6 +193,12 @@ namespace Massive.Scoring
             if (chainSettings.multiplierSteps == null || chainSettings.multiplierSteps.Length == 0)
                 chainSettings = ScoreChainSettings.RecommendedDefaults();
 
+            if (teamAmplifierSettings.multiplierSteps == null ||
+                teamAmplifierSettings.multiplierSteps.Length == 0)
+            {
+                teamAmplifierSettings = TeamAmplifierSettings.RecommendedDefaults();
+            }
+
             _lookup = null;
         }
 
@@ -146,6 +207,7 @@ namespace Massive.Scoring
             regulationDurationSeconds = Mathf.Max(1f, regulationDurationSeconds);
             rulesetVersion = Mathf.Max(1, rulesetVersion);
             chainSettings = SanitizedChainSettings(chainSettings);
+            teamAmplifierSettings = SanitizedTeamAmplifierSettings(teamAmplifierSettings);
             _lookup = null;
         }
 
@@ -168,6 +230,7 @@ namespace Massive.Scoring
             rulesetVersion = 1;
             regulationDurationSeconds = 120f;
             chainSettings = ScoreChainSettings.RecommendedDefaults();
+            teamAmplifierSettings = TeamAmplifierSettings.RecommendedDefaults();
 
             rewards = new List<ScoreRewardRule>
             {
@@ -179,6 +242,7 @@ namespace Massive.Scoring
                     unit = EnergyUnit.ElectronVolt,
                     multiplierEligible = true,
                     chainEffect = ScoreChainAwardMode.AdvanceAndRefresh,
+                    chainCharge = 2f,
                     repeatPolicy = ScoreRepeatPolicy.OncePerSourceToken,
                     feedbackId = "PLAYER_DEFEAT",
                     expectedOccurrencesPerRound = 4
@@ -191,6 +255,19 @@ namespace Massive.Scoring
                     unit = EnergyUnit.ElectronVolt,
                     multiplierEligible = true,
                     chainEffect = ScoreChainAwardMode.AdvanceAndRefresh,
+                    chainCharge = 1f,
+                    repeatPolicy = ScoreRepeatPolicy.OncePerSourceToken,
+                    feedbackId = "ENEMY_DEFEAT",
+                    expectedOccurrencesPerRound = 0
+                },
+                new ScoreRewardRule
+                {
+                    key = ScoreRewardKeys.DysonDefeat,
+                    amount = 1,
+                    unit = EnergyUnit.ElectronVolt,
+                    multiplierEligible = true,
+                    chainEffect = ScoreChainAwardMode.AdvanceAndRefresh,
+                    chainCharge = 1f,
                     repeatPolicy = ScoreRepeatPolicy.OncePerSourceToken,
                     feedbackId = "ENEMY_DEFEAT",
                     expectedOccurrencesPerRound = 20
@@ -203,6 +280,7 @@ namespace Massive.Scoring
                     unit = EnergyUnit.MilliElectronVolt,
                     multiplierEligible = true,
                     chainEffect = ScoreChainAwardMode.AdvanceAndRefresh,
+                    chainCharge = 1f,
                     repeatPolicy = ScoreRepeatPolicy.OncePerSourceToken,
                     feedbackId = "PICKUP",
                     expectedOccurrencesPerRound = 6
@@ -215,6 +293,7 @@ namespace Massive.Scoring
                     unit = EnergyUnit.MilliElectronVolt,
                     multiplierEligible = true,
                     chainEffect = ScoreChainAwardMode.AdvanceAndRefresh,
+                    chainCharge = 0.5f,
                     repeatPolicy = ScoreRepeatPolicy.OncePerSourceToken,
                     feedbackId = "ENERGY_PICKUP",
                     expectedOccurrencesPerRound = 12
@@ -227,6 +306,7 @@ namespace Massive.Scoring
                     unit = EnergyUnit.MilliElectronVolt,
                     multiplierEligible = true,
                     chainEffect = ScoreChainAwardMode.RefreshOnly,
+                    chainCharge = 0.25f,
                     repeatPolicy = ScoreRepeatPolicy.Unlimited,
                     feedbackId = "OBJECTIVE",
                     expectedOccurrencesPerRound = 20
@@ -283,6 +363,44 @@ namespace Massive.Scoring
 
             settings.timeoutSeconds = Mathf.Max(0.05f, settings.timeoutSeconds);
             settings.hitTimePenaltySeconds = Mathf.Max(0f, settings.hitTimePenaltySeconds);
+
+            int requiredCount = Mathf.Max(0, settings.multiplierSteps.Length - 1);
+            if (settings.chargeRequiredPerTier == null ||
+                settings.chargeRequiredPerTier.Length != requiredCount)
+            {
+                float[] previous = settings.chargeRequiredPerTier;
+                settings.chargeRequiredPerTier = new float[requiredCount];
+                for (int i = 0; i < requiredCount; i++)
+                {
+                    float fallback = 4f + (i * 2f);
+                    settings.chargeRequiredPerTier[i] = previous != null && i < previous.Length
+                        ? Mathf.Max(0.01f, previous[i])
+                        : fallback;
+                }
+            }
+            else
+            {
+                for (int i = 0; i < settings.chargeRequiredPerTier.Length; i++)
+                    settings.chargeRequiredPerTier[i] = Mathf.Max(0.01f, settings.chargeRequiredPerTier[i]);
+            }
+
+            return settings;
+        }
+
+        private static TeamAmplifierSettings SanitizedTeamAmplifierSettings(
+            TeamAmplifierSettings settings)
+        {
+            if (settings.multiplierSteps == null || settings.multiplierSteps.Length == 0)
+                settings = TeamAmplifierSettings.RecommendedDefaults();
+
+            settings.multiplierSteps[0] = 1;
+            for (int i = 1; i < settings.multiplierSteps.Length; i++)
+            {
+                settings.multiplierSteps[i] = Mathf.Max(
+                    settings.multiplierSteps[i - 1],
+                    settings.multiplierSteps[i]);
+            }
+
             return settings;
         }
     }

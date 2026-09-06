@@ -45,12 +45,15 @@ namespace Massive.Scoring
         private ScoreEconomyProfile _runtimeFallbackProfile;
         private long _lightScore;
         private long _darkScore;
+        private int _lightAmplifierTierIndex;
+        private int _darkAmplifierTierIndex;
         private bool _scoringOpen;
         private bool _chainClockRunning;
 
         public event Action<TeamScoreSnapshot> TeamScoreChanged;
         public event Action<ScoreAwardResult> ScoreAwarded;
         public event Action<EnergyTierPromotion> TierPromoted;
+        public event Action<TeamAmplifierSnapshot> TeamAmplifierChanged;
         public event Action ScoresReset;
 
         public ScoreEconomyProfile Profile => profile;
@@ -71,6 +74,36 @@ namespace Massive.Scoring
             Instance = this;
             EnsureProfile();
             ResetForMatch(openScoring: false);
+        }
+
+        private void OnEnable()
+        {
+            if (!Application.isPlaying)
+                return;
+
+            // Unity can reload scripts while Play Mode remains active. Static
+            // fields and the non-serialized registration set are rebuilt, but
+            // Awake/Start are not guaranteed to run again on the surviving
+            // scene objects. Restore the service handoff here so live tuning
+            // does not silently drop score-chain or HUD bindings.
+            if (Instance != null && Instance != this)
+                return;
+
+            Instance = this;
+            EnsureProfile();
+
+            PlayerControllerScript[] activePlayers =
+                FindObjectsByType<PlayerControllerScript>(
+                    FindObjectsInactive.Exclude,
+                    FindObjectsSortMode.None);
+            for (int i = 0; i < activePlayers.Length; i++)
+                RegisterPlayer(activePlayers[i]);
+        }
+
+        private void OnDisable()
+        {
+            if (Instance == this)
+                Instance = null;
         }
 
         private void OnDestroy()
@@ -128,6 +161,8 @@ namespace Massive.Scoring
         {
             _lightScore = 0L;
             _darkScore = 0L;
+            _lightAmplifierTierIndex = 0;
+            _darkAmplifierTierIndex = 0;
             _deduplicationKeys.Clear();
             _telemetry.Clear();
             _contributions.Clear();
@@ -145,6 +180,8 @@ namespace Massive.Scoring
             ScoresReset?.Invoke();
             EmitTeamSnapshot(1, 0L, 0L);
             EmitTeamSnapshot(2, 0L, 0L);
+            EmitTeamAmplifierSnapshot(1, 0, 0);
+            EmitTeamAmplifierSnapshot(2, 0, 0);
         }
 
         public void SetScoringState(bool scoringOpen, bool chainClockRunning)
@@ -166,6 +203,75 @@ namespace Massive.Scoring
         public long GetTeamScore(int teamID)
         {
             return teamID == 1 ? _lightScore : teamID == 2 ? _darkScore : 0L;
+        }
+
+        public int GetTeamAmplifierTierIndex(int teamID)
+        {
+            return teamID == 1
+                ? _lightAmplifierTierIndex
+                : teamID == 2
+                    ? _darkAmplifierTierIndex
+                    : 0;
+        }
+
+        public int GetTeamAmplifierMultiplier(int teamID)
+        {
+            return profile.TeamAmplifierSettings.GetMultiplier(
+                GetTeamAmplifierTierIndex(teamID));
+        }
+
+        public void ResetMultipliers()
+        {
+            foreach (PlayerControllerScript player in _registeredPlayers)
+            {
+                PlayerScoreChain chain = player != null
+                    ? player.GetComponent<PlayerScoreChain>()
+                    : null;
+                chain?.ResetChain();
+            }
+
+            int previousLight = _lightAmplifierTierIndex;
+            int previousDark = _darkAmplifierTierIndex;
+            _lightAmplifierTierIndex = 0;
+            _darkAmplifierTierIndex = 0;
+            EmitTeamAmplifierSnapshot(1, previousLight, 0);
+            EmitTeamAmplifierSnapshot(2, previousDark, 0);
+        }
+
+        public PlayerScoreChain GetPlayerChain(int playerID)
+        {
+            foreach (PlayerControllerScript player in _registeredPlayers)
+            {
+                if (player != null && player.playerID == playerID)
+                    return player.GetComponent<PlayerScoreChain>();
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Advances the shared Amplifier tier for a team. Returns false only
+        /// when scoring is closed, the team is invalid, or the team is already
+        /// at its configured cap.
+        /// </summary>
+        public bool AdvanceTeamAmplifier(int teamID)
+        {
+            if (!_scoringOpen || (teamID != 1 && teamID != 2))
+                return false;
+
+            TeamAmplifierSettings settings = profile.TeamAmplifierSettings;
+            int previousIndex = GetTeamAmplifierTierIndex(teamID);
+            int currentIndex = Mathf.Min(previousIndex + 1, settings.MaxIndex);
+            if (currentIndex == previousIndex)
+                return false;
+
+            if (teamID == 1)
+                _lightAmplifierTierIndex = currentIndex;
+            else
+                _darkAmplifierTierIndex = currentIndex;
+
+            EmitTeamAmplifierSnapshot(teamID, previousIndex, currentIndex);
+            return true;
         }
 
         public bool TryAwardToPlayer(
@@ -244,7 +350,9 @@ namespace Massive.Scoring
                 playerID = earner != null ? earner.playerID : -1,
                 worldPosition = worldPosition,
                 quantity = quantity,
-                multiplier = 1
+                multiplier = 1,
+                teamAmplifierMultiplier = 1,
+                combinedMultiplier = 1
             };
 
             if (!_scoringOpen)
@@ -284,15 +392,16 @@ namespace Massive.Scoring
                 return Reject(ref result, ScoreAwardRejection.Duplicate);
 
             long baseScore = EnergyScoreMath.SaturatingMultiply(rule.BaseMilliElectronVolts, quantity);
-            int multiplier = 1;
+            int personalMultiplier = 1;
             PlayerScoreChain chain = null;
 
-            if (rule.multiplierEligible && earner != null)
+            if (earner != null && (rule.multiplierEligible || rule.chainEffect != ScoreChainAwardMode.None))
             {
                 chain = earner.GetComponent<PlayerScoreChain>();
                 if (chain != null)
                 {
-                    multiplier = Mathf.Max(1, chain.CurrentMultiplier);
+                    if (rule.multiplierEligible)
+                        personalMultiplier = Mathf.Max(1, chain.CurrentMultiplier);
                 }
                 else if (_warnedMissingChainPlayerIds.Add(earner.playerID))
                 {
@@ -302,7 +411,11 @@ namespace Massive.Scoring
                 }
             }
 
-            long finalScore = EnergyScoreMath.SaturatingMultiply(baseScore, multiplier);
+            int teamAmplifierMultiplier = GetTeamAmplifierMultiplier(teamID);
+            int combinedMultiplier = SaturatingIntMultiply(
+                personalMultiplier,
+                teamAmplifierMultiplier);
+            long finalScore = EnergyScoreMath.SaturatingMultiply(baseScore, combinedMultiplier);
             long previousTotal = GetTeamScore(teamID);
             long newTotal = EnergyScoreMath.SaturatingAdd(previousTotal, finalScore);
 
@@ -315,7 +428,11 @@ namespace Massive.Scoring
             result.accepted = true;
             result.rejection = ScoreAwardRejection.None;
             result.baseMilliElectronVolts = baseScore;
-            result.multiplier = multiplier;
+            // Keep multiplier as the personal value for compatibility with
+            // contribution telemetry and existing presentation code.
+            result.multiplier = personalMultiplier;
+            result.teamAmplifierMultiplier = teamAmplifierMultiplier;
+            result.combinedMultiplier = combinedMultiplier;
             result.finalMilliElectronVolts = finalScore;
             result.previousTeamTotalMilliElectronVolts = previousTotal;
             result.newTeamTotalMilliElectronVolts = newTotal;
@@ -326,10 +443,10 @@ namespace Massive.Scoring
 
             // The current multiplier applies to this award; chain progression applies
             // to the next qualifying award.
-            chain?.ApplyAward(rule.chainEffect);
+            chain?.ApplyAward(rule.chainEffect, Mathf.Max(0f, rule.chainCharge));
             int highestMultiplierReached = chain != null
-                ? Mathf.Max(multiplier, chain.CurrentMultiplier)
-                : multiplier;
+                ? Mathf.Max(personalMultiplier, chain.CurrentMultiplier)
+                : personalMultiplier;
             RecordContribution(result, earner, highestMultiplierReached);
 
             ScoreAwarded?.Invoke(result);
@@ -352,7 +469,8 @@ namespace Massive.Scoring
                 Debug.Log(
                     $"[Score] {playerLabel} / Team {teamID}: {rule.key} +" +
                     $"{EnergyScoreFormatter.FormatWithUnit(finalScore)} (base " +
-                    $"{EnergyScoreFormatter.FormatWithUnit(baseScore)} x{multiplier}) => " +
+                    $"{EnergyScoreFormatter.FormatWithUnit(baseScore)} " +
+                    $"x{personalMultiplier} personal x{teamAmplifierMultiplier} amplifier) => " +
                     EnergyScoreFormatter.FormatWithUnit(newTotal),
                     this);
             }
@@ -399,6 +517,29 @@ namespace Massive.Scoring
                 currentUnit = EnergyScoreFormatter.GetUnit(currentTotal),
                 tierProgress01 = EnergyScoreFormatter.GetTierProgress01(currentTotal)
             });
+        }
+
+        private void EmitTeamAmplifierSnapshot(
+            int teamID,
+            int previousTierIndex,
+            int currentTierIndex)
+        {
+            TeamAmplifierSettings settings = profile.TeamAmplifierSettings;
+            TeamAmplifierChanged?.Invoke(new TeamAmplifierSnapshot
+            {
+                teamID = teamID,
+                previousTierIndex = previousTierIndex,
+                currentTierIndex = currentTierIndex,
+                previousMultiplier = settings.GetMultiplier(previousTierIndex),
+                currentMultiplier = settings.GetMultiplier(currentTierIndex),
+                isAtMaximum = currentTierIndex >= settings.MaxIndex
+            });
+        }
+
+        private static int SaturatingIntMultiply(int a, int b)
+        {
+            long value = (long)Mathf.Max(1, a) * Mathf.Max(1, b);
+            return value >= int.MaxValue ? int.MaxValue : (int)value;
         }
 
         private void RecordTelemetry(ScoreAwardResult result)

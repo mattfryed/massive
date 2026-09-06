@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using Massive.TextAnimation;
 using TMPro;
 using UnityEngine;
 using UnityEngine.Events;
@@ -40,30 +41,9 @@ namespace Massive.Scoring
         private sealed class RuntimeTextState
         {
             public TMP_Text text;
-            public Material material;
+            public TMPMaterialStateController materialState;
             public Color originalVertexColor;
-
-            public bool hasFaceColor;
-            public Color faceColor;
-            public bool hasOutlineColor;
-            public Color outlineColor;
-            public bool hasOutlineWidth;
-            public float outlineWidth;
-            public bool hasFaceDilate;
-            public float faceDilate;
-            public bool hasSoftness;
-            public float softness;
-            public bool hasGlowColor;
-            public Color glowColor;
-            public bool hasGlowOffset;
-            public float glowOffset;
-            public bool hasGlowInner;
-            public float glowInner;
-            public bool hasGlowOuter;
-            public float glowOuter;
-            public bool hasGlowPower;
-            public float glowPower;
-            public bool glowKeyword;
+            public float originalFontSize;
         }
 
         private sealed class MotionTargetState
@@ -100,18 +80,6 @@ namespace Massive.Scoring
             }
         }
 
-        private static readonly int FaceColorId = Shader.PropertyToID("_FaceColor");
-        private static readonly int OutlineColorId = Shader.PropertyToID("_OutlineColor");
-        private static readonly int OutlineWidthId = Shader.PropertyToID("_OutlineWidth");
-        private static readonly int FaceDilateId = Shader.PropertyToID("_FaceDilate");
-        private static readonly int SoftnessId = Shader.PropertyToID("_Softness");
-        private static readonly int GlowColorId = Shader.PropertyToID("_GlowColor");
-        private static readonly int GlowOffsetId = Shader.PropertyToID("_GlowOffset");
-        private static readonly int GlowInnerId = Shader.PropertyToID("_GlowInner");
-        private static readonly int GlowOuterId = Shader.PropertyToID("_GlowOuter");
-        private static readonly int GlowPowerId = Shader.PropertyToID("_GlowPower");
-        private const string GlowKeyword = "GLOW_ON";
-
         [Header("Profile")]
         [SerializeField] private EnergyTierVisualProfile profile;
 
@@ -133,6 +101,13 @@ namespace Massive.Scoring
         [Tooltip("Exact order: meV, eV, keV, MeV, GeV, TeV. Assign a dedicated motion wrapper for each tier so layout components can continue to own the outer slots.")]
         [SerializeField] private Transform[] tierMotionRoots = new Transform[6];
         [SerializeField] private bool useUnscaledTime = true;
+
+        [Header("Tier Text Animation")]
+        [Tooltip("Exact order: meV, eV, keV, MeV, GeV, TeV. Empty entries are resolved from the corresponding tier-label GameObject.")]
+        [SerializeField] private TMPTextAnimator[] tierTextAnimators = new TMPTextAnimator[6];
+        [SerializeField] private bool autoFindTierTextAnimators = true;
+        [Tooltip("At runtime, add a TMPTextAnimator to a tier label when no assigned or existing animator can be found. This keeps presets usable during the parallel migration without modifying legacy TMPTextTransition components.")]
+        [SerializeField] private bool autoCreateMissingTierTextAnimators = true;
 
         [Header("Optional Whole-Scoreboard Motion")]
         [FormerlySerializedAs("effectsRoot")]
@@ -166,11 +141,15 @@ namespace Massive.Scoring
         private readonly Queue<EnergyUnit> _promotionQueue = new Queue<EnergyUnit>();
 
         private Coroutine _promotionRoutine;
+        private Coroutine _tierShowcaseRoutine;
         private bool _hasActiveUnit;
         private EnergyUnit _activeUnit;
 
         private MotionTargetState _activeTierMotionState;
         private MotionTargetState _activeSharedMotionState;
+        private TextAnimationPlaybackHandle _activeTierTextPlayback;
+        private TextAnimationPlaybackHandle _activeTierLoopTextPlayback;
+        private bool _tierShowcaseOwnsLoop;
 
         private GameObject _activeLoopVfx;
         private EnergyUnit _activeLoopUnit;
@@ -183,12 +162,16 @@ namespace Massive.Scoring
         private void Awake()
         {
             EnsureTierMotionRootArray();
+            EnsureTierTextAnimatorArray();
+            ResolveTierTextAnimators();
             CacheConfiguredTextTargets();
         }
 
         private void OnEnable()
         {
             EnsureTierMotionRootArray();
+            EnsureTierTextAnimatorArray();
+            ResolveTierTextAnimators();
 
             if (_hasActiveUnit)
                 ApplyTier(_activeUnit, immediate: true);
@@ -197,6 +180,11 @@ namespace Massive.Scoring
         private void OnValidate()
         {
             EnsureTierMotionRootArray();
+            EnsureTierTextAnimatorArray();
+            // Auto-creation is valid from Awake/OnEnable, but Unity forbids it
+            // during OnValidate (including the Play Mode transition window).
+            if (!Application.isPlaying)
+                ResolveTierTextAnimators();
             sharedPunchInfluence = Mathf.Max(0f, sharedPunchInfluence);
             sharedPositionShakeInfluence = Mathf.Max(0f, sharedPositionShakeInfluence);
             sharedRotationShakeInfluence = Mathf.Max(0f, sharedRotationShakeInfluence);
@@ -204,6 +192,8 @@ namespace Massive.Scoring
 
         private void OnDisable()
         {
+            StopTierTextShowcase();
+
             if (_promotionRoutine != null)
             {
                 StopCoroutine(_promotionRoutine);
@@ -211,23 +201,25 @@ namespace Massive.Scoring
             }
 
             _promotionQueue.Clear();
+            StopActiveTierTextAnimation();
+            StopActiveTierLoopTextAnimation();
             RestoreActiveMotionTargets();
+            RestoreTierLabelFontSizes();
             DestroyActiveLoopVfx();
         }
 
         private void OnDestroy()
         {
             DestroyActiveLoopVfx();
+            RestoreTierLabelFontSizes();
 
             foreach (RuntimeTextState state in _textStates.Values)
             {
-                if (state == null || state.material == null)
+                if (state == null || state.materialState == null)
                     continue;
 
-                if (Application.isPlaying)
-                    Destroy(state.material);
-                else
-                    DestroyImmediate(state.material);
+                state.materialState.ClearTransient();
+                state.materialState.ResetPersistentToOriginal();
             }
 
             _textStates.Clear();
@@ -245,10 +237,19 @@ namespace Massive.Scoring
             scoreValueText = scoreValue;
             activeUnitText = activeUnit;
             tierLabels = indicators;
+            EnsureTierTextAnimatorArray();
+            ResolveTierTextAnimators();
             CacheConfiguredTextTargets();
 
             if (_hasActiveUnit)
                 ApplyTier(_activeUnit, immediate: true);
+        }
+
+        public void ConfigureTierTextAnimators(TMPTextAnimator[] animators)
+        {
+            tierTextAnimators = animators;
+            EnsureTierTextAnimatorArray();
+            ResolveTierTextAnimators();
         }
 
         public void SetProfile(EnergyTierVisualProfile newProfile, bool reapply = true)
@@ -265,6 +266,9 @@ namespace Massive.Scoring
         public void ApplyTier(EnergyUnit unit, bool immediate)
         {
             bool changed = !_hasActiveUnit || _activeUnit != unit;
+            if (changed || immediate)
+                StopActiveTierLoopTextAnimation();
+
             _activeUnit = unit;
             _hasActiveUnit = true;
 
@@ -286,7 +290,12 @@ namespace Massive.Scoring
                 {
                     int index = (int)unit;
                     if (index >= 0 && index < tierLabels.Length)
+                    {
+                        ApplyTierLabelFontSize(
+                            tierLabels[index],
+                            style.activeIndicatorFontSizeMultiplier);
                         ApplyTextStyle(tierLabels[index], style.activeIndicatorColor, style);
+                    }
                 }
 
                 if (styleExtraTexts && extraStyledTexts != null)
@@ -312,6 +321,9 @@ namespace Massive.Scoring
             }
 
             ApplySceneActiveState(unit, changed);
+
+            if (immediate)
+                TryStartTierLoopTextAnimation(unit, style, warnWhenUnavailable: false);
         }
 
         /// <summary>
@@ -321,6 +333,9 @@ namespace Massive.Scoring
         /// </summary>
         public void PlayPromotion(EnergyTierPromotion promotion)
         {
+            StopTierTextShowcase();
+            StopActiveTierLoopTextAnimation();
+
             int previous = Mathf.Clamp((int)promotion.previousUnit, 0, EnergyScoreMath.UnitCount - 1);
             int current = Mathf.Clamp((int)promotion.currentUnit, 0, EnergyScoreMath.UnitCount - 1);
 
@@ -354,31 +369,258 @@ namespace Massive.Scoring
 
                 TriggerPromotionOutputs(destination, style);
 
+                bool hasConfiguredTextPreset = style != null &&
+                                               style.promotionTextPreset != null;
+                bool textPresetStarted = TryStartTierTextAnimation(
+                    destination,
+                    style,
+                    out TMPTextAnimator textAnimator,
+                    warnWhenUnavailable: hasConfiguredTextPreset);
+
+                bool playGenericTierMotion = !textPresetStarted ||
+                                             style == null ||
+                                             !style.promotionTextPresetReplacesGenericMotion;
+                bool playGenericSharedMotion = animateSharedEffectsRoot;
+
+                PreventTransformOwnershipConflicts(
+                    destination,
+                    textAnimator,
+                    textPresetStarted,
+                    ref playGenericTierMotion,
+                    ref playGenericSharedMotion);
+
                 float duration = style != null
                     ? Mathf.Max(0f, style.promotionSeconds)
                     : 0f;
 
-                if (duration > 0f)
-                    yield return AnimatePromotionMotion(destination, style, duration);
-                else
+                if (duration > 0f &&
+                    (playGenericTierMotion || playGenericSharedMotion))
+                {
+                    yield return AnimatePromotionMotion(
+                        destination,
+                        style,
+                        duration,
+                        playGenericTierMotion,
+                        playGenericSharedMotion);
+                }
+                else if (!textPresetStarted)
+                {
                     yield return null;
+                }
+
+                while (_activeTierTextPlayback.IsActive)
+                    yield return null;
+
+                _activeTierTextPlayback = default;
+                TryStartTierLoopTextAnimation(
+                    destination,
+                    style,
+                    warnWhenUnavailable: false);
             }
 
             RestoreActiveMotionTargets();
             _promotionRoutine = null;
         }
 
+        /// <summary>
+        /// Plays the six configured tier-label presets in engineering-unit order.
+        /// Intended for the Play Mode preview window; gameplay promotion outputs
+        /// and generic promotion motion are deliberately not triggered.
+        /// </summary>
+        public void PlayTierTextShowcase(float pauseBetweenTiers = 0.65f)
+        {
+            if (!isActiveAndEnabled)
+                return;
+
+            StopPromotionQueueForPreview();
+            StopTierTextShowcase();
+            StopActiveTierLoopTextAnimation();
+            RestoreTierLabelFontSizes();
+            _tierShowcaseOwnsLoop = true;
+            _tierShowcaseRoutine = StartCoroutine(
+                PlayTierTextShowcaseRoutine(Mathf.Max(0f, pauseBetweenTiers)));
+        }
+
+        public void StopTierTextShowcase()
+        {
+            bool wasRunning = _tierShowcaseRoutine != null;
+            if (_tierShowcaseRoutine != null)
+            {
+                StopCoroutine(_tierShowcaseRoutine);
+                _tierShowcaseRoutine = null;
+            }
+
+            if (wasRunning)
+                StopActiveTierTextAnimation();
+
+            if (_tierShowcaseOwnsLoop)
+            {
+                StopActiveTierLoopTextAnimation();
+                _tierShowcaseOwnsLoop = false;
+            }
+        }
+
+        private IEnumerator PlayTierTextShowcaseRoutine(float pauseBetweenTiers)
+        {
+            for (int i = 0; i < EnergyScoreMath.UnitCount; i++)
+            {
+                EnergyUnit unit = (EnergyUnit)i;
+                ApplyTier(unit, immediate: false);
+
+                EnergyTierVisualProfile.TierStyle style = profile != null
+                    ? profile.GetStyle(unit)
+                    : null;
+
+                bool started = TryStartTierTextAnimation(
+                    unit,
+                    style,
+                    out _,
+                    warnWhenUnavailable: true);
+
+                if (started)
+                {
+                    while (_activeTierTextPlayback.IsActive)
+                        yield return null;
+
+                    _activeTierTextPlayback = default;
+                }
+                else
+                {
+                    yield return null;
+                }
+
+                TryStartTierLoopTextAnimation(
+                    unit,
+                    style,
+                    warnWhenUnavailable: false);
+
+                if (i >= EnergyScoreMath.UnitCount - 1 || pauseBetweenTiers <= 0f)
+                    continue;
+
+                float elapsed = 0f;
+                while (elapsed < pauseBetweenTiers)
+                {
+                    elapsed += Time.unscaledDeltaTime;
+                    yield return null;
+                }
+            }
+
+            _tierShowcaseRoutine = null;
+        }
+
+        private bool TryStartTierTextAnimation(
+            EnergyUnit unit,
+            EnergyTierVisualProfile.TierStyle style,
+            out TMPTextAnimator textAnimator,
+            bool warnWhenUnavailable)
+        {
+            textAnimator = GetTierTextAnimator(unit);
+            if (style == null || style.promotionTextPreset == null)
+            {
+                if (warnWhenUnavailable)
+                {
+                    Debug.LogWarning(
+                        $"[{nameof(EnergyTierVisualController)}] No promotion text " +
+                        $"preset is configured for {unit}.",
+                        this);
+                }
+
+                return false;
+            }
+
+            if (textAnimator == null)
+            {
+                if (warnWhenUnavailable)
+                {
+                    Debug.LogWarning(
+                        $"[{nameof(EnergyTierVisualController)}] No active " +
+                        $"{nameof(TMPTextAnimator)} is available for {unit}. " +
+                        "Generic tier motion remains available as the gameplay fallback.",
+                        this);
+                }
+
+                return false;
+            }
+
+            TextAnimationContext context = TextAnimationContext.Default
+                .WithIntensity(style.promotionTextIntensity)
+                .WithDirection(style.promotionTextDirection);
+
+            if (style.useTierColorAsAnimationAccent)
+                context = context.WithAccentColor(style.scoreColor);
+
+            _activeTierTextPlayback = textAnimator.Play(
+                style.promotionTextPreset,
+                context);
+            return _activeTierTextPlayback.IsValid;
+        }
+
+        private bool TryStartTierLoopTextAnimation(
+            EnergyUnit unit,
+            EnergyTierVisualProfile.TierStyle style,
+            bool warnWhenUnavailable)
+        {
+            StopActiveTierLoopTextAnimation();
+
+            if (style == null || style.activeLoopTextPreset == null)
+                return false;
+
+            TMPTextAnimator textAnimator = GetTierTextAnimator(unit);
+            if (textAnimator == null)
+            {
+                if (warnWhenUnavailable)
+                {
+                    Debug.LogWarning(
+                        $"[{nameof(EnergyTierVisualController)}] No active " +
+                        $"{nameof(TMPTextAnimator)} is available for the {unit} " +
+                        "baseline animation.",
+                        this);
+                }
+
+                return false;
+            }
+
+            TextAnimationContext context = TextAnimationContext.Default
+                .WithIntensity(style.activeLoopTextIntensity)
+                .WithDirection(style.activeLoopTextDirection);
+
+            if (style.useTierColorAsActiveLoopAccent)
+                context = context.WithAccentColor(style.scoreColor);
+
+            _activeTierLoopTextPlayback = textAnimator.Play(
+                style.activeLoopTextPreset,
+                context);
+            return _activeTierLoopTextPlayback.IsValid;
+        }
+
+        private void StopPromotionQueueForPreview()
+        {
+            if (_promotionRoutine != null)
+            {
+                StopCoroutine(_promotionRoutine);
+                _promotionRoutine = null;
+            }
+
+            _promotionQueue.Clear();
+            RestoreActiveMotionTargets();
+            StopActiveTierTextAnimation();
+        }
+
         private IEnumerator AnimatePromotionMotion(
             EnergyUnit destination,
             EnergyTierVisualProfile.TierStyle style,
-            float duration)
+            float duration,
+            bool animateTierTarget,
+            bool animateSharedTarget)
         {
             RestoreActiveMotionTargets();
 
-            Transform tierTarget = GetTierMotionRoot(destination);
+            Transform tierTarget = animateTierTarget
+                ? GetTierMotionRoot(destination)
+                : null;
             _activeTierMotionState = MotionTargetState.Capture(tierTarget);
 
-            Transform sharedTarget = animateSharedEffectsRoot
+            Transform sharedTarget = animateSharedTarget
                 ? sharedEffectsRoot
                 : null;
 
@@ -622,51 +864,56 @@ namespace Massive.Scoring
             if (_textStates.TryGetValue(text, out RuntimeTextState existing))
                 return existing;
 
-            Material source = text.fontSharedMaterial;
-            if (source == null)
-                source = text.fontMaterial;
+            TMPMaterialStateController materialState =
+                text.GetComponent<TMPMaterialStateController>();
 
-            if (source == null)
-                return null;
+            if (materialState == null && Application.isPlaying)
+                materialState = text.gameObject.AddComponent<TMPMaterialStateController>();
 
-            var runtime = new Material(source)
-            {
-                name = source.name + " (Energy Tier Instance)"
-            };
-
-            text.fontMaterial = runtime;
+            if (materialState != null)
+                materialState.Configure(text);
 
             var state = new RuntimeTextState
             {
                 text = text,
-                material = runtime,
+                materialState = materialState,
                 originalVertexColor = text.color,
-                hasFaceColor = runtime.HasProperty(FaceColorId),
-                hasOutlineColor = runtime.HasProperty(OutlineColorId),
-                hasOutlineWidth = runtime.HasProperty(OutlineWidthId),
-                hasFaceDilate = runtime.HasProperty(FaceDilateId),
-                hasSoftness = runtime.HasProperty(SoftnessId),
-                hasGlowColor = runtime.HasProperty(GlowColorId),
-                hasGlowOffset = runtime.HasProperty(GlowOffsetId),
-                hasGlowInner = runtime.HasProperty(GlowInnerId),
-                hasGlowOuter = runtime.HasProperty(GlowOuterId),
-                hasGlowPower = runtime.HasProperty(GlowPowerId),
-                glowKeyword = runtime.IsKeywordEnabled(GlowKeyword)
+                originalFontSize = text.fontSize
             };
-
-            if (state.hasFaceColor) state.faceColor = runtime.GetColor(FaceColorId);
-            if (state.hasOutlineColor) state.outlineColor = runtime.GetColor(OutlineColorId);
-            if (state.hasOutlineWidth) state.outlineWidth = runtime.GetFloat(OutlineWidthId);
-            if (state.hasFaceDilate) state.faceDilate = runtime.GetFloat(FaceDilateId);
-            if (state.hasSoftness) state.softness = runtime.GetFloat(SoftnessId);
-            if (state.hasGlowColor) state.glowColor = runtime.GetColor(GlowColorId);
-            if (state.hasGlowOffset) state.glowOffset = runtime.GetFloat(GlowOffsetId);
-            if (state.hasGlowInner) state.glowInner = runtime.GetFloat(GlowInnerId);
-            if (state.hasGlowOuter) state.glowOuter = runtime.GetFloat(GlowOuterId);
-            if (state.hasGlowPower) state.glowPower = runtime.GetFloat(GlowPowerId);
 
             _textStates.Add(text, state);
             return state;
+        }
+
+        private void ApplyTierLabelFontSize(TMP_Text text, float multiplier)
+        {
+            RuntimeTextState state = CacheText(text);
+            if (state == null || state.text == null)
+                return;
+
+            state.text.fontSize =
+                state.originalFontSize * Mathf.Max(0.01f, multiplier);
+            state.text.ForceMeshUpdate();
+        }
+
+        private void RestoreTierLabelFontSizes()
+        {
+            if (tierLabels == null)
+                return;
+
+            for (int i = 0; i < tierLabels.Length; i++)
+            {
+                TMP_Text label = tierLabels[i];
+                if (label == null ||
+                    !_textStates.TryGetValue(label, out RuntimeTextState state) ||
+                    state == null)
+                {
+                    continue;
+                }
+
+                label.fontSize = state.originalFontSize;
+                label.ForceMeshUpdate();
+            }
         }
 
         private void ResetTierLabelMaterials()
@@ -674,8 +921,36 @@ namespace Massive.Scoring
             if (tierLabels == null)
                 return;
 
+            Color inactiveColor = profile != null
+                ? profile.InactiveTierIndicatorColor
+                : new Color(0.30f, 0.32f, 0.36f, 1f);
+
             for (int i = 0; i < tierLabels.Length; i++)
-                RestoreTextMaterial(tierLabels[i], restoreVertexColor: false);
+            {
+                TMP_Text label = tierLabels[i];
+                if (label == null)
+                    continue;
+
+                RestoreTierLabelFontSize(label);
+                RestoreTextMaterial(label, restoreVertexColor: false);
+
+                Color currentInactiveColor = inactiveColor;
+                currentInactiveColor.a = label.color.a;
+                label.color = currentInactiveColor;
+                label.ForceMeshUpdate();
+            }
+        }
+
+        private void RestoreTierLabelFontSize(TMP_Text label)
+        {
+            if (label == null ||
+                !_textStates.TryGetValue(label, out RuntimeTextState state) ||
+                state == null)
+            {
+                return;
+            }
+
+            label.fontSize = state.originalFontSize;
         }
 
         private void ApplyTextStyle(
@@ -687,7 +962,7 @@ namespace Massive.Scoring
                 return;
 
             RuntimeTextState state = CacheText(text);
-            if (state == null || state.material == null)
+            if (state == null || state.materialState == null)
                 return;
 
             RestoreTextMaterial(text, restoreVertexColor: false);
@@ -696,41 +971,24 @@ namespace Massive.Scoring
             current.a = text.color.a;
             text.color = current;
 
-            Material material = state.material;
-
             // Keep the material face neutral and use TMP vertex color as the
-            // tier color. This prevents the two color layers multiplying into
-            // unexpectedly dark results.
-            if (state.hasFaceColor)
-                material.SetColor(FaceColorId, Color.white);
-
-            if (state.hasOutlineColor)
-                material.SetColor(OutlineColorId, style.outlineColor);
-
-            if (state.hasOutlineWidth)
-                material.SetFloat(OutlineWidthId, style.outlineWidth);
-
-            if (state.hasFaceDilate)
-                material.SetFloat(FaceDilateId, style.faceDilate);
-
-            if (state.hasSoftness)
-                material.SetFloat(SoftnessId, style.softness);
-
-            if (style.enableGlow)
+            // tier color. The material-state controller is the single SDF
+            // authority and composes this persistent style with preset offsets.
+            state.materialState.SetPersistentStyle(new TMPMaterialPersistentStyle
             {
-                material.EnableKeyword(GlowKeyword);
-                if (state.hasGlowColor) material.SetColor(GlowColorId, style.glowColor);
-                if (state.hasGlowOffset) material.SetFloat(GlowOffsetId, style.glowOffset);
-                if (state.hasGlowInner) material.SetFloat(GlowInnerId, style.glowInner);
-                if (state.hasGlowOuter) material.SetFloat(GlowOuterId, style.glowOuter);
-                if (state.hasGlowPower) material.SetFloat(GlowPowerId, style.glowPower);
-            }
-            else
-            {
-                material.DisableKeyword(GlowKeyword);
-            }
+                faceColor = Color.white,
+                outlineColor = style.outlineColor,
+                outlineWidth = style.outlineWidth,
+                faceDilate = style.faceDilate,
+                softness = style.softness,
+                glowEnabled = style.enableGlow,
+                glowColor = style.glowColor,
+                glowOffset = style.glowOffset,
+                glowInner = style.glowInner,
+                glowOuter = style.glowOuter,
+                glowPower = style.glowPower
+            });
 
-            text.UpdateMeshPadding();
             text.ForceMeshUpdate();
         }
 
@@ -739,30 +997,135 @@ namespace Massive.Scoring
             if (text == null || !_textStates.TryGetValue(text, out RuntimeTextState state))
                 return;
 
-            Material material = state.material;
-            if (material == null)
+            if (state.materialState == null)
                 return;
 
             if (restoreVertexColor)
                 text.color = state.originalVertexColor;
 
-            if (state.hasFaceColor) material.SetColor(FaceColorId, state.faceColor);
-            if (state.hasOutlineColor) material.SetColor(OutlineColorId, state.outlineColor);
-            if (state.hasOutlineWidth) material.SetFloat(OutlineWidthId, state.outlineWidth);
-            if (state.hasFaceDilate) material.SetFloat(FaceDilateId, state.faceDilate);
-            if (state.hasSoftness) material.SetFloat(SoftnessId, state.softness);
-            if (state.hasGlowColor) material.SetColor(GlowColorId, state.glowColor);
-            if (state.hasGlowOffset) material.SetFloat(GlowOffsetId, state.glowOffset);
-            if (state.hasGlowInner) material.SetFloat(GlowInnerId, state.glowInner);
-            if (state.hasGlowOuter) material.SetFloat(GlowOuterId, state.glowOuter);
-            if (state.hasGlowPower) material.SetFloat(GlowPowerId, state.glowPower);
+            state.materialState.ClearTransient();
+            state.materialState.ResetPersistentToOriginal();
+        }
 
-            if (state.glowKeyword)
-                material.EnableKeyword(GlowKeyword);
-            else
-                material.DisableKeyword(GlowKeyword);
+        private TMPTextAnimator GetTierTextAnimator(EnergyUnit unit)
+        {
+            int index = (int)unit;
+            if (tierTextAnimators == null ||
+                index < 0 ||
+                index >= tierTextAnimators.Length)
+            {
+                return null;
+            }
 
-            text.UpdateMeshPadding();
+            TMPTextAnimator animator = tierTextAnimators[index];
+            if (animator == null && HasTierLabel(index))
+            {
+                TMP_Text label = tierLabels[index];
+
+                if (autoFindTierTextAnimators)
+                    animator = label.GetComponent<TMPTextAnimator>();
+
+                if (animator == null &&
+                    autoCreateMissingTierTextAnimators &&
+                    Application.isPlaying)
+                {
+                    animator = label.gameObject.AddComponent<TMPTextAnimator>();
+                    Transform motionRoot = GetTierMotionRoot(unit);
+                    animator.Configure(label, motionRoot != null ? motionRoot : label.transform);
+                }
+
+                tierTextAnimators[index] = animator;
+            }
+
+            return animator;
+        }
+
+        private void EnsureTierTextAnimatorArray()
+        {
+            int count = Mathf.Max(1, EnergyScoreMath.UnitCount);
+            if (tierTextAnimators == null)
+            {
+                tierTextAnimators = new TMPTextAnimator[count];
+                return;
+            }
+
+            if (tierTextAnimators.Length != count)
+                Array.Resize(ref tierTextAnimators, count);
+        }
+
+        private void ResolveTierTextAnimators()
+        {
+            if ((!autoFindTierTextAnimators &&
+                 (!autoCreateMissingTierTextAnimators || !Application.isPlaying)) ||
+                tierLabels == null)
+                return;
+
+            EnsureTierTextAnimatorArray();
+            int count = Mathf.Min(tierLabels.Length, tierTextAnimators.Length);
+            for (int i = 0; i < count; i++)
+            {
+                if (tierTextAnimators[i] == null)
+                    GetTierTextAnimator((EnergyUnit)i);
+            }
+        }
+
+        private bool HasTierLabel(int index)
+        {
+            return tierLabels != null &&
+                   index >= 0 &&
+                   index < tierLabels.Length &&
+                   tierLabels[index] != null;
+        }
+
+        private void PreventTransformOwnershipConflicts(
+            EnergyUnit destination,
+            TMPTextAnimator textAnimator,
+            bool textPresetStarted,
+            ref bool playGenericTierMotion,
+            ref bool playGenericSharedMotion)
+        {
+            if (!textPresetStarted || textAnimator == null)
+                return;
+
+            Transform presetRoot = textAnimator.MotionRoot;
+            if (presetRoot == null)
+                return;
+
+            if (playGenericTierMotion && presetRoot == GetTierMotionRoot(destination))
+            {
+                playGenericTierMotion = false;
+                Debug.LogWarning(
+                    $"[{nameof(EnergyTierVisualController)}] The {destination} " +
+                    "preset and generic promotion are assigned to the same tier " +
+                    "motion root. Generic tier motion was skipped for this play.",
+                    this);
+            }
+
+            if (playGenericSharedMotion && presetRoot == sharedEffectsRoot)
+            {
+                playGenericSharedMotion = false;
+                Debug.LogWarning(
+                    $"[{nameof(EnergyTierVisualController)}] The {destination} " +
+                    "preset and shared promotion are assigned to the same motion " +
+                    "root. Generic shared motion was skipped for this play.",
+                    this);
+            }
+        }
+
+        private void StopActiveTierTextAnimation()
+        {
+            if (_activeTierTextPlayback.IsValid)
+                _activeTierTextPlayback.Cancel(restoreBaseline: true);
+
+            _activeTierTextPlayback = default;
+        }
+
+        private void StopActiveTierLoopTextAnimation()
+        {
+            if (_activeTierLoopTextPlayback.IsValid)
+                _activeTierLoopTextPlayback.Cancel(restoreBaseline: true);
+
+            _activeTierLoopTextPlayback = default;
         }
 
         private Transform GetTierMotionRoot(EnergyUnit unit)

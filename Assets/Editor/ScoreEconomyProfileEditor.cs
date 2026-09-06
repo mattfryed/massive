@@ -7,6 +7,15 @@ using UnityEngine;
 [CustomEditor(typeof(ScoreEconomyProfile))]
 public sealed class ScoreEconomyProfileEditor : Editor
 {
+    private List<Massive.Enemies.EnemyDefinition> _enemies;
+    private void OnEnable()
+    {
+        _enemies = EnemyScoringValidation.FindEnemies();
+        EditorApplication.projectChanged += RefreshEnemies;
+    }
+    private void OnDisable() => EditorApplication.projectChanged -= RefreshEnemies;
+    private void RefreshEnemies() => _enemies = EnemyScoringValidation.FindEnemies();
+
     public override void OnInspectorGUI()
     {
         serializedObject.Update();
@@ -24,6 +33,25 @@ public sealed class ScoreEconomyProfileEditor : Editor
 
         EditorGUILayout.Space(10f);
         DrawProjection((ScoreEconomyProfile)target);
+        DrawEnemyRewards((ScoreEconomyProfile)target);
+    }
+
+    private void DrawEnemyRewards(ScoreEconomyProfile profile)
+    {
+        EditorGUILayout.Space(8f);
+        EditorGUILayout.LabelField("Enemy Reward Mappings", EditorStyles.boldLabel);
+        EditorGUILayout.HelpBox("Definitions store keys only. Expected counts belong to reward rows; enemies sharing a key share that planning count.", MessageType.Info);
+        foreach (var enemy in _enemies)
+        {
+            EditorGUILayout.ObjectField(enemy.name + " / " + enemy.category, enemy, typeof(Massive.Enemies.EnemyDefinition), false);
+            if (string.IsNullOrWhiteSpace(enemy.defeatRewardKey))
+                EditorGUILayout.LabelField("Defeat scoring", "None");
+            else if (profile.TryGetReward(enemy.defeatRewardKey, out ScoreRewardRule rule))
+                EditorGUILayout.LabelField(enemy.defeatRewardKey,
+                    EnergyScoreFormatter.FormatWithUnit(rule.BaseMilliElectronVolts) + " / expected " + rule.expectedOccurrencesPerRound);
+        }
+        foreach (string issue in EnemyScoringValidation.Validate(profile, _enemies))
+            EditorGUILayout.HelpBox(issue, MessageType.Warning);
     }
 
     private static void DrawProjection(ScoreEconomyProfile profile)
@@ -38,6 +66,8 @@ public sealed class ScoreEconomyProfileEditor : Editor
         long expectedBase = 0L;
         long expectedAtMaxChain = 0L;
         int maxMultiplier = profile.ChainSettings.GetMultiplier(profile.ChainSettings.MaxIndex);
+        int maxAmplifier = profile.TeamAmplifierSettings.GetMultiplier(
+            profile.TeamAmplifierSettings.MaxIndex);
 
         IReadOnlyList<ScoreRewardRule> rewards = profile.Rewards;
         if (rewards != null)
@@ -76,6 +106,10 @@ public sealed class ScoreEconomyProfileEditor : Editor
         EditorGUILayout.LabelField(
             $"Upper projection at x{maxMultiplier}",
             EnergyScoreFormatter.FormatWithUnit(expectedAtMaxChain));
+        EditorGUILayout.LabelField(
+            $"Upper projection with x{maxAmplifier} Amplifier",
+            EnergyScoreFormatter.FormatWithUnit(
+                EnergyScoreMath.SaturatingMultiply(expectedAtMaxChain, maxAmplifier)));
         EditorGUILayout.LabelField(
             "Expected active class",
             EnergyScoreMath.GetLabel(EnergyScoreFormatter.GetUnit(expectedBase)));

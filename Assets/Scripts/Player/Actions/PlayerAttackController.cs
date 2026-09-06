@@ -567,6 +567,38 @@ private Vector3 GetAttackDirection()
             EndAttackSequence();
         }
 
+        /// <summary>
+        /// Ends an attack at a solid gameplay impact, removes almost all
+        /// planar momentum, and briefly suppresses movement input so the
+        /// player separates cleanly instead of sliding around the obstacle.
+        /// </summary>
+        public void StopAtSolidImpact(
+            float planarVelocityRetention = 0.03f,
+            float inputStopSeconds = 0.12f)
+        {
+            CancelAttack(signalComplete: true);
+
+            if (rb != null)
+            {
+#if UNITY_6000_0_OR_NEWER
+                Vector3 velocity = rb.linearVelocity;
+                rb.linearVelocity = new Vector3(
+                    velocity.x * Mathf.Clamp01(planarVelocityRetention),
+                    velocity.y,
+                    velocity.z * Mathf.Clamp01(planarVelocityRetention));
+#else
+                Vector3 velocity = rb.velocity;
+                rb.velocity = new Vector3(
+                    velocity.x * Mathf.Clamp01(planarVelocityRetention),
+                    velocity.y,
+                    velocity.z * Mathf.Clamp01(planarVelocityRetention));
+#endif
+            }
+
+            if (ownerController != null && inputStopSeconds > 0f)
+                ownerController.ExternalStun(inputStopSeconds);
+        }
+
 
     private void TryApplyLungeLockOn()
 {

@@ -13,7 +13,7 @@ namespace Massive.Scoring
     public sealed class ScoreRewardEmitter : MonoBehaviour
     {
         [SerializeField] private bool awardScore = true;
-        [SerializeField] private string rewardKey = ScoreRewardKeys.PowerUpClaim;
+        [SerializeField, ScoreRewardKey] private string rewardKey = ScoreRewardKeys.PowerUpClaim;
         [SerializeField] private string sourceTokenPrefix;
 
         private static long _nextRuntimeEmitterId;

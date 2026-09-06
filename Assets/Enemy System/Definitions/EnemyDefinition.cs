@@ -1,4 +1,5 @@
 using UnityEngine;
+using Massive.Scoring;
 
 namespace Massive.Enemies
 {
@@ -10,6 +11,11 @@ namespace Massive.Enemies
         public string id = "";
 
         public EnemyCategory category = EnemyCategory.Melee;
+
+        [Header("Scoring")]
+        [Tooltip("Blank disables defeat scoring. Values and chain rules live in the match's ScoreEconomyProfile.")]
+        [ScoreRewardKey]
+        public string defeatRewardKey = "";
 
         [Tooltip("Prefab spawned by EnemyDirector.")]
         public GameObject prefab;

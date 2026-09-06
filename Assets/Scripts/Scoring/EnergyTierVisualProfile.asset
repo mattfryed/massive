@@ -12,11 +12,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 27564220aece6694d9d02a365a4fa38d, type: 3}
   m_Name: EnergyTierVisualProfile
   m_EditorClassIdentifier: 
+  inactiveTierIndicatorColor: {r: 0.3, g: 0.32, b: 0.36, a: 1}
   tiers:
   - unit: 0
     scoreColor: {r: 0.96, g: 0.96, b: 0.96, a: 1}
     activeUnitColor: {r: 0.96, g: 0.96, b: 0.96, a: 1}
     activeIndicatorColor: {r: 0.96, g: 0.96, b: 0.96, a: 1}
+    activeIndicatorFontSizeMultiplier: 1
     outlineColor: {r: 0.96, g: 0.96, b: 0.96, a: 1}
     outlineWidth: 0
     faceDilate: 0
@@ -27,6 +29,17 @@ MonoBehaviour:
     glowInner: 0
     glowOuter: 0
     glowPower: 0.4
+    promotionTextPreset: {fileID: 11400000, guid: f24fb94b3f3e8e24abfcad514db8b627,
+      type: 2}
+    promotionTextIntensity: 1
+    promotionTextDirection: {x: 1, y: 0}
+    promotionTextPresetReplacesGenericMotion: 1
+    useTierColorAsAnimationAccent: 1
+    activeLoopTextPreset: {fileID: 11400000, guid: 8038530ae5e7f3344b3d2758f55a67ce,
+      type: 2}
+    activeLoopTextIntensity: 0.35
+    activeLoopTextDirection: {x: 1, y: 0}
+    useTierColorAsActiveLoopAccent: 1
     promotionSeconds: 0.12
     punchScale: 1.025
     shakePosition: 0
@@ -74,6 +87,7 @@ MonoBehaviour:
     scoreColor: {r: 0.38, g: 0.72, b: 1, a: 1}
     activeUnitColor: {r: 0.38, g: 0.72, b: 1, a: 1}
     activeIndicatorColor: {r: 0.38, g: 0.72, b: 1, a: 1}
+    activeIndicatorFontSizeMultiplier: 1.1
     outlineColor: {r: 0.38, g: 0.72, b: 1, a: 1}
     outlineWidth: 0.08
     faceDilate: 0.042000003
@@ -84,6 +98,17 @@ MonoBehaviour:
     glowInner: 0.098
     glowOuter: 0.28
     glowPower: 0.526
+    promotionTextPreset: {fileID: 11400000, guid: 0b59099622ba96543bd55f294ffd6eca,
+      type: 2}
+    promotionTextIntensity: 1
+    promotionTextDirection: {x: 1, y: 0}
+    promotionTextPresetReplacesGenericMotion: 1
+    useTierColorAsAnimationAccent: 1
+    activeLoopTextPreset: {fileID: 11400000, guid: ac055e22113eb9c47ac68bb74f6af973,
+      type: 2}
+    activeLoopTextIntensity: 0.55
+    activeLoopTextDirection: {x: 1, y: 0}
+    useTierColorAsActiveLoopAccent: 1
     promotionSeconds: 0.22
     punchScale: 1.08
     shakePosition: 1.8
@@ -131,6 +156,7 @@ MonoBehaviour:
     scoreColor: {r: 0.7, g: 0.46, b: 1, a: 1}
     activeUnitColor: {r: 0.7, g: 0.46, b: 1, a: 1}
     activeIndicatorColor: {r: 0.7, g: 0.46, b: 1, a: 1}
+    activeIndicatorFontSizeMultiplier: 1.16
     outlineColor: {r: 0.7, g: 0.46, b: 1, a: 1}
     outlineWidth: 0.12
     faceDilate: 0.057
@@ -141,6 +167,17 @@ MonoBehaviour:
     glowInner: 0.133
     glowOuter: 0.38
     glowPower: 0.571
+    promotionTextPreset: {fileID: 11400000, guid: 95a5c1b2d5cf1f545b14caa57b829b70,
+      type: 2}
+    promotionTextIntensity: 1
+    promotionTextDirection: {x: 1, y: 0}
+    promotionTextPresetReplacesGenericMotion: 1
+    useTierColorAsAnimationAccent: 1
+    activeLoopTextPreset: {fileID: 11400000, guid: 91d6fee02bd291246b9d36afb9cac10b,
+      type: 2}
+    activeLoopTextIntensity: 0.65
+    activeLoopTextDirection: {x: 1, y: 0}
+    useTierColorAsActiveLoopAccent: 1
     promotionSeconds: 0.27
     punchScale: 1.11
     shakePosition: 2.8
@@ -188,6 +225,7 @@ MonoBehaviour:
     scoreColor: {r: 1, g: 0.48, b: 0.16, a: 1}
     activeUnitColor: {r: 1, g: 0.48, b: 0.16, a: 1}
     activeIndicatorColor: {r: 1, g: 0.48, b: 0.16, a: 1}
+    activeIndicatorFontSizeMultiplier: 1.23
     outlineColor: {r: 1, g: 0.48, b: 0.16, a: 1}
     outlineWidth: 0.16
     faceDilate: 0.075
@@ -198,6 +236,17 @@ MonoBehaviour:
     glowInner: 0.175
     glowOuter: 0.5
     glowPower: 0.625
+    promotionTextPreset: {fileID: 11400000, guid: 17def674a90062248ac87785a95bd2ea,
+      type: 2}
+    promotionTextIntensity: 1
+    promotionTextDirection: {x: 1, y: 0}
+    promotionTextPresetReplacesGenericMotion: 1
+    useTierColorAsAnimationAccent: 1
+    activeLoopTextPreset: {fileID: 11400000, guid: a09d572a943f8a641a78feb64b2f19a2,
+      type: 2}
+    activeLoopTextIntensity: 0.78
+    activeLoopTextDirection: {x: 1, y: 0}
+    useTierColorAsActiveLoopAccent: 1
     promotionSeconds: 0.34
     punchScale: 1.15
     shakePosition: 4.2
@@ -245,6 +294,7 @@ MonoBehaviour:
     scoreColor: {r: 0.72, g: 0.94, b: 1, a: 1}
     activeUnitColor: {r: 0.72, g: 0.94, b: 1, a: 1}
     activeIndicatorColor: {r: 0.72, g: 0.94, b: 1, a: 1}
+    activeIndicatorFontSizeMultiplier: 1.05
     outlineColor: {r: 0.72, g: 0.94, b: 1, a: 1}
     outlineWidth: 0.04
     faceDilate: 0.027000003
@@ -255,6 +305,17 @@ MonoBehaviour:
     glowInner: 0.063
     glowOuter: 0.567
     glowPower: 0.784
+    promotionTextPreset: {fileID: 11400000, guid: c153242dd12e30d45bee3cd83518dcee,
+      type: 2}
+    promotionTextIntensity: 1
+    promotionTextDirection: {x: 1, y: 0}
+    promotionTextPresetReplacesGenericMotion: 1
+    useTierColorAsAnimationAccent: 1
+    activeLoopTextPreset: {fileID: 11400000, guid: 6a4b56787dd3aad4a9626f089975aab4,
+      type: 2}
+    activeLoopTextIntensity: 0.45
+    activeLoopTextDirection: {x: 1, y: 0}
+    useTierColorAsActiveLoopAccent: 1
     promotionSeconds: 1
     punchScale: 1.2
     shakePosition: 0.2
@@ -302,6 +363,7 @@ MonoBehaviour:
     scoreColor: {r: 1, g: 0.78, b: 0.18, a: 1}
     activeUnitColor: {r: 1, g: 0.78, b: 0.18, a: 1}
     activeIndicatorColor: {r: 1, g: 0.78, b: 0.18, a: 1}
+    activeIndicatorFontSizeMultiplier: 1.31
     outlineColor: {r: 1, g: 0.78, b: 0.18, a: 1}
     outlineWidth: 0.22
     faceDilate: 0.102000006
@@ -312,6 +374,17 @@ MonoBehaviour:
     glowInner: 0.238
     glowOuter: 0.68
     glowPower: 0.70600003
+    promotionTextPreset: {fileID: 11400000, guid: 5862fbd425fe6b6409d079a045b73ee7,
+      type: 2}
+    promotionTextIntensity: 1
+    promotionTextDirection: {x: 1, y: 0}
+    promotionTextPresetReplacesGenericMotion: 1
+    useTierColorAsAnimationAccent: 1
+    activeLoopTextPreset: {fileID: 11400000, guid: 51fa2b07d6a579845a55959232b7f877,
+      type: 2}
+    activeLoopTextIntensity: 0.9
+    activeLoopTextDirection: {x: 1, y: 0}
+    useTierColorAsActiveLoopAccent: 1
     promotionSeconds: 0.48
     punchScale: 1.22
     shakePosition: 6.5

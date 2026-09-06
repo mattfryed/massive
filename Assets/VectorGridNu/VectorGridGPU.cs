@@ -187,6 +187,12 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
 
     bool _needsRebuild;
 
+    // These meshes are derived entirely from the serialized grid settings.
+    // Keeping them out of scenes prevents ExecuteAlways rebuilds from embedding
+    // large vertex/index buffers in scene YAML; OnEnable recreates them.
+    const HideFlags RuntimeMeshHideFlags =
+        HideFlags.DontSaveInEditor | HideFlags.DontSaveInBuild;
+
     static readonly int _PosID = Shader.PropertyToID("_Pos");
     static readonly int _OrigPosID = Shader.PropertyToID("_OrigPos");
     static readonly int _VelID = Shader.PropertyToID("_Vel");
@@ -276,11 +282,24 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
 
         ReleaseBuffers();
 
-        if (_mesh != null && !Application.isPlaying)
-            DestroyImmediate(_mesh);
+        if (_mf != null && _mf.sharedMesh == _mesh)
+            _mf.sharedMesh = null;
 
-        if (_borderMesh != null && !Application.isPlaying)
-            DestroyImmediate(_borderMesh);
+        DestroyRuntimeMesh(ref _mesh);
+        DestroyRuntimeMesh(ref _borderMesh);
+    }
+
+    static void DestroyRuntimeMesh(ref Mesh mesh)
+    {
+        if (mesh == null)
+            return;
+
+        if (Application.isPlaying)
+            Destroy(mesh);
+        else
+            DestroyImmediate(mesh);
+
+        mesh = null;
     }
 
     void OnValidate()
@@ -624,7 +643,8 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
             _mesh = new Mesh
             {
                 name = "VectorGrid Mesh",
-                indexFormat = IndexFormat.UInt32
+                indexFormat = IndexFormat.UInt32,
+                hideFlags = RuntimeMeshHideFlags
             };
             _mesh.MarkDynamic();
         }
@@ -768,7 +788,8 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
             _borderMesh = new Mesh
             {
                 name = "VectorGrid BorderStrip",
-                indexFormat = IndexFormat.UInt32
+                indexFormat = IndexFormat.UInt32,
+                hideFlags = RuntimeMeshHideFlags
             };
             _borderMesh.MarkDynamic();
         }

@@ -43,6 +43,9 @@ public class ScoreSphereScript : MonoBehaviour
     private EnergyUnit _unit;
     private bool _bound;
     private bool _warnedLegacyApi;
+    private bool _scorePresentationPreviewActive;
+    private long _scoreBeforePresentationPreview;
+    private long _previewScore;
 
     [Obsolete("Score01 now means current-tier visual progress only. Use MatchScoreService for score data.")]
     public float Score01 => _tierProgress01;
@@ -50,6 +53,7 @@ public class ScoreSphereScript : MonoBehaviour
     public float MaxSize => maxSize;
     public long RawMilliElectronVolts => _rawScore;
     public EnergyUnit CurrentUnit => _unit;
+    public bool IsScorePresentationPreviewActive => _scorePresentationPreviewActive;
 
     private Transform GraphicTransform => sphereGraphic != null ? sphereGraphic.transform : transform;
 
@@ -63,6 +67,7 @@ public class ScoreSphereScript : MonoBehaviour
 
     private void OnDisable()
     {
+        _scorePresentationPreviewActive = false;
         Unbind();
 
         if (_bindRoutine != null)
@@ -89,6 +94,80 @@ public class ScoreSphereScript : MonoBehaviour
             : 1f - Mathf.Exp(-followSharpness * (useUnscaledTime ? Time.unscaledDeltaTime : Time.deltaTime));
 
         graphic.localScale = Vector3.Lerp(graphic.localScale, _targetScale, t);
+    }
+
+    /// <summary>
+    /// Temporarily detaches this presentation from live score events without
+    /// changing the authoritative MatchScoreService total.
+    /// </summary>
+    public void BeginScorePresentationPreview()
+    {
+        if (!Application.isPlaying || _scorePresentationPreviewActive)
+            return;
+
+        _scoreBeforePresentationPreview = _rawScore;
+        _previewScore = _rawScore;
+        _scorePresentationPreviewActive = true;
+
+        if (_promotionRoutine != null)
+        {
+            StopCoroutine(_promotionRoutine);
+            _promotionRoutine = null;
+        }
+    }
+
+    /// <summary>
+    /// Applies an isolated preview score. Upward tier crossings use the same
+    /// promotion burst as gameplay; downward scrubs settle immediately.
+    /// </summary>
+    public void PreviewScorePresentation(long rawMilliElectronVolts, bool animateChanges)
+    {
+        if (!Application.isPlaying)
+            return;
+
+        BeginScorePresentationPreview();
+
+        long nextScore = Math.Max(0L, rawMilliElectronVolts);
+        EnergyUnit previousUnit = EnergyScoreFormatter.GetUnit(_previewScore);
+        EnergyUnit nextUnit = EnergyScoreFormatter.GetUnit(nextScore);
+        bool promoted = nextUnit > previousUnit;
+
+        _previewScore = nextScore;
+
+        if ((!animateChanges || nextUnit < previousUnit) && _promotionRoutine != null)
+        {
+            StopCoroutine(_promotionRoutine);
+            _promotionRoutine = null;
+        }
+
+        ApplyScore(nextScore, instant: !animateChanges || nextUnit < previousUnit);
+
+        if (animateChanges && promoted)
+        {
+            if (_promotionRoutine != null)
+                StopCoroutine(_promotionRoutine);
+
+            _promotionRoutine = StartCoroutine(PlayPromotionRoutine());
+        }
+    }
+
+    public void EndScorePresentationPreview()
+    {
+        if (!_scorePresentationPreviewActive)
+            return;
+
+        _scorePresentationPreviewActive = false;
+
+        if (_promotionRoutine != null)
+        {
+            StopCoroutine(_promotionRoutine);
+            _promotionRoutine = null;
+        }
+
+        long liveScore = scoreService != null
+            ? scoreService.GetTeamScore(teamID)
+            : _scoreBeforePresentationPreview;
+        ApplyScore(liveScore, instant: true);
     }
 
     private IEnumerator BindWhenAvailable()
@@ -142,12 +221,15 @@ public class ScoreSphereScript : MonoBehaviour
 
     private void OnScoresReset()
     {
+        if (_scorePresentationPreviewActive)
+            return;
+
         ApplyScore(0L, instant: true);
     }
 
     private void OnTeamScoreChanged(TeamScoreSnapshot snapshot)
     {
-        if (snapshot.teamID != teamID)
+        if (_scorePresentationPreviewActive || snapshot.teamID != teamID)
             return;
 
         ApplyScore(snapshot.currentMilliElectronVolts, instant: false);
@@ -155,7 +237,7 @@ public class ScoreSphereScript : MonoBehaviour
 
     private void OnTierPromoted(EnergyTierPromotion promotion)
     {
-        if (promotion.teamID != teamID)
+        if (_scorePresentationPreviewActive || promotion.teamID != teamID)
             return;
 
         if (_promotionRoutine != null)

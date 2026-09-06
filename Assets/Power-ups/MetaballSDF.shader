@@ -36,7 +36,7 @@ Shader "MASSIVE/MetaballSDF"
 
             // Driven via MaterialPropertyBlock
             int _BallCount;
-            float4 _Balls[32]; // xyz=center (object space), w=radius
+            float4 _Balls[48]; // xyz=center (object space), w=radius
 
             struct appdata
             {
@@ -67,8 +67,8 @@ Shader "MASSIVE/MetaballSDF"
             float sceneSDF(float3 pOS)
             {
                 float d = 1e9;
-                [unroll]
-                for (int i = 0; i < 32; i++)
+                [loop]
+                for (int i = 0; i < 48; i++)
                 {
                     if (i >= _BallCount) break;
                     float3 c = _Balls[i].xyz;

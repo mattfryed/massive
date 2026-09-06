@@ -14,13 +14,20 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   rulesetId: MASSIVE_SCORE_V1
   rulesetVersion: 1
-  regulationDurationSeconds: 120
+  regulationDurationSeconds: 1200
   chainSettings:
     multiplierSteps: 0100000002000000040000000800000010000000
+    chargeRequiredPerTier:
+    - 4
+    - 6
+    - 8
+    - 10
     timeoutSeconds: 3.25
     useUnscaledTime: 1
-    hitPenalty: 2
+    hitPenalty: 0
     hitTimePenaltySeconds: 1
+  teamAmplifierSettings:
+    multiplierSteps: 01000000020000000400000008000000
   rewards:
   - key: PLAYER_DEFEAT
     enabled: 1
@@ -28,6 +35,7 @@ MonoBehaviour:
     unit: 1
     multiplierEligible: 1
     chainEffect: 2
+    chainCharge: 2
     repeatPolicy: 1
     feedbackId: PLAYER_DEFEAT
     expectedOccurrencesPerRound: 4
@@ -37,15 +45,17 @@ MonoBehaviour:
     unit: 1
     multiplierEligible: 1
     chainEffect: 2
+    chainCharge: 1
     repeatPolicy: 1
     feedbackId: ENEMY_DEFEAT
-    expectedOccurrencesPerRound: 20
+    expectedOccurrencesPerRound: 0
   - key: POWER_UP_CLAIM
     enabled: 1
     amount: 500
     unit: 0
     multiplierEligible: 1
     chainEffect: 2
+    chainCharge: 1
     repeatPolicy: 1
     feedbackId: PICKUP
     expectedOccurrencesPerRound: 6
@@ -55,6 +65,7 @@ MonoBehaviour:
     unit: 0
     multiplierEligible: 1
     chainEffect: 2
+    chainCharge: 0.5
     repeatPolicy: 1
     feedbackId: ENERGY_PICKUP
     expectedOccurrencesPerRound: 12
@@ -64,6 +75,17 @@ MonoBehaviour:
     unit: 0
     multiplierEligible: 1
     chainEffect: 1
+    chainCharge: 0.25
     repeatPolicy: 0
     feedbackId: OBJECTIVE
+    expectedOccurrencesPerRound: 20
+  - key: ENEMY_DYSON_DEFEAT
+    enabled: 1
+    amount: 1
+    unit: 1
+    multiplierEligible: 1
+    chainEffect: 2
+    chainCharge: 1
+    repeatPolicy: 1
+    feedbackId: ENEMY_DEFEAT
     expectedOccurrencesPerRound: 20

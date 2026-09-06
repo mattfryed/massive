@@ -5,9 +5,9 @@ using UnityEngine;
 public class MetaballSDFInstance : MonoBehaviour
 {
     // IMPORTANT:
-    // This MUST match the shader array size in MetaballSDF.shader:
-    // float4 _Balls[32];
-    public const int MaxBalls = 32;
+    // This MUST match the shader array size in every shader driven by this component.
+    // The score void uses the additional capacity for a dense, varied energetic core.
+    public const int MaxBalls = 48;
 
     [Header("Target")]
     [SerializeField] private Renderer targetRenderer;
@@ -25,9 +25,15 @@ public class MetaballSDFInstance : MonoBehaviour
     [SerializeField] private Color unlitColor = Color.white;
     [SerializeField] private Color outlineColor = Color.black;
 
+    [Header("Optional Container Clip (MaterialPropertyBlock)")]
+    [SerializeField] private string containerClipEnabledProperty = "_ContainerClipEnabled";
+    [SerializeField] private string containerCenterRadiusProperty = "_ContainerCenterRadius";
+
     private readonly Vector4[] _balls = new Vector4[MaxBalls];
     private int _count;
     private MaterialPropertyBlock _mpb;
+    private bool _containerClipEnabled;
+    private Vector4 _containerCenterRadius;
 
     public int Count => _count;
 
@@ -84,6 +90,21 @@ public class MetaballSDFInstance : MonoBehaviour
     // Backwards-friendly alias (in case you used SetColors elsewhere)
     public void SetColors(Color lit, Color unlit, Color outline) => SetMaterialColors(lit, unlit, outline);
 
+    /// <summary>
+    /// Clips the rendered SDF to a half-disc in object-space XZ. A positive
+    /// half-plane sign retains x values at or below the center; negative retains
+    /// values at or above it.
+    /// </summary>
+    public void SetContainerClip(Vector2 centerXZ, float radiusOS, float halfPlaneSign, bool enabled)
+    {
+        _containerClipEnabled = enabled && radiusOS > 0.0001f;
+        _containerCenterRadius = new Vector4(
+            centerXZ.x,
+            centerXZ.y,
+            Mathf.Max(0.0001f, radiusOS),
+            halfPlaneSign >= 0f ? 1f : -1f);
+    }
+
     public void Apply()
     {
         EnsureInit();
@@ -94,6 +115,11 @@ public class MetaballSDFInstance : MonoBehaviour
 
         _mpb.SetInt(ballCountProperty, _count);
         _mpb.SetVectorArray(ballsProperty, _balls);
+
+        if (!string.IsNullOrEmpty(containerClipEnabledProperty))
+            _mpb.SetFloat(containerClipEnabledProperty, _containerClipEnabled ? 1f : 0f);
+        if (!string.IsNullOrEmpty(containerCenterRadiusProperty))
+            _mpb.SetVector(containerCenterRadiusProperty, _containerCenterRadius);
 
         if (applyMaterialColors)
         {

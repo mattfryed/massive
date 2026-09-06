@@ -50,7 +50,7 @@ namespace Massive.Enemies
 
             if (dmg <= 0f) return;
 
-            enemy.TakeDamage(dmg, EnemyDamageSource.Sword);
+            enemy.TakeDamage(dmg, EnemyDamageSource.Sword, melee.Owner);
         }
     }
 }

@@ -1,0 +1,190 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 58bbae413d0c2c94cb1e63591dfaa4ea, type: 3}
+  m_Name: SIGNAL_BREAK_OUT
+  m_EditorClassIdentifier: 
+  delaySeconds: 0
+  durationSeconds: 0.26
+  characterStaggerSeconds: 0.011
+  timeMode: 1
+  characterSelection: 0
+  characterOrder: 5
+  deterministicSeed: 1337
+  interruption: 0
+  completion: 2
+  playObjectModulesWhenNoCharacters: 1
+  markers: []
+  modules:
+  - rid: 5425734343757660295
+  - rid: 5425734343757660296
+  - rid: 5425734343757660297
+  - rid: 5425734343757660298
+  references:
+    version: 2
+    RefIds:
+    - rid: 5425734343757660295
+      type: {class: AlphaTextAnimationModule, ns: Massive.TextAnimation, asm: Assembly-CSharp}
+      data:
+        enabled: 1
+        startNormalized: 0
+        endNormalized: 1
+        curve:
+          serializedVersion: 2
+          m_Curve:
+          - serializedVersion: 3
+            time: 0
+            value: 0
+            inSlope: 0
+            outSlope: 3.5
+            tangentMode: 0
+            weightedMode: 0
+            inWeight: 0
+            outWeight: 0
+          - serializedVersion: 3
+            time: 1
+            value: 1
+            inSlope: 0
+            outSlope: 0
+            tangentMode: 0
+            weightedMode: 0
+            inWeight: 0
+            outWeight: 0
+          m_PreInfinity: 2
+          m_PostInfinity: 2
+          m_RotationOrder: 4
+        fromAlpha: 1
+        toAlpha: 0
+        scaleByContextIntensity: 0
+    - rid: 5425734343757660296
+      type: {class: GlyphTransformTextAnimationModule, ns: Massive.TextAnimation,
+        asm: Assembly-CSharp}
+      data:
+        enabled: 1
+        startNormalized: 0
+        endNormalized: 1
+        curve:
+          serializedVersion: 2
+          m_Curve:
+          - serializedVersion: 3
+            time: 0
+            value: 0
+            inSlope: 0
+            outSlope: 3.5
+            tangentMode: 0
+            weightedMode: 0
+            inWeight: 0
+            outWeight: 0
+          - serializedVersion: 3
+            time: 1
+            value: 1
+            inSlope: 0
+            outSlope: 0
+            tangentMode: 0
+            weightedMode: 0
+            inWeight: 0
+            outWeight: 0
+          m_PreInfinity: 2
+          m_PostInfinity: 2
+          m_RotationOrder: 4
+        positionFrom: {x: 0, y: 0}
+        positionTo: {x: 0, y: 0}
+        rotationFromDegrees: 0
+        rotationToDegrees: 0
+        scaleFrom: {x: 1, y: 1}
+        scaleTo: {x: 0.72, y: 0.82}
+        shearXFrom: 0
+        shearXTo: 0.34
+        rotateAuthoredPositionByContextDirection: 0
+        addContextDirection: 1
+        directionDistanceFrom: 0
+        directionDistanceTo: 18
+    - rid: 5425734343757660297
+      type: {class: TrackingTextAnimationModule, ns: Massive.TextAnimation, asm: Assembly-CSharp}
+      data:
+        enabled: 1
+        startNormalized: 0
+        endNormalized: 1
+        curve:
+          serializedVersion: 2
+          m_Curve:
+          - serializedVersion: 3
+            time: 0
+            value: 0
+            inSlope: 0
+            outSlope: 3.5
+            tangentMode: 0
+            weightedMode: 0
+            inWeight: 0
+            outWeight: 0
+          - serializedVersion: 3
+            time: 1
+            value: 1
+            inSlope: 0
+            outSlope: 0
+            tangentMode: 0
+            weightedMode: 0
+            inWeight: 0
+            outWeight: 0
+          m_PreInfinity: 2
+          m_PostInfinity: 2
+          m_RotationOrder: 4
+        fromTracking: 0
+        toTracking: 8
+    - rid: 5425734343757660298
+      type: {class: SdfTextAnimationModule, ns: Massive.TextAnimation, asm: Assembly-CSharp}
+      data:
+        enabled: 1
+        startNormalized: 0
+        endNormalized: 1
+        curve:
+          serializedVersion: 2
+          m_Curve:
+          - serializedVersion: 3
+            time: 0
+            value: 0
+            inSlope: 0
+            outSlope: 3.5
+            tangentMode: 0
+            weightedMode: 0
+            inWeight: 0
+            outWeight: 0
+          - serializedVersion: 3
+            time: 1
+            value: 1
+            inSlope: 0
+            outSlope: 0
+            tangentMode: 0
+            weightedMode: 0
+            inWeight: 0
+            outWeight: 0
+          m_PreInfinity: 2
+          m_PostInfinity: 2
+          m_RotationOrder: 4
+        faceDilateFromOffset: 0
+        faceDilateToOffset: -0.18
+        outlineWidthFromOffset: 0
+        outlineWidthToOffset: 0
+        softnessFromOffset: 0
+        softnessToOffset: 0.1
+        glowOffsetFromOffset: 0
+        glowOffsetToOffset: 0
+        glowInnerFromOffset: 0
+        glowInnerToOffset: 0
+        glowOuterFromOffset: 0
+        glowOuterToOffset: 0
+        glowPowerFromOffset: 0
+        glowPowerToOffset: 0
+        forceGlowWhilePlaying: 0
+        useContextAccentForOutline: 0
+        outlineAccentWeight: 0
+        useContextAccentForGlow: 0
+        glowAccentWeight: 0
