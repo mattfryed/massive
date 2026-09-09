@@ -1,0 +1,229 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &1507520143740314508
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 8683169477034879014}
+  - component: {fileID: 126214827319581504}
+  - component: {fileID: 413928032100967763}
+  m_Layer: 0
+  m_Name: 345 Hz Particle Encounter
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &8683169477034879014
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1507520143740314508}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &126214827319581504
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1507520143740314508}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b37e865a73e866e4b878abd8dafc4ef3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  definition: {fileID: 11400000, guid: 46e3a4aa2abf5f848b270addac03a059, type: 2}
+  segmentMaterial: {fileID: 2100000, guid: df77b95521cf27545a15f57e2fc9b321, type: 2}
+  rendering: 1
+  particleMaterial: {fileID: 2100000, guid: c73980918f9dc784480d0040ce630f4d, type: 2}
+  particles:
+    particleBudget: 56591
+    seed: 345
+    filament:
+      particlesPerUnit: 800
+      dotSize: 0.035
+      sizeVariation: 1
+      brightness: 2
+    ribbon:
+      particlesPerUnit: 300
+      dotSize: 0.033
+      sizeVariation: 0.45
+      brightness: 2.3
+    diffuse:
+      particlesPerUnit: 220
+      dotSize: 0.03
+      sizeVariation: 0.45
+      brightness: 3.5
+    fullPattern:
+      particlesPerUnit: 80
+      dotSize: 0.03
+      sizeVariation: 0.45
+      brightness: 1.8
+    center:
+      particlesPerUnit: 90
+      dotSize: 0.023
+      sizeVariation: 0.45
+      brightness: 1.5
+    lifetime: 1.2
+    lifetimeVariation: 0.45
+    presence: 0.85
+    birthDeathFeather: 0.12
+    grainWander: 0.022
+    grainMotionSpeed: 1.3
+    dotEdgeSoftness: 0.35
+  patternScale: {x: 3.24, y: 1.5}
+  layoutFit: 1
+  curvaturePreservation: 0
+  rotationDegrees: 0
+  colliderHeight: 3
+  surfaceHeight: 0.04
+  sampleDegrees: 1
+  arenaBounds: {fileID: 0}
+  preserveAspectWhenFitting: 1
+  arenaCoverage: 0.85
+  obstacleLayer: 0
+  wallMaterial: {fileID: 13400000, guid: ef31ee52e8eb59d46ad8e8449c25916b, type: 2}
+  fieldAffectedLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  fieldsAffectOnlyAmplifierCores: 1
+  playerResponse: 3
+  coreResponse: 1
+  sludgeMovementMultiplier: 0.65
+  sludgeDrag: 8
+  interactionReach: 0.1
+  magneticPath: 1
+  magneticReach: 0.25
+  magneticTangentialCarry: 1
+  magneticSurfaceFollow: 0.775
+  magneticBrakeSeconds: 0.22
+  magneticReleaseSeconds: 0.3
+  magneticSpeedRetention: 0.9
+  showFullPatternGizmos: 1
+  globalVisualProfile:
+    enabled: 1
+    thickness: 0.81
+    taperFraction: 0.415
+    taperLength: 0
+    falloffPower: 1
+    falloffShape: 2
+  globalCollisionProfile:
+    enabled: 0
+    thickness: 0.16
+    taperFraction: 0.2
+    taperLength: 0
+    falloffPower: 1
+    falloffShape: 0
+  overrideCollisionExtent: 0
+  globalCollisionStart: 0.08
+  globalCollisionEnd: 0.92
+  organicMotion: 0.823
+  energyFlowSpeed: 2.75
+  energyFlow: 0
+  energyOrigin: {fileID: 0}
+  energyWavelength: 2
+  blending: 0
+  filament:
+    width: 0.22
+    opacity: 0.85
+    brightness: 1.4
+    softness: 2
+    color: {r: 0.65, g: 0.9, b: 1, a: 1}
+  ribbon:
+    width: 1
+    opacity: 0.48
+    brightness: 0.85
+    softness: 4
+    color: {r: 0.65, g: 0.9, b: 1, a: 1}
+  diffuse:
+    width: 2.8
+    opacity: 0.16
+    brightness: 0.7
+    softness: 3.91
+    color: {r: 0.65, g: 0.9, b: 1, a: 1}
+  arcColorInfluence: 0
+  plasmaCurveSamples: 96
+  plasmaDisplacement: 0.22
+  plasmaNoiseScale: 3
+  plasmaNoiseSpeed: 1.3
+  plasmaFineDetail: 0.35
+  plasmaTipBoost: 1
+  coreContactVisuals:
+    enabled: 1
+    strength: 1
+    reach: 3
+    compression: 0.6
+    flare: 0.24
+    pulseStrength: 0.649
+    pulseSpeed: 5
+    pulseWidth: 0.5
+    recoverySeconds: 5
+    referenceSpeed: 4
+  playerPassageVisuals:
+    enabled: 1
+    strength: 1
+    reach: 0.7
+    filamentDiffusion: 0.65
+    wakeStretch: 1.1
+    wakeNoise: 0.55
+    attackSeconds: 0.08
+    recoverySeconds: 0.7
+    referenceSpeed: 6
+  attractGrid: 1
+  grid: {fileID: 0}
+  gridAttractionStrength: 55
+  gridAttractionRadius: 1.5
+  overrideGridFalloff: 1
+  gridOuterFeather: 0.8
+  gridInnerSoftening: 0.5
+  gridSampleSpacing: 0.65
+  gridSampleBudget: 64
+  gridEnergyPulse: 0.044
+  revealDuration: 1.2
+  revealThickness: 0.13
+  revealOpacity: 0.48
+  revealColor: {r: 0.65, g: 0.85, b: 1, a: 1}
+  impactCooldown: 0.25
+  previewFullPattern: 0
+  showCollisionGizmos: 0
+--- !u!114 &413928032100967763
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1507520143740314508}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1fda4bede0023804298ad3eadfd88906, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  spawnSeconds: 2.4
+  despawnSeconds: 1.2
+  sizeGrowthPower: 0.5
+  condensationPower: 1.8
+  birthDistribution: 1
+  localSpawnSpread: 0.55
+  alongArcSpread: 0.25
+  fieldCoherence: 0.9
+  fieldWavelength: 2
+  birthPulse: 0.15
+  dispersalCenter: {x: 0, y: 0}
+  dispersalHalfExtents: {x: 14, y: 6.000001}
+  vibrationStrength: 0.08
+  vibrationFrequency: 6
+  showDispersalArea: 1
+  spawnPrefabTuningTarget: {fileID: 0}

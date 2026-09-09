@@ -89,3 +89,13 @@ MonoBehaviour:
     repeatPolicy: 1
     feedbackId: ENEMY_DEFEAT
     expectedOccurrencesPerRound: 20
+  - key: ENEMY_DRONE_DEFEAT
+    enabled: 1
+    amount: 100
+    unit: 0
+    multiplierEligible: 1
+    chainEffect: 2
+    chainCharge: 0.25
+    repeatPolicy: 1
+    feedbackId: ENEMY_DEFEAT
+    expectedOccurrencesPerRound: 60

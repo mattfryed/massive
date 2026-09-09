@@ -23,8 +23,12 @@ namespace Massive.Multiplier
         [SerializeField] private AmplifierAuroraBlast auroraBlast;
         [SerializeField] private GridInteractor captureWave;
         [SerializeField] private string captureWaveTag = "Wave";
+        [SerializeField] private AmplifierGoalTreatments treatments;
+
+        public void SetTreatments(AmplifierGoalTreatments value) { treatments = value; }
 
         public int TeamID => teamID;
+        public float AttractionRadius => attractionRadius;
         public Transform CapturePoint => capturePoint != null ? capturePoint : transform;
 
         private void Reset()
@@ -93,6 +97,11 @@ namespace Massive.Multiplier
 
         public void PlayCaptureFeedback()
         {
+            if (treatments != null && treatments.isActiveAndEnabled)
+            {
+                treatments.Capture(teamID);
+                if (!treatments.LegacyCaptureFeedback) return;
+            }
             if (captureParticles != null)
                 captureParticles.Play(true);
             if (auroraBlast != null)

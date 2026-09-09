@@ -9,8 +9,8 @@ RWStructuredBuffer<float3> _Vel;
 
 struct Force {
     float3 position; float radius;      // radius > 0
-    float3 direction; float strength;   // strength can be +/-
-    uint   flags;                       // bit 0: 1 = directional, 0 = radial
+    float3 direction; float strength;   // flag 4 radial: direction.xy = outer feather / inner softening fractions
+    uint   flags;                       // bits: 1 directional, 2 balanced accumulation, 4 custom radial profile
     float  innerFrac;                   // 0..0.9 plateau inside radius (per-force)
     float4 color;                       // reserved (not used yet)
 };
@@ -77,6 +77,31 @@ float FalloffWeight(float t, float innerFrac)
     return w;
 }
 
+float SmootherStep01(float t)
+{
+    t = saturate(t);
+    return t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
+}
+
+float ProfiledOuterWeight(float t, float feather)
+{
+    // Compact support regardless of the global falloff mode. Feather = 0 is
+    // an intentional hard cutoff; any positive value eases smoothly to zero.
+    if (t >= 1.0) return 0.0;
+    feather = saturate(feather);
+    if (feather <= 0.0) return 1.0;
+    return 1.0 - SmootherStep01((t - (1.0 - feather)) / max(1e-6, feather));
+}
+
+float ProfiledInnerWeight(float t, float softening)
+{
+    // A point's radial direction reverses at its center. Ease its magnitude
+    // to zero there so that reversal is continuous instead of a full-strength
+    // snap. This attenuates force, not the overlap-normalization denominator.
+    softening = saturate(softening);
+    return softening > 0.0 ? SmootherStep01(t / max(1e-6, softening)) : 1.0;
+}
+
 [numthreads(256,1,1)]
 void CSMain (uint3 id3 : SV_DispatchThreadID)
 {
@@ -135,6 +160,10 @@ void CSMain (uint3 id3 : SV_DispatchThreadID)
     // Accumulate external forces with weight cap (+ optional outward reflection)
     // ------------------------------------------------------------------------
     float wsum = 0.0;
+    // Bit 1 opts continuous multi-sample fields into order-independent blending.
+    // Legacy actor/impact forces retain their existing cap policy.
+    float3 balancedForce = 0.0;
+    float balancedWeight = 0.0;
 
     [loop]
     for (uint i = 0; i < _ForceCount; i++)
@@ -143,13 +172,17 @@ void CSMain (uint3 id3 : SV_DispatchThreadID)
 
         float3 d = pos - F.position;
         float dist = length(d);
-        if (dist <= 1e-6) continue;
+        bool profiledRadial = (F.flags & 5u) == 4u;
+        if (dist <= 1e-6 && !profiledRadial) continue;
 
         float t = dist / max(1e-4, F.radius);
-        float w = FalloffWeight(t, F.innerFrac);
+        float w = profiledRadial
+            ? ProfiledOuterWeight(t, F.direction.x)
+            : FalloffWeight(t, F.innerFrac);
 
         // optional cap: prevent total influence > _WeightCap
-        if (_WeightCap > 0)
+        bool balanced = (F.flags & 2u) != 0u;
+        if (!balanced && _WeightCap > 0)
         {
             float remaining = max(0.0, _WeightCap - wsum);
             w = min(w, remaining);
@@ -161,7 +194,7 @@ void CSMain (uint3 id3 : SV_DispatchThreadID)
         // Base direction: directional (flag 1) or radial inward
         float3 dir = ((F.flags & 1u) != 0u)
             ? normalize(F.direction)
-            : (-d / dist);
+            : (-d / (profiledRadial ? max(1e-6, dist) : dist));
 
         // --- NEW: reflect *outward* components near the wall so pressure turns back in ---
         // Choose outward normal based on which side we’re nearest (index space)
@@ -185,9 +218,14 @@ if (dOut > 0.0)
 
         // Apply edge force fade (prevents seam kinks)
         float strength = F.strength * w * forceMask;
+        if (profiledRadial) strength *= ProfiledInnerWeight(t, F.direction.y);
 
-        vel += dir * (strength) * _DeltaTime;
+        if (balanced) { balancedForce += dir * strength; balancedWeight += w; }
+        else vel += dir * strength * _DeltaTime;
     }
+    float balancedScale = _WeightCap > 0 ? min(1.0, _WeightCap / max(1e-6, balancedWeight)) : 1.0;
+    vel += balancedForce * balancedScale * _DeltaTime;
+    wsum += balancedWeight * balancedScale;
 
     // ------------------------------------------------------------------------
     // spring to origin (stiffen under crowds) -- with edge spring multiplier

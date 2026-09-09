@@ -1,0 +1,13 @@
+// Exercise the production sampler itself, not a C# approximation.
+#pragma kernel ValidateSamples
+#include "../GridCurveSampling.hlsl"
+StructuredBuffer<float2> _Queries;
+RWStructuredBuffer<float3> _Results;
+int _QueryCount;
+
+[numthreads(64, 1, 1)]
+void ValidateSamples(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x < (uint)_QueryCount)
+        _Results[id.x] = SampleSimPosExtended(_Queries[id.x]);
+}

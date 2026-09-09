@@ -1,0 +1,32 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 719fc9d0ebec34844a5314ddf4f81fb6, type: 3}
+  m_Name: ED_Drone
+  m_EditorClassIdentifier: 
+  id: DRONE
+  category: 2
+  defeatRewardKey: ENEMY_DRONE_DEFEAT
+  prefab: {fileID: 8000241456705755213, guid: c1a851dc694e5c74e88b1e332f994b27, type: 3}
+  spawnWeight: 1
+  spawnRadiusWorld: 0.55
+  maxAliveOverride: 24
+  healthMassEq: 1
+  damageTakenPerSwordHit: 1
+  damageToPlayerMass01: 0.04
+  contactDamageCooldownSeconds: 0.35
+  lifetimeSeconds: 0
+  moveSpeed: 2.4
+  turnSpeed: 220
+  sfxAttack: 0
+  sfxHit: 0
+  sfxDeath: 0
+  drawGizmos: 0

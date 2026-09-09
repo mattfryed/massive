@@ -8,6 +8,8 @@ namespace Massive.Enemies
     [RequireComponent(typeof(EnemyBase))]
     public sealed class EnemyScoreReward : MonoBehaviour
     {
+        [Tooltip("Optional pooled world-space label showing the final credited energy.")]
+        public EnemyScoreToast scoreToastPrefab;
         private EnemyBase _enemy;
 
         private void OnEnable()
@@ -34,8 +36,9 @@ namespace Massive.Enemies
 
             MatchScoreService service = MatchScoreService.Instance;
             if (service == null) return;
-            service.TryAwardToPlayer(key, defeat.creditedPlayer, defeat.sourceLifeToken,
-                defeat.worldPosition, out _);
+            if (service.TryAwardToPlayer(key, defeat.creditedPlayer, defeat.sourceLifeToken,
+                defeat.worldPosition, out var award) && scoreToastPrefab != null)
+                EnemyScoreToast.Show(scoreToastPrefab, award, gameObject.scene);
         }
     }
 }

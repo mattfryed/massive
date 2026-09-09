@@ -12,7 +12,7 @@ namespace Massive.Enemies
     /// This is Step A: foundation only (no special behaviors per enemy type yet).
     /// </summary>
     [DisallowMultipleComponent]
-    public class EnemyDirector : MonoBehaviour
+    public partial class EnemyDirector : MonoBehaviour
     {
         [Header("Profile")]
         [Tooltip("Defines what enemy types can spawn and how often.")]
@@ -73,13 +73,16 @@ namespace Massive.Enemies
                 enemyRoot = transform;
 
             ScheduleNextSpawn(initial: true);
+            InitializeBatches();
         }
 
         private void Update()
         {
             CleanupDeadRefs();
 
-            if (spawnProfile == null || !spawnProfile.enabled) return;
+            if (spawnProfile == null || !spawnProfile.enabled) { CancelBatchTelegraphs(); return; }
+
+            if (CheckMatchPause()) return;
 
             // Pause/unpause behavior during anomalies
             bool anomalyRunning = (anomalyManager != null && anomalyManager.IsAnomalyRunning);
@@ -92,6 +95,8 @@ namespace Massive.Enemies
             if (_cachedAnomalyRunning && !spawnProfile.allowSpawningDuringAnomalies)
                 return;
 
+            TickBatches(Time.deltaTime);
+
             if (Time.time < _nextSpawnTime) return;
 
             TrySpawnOne();
@@ -100,6 +105,7 @@ namespace Massive.Enemies
 
         private void OnDisable()
         {
+            CancelBatchTelegraphs();
             // Stop all movement/behavior when disabled (match end, scene transitions)
             PauseAll(true);
         }
@@ -160,7 +166,7 @@ namespace Massive.Enemies
             if (enemy == null) return;
 
             // Remove from list (if present)
-            _alive.Remove(enemy);
+            if (!_alive.Remove(enemy)) return;
 
             if (enemy.Definition != null)
             {
@@ -214,58 +220,9 @@ namespace Massive.Enemies
 
         private void TrySpawnOne()
         {
-            if (spawnProfile == null) return;
-            if (arenaBounds == null)
-            {
-                Debug.LogWarning("[EnemyDirector] No ArenaBoundsFromVectorGrid assigned/found; cannot spawn.", this);
-                return;
-            }
-
-            // Global caps
-            int totalAlive = _alive.Count;
-            if (spawnProfile.maxAliveTotal > 0 && totalAlive >= spawnProfile.maxAliveTotal) return;
-
-            // Pick an eligible enemy based on weights
             EnemyDefinition def = PickEligibleEnemy();
-            if (def == null || def.prefab == null) return;
-
-            // Category caps
-            if (!CategoryCapAllows(def.category)) return;
-
-            // Try find a valid spawn point
-            float clearance = Mathf.Max(spawnCheckRadiusWorld, def.spawnRadiusWorld);
-
-            for (int attempt = 0; attempt < Mathf.Max(1, spawnAttemptsPerTick); attempt++)
-            {
-                if (!TrySamplePointInArena(clearance, out Vector3 p)) continue;
-                if (!IsSpawnPointClear(p, clearance)) continue;
-                if (!IsFarEnoughFromPlayers(p)) continue;
-
-                // Spawn
-                Quaternion rot = def.prefab.transform.rotation;
-                var go = Instantiate(def.prefab, p, rot, enemyRoot);
-
-                // If it has a Rigidbody, make sure physics agrees with spawn position
-                if (go.TryGetComponent<Rigidbody>(out var rb))
-                {
-                    rb.position = p;
-                    rb.rotation = rot;
-                    rb.linearVelocity = Vector3.zero;
-                    rb.angularVelocity = Vector3.zero;
-                }
-
-                var enemy = go.GetComponent<EnemyBase>();
-                if (enemy == null) enemy = go.AddComponent<EnemyBase>();
-
-                enemy.Init(def, this);
-                RegisterEnemy(enemy);
-
-                // Optional: immediately pause if anomaly is running and we freeze existing enemies
-                if (_cachedAnomalyRunning && spawnProfile.freezeExistingEnemiesDuringAnomalies)
-                    enemy.Pause(true);
-
-                return;
-            }
+            if (def == null) return;
+            TrySpawnEnemy(def, 0, null, 0f, out _);
         }
 
         private EnemyDefinition PickEligibleEnemy()
@@ -359,7 +316,8 @@ namespace Massive.Enemies
             if (half.x <= 0.0001f || half.y <= 0.0001f) return false;
 
             // Convert padding from world -> local per axis
-            Vector3 ls = arenaBounds.transform.lossyScale;
+            Transform gridTransform = arenaBounds.Grid != null ? arenaBounds.Grid.transform : arenaBounds.transform;
+            Vector3 ls = gridTransform.lossyScale;
             float sx = Mathf.Max(1e-6f, Mathf.Abs(ls.x));
             float sy = Mathf.Max(1e-6f, Mathf.Abs(ls.y));
 
@@ -377,8 +335,8 @@ namespace Massive.Enemies
             float y = Random.Range(yMin, yMax);
 
             Vector3 local = new Vector3(x, y, 0f);
-            Vector3 ws = arenaBounds.transform.TransformPoint(local);
-            ws.y = arenaBounds.transform.position.y;
+            Vector3 ws = gridTransform.TransformPoint(local);
+            ws.y = gridTransform.position.y;
 
             worldPos = ws;
 

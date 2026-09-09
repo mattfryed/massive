@@ -461,22 +461,22 @@ MonoBehaviour:
       x: 0
       y: 21
       width: 2198
-      height: 1199.6667
-    m_Scale: {x: 0.833102, y: 0.8331019}
-    m_Translation: {x: 1099, y: 599.8334}
+      height: 1199.6666
+    m_Scale: {x: 0.8331018, y: 0.8331018}
+    m_Translation: {x: 1099, y: 599.8333}
     m_MarginLeft: 0
     m_MarginRight: 0
     m_MarginTop: 0
     m_MarginBottom: 0
     m_LastShownAreaInsideMargins:
       serializedVersion: 2
-      x: -1319.1663
+      x: -1319.1665
       y: -720
-      width: 2638.3325
+      width: 2638.333
       height: 1440
     m_MinimalGUI: 1
-  m_defaultScale: 0.8331019
-  m_LastWindowPixelSize: {x: 2198, y: 1220.6667}
+  m_defaultScale: 0.8331018
+  m_LastWindowPixelSize: {x: 2198, y: 1220.6666}
   m_ClearInEditMode: 1
   m_NoCameraWarning: 1
   m_LowResolutionForAspectRatios: 00000000000000000000
@@ -1213,7 +1213,7 @@ MonoBehaviour:
   m_AudioPlay: 0
   m_DebugDrawModesUseInteractiveLightBakingData: 0
   m_Position:
-    m_Target: {x: -0.118938446, y: -0.44, z: -0.05348726}
+    m_Target: {x: -3.144302, y: 4.9, z: -0.42111176}
     speed: 2
     m_Value: {x: -0.118938446, y: -0.44, z: -0.05348726}
   m_RenderMode: 0
@@ -1261,11 +1261,11 @@ MonoBehaviour:
     m_GridAxis: 1
     m_gridOpacity: 0.5
   m_Rotation:
-    m_Target: {x: 0.69049615, y: 0.12140607, z: -0.11923948, w: 0.70303714}
+    m_Target: {x: 0.7071068, y: 0, z: 0, w: 0.7071068}
     speed: 2
     m_Value: {x: -0.69049615, y: -0.12140607, z: 0.11923949, w: -0.70303714}
   m_Size:
-    m_Target: 15.572002
+    m_Target: 6.7121067
     speed: 2
     m_Value: 15.572002
   m_Ortho:
@@ -1480,7 +1480,7 @@ MonoBehaviour:
     scrollPos: {x: 0, y: 342}
     m_SelectedIDs: 30ed0000
     m_LastClickedID: 60720
-    m_ExpandedIDs: 000000008eec0000
+    m_ExpandedIDs: 00000000e2f60000
     m_RenameOverlay:
       m_UserAcceptedRename: 0
       m_Name: 
@@ -1509,7 +1509,7 @@ MonoBehaviour:
     scrollPos: {x: 0, y: 0}
     m_SelectedIDs: 
     m_LastClickedID: 0
-    m_ExpandedIDs: 000000008eec0000
+    m_ExpandedIDs: 00000000e2f60000
     m_RenameOverlay:
       m_UserAcceptedRename: 0
       m_Name: 

@@ -4,7 +4,7 @@ using Rigidbody = UnityEngine.Rigidbody;
 using UnityEngine.Rendering;  // built-in pipeline CommandBuffer API
 
 [DisallowMultipleComponent]
-public class PlayerVisualController : MonoBehaviour
+public partial class PlayerVisualController : MonoBehaviour
 {
     // ===== Rendering / materials =====
     static readonly int _FillColor = Shader.PropertyToID("_FillColor");
@@ -242,6 +242,8 @@ float _gameplayYawVelDeg;
     void Awake()
     {
         TryGetComponent(out _rb);
+        // Existing child visual rigs use the primary palette. A parent lookup here
+        // unexpectedly switches dark-team bodies to the alternate white fill.
         TryGetComponent(out _pcs);
         
 
@@ -287,6 +289,7 @@ float _gameplayYawVelDeg;
 
     void OnDisable()
     {
+        ClearEnemyDamageFeedback();
         Camera.onPreCull -= HandlePreCull;
         Camera.onPreRender -= HandlePreRender;
         Camera.onPostRender -= HandlePostRender;
@@ -683,6 +686,7 @@ public void SetMoveInput(Vector2 stick)
 
         blobMat.SetColor("_FillColor", fill);
         blobMat.SetColor("_OutlineColor", outline);
+        ApplyEnemyDamageUniforms();
     }
 
     // Ensure a CB exists and is attached to this camera before transparents
@@ -732,6 +736,8 @@ public void SetMoveInput(Vector2 stick)
             if (fade <= 0.01f) continue;
 
             _ghostProps.Clear();
+            _ghostProps.SetFloat(DamageImpulseId, 0f);
+            _ghostProps.SetFloat("_OutlineHalf", outlineHalf);
 
             Color ghostOutline = baseOutline;
             ghostOutline.a *= fade;

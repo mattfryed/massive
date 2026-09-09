@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace Massive.Enemies
@@ -24,6 +25,8 @@ namespace Massive.Enemies
     [DisallowMultipleComponent]
     public class EnemyBase : MonoBehaviour
     {
+        [Tooltip("Visual cleanup time after death. Damage/scoring stop immediately; zero preserves instant removal.")]
+        [Min(0f)] public float despawnDelaySeconds;
         public EnemyDefinition Definition { get; private set; }
         public EnemyDirector Director { get; private set; }
 
@@ -50,6 +53,26 @@ namespace Massive.Enemies
 
         private float _killTime = float.PositiveInfinity;
 
+        private static readonly List<EnemyBase> activeEnemies = new List<EnemyBase>();
+        public static IReadOnlyList<EnemyBase> ActiveEnemies => activeEnemies;
+        private readonly Dictionary<UnityEngine.Object, float> movementInfluences = new Dictionary<UnityEngine.Object, float>();
+        public float ExternalMovementMultiplier
+        {
+            get
+            {
+                float result = 1f;
+                foreach (var influence in movementInfluences)
+                    if (influence.Key != null) result = Mathf.Min(result, influence.Value);
+                return result;
+            }
+        }
+        public void SetMovementInfluence(UnityEngine.Object source, float multiplier)
+        { if (source != null) movementInfluences[source] = Mathf.Clamp(multiplier, .01f, 1f); }
+        public void RemoveMovementInfluence(UnityEngine.Object source)
+        { if (!ReferenceEquals(source, null)) movementInfluences.Remove(source); }
+        private void OnEnable() { if (!activeEnemies.Contains(this)) activeEnemies.Add(this); }
+        private void OnDisable() { activeEnemies.Remove(this); movementInfluences.Clear(); }
+
         public void Init(EnemyDefinition def, EnemyDirector director)
         {
             if (IsPaused && !IsDead) Pause(false);
@@ -57,6 +80,7 @@ namespace Massive.Enemies
             OwnerTeamId = -1;
             Definition = def;
             Director = director;
+            movementInfluences.Clear();
 
             SpawnTime = Time.time;
             IsDead = false;
@@ -177,8 +201,17 @@ namespace Massive.Enemies
 
             Died?.Invoke(this, source);
 
-            // Foundation: no drop logic yet.
-            Destroy(gameObject);
+            if (despawnDelaySeconds > 0f)
+            {
+                foreach (var c in GetComponentsInChildren<Collider>()) c.enabled = false;
+                if (_rb != null && !_rb.isKinematic)
+                {
+                    _rb.linearVelocity = Vector3.zero;
+                    _rb.angularVelocity = Vector3.zero;
+                    _rb.isKinematic = true;
+                }
+            }
+            Destroy(gameObject, Mathf.Max(0f, despawnDelaySeconds));
         }
 
         private void OnDestroy()

@@ -18,6 +18,9 @@ Shader "MASSIVE/PlayerBlobVector"
         _HitImpulse      ("Hit Impulse", Float)               = 0.0
         _HitAngle        ("Hit Angle",   Float)               = 0.0
         _HitTime         ("Hit Time",    Float)               = 0.0
+        [HideInInspector] _DamageImpulse ("Damage Impulse", Float) = 0
+        [HideInInspector] _DamageAngle ("Damage Angle", Float) = 0
+        [HideInInspector] _DamageTime ("Damage Time", Float) = 0
         _NoisePhase      ("Noise Phase", Float)               = 0.0
 
         // Global vertical squash
@@ -56,6 +59,9 @@ Shader "MASSIVE/PlayerBlobVector"
         float    _HitImpulse;
         float    _HitAngle;
         float    _HitTime;
+        float    _DamageImpulse;
+        float    _DamageAngle;
+        float    _DamageTime;
         float    _NoisePhase;
         float    _Stretch;
 
@@ -125,12 +131,11 @@ Shader "MASSIVE/PlayerBlobVector"
             return a - PI;
         }
 
-        float hitRipple(float ang)
+        float hitRipple(float ang, float impulse, float hitAngle, float t)
         {
-            if (_HitImpulse <= 1e-5) return 0.0;
+            if (impulse <= 1e-5) return 0.0;
 
-            float t  = _HitTime;
-            float da = wrapToPi(ang - _HitAngle);
+            float da = wrapToPi(ang - hitAngle);
 
             float indentWidth = 0.45;
             float indentFallT = 2.0;
@@ -142,8 +147,8 @@ Shader "MASSIVE/PlayerBlobVector"
             float waveDecay = 2.0;
             float timeDecay = 1.0;
 
-            float center1 = _HitAngle + waveSpeed * t;
-            float center2 = _HitAngle - waveSpeed * t;
+            float center1 = hitAngle + waveSpeed * t;
+            float center2 = hitAngle - waveSpeed * t;
             float d1 = wrapToPi(ang - center1);
             float d2 = wrapToPi(ang - center2);
 
@@ -161,7 +166,7 @@ Shader "MASSIVE/PlayerBlobVector"
             float wavesShaped = waves * hump;
 
             float combined = indent + 0.7 * wavesShaped;
-            return _HitImpulse * combined * 0.25;
+            return impulse * combined * 0.25;
         }
 
         float contactFlatten(float ang)
@@ -222,7 +227,8 @@ Shader "MASSIVE/PlayerBlobVector"
 
             float sSym = 1.0
                 + symIdle(ang)
-                + hitRipple(ang)
+                + hitRipple(ang, _HitImpulse, _HitAngle, _HitTime)
+                + hitRipple(ang, _DamageImpulse, _DamageAngle, _DamageTime)
                 + contactFlatten(ang);
 
             float r = rBase * sSym;

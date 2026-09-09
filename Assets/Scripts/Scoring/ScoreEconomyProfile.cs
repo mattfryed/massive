@@ -149,6 +149,7 @@ namespace Massive.Scoring
         public const string PlayerDefeat = "PLAYER_DEFEAT";
         public const string EnemyDefeat = "ENEMY_DEFEAT";
         public const string DysonDefeat = "ENEMY_DYSON_DEFEAT";
+        public const string DroneDefeat = "ENEMY_DRONE_DEFEAT";
         public const string PowerUpClaim = "POWER_UP_CLAIM";
         public const string EnergyPickupSmall = "ENERGY_PICKUP_SMALL";
         public const string ObjectiveTick = "OBJECTIVE_TICK";
@@ -271,6 +272,18 @@ namespace Massive.Scoring
                     repeatPolicy = ScoreRepeatPolicy.OncePerSourceToken,
                     feedbackId = "ENEMY_DEFEAT",
                     expectedOccurrencesPerRound = 20
+                },
+                new ScoreRewardRule
+                {
+                    key = ScoreRewardKeys.DroneDefeat,
+                    amount = 100,
+                    unit = EnergyUnit.MilliElectronVolt,
+                    multiplierEligible = true,
+                    chainEffect = ScoreChainAwardMode.AdvanceAndRefresh,
+                    chainCharge = .25f,
+                    repeatPolicy = ScoreRepeatPolicy.OncePerSourceToken,
+                    feedbackId = "ENEMY_DEFEAT",
+                    expectedOccurrencesPerRound = 60
                 },
                 new ScoreRewardRule
                 {

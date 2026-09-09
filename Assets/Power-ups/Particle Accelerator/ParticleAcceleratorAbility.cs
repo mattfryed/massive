@@ -174,7 +174,8 @@ public void PreTickInput(in PowerUpInputState input)
                 return true;
             }
 
-            return false;
+            // Accelerator replaces melee even when an input sequence is incomplete.
+            return input.attackDown || input.attackHeld || input.attackUp;
         }
 
         private void BeginCooldown(float cooldownSeconds)

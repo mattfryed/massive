@@ -74,6 +74,9 @@ namespace Massive.Enemies
         [Header("Rules")]
         public List<EnemySpawnRule> rules = new();
 
+        [Header("Scheduled batches (independent of weighted single spawns)")]
+        public List<EnemyBatchSpawnRule> batches = new();
+
         private void OnValidate()
         {
             initialDelaySeconds = Mathf.Max(0f, initialDelaySeconds);

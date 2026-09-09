@@ -22,14 +22,13 @@ Shader "MASSIVE/GridUnlitLines"
           HLSLPROGRAM
           #pragma vertex vert
           #pragma fragment frag
+          #pragma target 4.5
           #include "UnityCG.cginc"
-
-          StructuredBuffer<float3> _Pos;
-          int _SimGridX, _SimGridY;
+          #include "GridCurveSampling.hlsl"
+          #include "AmplifierGridTreatment.hlsl"
           float4 _LineColor;
           float _LinePixelWidth;   // kept for future AA work
           float _DispBrightness;
-          float2 _GridSize;
           float _PresentationScale;
           float _ClipToGridBounds;
             // --- Border overlay controls (set via MPB from C#) ---
@@ -50,54 +49,6 @@ Shader "MASSIVE/GridUnlitLines"
               float2 uv      : TEXCOORD1;
           };
 
-          float3 FlatPositionFromUV(float2 uv)
-          {
-              return float3(
-                  (uv.x - 0.5) * _GridSize.x,
-                  (uv.y - 0.5) * _GridSize.y,
-                  0.0);
-          }
-
-          // Bilinear sample from the simulated grid inside its authoritative
-          // 0..1 domain.
-          float3 SampleSimPosClamped(float2 uv)
-          {
-              float2 clampedUV = saturate(uv);
-              float fx = clampedUV.x * (_SimGridX - 1);
-              float fy = clampedUV.y * (_SimGridY - 1);
-
-              int x0 = (int)floor(fx), y0 = (int)floor(fy);
-              int x1 = min(x0 + 1, _SimGridX - 1);
-              int y1 = min(y0 + 1, _SimGridY - 1);
-
-              float tx = fx - x0, ty = fy - y0;
-
-              int i00 = x0 + y0 * _SimGridX;
-              int i10 = x1 + y0 * _SimGridX;
-              int i01 = x0 + y1 * _SimGridX;
-              int i11 = x1 + y1 * _SimGridX;
-
-              float3 p00 = _Pos[i00];
-              float3 p10 = _Pos[i10];
-              float3 p01 = _Pos[i01];
-              float3 p11 = _Pos[i11];
-
-              return lerp(lerp(p00, p10, tx), lerp(p01, p11, tx), ty);
-          }
-
-          // Presentation overscan may request UVs outside 0..1. Continue the
-          // flat lattice beyond the arena while carrying the nearest edge's
-          // deformation offset outward. With pinned edges this becomes a
-          // perfectly flat extension, which is ideal for intro/outro zooms.
-          float3 SampleSimPosExtended(float2 uv)
-          {
-              float2 edgeUV = saturate(uv);
-              float3 edgeDisplaced = SampleSimPosClamped(edgeUV);
-              float3 edgeFlat = FlatPositionFromUV(edgeUV);
-              float3 requestedFlat = FlatPositionFromUV(uv);
-              return requestedFlat + (edgeDisplaced - edgeFlat);
-          }
-
           v2f vert (appdata v)
           {
               v2f o;
@@ -108,6 +59,7 @@ Shader "MASSIVE/GridUnlitLines"
 
               float3 displaced = SampleSimPosExtended(presentedUV);
               float3 flat = FlatPositionFromUV(presentedUV);
+              displaced = AmpDisplace(displaced, flat.xy);
 
               o.dispMag = length(displaced - flat);
               o.pos = UnityObjectToClipPos(float4(displaced, 1));
@@ -117,6 +69,8 @@ Shader "MASSIVE/GridUnlitLines"
 
           float4 frag (v2f i) : SV_Target
           {
+              // Graphics.DrawMesh runs both passes; the strip owns border draws.
+              if (_BorderOnly == 1) discard;
               const float eps = 1e-4;
 
               bool outsideArena =
@@ -141,7 +95,7 @@ Shader "MASSIVE/GridUnlitLines"
               float bright =
                   1.0 + _DispBrightness * saturate(i.dispMag);
 
-              return float4(baseCol.rgb * bright, baseCol.a);
+              return AmpColor(FlatPositionFromUV(i.uv).xy, float4(baseCol.rgb * bright, baseCol.a));
           }
           ENDHLSL
         }
@@ -154,45 +108,16 @@ Shader "MASSIVE/GridUnlitLines"
             HLSLPROGRAM
             #pragma vertex vertBorder
             #pragma fragment fragBorder
+            #pragma target 4.5
             #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             
 
-            StructuredBuffer<float3> _Pos;
-            int   _GridX, _GridY, _SimGridX, _SimGridY;
-            float4 _GridSize;
+            #include "GridCurveSampling.hlsl"
+            #include "AmplifierGridTreatment.hlsl"
+            int _BorderOnly;
             float4 _BorderColor;
             float  _BorderHalfWidth;
-
-            // same helper you already use in the line pass:
-            float3 SampleSimPos(float2 uv)
-            {
-                // map to sim space
-                float x = clamp(uv.x, 0.0, 1.0) * (float)(_SimGridX - 1);
-                float y = clamp(uv.y, 0.0, 1.0) * (float)(_SimGridY - 1);
-
-                int ix0 = (int)floor(x);
-                int iy0 = (int)floor(y);
-                int ix1 = min(ix0 + 1, _SimGridX - 1);
-                int iy1 = min(iy0 + 1, _SimGridY - 1);
-
-                float fx = x - ix0;
-                float fy = y - iy0;
-
-                int i00 = ix0 + iy0 * _SimGridX;
-                int i10 = ix1 + iy0 * _SimGridX;
-                int i01 = ix0 + iy1 * _SimGridX;
-                int i11 = ix1 + iy1 * _SimGridX;
-
-                float3 p00 = _Pos[i00];
-                float3 p10 = _Pos[i10];
-                float3 p01 = _Pos[i01];
-                float3 p11 = _Pos[i11];
-
-                float3 p0 = lerp(p00, p10, fx);
-                float3 p1 = lerp(p01, p11, fx);
-                return lerp(p0, p1, fy);
-            }
 
             struct appdata_b
             {
@@ -217,9 +142,12 @@ Shader "MASSIVE/GridUnlitLines"
                 if (abs(h.x) + abs(h.y) < 1e-6)
                     h = float2(1.0 / max(1, _SimGridX - 1), 0.0);
 
-                float3 pPrev = SampleSimPos(v.uv - h);
-                float3 pCurr = SampleSimPos(v.uv);
-                float3 pNext = SampleSimPos(v.uv + h);
+                float3 pPrev = SampleSimPosClamped(v.uv - h);
+                float3 pCurr = SampleSimPosClamped(v.uv);
+                float3 pNext = SampleSimPosClamped(v.uv + h);
+                pPrev = AmpDisplace(pPrev, FlatPositionFromUV(v.uv - h).xy);
+                pCurr = AmpDisplace(pCurr, FlatPositionFromUV(v.uv).xy);
+                pNext = AmpDisplace(pNext, FlatPositionFromUV(v.uv + h).xy);
 
                 float2 td = (pNext.xy - pPrev.xy);
                 float  L2 = max(1e-12, dot(td, td));
@@ -230,12 +158,13 @@ Shader "MASSIVE/GridUnlitLines"
                 float3 pw = float3(pCurr.xy + n * (_BorderHalfWidth * s), pCurr.z);
 
                 o.pos = TransformObjectToHClip(pw);   // or mul(UNITY_MATRIX_MVP, float4(pw,1)) if using UnityCG
-                o.col = _BorderColor;
+                o.col = AmpColor(FlatPositionFromUV(v.uv).xy, _BorderColor);
                 return o;
             }
 
             float4 fragBorder(v2f_b i) : SV_Target
             {
+                if (_BorderOnly != 1) discard;
                 return i.col;
             }
             ENDHLSL

@@ -57,7 +57,7 @@ namespace Massive.Enemies
             if (dmg <= 0f) return;
 
             // Apply enemy damage as a raw mass delta (massScore space)
-            player.ApplyExternalMassDelta(-dmg, allowDeath: true);
+            player.ApplyExternalMassDelta(-dmg, enemy.gameObject, allowDeath: true);
 
             _nextHitTime[player] = now + Mathf.Max(0f, enemy.Definition.contactDamageCooldownSeconds);
 

@@ -202,8 +202,9 @@ namespace Massive.Enemies
 
         private float GetMoveSpeed()
         {
-            if (chaseSpeedOverride > 0f) return chaseSpeedOverride;
-            return enemy.Definition != null ? Mathf.Max(0f, enemy.Definition.moveSpeed) : 4f;
+            float speed = chaseSpeedOverride > 0f ? chaseSpeedOverride
+                : enemy.Definition != null ? Mathf.Max(0f, enemy.Definition.moveSpeed) : 4f;
+            return speed * enemy.ExternalMovementMultiplier;
         }
 
         private float GetTurnSpeed()
@@ -324,7 +325,7 @@ namespace Massive.Enemies
             _spear01 = 1f;
 
             // Maintain forward drive during the lunge
-            Vector3 v = _attackDirWS * lungeSpeed;
+            Vector3 v = _attackDirWS * lungeSpeed * enemy.ExternalMovementMultiplier;
             v.y = 0f;
             rb.linearVelocity = v;
 
@@ -464,7 +465,7 @@ namespace Massive.Enemies
                 // If we hit the body while they were shielding, it means the spear got around the shield.
                 float dmg01 = GetLungeDamage01();
                 if (dmg01 > 0.0001f)
-                    victim.ApplyExternalMassDelta(-dmg01, allowDeath: true);
+                    victim.ApplyExternalMassDelta(-dmg01, gameObject, allowDeath: true);
 
                 _lungeResolved = true;
                 BeginCooldown();

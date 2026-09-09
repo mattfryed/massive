@@ -32,6 +32,22 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
     [Range(1, 8)]
     public int renderSubdivisionsPerSimulationInterval = 5;
 
+    public enum CurveInterpolation { Linear, Smooth }
+
+    [Header("Curve Smoothing (Rendering Only)")]
+    [Tooltip("Smooth rounds the deformation between simulated points. Linear restores the original angular rendering. " +
+             "Neither mode changes the simulation resolution or forces.")]
+    public CurveInterpolation curveInterpolation = CurveInterpolation.Smooth;
+
+    [Tooltip("0 gives flowing tangents; 1 eases to a flat deformation tangent at each simulation point. " +
+             "This changes the curve shape, not the amount of physics deformation. Only used in Smooth mode.")]
+    [Range(0f, 1f)] public float curveTension = 0.1f;
+
+    [Tooltip("Limits curve tangents to avoid new displacement peaks between simulated points. " +
+             "Recommended near strong attraction. Disable for freer curves that can overshoot. " +
+             "Does not prevent folds already present in the simulation.")]
+    public bool preventCurveOvershoot = true;
+
     [Header("Presentation / Intro-Outro")]
     [Tooltip("Smallest continuous presentation-scale multiplier the prebuilt overscan mesh must support. " +
              "Use 0.5 to allow a smooth 2x zoom-out. Lower values create a larger mesh.")]
@@ -163,6 +179,9 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
     {
         public Vector3 position;
         public float radius;
+        // Directional forces: unit direction. Profiled radial forces (flag 4):
+        // x = outer feather fraction, y = inner softening fraction. A tagged
+        // payload keeps the existing CPU/GPU buffer layout and legacy API intact.
         public Vector3 direction;
         public float strength;
         public uint flags;
@@ -212,6 +231,9 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
     static readonly int _ClipToGridBoundsID = Shader.PropertyToID("_ClipToGridBounds");
     static readonly int _SimGridXID = Shader.PropertyToID("_SimGridX");
     static readonly int _SimGridYID = Shader.PropertyToID("_SimGridY");
+    static readonly int _CurveInterpolationID = Shader.PropertyToID("_CurveInterpolation");
+    static readonly int _CurveTensionID = Shader.PropertyToID("_CurveTension");
+    static readonly int _CurveOvershootProtectionID = Shader.PropertyToID("_CurveOvershootProtection");
     static readonly int _CSGridXID = Shader.PropertyToID("_GridX");
     static readonly int _CSGridYID = Shader.PropertyToID("_GridY");
     static readonly int _PinEdgesID = Shader.PropertyToID("_PinEdges");
@@ -309,7 +331,9 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
         boundary.featherCells = Mathf.Max(0, boundary.featherCells);
         boundary.borderWidthMul = Mathf.Max(1f, boundary.borderWidthMul);
 
-        _needsRebuild = true;
+        // Visual tuning must not reset the simulation. Layout changes still
+        // rebuild through the existing deferred path on the main thread.
+        _needsRebuild |= HasLayoutChanged();
 
         if (vectorCompute != null)
             _kernel = vectorCompute.FindKernel("CSMain");
@@ -369,6 +393,8 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
 
         if (_mr != null)
         {
+            if (lineMaterial != null && _mr.sharedMaterial != lineMaterial)
+                _mr.sharedMaterial = lineMaterial;
             _mpb.SetBuffer(_PosID, _posBuf);
             _mpb.SetInt(_GridXID, gridX);
             _mpb.SetInt(_GridYID, gridY);
@@ -382,6 +408,7 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
             _mpb.SetFloat(
                 _ClipToGridBoundsID,
                 presentationIgnoresBounds ? 0f : 1f);
+            ApplyCurveUniforms(_mpb);
             _mr.SetPropertyBlock(_mpb);
         }
 
@@ -389,6 +416,7 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
         {
             _mpbBorder ??= new MaterialPropertyBlock();
             _mpbBorder.Clear();
+            _mpbBorder.SetInt("_BorderOnly", 1);
 
             _mpbBorder.SetBuffer(_PosID, _posBuf);
             _mpbBorder.SetInt(_GridXID, gridX);
@@ -396,6 +424,7 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
             _mpbBorder.SetInt(_SimGridXID, gridX);
             _mpbBorder.SetInt(_SimGridYID, gridY);
             _mpbBorder.SetVector(_GridSizeID, size);
+            ApplyCurveUniforms(_mpbBorder);
 
             float halfW = 0.5f * Mathf.Max(0f, boundary.borderWidthWorld) *
                           Mathf.Max(1f, boundary.borderWidthMul);
@@ -423,6 +452,7 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
 
     void ResolveDerivedLayout()
     {
+        curveTension = Mathf.Clamp01(curveTension);
         gridScale = Mathf.Max(0.001f, gridScale);
         simulationSubdivisionsPerCell = Mathf.Max(1, simulationSubdivisionsPerCell);
         renderSubdivisionsPerSimulationInterval =
@@ -603,6 +633,7 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
         _mr.sharedMaterial = lineMaterial;
 
         _mpb.Clear();
+        _mpb.SetInt("_BorderOnly", 0);
         _mpb.SetBuffer(_PosID, _posBuf);
         _mpb.SetInt(_GridXID, gridX);
         _mpb.SetInt(_GridYID, gridY);
@@ -616,7 +647,20 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
         _mpb.SetFloat(
             _ClipToGridBoundsID,
             presentationIgnoresBounds ? 0f : 1f);
+        ApplyCurveUniforms(_mpb);
         _mr.SetPropertyBlock(_mpb);
+    }
+
+    void ApplyCurveUniforms(MaterialPropertyBlock block)
+    {
+        // Optional scene-local visual experiment; no simulation or collider changes.
+        if (TryGetComponent<Massive.Multiplier.AmplifierGoalTreatments>(out var amplifier))
+            amplifier.WriteGridProperties(block);
+        else
+            block.SetVector("_AmpTiming", Vector4.zero);
+        block.SetInt(_CurveInterpolationID, (int)curveInterpolation);
+        block.SetFloat(_CurveTensionID, curveTension);
+        block.SetInt(_CurveOvershootProtectionID, preventCurveOvershoot ? 1 : 0);
     }
 
     void ApplyBoundaryUniforms()
@@ -978,5 +1022,27 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
             innerFrac = Mathf.Clamp(innerFrac, 0f, 0.9f),
             color = Vector4.zero
         };
+    }
+
+    /// <summary>Radial sample of a continuous field; normalizes overlapping samples together, not first-come-first-served.</summary>
+    public static Force MakeBalancedRadial(Vector3 position, float radius, float strength)
+    {
+        Force force = MakeRadial(position, radius, strength);
+        force.flags |= 2u;
+        return force;
+    }
+
+    /// <summary>
+    /// Opt-in radial profile independent of the grid's global falloff. Fractions
+    /// are relative to radius. Inner softening is not canceled by overlap capping.
+    /// </summary>
+    public static Force MakeSoftenedBalancedRadial(
+        Vector3 position, float radius, float strength,
+        float outerFeather, float innerSoftening)
+    {
+        Force force = MakeBalancedRadial(position, radius, strength);
+        force.flags |= 4u;
+        force.direction = new Vector3(Mathf.Clamp01(outerFeather), Mathf.Clamp01(innerSoftening), 0f);
+        return force;
     }
 }

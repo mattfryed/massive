@@ -26,6 +26,9 @@ namespace Massive.Enemies
         [SerializeField] private LayerMask obstacleMask = ~0;
         [Tooltip("Whether avoidance should consider trigger colliders (use Collide to include NoSpawn volumes).")]
         [SerializeField] private QueryTriggerInteraction triggerInteraction = QueryTriggerInteraction.Collide;
+        [Tooltip("Drone filtering: ignore own body, players/weapons, other Drones (handled by separation), floor and non-obstacle triggers.")]
+        public bool filterDroneContacts;
+        private readonly RaycastHit[] filteredHits = new RaycastHit[64];
 
         [Header("Cast")]
         [Tooltip("World Y offset from the enemy position for casts (prevents hitting the floor, if any).")]
@@ -137,7 +140,14 @@ namespace Massive.Enemies
                 Vector3 tangent = Vector3.Cross(Vector3.up, n);
                 tangent.y = 0f;
                 if (tangent.sqrMagnitude > 0.000001f) tangent.Normalize();
-                tangent *= _sideSign;
+                if (filterDroneContacts)
+                {
+                    // A surface tangent has no inherent left/right orientation in world space.
+                    // Align it to the chosen feeler, rather than assuming a fixed cross-product sign.
+                    Vector3 chosenSide = _sideSign > 0 ? dirR : dirL;
+                    if (Vector3.Dot(tangent, chosenSide) < 0f) tangent = -tangent;
+                }
+                else tangent *= _sideSign;
 
                 steer += n * (normalPush * s) + tangent * (tangentPush * s);
             }
@@ -201,11 +211,35 @@ namespace Massive.Enemies
 
         private bool Cast(Vector3 origin, Vector3 dir, float length, out RaycastHit hit)
         {
-            if (sphereCastRadius > 0.0001f)
-            {
-                return Physics.SphereCast(origin, sphereCastRadius, dir, out hit, length, obstacleMask, triggerInteraction);
-            }
-            return Physics.Raycast(origin, dir, out hit, length, obstacleMask, triggerInteraction);
+            // Filter every hit, including for Dyson's line-of-sight query: ignoring a
+            // Resonance cell must not hide an ordinary wall located behind that cell.
+            int count = sphereCastRadius > .0001f
+                ? Physics.SphereCastNonAlloc(origin, sphereCastRadius, dir, filteredHits, length, obstacleMask, triggerInteraction)
+                : Physics.RaycastNonAlloc(origin, dir, filteredHits, length, obstacleMask, triggerInteraction);
+            hit = default;
+            float nearest = float.PositiveInfinity;
+            for (int i = 0; i < count; i++)
+                if (ShouldAvoid(filteredHits[i].collider) && filteredHits[i].distance < nearest)
+                { hit = filteredHits[i]; nearest = hit.distance; }
+            return nearest < float.PositiveInfinity;
+        }
+
+        public bool ShouldAvoid(Collider c)
+        {
+            if (c == null || !c.enabled || c.transform.IsChildOf(transform)) return false;
+            var resonance = c.GetComponentInParent<Massive.Resonance.ResonanceSegment>();
+            if (resonance != null && resonance.EnemiesUseSludge) return false;
+            if (!filterDroneContacts) return true;
+            if (c.GetComponentInParent<PlayerControllerScript>() != null || c.GetComponentInParent<PlayerMelee>() != null) return false;
+            if (c.GetComponentInParent<DroneController>() != null) return false;
+            // Ignore only the grid's own floor collider; child obstacles still count.
+            if (c.GetComponent<VectorGridGPU>() != null) return false;
+            int layer = c.gameObject.layer;
+            if (layer == LayerMask.NameToLayer("NoSpawnZone") || layer == LayerMask.NameToLayer("Obstacle")) return true;
+            if (c.isTrigger) return false;
+            // Horizontal support surfaces below the Drone's centre do not obstruct XZ steering.
+            if (c.bounds.max.y < transform.position.y - .05f) return false;
+            return true;
         }
 
         private static float Strength01(float maxLen, float hitDist)

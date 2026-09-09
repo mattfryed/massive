@@ -52,6 +52,7 @@ namespace Massive.Enemies
         public PlayerControllerScript ReflectedBy { get; private set; }
 
         public EnemyBase Owner { get; private set; }
+        public Vector3 TravelDirection => _dir;
 
         protected virtual void Awake()
         {
@@ -210,7 +211,7 @@ namespace Massive.Enemies
 
             float dmg = Mathf.Max(0f, damageToPlayerMass01);
             if (dmg > 0f)
-                player.ApplyExternalMassDelta(-dmg, allowDeath: true);
+                player.ApplyExternalMassDelta(-dmg, gameObject, allowDeath: true);
 
             _impactResolved = true;
             Destroy(gameObject);

@@ -22,7 +22,7 @@ public interface IPlayerLifeFx
 }
 
 [DisallowMultipleComponent]
-public class PlayerControllerScript : MonoBehaviour
+public partial class PlayerControllerScript : MonoBehaviour
 {
     private Rewired.Player rewiredPlayer;
 
@@ -259,6 +259,22 @@ private bool _matchInputLocked;
 
     public bool temporarilyEliminated = false;
     private float externalStunUntil = -Mathf.Infinity;
+    private static readonly System.Collections.Generic.List<PlayerControllerScript> activePlayers = new System.Collections.Generic.List<PlayerControllerScript>(4);
+    public static System.Collections.Generic.IReadOnlyList<PlayerControllerScript> ActivePlayers => activePlayers;
+    private readonly System.Collections.Generic.Dictionary<UnityEngine.Object, float> movementInfluences = new System.Collections.Generic.Dictionary<UnityEngine.Object, float>();
+    public float ExternalMovementMultiplier
+    {
+        get
+        {
+            float result = 1f;
+            foreach (var influence in movementInfluences) if (influence.Key != null) result = Mathf.Min(result, influence.Value);
+            return result;
+        }
+    }
+    public void SetMovementInfluence(UnityEngine.Object source, float multiplier)
+    { if (source != null) movementInfluences[source] = Mathf.Clamp(multiplier, .01f, 1f); }
+    public void RemoveMovementInfluence(UnityEngine.Object source)
+    { if (!ReferenceEquals(source, null)) movementInfluences.Remove(source); }
     public bool IsExternallyStunned => Time.time < externalStunUntil;
     public void ExternalStun(float seconds)
     {
@@ -290,6 +306,7 @@ private bool _matchInputLocked;
 
 private void OnEnable()
 {
+    if (!activePlayers.Contains(this)) activePlayers.Add(this);
     if (!playMatchSpawnOnSceneLoad) return;
 
     // DO NOT call ForceHiddenForSpawn() here.
@@ -316,6 +333,7 @@ private void EnsureLifeFxCached()
 
 private void ForceHiddenForSpawn()
 {
+    ResetEnemyHitFeedback();
     // Lock movement/interaction without marking player “inactive”
     _matchSpawning = true;
     lastActivityTime = Time.time;
@@ -718,7 +736,7 @@ if (showPlayerIdToastOnMatchStart)
         if (temporarilyEliminated || isStunned || IsExternallyStunned) return;
         if (!rb) return;
 
-        float moveMul = 1f;
+        float moveMul = ExternalMovementMultiplier;
 
         if (attackController != null && attackController.IsAttacking)
             moveMul *= attackingMoveScale;
@@ -762,7 +780,7 @@ if (showPlayerIdToastOnMatchStart)
             Vector3 lateralVel = velXZ - Vector3.Project(velXZ, inputDir);
 
             // Acceleration mode = consistent “feel” regardless of mass changes
-            rb.AddForce(-lateralVel * lateralFriction, ForceMode.Acceleration);
+            rb.AddForce(EnemyHitBraking(-lateralVel * lateralFriction), ForceMode.Acceleration);
 
             // 2) Extra brake when reversing direction
             float speed = velXZ.magnitude;
@@ -770,13 +788,13 @@ if (showPlayerIdToastOnMatchStart)
             {
                 float dot = Vector3.Dot(velXZ / speed, inputDir); // -1..1
                 if (dot < reverseDotThreshold)
-                    rb.AddForce(-velXZ * reverseBrake, ForceMode.Acceleration);
+                    rb.AddForce(EnemyHitBraking(-velXZ * reverseBrake), ForceMode.Acceleration);
             }
         }
         else
         {
             // 3) Brake when no input (optional)
-            rb.AddForce(-velXZ * idleBrake, ForceMode.Acceleration);
+            rb.AddForce(EnemyHitBraking(-velXZ * idleBrake), ForceMode.Acceleration);
         }
 
         // 4) Your existing propulsion (keeps “heavy blob” mass effect)
@@ -1045,6 +1063,7 @@ if (showPlayerIdToastOnMatchStart)
         result.massLost01 = actualLoss;
         result.worldPosition = transform.position;
 
+        ApplyEnemyHitFeedback(result);
         HitAccepted?.Invoke(result);
 
         if (causedDeath)
@@ -1116,6 +1135,8 @@ if (showPlayerIdToastOnMatchStart)
     {
         if (temporarilyEliminated) return;
         if (_deathRoutine != null) return;
+
+        ResetEnemyHitFeedback();
 
         temporarilyEliminated = true;
         isActive = false;
@@ -1508,6 +1529,7 @@ public void SetWorldGameplaySuppressed(bool suppressed)
         return;
 
     _worldGameplaySuppressed = suppressed;
+    if (suppressed) ResetEnemyHitFeedback();
 
     // Resolve rig root if needed
     if (gameplayRigRoot == null && !string.IsNullOrEmpty(gameplayRigRootName))
@@ -1556,6 +1578,9 @@ public void SetWorldGameplaySuppressed(bool suppressed)
 
 private void OnDisable()
 {
+    ResetEnemyHitFeedback();
+    activePlayers.Remove(this);
+    movementInfluences.Clear();
     if (_stunRoutine != null)
     {
         StopCoroutine(_stunRoutine);

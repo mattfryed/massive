@@ -110,6 +110,9 @@ MonoBehaviour:
   gridScale: 1
   simulationSubdivisionsPerCell: 8
   renderSubdivisionsPerSimulationInterval: 8
+  curveInterpolation: 1
+  curveTension: 0.1
+  preventCurveOvershoot: 1
   minimumPresentationScale: 0.5
   maximumPresentationScale: 4
   presentationScale: 1
@@ -7383,6 +7386,7 @@ MonoBehaviour:
   auroraBlast: {fileID: 888587125043592893}
   captureWave: {fileID: 5027248628257365557}
   captureWaveTag: Wave
+  treatments: {fileID: 0}
 --- !u!114 &888587125043592893
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -12277,6 +12281,7 @@ MonoBehaviour:
   auroraBlast: {fileID: 4654624239997232921}
   captureWave: {fileID: 7755764956266102869}
   captureWaveTag: Wave
+  treatments: {fileID: 0}
 --- !u!114 &4654624239997232921
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -61,6 +61,13 @@ namespace Massive.Multiplier
         private float _attractionExcitement;
         private float _nextAttackImpactTime;
         private Coroutine _lifecycleRoutine;
+        private bool _externalRespawnManaged;
+
+        // An optional encounter owner may schedule a new neutral spawn after this capture.
+        // Existing standalone cores keep their inspector-driven respawn behavior.
+        public event System.Action<AmplifierCoreGameplay> Captured;
+        public bool HasBeenCaptured => _captured;
+        public void SetExternalRespawnManaged(bool managed) { _externalRespawnManaged = managed; }
 
         public static IReadOnlyList<AmplifierCoreGameplay> ActiveCores =>
             ActiveCoresInternal;
@@ -68,6 +75,15 @@ namespace Massive.Multiplier
         public bool IsCaptured => _captured || _isSpawning;
         public bool IsSpawning => _isSpawning;
         public bool IsPresentationOnly => presentationOnly;
+
+        // Called on an inactive preview clone before its first OnEnable.
+        public void SetTreatmentPreview()
+        {
+            presentationOnly = true;
+            ResolveReferences();
+            CaptureSpawnState();
+            ConfigurePresentationOnly();
+        }
 
         private void Reset()
         {
@@ -169,6 +185,7 @@ namespace Massive.Multiplier
             _captured = true;
             goal.PlayCaptureFeedback();
             StartLifecycle(CaptureRoutine(goal.CapturePoint));
+            Captured?.Invoke(this);
             return true;
         }
 
@@ -290,7 +307,7 @@ namespace Massive.Multiplier
                 yield return null;
             }
 
-            if (!respawnAfterCapture)
+            if (_externalRespawnManaged || !respawnAfterCapture)
             {
                 _lifecycleRoutine = null;
                 gameObject.SetActive(false);
