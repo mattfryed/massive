@@ -132,6 +132,9 @@ MonoBehaviour:
   spawnOutlineStart01: 0.097
   spawnFillStart01: 0.25
   spawnEdgeExponent: 1.6
+  spawnPanelMode: 0
+  spawnPanelOrder: 0
+  spawnOrderWindow01: 0.22
   spawnPanelStaggerSeconds: 0.5
   restartCoreParticlesOnSpawn: 1
   spear01: 1
@@ -193,6 +196,7 @@ GameObject:
   - component: {fileID: 2401664452418772392}
   - component: {fileID: 690618710912654378}
   - component: {fileID: 5133644220517641625}
+  - component: {fileID: 7994696903461925754}
   m_Layer: 0
   m_Name: Enemy_DysonSphere
   m_TagString: Untagged
@@ -277,6 +281,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4073c5fa2f6464f33ac42c5928464bf7, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  despawnDelaySeconds: 0
 --- !u!114 &690618710912654378
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -293,6 +298,7 @@ MonoBehaviour:
   rb: {fileID: 2371989216438366173}
   panels: {fileID: 1517504643147937104}
   avoidance: {fileID: 0}
+  lockMovementDuringSpawn: 1
   reacquireIntervalSeconds: 0.35
   ignoreTargetsFartherThan: 8
   chaseSpeedOverride: 0
@@ -329,6 +335,7 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 2624
   triggerInteraction: 2
+  filterDroneContacts: 0
   rayHeight: 0
   lookAheadDistance: 3.3
   sideAngleDeg: 28
@@ -339,6 +346,20 @@ MonoBehaviour:
   tangentPush: 2.4
   sideLockSeconds: 1.02
   debugDraw: 1
+--- !u!114 &7994696903461925754
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1372990175634676515}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e4d5507dbeed0424a8829a1a25c96a86, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  scoreToastPrefab: {fileID: 175419733282922636, guid: 263e447a47e8e064b9663dc4bea8dd2a,
+    type: 3}
 --- !u!1 &4836763660695866547
 GameObject:
   m_ObjectHideFlags: 0

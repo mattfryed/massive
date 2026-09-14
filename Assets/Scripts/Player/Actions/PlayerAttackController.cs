@@ -126,6 +126,7 @@ namespace Massive.Player
         private float currentWeaponYawOffsetDeg = 0f;
 
         public bool IsAttacking => isAttacking;
+        public PlayerAttackProfile Profile => attackProfile;
         public AttackStage CurrentStage => currentStage;
         public int CurrentStageIndex => currentStageIndex;
         public float StageNormalizedTime => currentStage != null ? Mathf.Clamp01(stageTimer / currentStage.Duration) : 0f;

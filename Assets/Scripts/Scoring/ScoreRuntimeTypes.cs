@@ -64,9 +64,9 @@ namespace Massive.Scoring
 
         // Personal multiplier. Retained under the original field name for
         // compatibility with existing scoring presentation and telemetry.
-        public int multiplier;
+        public double multiplier;
         public int teamAmplifierMultiplier;
-        public int combinedMultiplier;
+        public double combinedMultiplier;
         public long finalMilliElectronVolts;
         public long previousTeamTotalMilliElectronVolts;
         public long newTeamTotalMilliElectronVolts;
@@ -80,7 +80,7 @@ namespace Massive.Scoring
         public int playerID;
         public int teamID;
         public int acceptedAwardCount;
-        public int highestMultiplier;
+        public double highestMultiplier;
         public long baseMilliElectronVolts;
         public long finalMilliElectronVolts;
     }

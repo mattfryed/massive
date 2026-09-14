@@ -140,13 +140,13 @@ public static class EnemyScoringSmokeTests
                 duplicate.rejection == ScoreAwardRejection.Duplicate, "Source life token deduplicated centrally");
             reset();
             for (int i = 0; i < 4; i++) defeat(enemy(), p1);
-            check(service.GetTeamScore(1) == 4000 &&
+            check(service.GetTeamScore(1) == 5500 &&
                   p1.GetComponent<PlayerScoreChain>().CurrentMultiplier == 2,
-                "Four configured charge points promote x1 to x2");
+                "Four Dyson kills smoothly grow x1 to x2 and award fractional scores");
             defeat(enemy(), p1);
-            check(service.GetTeamScore(1) == 6000, "Promoted personal multiplier applies to the next award");
+            check(service.GetTeamScore(1) == 7500, "Current personal multiplier applies to the next award");
             defeat(enemy(), teammate);
-            check(service.GetTeamScore(1) == 7000 && teammate.GetComponent<PlayerScoreChain>().CurrentMultiplier == 1 &&
+            check(service.GetTeamScore(1) == 8500 && teammate.GetComponent<PlayerScoreChain>().CurrentMultiplier == 1.25 &&
                   teammate.GetComponent<PlayerScoreChain>().Progress01 > 0f,
                 "Teammate has independent charge and shared team total");
             check(service.GetContributionSnapshot().Length == 2, "Individual contributions recorded");

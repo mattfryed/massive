@@ -1,0 +1,38 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: Dyson Spawn Glow
+  m_Shader: {fileID: 4800000, guid: 5b6db10209d37f44eb3b5af7aa9b7a5a, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords: []
+  m_InvalidKeywords: []
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 0
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_LockedProperties: 
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs: []
+    m_Ints: []
+    m_Floats:
+    - _Contrast: 0.13
+    - _Defocus: 0
+    - _DefocusWidth: 0.25
+    - _GlowWidth: 0.055
+    - _Intensity: 1
+    - _Opacity: 1
+    m_Colors:
+    - _Color: {r: 1, g: 0.025, b: 0.012, a: 1}
+    - _GlowColor: {r: 1, g: 0.19, b: 0.025, a: 1}
+  m_BuildTextureStacks: []
+  m_AllowLocking: 1

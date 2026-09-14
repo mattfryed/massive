@@ -19,20 +19,32 @@ namespace Massive.Scoring
 
         public PlayerControllerScript Player => player;
         public int TierIndex => _tierIndex;
-        public int CurrentMultiplier => _settings.GetMultiplier(_tierIndex);
-        public bool IsAtMaxTier => _tierIndex >= _settings.MaxIndex;
+        public double MinimumMultiplier => _settings.GetMultiplier(0);
+        public double MaximumMultiplier => _settings.GetMultiplier(_settings.MaxIndex);
+        public double CurrentMultiplier
+        {
+            get
+            {
+                double lower = _settings.GetMultiplier(_tierIndex);
+                if (!_configured || IsAtMaxTier) return lower;
+                double fraction = Math.Max(0d, Math.Min(1d, _charge / (double)ChargeRequired));
+                return lower + (_settings.GetMultiplier(_tierIndex + 1) - lower) * fraction;
+            }
+        }
+        public bool IsAtMaxTier => _configured && _tierIndex >= _settings.MaxIndex;
+        public bool IsAtMaxMultiplier => IsAtMaxTier && MaximumMultiplier > MinimumMultiplier;
         public float Charge => Mathf.Max(0f, _charge);
         public float ChargeRequired => _settings.GetChargeRequired(_tierIndex);
-        public float Progress01 => IsAtMaxTier
-            ? 1f
-            : Mathf.Clamp01(_charge / Mathf.Max(0.01f, ChargeRequired));
+        public float Progress01 => MaximumMultiplier > MinimumMultiplier
+            ? Mathf.Clamp01((float)((CurrentMultiplier - MinimumMultiplier) / (MaximumMultiplier - MinimumMultiplier)))
+            : 0f;
 
         [Obsolete("Personal multipliers now use persistent charge. Use Charge instead.")]
         public float TimeRemaining => Charge;
 
         [Obsolete("Personal multipliers now use persistent charge. Use Progress01 instead.")]
         public float TimeRemaining01 => Progress01;
-        public bool IsChaining => _tierIndex > 0;
+        public bool IsChaining => CurrentMultiplier > MinimumMultiplier;
 
         private void Awake()
         {
@@ -69,7 +81,10 @@ namespace Massive.Scoring
             if (reset)
                 ResetChain();
             else
+            {
                 ClampState();
+                Changed?.Invoke(this);
+            }
         }
 
         public void ApplyAward(ScoreChainAwardMode mode)
@@ -79,7 +94,7 @@ namespace Massive.Scoring
 
         public void ApplyAward(ScoreChainAwardMode mode, float charge)
         {
-            if (!_configured || mode == ScoreChainAwardMode.None || charge <= 0f || IsAtMaxTier)
+            if (!_configured || mode == ScoreChainAwardMode.None || float.IsNaN(charge) || charge <= 0f || IsAtMaxTier)
                 return;
 
             int oldTier = _tierIndex;
@@ -122,7 +137,7 @@ namespace Massive.Scoring
 
         private void OnHitAccepted(PlayerHitResult hit)
         {
-            if (!hit.accepted || !hit.disruptsScoreChain || _tierIndex <= 0)
+            if (!hit.accepted || !hit.disruptsScoreChain || !IsChaining)
                 return;
 
             switch (_settings.hitPenalty)
@@ -131,7 +146,14 @@ namespace Massive.Scoring
                     return;
 
                 case ScoreChainHitPenalty.LoseTime:
-                    _charge = Mathf.Max(0f, _charge - _settings.hitTimePenaltySeconds);
+                    float remainingPenalty = Mathf.Max(0f, _settings.hitTimePenaltySeconds);
+                    while (remainingPenalty > _charge && _tierIndex > 0)
+                    {
+                        remainingPenalty -= _charge;
+                        _tierIndex--;
+                        _charge = _settings.GetChargeRequired(_tierIndex);
+                    }
+                    _charge = Mathf.Max(0f, _charge - remainingPenalty);
                     NotifyChanged("hit-charge");
                     return;
 

@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Globalization;
 using Shapes;
 using TMPro;
 using UnityEngine;
@@ -8,7 +9,7 @@ using UnityEngine.UI;
 namespace Massive.Scoring
 {
     [DisallowMultipleComponent]
-    public sealed class PlayerScoreChainPresenter : MonoBehaviour
+    public sealed partial class PlayerScoreChainPresenter : MonoBehaviour
     {
         [Header("Player")]
         [SerializeField, Min(0)] private int playerID;
@@ -40,6 +41,17 @@ namespace Massive.Scoring
         public int PlayerID => playerID;
         public PlayerScoreChain Chain => chain;
 
+        public void SetBarWidth(float width)
+        {
+            if (progressRectangle == null || progressTrackRectangle == null) return;
+            CaptureRectangleLayout();
+            _fullRectangleWidth = Mathf.Max(_minimumRectangleWidth, width);
+            progressTrackRectangle.Width = _fullRectangleWidth;
+            Rectangle frame = progressTrackRectangle.transform.parent.GetComponent<Rectangle>();
+            if (frame != null) frame.Width = _fullRectangleWidth;
+            ApplyDisplayedProgress();
+        }
+
         private void OnEnable()
         {
             CaptureRectangleLayout();
@@ -54,6 +66,7 @@ namespace Massive.Scoring
         private void OnDisable()
         {
             Unsubscribe();
+            HideMaximumEffects();
 
             if (_bindRoutine != null)
             {
@@ -84,6 +97,8 @@ namespace Massive.Scoring
 
             if (!Mathf.Approximately(previous, _displayedProgress))
                 ApplyDisplayedProgress();
+
+            UpdateMaximumEffects();
         }
 
         private IEnumerator BindWhenAvailable()
@@ -136,12 +151,17 @@ namespace Massive.Scoring
                 activeRoot.SetActive(active);
 
             if (multiplierText != null)
-                multiplierText.text = chain != null
-                    ? $"{multiplierPrefix}{chain.CurrentMultiplier}"
-                    : $"{multiplierPrefix}1";
+                multiplierText.text = multiplierPrefix + FormatMultiplier(chain != null ? chain.CurrentMultiplier : 1d);
 
             float progress = chain != null ? chain.Progress01 : 0f;
             SetProgressTarget(progress);
+            if (chain == null || !chain.IsAtMaxMultiplier)
+                HideMaximumEffects();
+        }
+
+        public static string FormatMultiplier(double multiplier)
+        {
+            return multiplier.ToString("0.##", CultureInfo.InvariantCulture);
         }
 
         private void CaptureRectangleLayout()

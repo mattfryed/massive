@@ -55,8 +55,8 @@ public static partial class DronePrototypeSetup
             var shader = Shader.Find("MASSIVE/EnemySpawnOutline");
             if (shader == null) throw new InvalidOperationException("Import the spawn outline shader first.");
             material = new Material(shader) { name = "Drone Spawn Glow" };
-            material.SetColor("_Color", Color.white); material.SetFloat("_GlowWidth", .09f);
-            material.SetFloat("_Intensity", .7f); material.SetFloat("_Contrast", .2f);
+            material.SetFloat("_GlowWidth", .09f);
+            material.SetFloat("_Intensity", 1f); material.SetFloat("_Contrast", .2f);
             AssetDatabase.CreateAsset(material, materialPath);
         }
         var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(TelegraphPath);
@@ -65,7 +65,7 @@ public static partial class DronePrototypeSetup
             var go = new GameObject("Drone Spawn Telegraph"); go.layer = LayerMask.NameToLayer("Enemy");
             try
             {
-                go.transform.localScale = Vector3.one * 2.8f;
+                go.transform.localScale = Vector3.one;
                 go.AddComponent<MeshFilter>().sharedMesh = mesh;
                 var renderer = go.AddComponent<MeshRenderer>(); renderer.sharedMaterial = material;
                 renderer.shadowCastingMode = ShadowCastingMode.Off; renderer.receiveShadows = false;

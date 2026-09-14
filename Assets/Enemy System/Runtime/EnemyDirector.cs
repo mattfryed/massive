@@ -220,12 +220,16 @@ namespace Massive.Enemies
 
         private void TrySpawnOne()
         {
-            EnemyDefinition def = PickEligibleEnemy();
-            if (def == null) return;
-            TrySpawnEnemy(def, 0, null, 0f, out _);
+            var choice = PickEligibleRule();
+            if (!choice.HasValue) return;
+            var rule = choice.Value;
+            if (rule.telegraphPrefab == null) TrySpawnEnemy(rule.enemy, rule.GetMaxAlive(), null, 0f, out _);
+            else if (CanSpawnEnemy(rule.enemy, rule.GetMaxAlive()) && TryFindSpawnPosition(rule.enemy, null, 0f, out var position))
+                ReserveSpawn(rule.enemy, rule.GetMaxAlive(), position, rule.telegraphPrefab, rule.telegraphSeconds,
+                    Mathf.Max(.1f, rule.blockedSpawnTimeout), null, spawnProfile.rules.IndexOf(rule));
         }
 
-        private EnemyDefinition PickEligibleEnemy()
+        private EnemySpawnRule? PickEligibleRule()
         {
             if (spawnProfile == null || spawnProfile.rules == null || spawnProfile.rules.Count == 0)
                 return null;
@@ -250,7 +254,7 @@ namespace Massive.Enemies
                 }
 
                 // Category caps (soft-filter so we don't pick something we can't spawn)
-                if (!CategoryCapAllows(r.enemy.category)) continue;
+                if (!CanSpawnEnemy(r.enemy, cap)) continue;
 
                 float w = r.GetWeight();
                 if (w <= 0f) continue;
@@ -276,31 +280,31 @@ namespace Massive.Enemies
                     if (alive >= cap) continue;
                 }
 
-                if (!CategoryCapAllows(r.enemy.category)) continue;
+                if (!CanSpawnEnemy(r.enemy, cap)) continue;
 
                 float w = r.GetWeight();
                 if (w <= 0f) continue;
 
                 acc += w;
                 if (pick <= acc)
-                    return r.enemy;
+                    return r;
             }
 
             return null;
         }
 
-        private bool CategoryCapAllows(EnemyCategory cat)
+        private bool CategoryCapAllows(EnemyCategory cat, int reserved = 0)
         {
             if (spawnProfile == null) return true;
 
             switch (cat)
             {
                 case EnemyCategory.Inert:
-                    return (spawnProfile.maxAliveInert <= 0) || (_aliveInert < spawnProfile.maxAliveInert);
+                    return (spawnProfile.maxAliveInert <= 0) || (_aliveInert + reserved < spawnProfile.maxAliveInert);
                 case EnemyCategory.Ranged:
-                    return (spawnProfile.maxAliveRanged <= 0) || (_aliveRanged < spawnProfile.maxAliveRanged);
+                    return (spawnProfile.maxAliveRanged <= 0) || (_aliveRanged + reserved < spawnProfile.maxAliveRanged);
                 case EnemyCategory.Melee:
-                    return (spawnProfile.maxAliveMelee <= 0) || (_aliveMelee < spawnProfile.maxAliveMelee);
+                    return (spawnProfile.maxAliveMelee <= 0) || (_aliveMelee + reserved < spawnProfile.maxAliveMelee);
                 default:
                     return true;
             }

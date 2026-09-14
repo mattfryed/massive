@@ -30,6 +30,7 @@ public static partial class DronePrototypeValidation
     {
         SessionState.SetBool(Key + "FeedbackOnly", false);
         SessionState.SetBool(Key + "TelegraphOnly", false);
+        SessionState.SetBool(Key + "EnemyUpgradeOnly", false);
         if (EditorApplication.isPlayingOrWillChangePlaymode || EditorApplication.isCompiling) throw new InvalidOperationException("Wait for Edit Mode.");
         Scene original = SceneManager.GetActiveScene();
         string path = "Assets/DroneValidation-" + Guid.NewGuid().ToString("N") + ".unity";
@@ -39,6 +40,7 @@ public static partial class DronePrototypeValidation
             SceneManager.SetActiveScene(fixture);
             var camera = new GameObject("Validation Camera"); camera.tag = "MainCamera";
             camera.AddComponent<Camera>().orthographic = true; camera.AddComponent<AudioListener>();
+            new GameObject("Validation Light").AddComponent<Light>().type = LightType.Directional;
             camera.transform.position = new Vector3(0, 3, -1.5f); camera.transform.LookAt(Vector3.zero);
             if (!EditorSceneManager.SaveScene(fixture, path)) throw new Exception("Cannot save fixture.");
         }
@@ -55,7 +57,8 @@ public static partial class DronePrototypeValidation
         {
             SessionState.SetBool(Key + "Background", Application.runInBackground); Application.runInBackground = true;
             passed = 0; owned.Clear();
-            run = SessionState.GetBool(Key + "TelegraphOnly", false) ? SpawnTelegraphChecks() :
+            run = SessionState.GetBool(Key + "EnemyUpgradeOnly", false) ? EnemyUpgradeChecks() :
+                SessionState.GetBool(Key + "TelegraphOnly", false) ? SpawnTelegraphChecks() :
                 SessionState.GetBool(Key + "FeedbackOnly", false) ? EnemyHitFeedbackChecks() : Checks();
             resumeAt = 0f; resumeFrame = 0; EditorApplication.update += Tick;
         }
@@ -308,6 +311,8 @@ public static partial class DronePrototypeValidation
         Object.Destroy(spawner); Object.Destroy(gridGo); yield return .05f;
         var telegraphChecks = SpawnTelegraphChecks();
         while (telegraphChecks.MoveNext()) yield return telegraphChecks.Current;
+        var upgradeChecks = EnemyUpgradeChecks();
+        while (upgradeChecks.MoveNext()) yield return upgradeChecks.Current;
     }
 
     private static void Capture(DroneController drone, string filename)

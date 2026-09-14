@@ -5,7 +5,7 @@ namespace Massive.Enemies
 {
     /// <summary>Small contact attacker: local perception, stable targets, bounded steering and swarm separation.</summary>
     [DisallowMultipleComponent, RequireComponent(typeof(EnemyBase), typeof(Rigidbody), typeof(EnemyObstacleAvoidance))]
-    public sealed class DroneController : MonoBehaviour
+    public sealed partial class DroneController : MonoBehaviour
     {
         [Header("Standalone prefab (Director supplies the definition when spawned)")]
         public EnemyDefinition definition;
@@ -17,7 +17,7 @@ namespace Massive.Enemies
         [Range(.1f, 1f)] public float retargetDistanceRatio = .65f;
         [Header("Steering")]
         [Min(.1f)] public float acceleration = 7f;
-        [Min(0f)] public float idleSpeed = .25f;
+        [Min(0f)] public float idleSpeed = .85f;
         [Min(.1f)] public float separationRadius = .85f;
         [Range(0f, 3f)] public float separationStrength = 1.1f;
         [Min(.05f)] public float bodyRadius = .23f;
@@ -53,7 +53,7 @@ namespace Massive.Enemies
             if (!active.Contains(this)) active.Add(this);
             Target = null; age = 0f; recoilRemaining = 0f;
             decisionTimer = (GetInstanceID() & 15) * .012f;
-            idleDirection = transform.forward;
+            ResetIdleSwarm();
         }
         private void Start()
         {
@@ -62,11 +62,6 @@ namespace Massive.Enemies
             if (bounds == null)
                 foreach (var candidate in FindObjectsByType<ArenaBoundsFromVectorGrid>(FindObjectsSortMode.None))
                     if (candidate.gameObject.scene == gameObject.scene) { bounds = candidate; break; }
-            if (bounds != null)
-            {
-                idleDirection = bounds.Current.centerWS - transform.position; idleDirection.y = 0f;
-                idleDirection = idleDirection.sqrMagnitude > .001f ? idleDirection.normalized : transform.forward;
-            }
         }
         private void OnDisable() { active.Remove(this); Target = null; }
 
@@ -79,6 +74,7 @@ namespace Massive.Enemies
         private static float DistanceSquared(Vector3 a, Vector3 b) { a.y = b.y; return (a - b).sqrMagnitude; }
         private void Decide()
         {
+            bool wasPursuing = Target != null;
             float currentDistance = IsValidTarget(Target) ? DistanceSquared(Target.transform.position, body.position) : float.PositiveInfinity;
             if (currentDistance > Mathf.Pow(Mathf.Max(detectionRange, disengageRange), 2f)) Target = null;
             float best = Target != null ? currentDistance * retargetDistanceRatio * retargetDistanceRatio : detectionRange * detectionRange;
@@ -88,19 +84,26 @@ namespace Massive.Enemies
                 float distance = DistanceSquared(p.transform.position, body.position);
                 if (distance < best && distance <= detectionRange * detectionRange) { best = distance; Target = p; }
             }
+            if (wasPursuing && Target == null) idleAnchor = body.position;
             separation = Vector3.zero;
+            Vector3 center = body.position, alignment = Vector3.zero;
+            int neighbors = 0;
             float radius2 = separationRadius * separationRadius;
             foreach (var other in active)
             {
                 if (other == this || other == null || other.gameObject.scene != gameObject.scene || other.enemy == null || other.enemy.IsDead) continue;
                 Vector3 away = body.position - other.transform.position; away.y = 0f;
                 float d2 = away.sqrMagnitude;
+                if (Target == null && other.Target == null && !other.enemy.IsPaused && other.enemy.OwnerTeamId == enemy.OwnerTeamId &&
+                    d2 <= swarmNeighborRadius * swarmNeighborRadius)
+                { center += other.body.position; alignment += other.body.linearVelocity; neighbors++; }
                 if (d2 > radius2) continue;
                 if (d2 < .00001f) away = GetInstanceID() > other.GetInstanceID() ? Vector3.right : Vector3.left;
                 else away *= (1f - Mathf.Sqrt(d2) / separationRadius) / Mathf.Sqrt(d2);
                 separation += away;
             }
             separation = Vector3.ClampMagnitude(separation, 1f);
+            if (Target == null) UpdateIdleSwarm(neighbors > 0 ? center / (neighbors + 1) : idleAnchor, alignment, neighbors);
         }
         private void FixedUpdate()
         {
@@ -110,7 +113,7 @@ namespace Massive.Enemies
             if (!IsReady) { body.linearVelocity = Vector3.zero; return; }
             decisionTimer -= dt;
             if (decisionTimer <= 0f) { decisionTimer = Mathf.Max(.05f, decisionInterval); Decide(); }
-            if (Target != null && !IsValidTarget(Target)) Target = null;
+            if (Target != null && !IsValidTarget(Target)) { Target = null; idleAnchor = body.position; }
             Vector3 velocity;
             if (recoilRemaining > 0f)
             {

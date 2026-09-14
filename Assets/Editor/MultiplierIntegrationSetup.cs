@@ -195,6 +195,18 @@ public static class MultiplierIntegrationSetup
         if (multiplierText == null || progressTrack == null || progressBar == null)
             throw new InvalidOperationException($"Incomplete multiplier widget at {GetPath(widget)}.");
 
+        // Reserve a fixed number badge; the remaining width shows minimum-to-maximum progress.
+        progressBar.Width = 0.75f;
+        Rectangle frame = tierRoot.GetComponent<Rectangle>();
+        if (frame != null) progressTrack.Width = frame.Width;
+        multiplierText.rectTransform.sizeDelta = new Vector2(0.73f, 0.25f);
+        Vector3 numberPosition = multiplierText.transform.localPosition;
+        numberPosition.x = 0.375f;
+        multiplierText.transform.localPosition = numberPosition;
+        multiplierText.enableAutoSizing = true;
+        multiplierText.fontSizeMax = 2f;
+        multiplierText.fontSizeMin = 1f;
+
         PlayerScoreChainPresenter presenter =
             widget.GetComponent<PlayerScoreChainPresenter>() ??
             widget.gameObject.AddComponent<PlayerScoreChainPresenter>();
@@ -209,6 +221,8 @@ public static class MultiplierIntegrationSetup
         serialized.FindProperty("activeRoot").objectReferenceValue = null;
         serialized.FindProperty("hideAtBaseMultiplier").boolValue = false;
         serialized.FindProperty("multiplierPrefix").stringValue = string.Empty;
+        serialized.FindProperty("maximumGlowMaterial").objectReferenceValue =
+            AssetDatabase.LoadAssetAtPath<Material>("Assets/Scripts/Scoring/MultiplierMaximumGlow.mat");
         serialized.ApplyModifiedPropertiesWithoutUndo();
     }
 

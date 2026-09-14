@@ -31,12 +31,16 @@ public static partial class DronePrototypeValidation
 
     private static IEnumerator SpawnTelegraphChecks()
     {
+        var renderingChecks = SpawnRenderingChecks();
+        while (renderingChecks.MoveNext()) yield return renderingChecks.Current;
         var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(DronePrototypeSetup.TelegraphPath);
         Check(prefab != null && prefab.GetComponent<EnemySpawnTelegraph>() != null, "Production warning prefab is wired");
         Check(prefab.GetComponentsInChildren<Collider>(true).Length == 0 && prefab.GetComponent<EnemyBase>() == null,
             "Warning has no collision, damage, or score identity");
         Check(prefab.GetComponent<MeshFilter>().sharedMesh.vertexCount == 72, "Warning contains the Drone's 18 unique crystal edges");
-        Check(prefab.transform.localScale.x > 2f, "Warning is substantially larger than a Drone");
+        Vector3 authoredScale = prefab.transform.localScale;
+        Check(authoredScale.x > 0f && authoredScale.y > 0f && authoredScale.z > 0f && !float.IsInfinity(authoredScale.sqrMagnitude),
+            "Warning has a valid positive authored size");
         var profile = AssetDatabase.LoadAssetAtPath<EnemySpawnProfile>(DronePrototypeSetup.ProfilePath);
         Check(profile.batches[0].telegraphPrefab == prefab.GetComponent<EnemySpawnTelegraph>() && profile.batches[0].WarningSeconds == 3f,
             "Live Drone profile has a three-second warning");
@@ -72,20 +76,21 @@ public static partial class DronePrototypeValidation
         yield return Mathf.Max(.01f, 3f - warning.Age - .12f);
         Check(director.TotalSpawned == 0, "No unit appears before the full warning interval");
         yield return .22f;
-        Check(director.TotalSpawned == 1 && warning && !warning.IsCompleting, "Warning remains while sequential spawning starts");
+        Check(director.TotalSpawned == 1 && warning && warning.IsCompleting && warning.Defocus > 0f,
+            "Cluster warning defocus overlaps the first enemy's spawn animation");
+        CaptureTelegraph(warning, "massive-drone-spawn-batch.png", new Color(.035f, .045f, .065f));
         var members = FreezeTelegraphMembers(director);
         Check(members[0].SpawnTime - announcedAt >= 3.3f, "Actual spawn time includes the three-second warning and pause");
         Check(Vector3.Distance(members[0].transform.position, anchor) <= 2.3f, "First Drone arrives within the announced cluster");
         yield return .5f;
-        Check(director.TotalSpawned == 2 && warning && !warning.IsCompleting, "Warning remains for the middle batch member");
+        Check(director.TotalSpawned == 2 && warning && warning.IsCompleting, "Cluster defocus continues while later members arrive");
         FreezeTelegraphMembers(director);
         yield return .5f;
-        Check(director.TotalSpawned == 3 && warning.IsCompleting, "Warning begins fading only after the full batch spawns");
+        Check(director.TotalSpawned == 3 && !warning, "Cluster spawn cadence continues after its marker has blurred away");
         members = FreezeTelegraphMembers(director).OrderBy(e => e.SpawnTime).ToArray();
         Check(members.All(e => Vector3.Distance(e.transform.position, anchor) <= 2.3f), "Every member uses the same announced cluster center");
         Check(members[1].SpawnTime - members[0].SpawnTime >= .49f && members[2].SpawnTime - members[1].SpawnTime >= .49f,
             "Warning does not bunch the individual spawn intervals");
-        CaptureTelegraph(warning, "massive-drone-spawn-batch.png", new Color(.035f, .045f, .065f));
         yield return .55f;
         Check(!warning && director.ActiveTelegraphCount == 0, "Completed warning fully despawns");
         Object.Destroy(director.gameObject); yield return .05f;
@@ -97,7 +102,8 @@ public static partial class DronePrototypeValidation
         blocker.transform.position = anchor; blocker.AddComponent<BoxCollider>().size = new Vector3(7, 3, 7); Physics.SyncTransforms();
         yield return .6f;
         Check(director.TotalSpawned == 0 && warning && warning.IsCompleting, "Blocked batch is cancelled without spawning at an unannounced location");
-        yield return .5f; Check(director.ActiveTelegraphCount == 0, "Blocked-batch warning does not linger");
+        yield return prefab.GetComponent<EnemySpawnTelegraph>().fadeOutSeconds + .1f;
+        Check(director.ActiveTelegraphCount == 0, "Blocked-batch warning does not linger");
         Object.Destroy(blocker); Object.Destroy(director.gameObject); yield return .05f;
 
         director = TelegraphDirector(bounds); yield return .1f;
@@ -145,11 +151,11 @@ public static partial class DronePrototypeValidation
         warning.ghostsEnabled = true; warning.ghostCount = 4; warning.ghostLifetime = .9f;
         warning.ghostOpacity = .2f; warning.ghostDistance = .75f; warning.ghostVariation = .25f;
         warning.Begin();
-        Check(instance.transform.childCount == 4 && warning.VisibleGhostCount == 0,
+        Check(instance.transform.childCount == 5 && warning.VisibleGhostCount == 0,
             "Four staggered ghosts are created once, initially invisible");
         for (int i = 0; i < 70; i++) warning.Advance(.01f);
         var main = instance.GetComponent<MeshRenderer>();
-        var ghosts = instance.GetComponentsInChildren<MeshRenderer>().Where(r => r != main).ToArray();
+        var ghosts = instance.GetComponentsInChildren<MeshRenderer>().Where(r => r.name.StartsWith("Outward ghost ")).ToArray();
         Check(warning.VisibleGhostCount >= 2, "Multiple outward ghosts overlap during the warning");
         Check(ghosts.All(r => r.sharedMaterial == main.sharedMaterial &&
             r.GetComponent<MeshFilter>().sharedMesh == instance.GetComponent<MeshFilter>().sharedMesh),
@@ -176,17 +182,65 @@ public static partial class DronePrototypeValidation
         }
         Check(directions.Any(a => directions.Any(b => Vector3.Dot(a, b) < -.2f)),
             "Successive ghosts choose different directions around the icon");
-        Check(instance.transform.childCount == 4 && instance.GetComponentsInChildren<MeshRenderer>().Length == 5,
+        Check(instance.transform.childCount == 5 && instance.GetComponentsInChildren<MeshRenderer>().Length == 6,
             "Repeated ghost cycles keep the renderer pool bounded");
         Check(JsonUtility.ToJson(Random.state) == JsonUtility.ToJson(randomBefore),
             "Ghost animation leaves the gameplay random stream untouched");
         warning.ghostsEnabled = false; warning.Advance(.02f);
         Check(warning.VisibleGhostCount == 0 && ghosts.All(r => !r.enabled), "Ghost toggle hides all copies immediately");
         warning.ghostsEnabled = true; warning.Advance(.1f);
-        Check(warning.VisibleGhostCount > 0 && instance.transform.childCount == 4, "Re-enabling reuses the existing ghosts");
+        Check(warning.VisibleGhostCount > 0 && instance.transform.childCount == 5, "Re-enabling reuses the existing ghosts");
         warning.Complete(); bool alive = warning.Advance(warning.fadeOutSeconds + .01f);
         Check(!alive && warning.VisibleGhostCount == 0 && ghosts.All(r => !r.enabled),
             "Completing the warning hides all ghosts before destruction");
+        SpawnDefocusChecks(prefab);
+    }
+
+    private static void SpawnDefocusChecks(GameObject prefab)
+    {
+        var parent = Own(new GameObject("Scaled enemy root")); parent.transform.localScale = Vector3.one * 2f;
+        var instance = Own(Object.Instantiate(prefab, parent.transform));
+        var warning = instance.GetComponent<EnemySpawnTelegraph>(); warning.breathScale = 0f;
+        warning.ghostCount = 1; warning.ghostLifetime = 2f; warning.ghostVariation = 0f;
+        warning.Begin(3f, Vector3.one * 1.5f);
+        Check(Vector3.Distance(instance.transform.lossyScale, Vector3.one * 1.5f) < .0001f,
+            "Default outline size matches the supplied enemy scale under a scaled parent");
+        warning.Advance(.1f);
+        var halo = instance.transform.Find("Diffuse spawn glow").GetComponent<MeshRenderer>();
+        Check(halo.enabled && warning.DiffuseGlowOpacity > 0f && warning.Opacity == 0f && warning.VisibleGhostCount == 0,
+            "Broad glow appears before the wireframe and ghosts");
+        float earlyGlow = warning.DiffuseGlowOpacity;
+        warning.Advance(.5f);
+        var ghost = instance.transform.Find("Outward ghost 1"); float earlyScale = ghost.localScale.x;
+        warning.Advance(.4f);
+        Check(ghost.localScale.x < earlyScale && ghost.localScale.x >= warning.ghostEndScale,
+            "A living ghost shrinks progressively toward its ending scale");
+        Check(warning.DiffuseGlowOpacity > earlyGlow, "Broad glow builds strength through the warning");
+        var block = new MaterialPropertyBlock(); instance.GetComponent<MeshRenderer>().GetPropertyBlock(block);
+        Check(block.GetColor("_Color") == warning.wireframeColor && block.GetColor("_GlowColor") == warning.glowColor,
+            "Wireframe and edge glow use independent authored colors");
+        ghost.GetComponent<MeshRenderer>().GetPropertyBlock(block);
+        Check(block.GetColor("_Color") == warning.ghostColor, "Ghosts use their own authored color");
+        float glowSize = halo.transform.localScale.x, opacity = warning.Opacity;
+        warning.Complete(); warning.Advance(warning.fadeOutSeconds * .2f);
+        Check(warning.Defocus > 0f && Mathf.Abs(warning.Opacity - opacity) < .001f && halo.transform.localScale.x > glowSize,
+            "Exit starts with defocus and a spreading halo before fading opacity");
+        instance.GetComponent<MeshRenderer>().GetPropertyBlock(block);
+        Check(block.GetFloat("_Defocus") == warning.Defocus, "Main wireframe receives the live blur amount");
+        ghost.GetComponent<MeshRenderer>().GetPropertyBlock(block);
+        Check(block.GetFloat("_Defocus") == warning.Defocus, "Ghosts blur together with the main wireframe");
+        warning.Advance(warning.fadeOutSeconds);
+        Check(!halo.enabled && warning.DiffuseGlowOpacity == 0f, "Exit cleans the broad glow as well as outlines");
+        instance = Own(Object.Instantiate(prefab)); warning = instance.GetComponent<EnemySpawnTelegraph>();
+        warning.sizeMultiplierRange = new Vector2(.7f, 1.3f); warning.breathScale = 0f;
+        bool inRange = true;
+        for (int i = 0; i < 20; i++)
+        {
+            warning.Begin(3f, Vector3.one * 2f);
+            inRange &= instance.transform.localScale.x >= 1.4f && instance.transform.localScale.x <= 2.6f;
+        }
+        Check(inRange, "Optional size range stays relative to actual enemy size");
+        warning.Cancel();
     }
 
     private static void CaptureTelegraph(EnemySpawnTelegraph warning, string filename, Color background, float viewSize = 1.65f)

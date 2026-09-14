@@ -23,7 +23,7 @@ namespace Massive.Scoring
             public int playerID;
             public int teamID;
             public int count;
-            public int highestMultiplier = 1;
+            public double highestMultiplier = 1;
             public long baseScore;
             public long finalScore;
         }
@@ -392,7 +392,7 @@ namespace Massive.Scoring
                 return Reject(ref result, ScoreAwardRejection.Duplicate);
 
             long baseScore = EnergyScoreMath.SaturatingMultiply(rule.BaseMilliElectronVolts, quantity);
-            int personalMultiplier = 1;
+            double personalMultiplier = 1;
             PlayerScoreChain chain = null;
 
             if (earner != null && (rule.multiplierEligible || rule.chainEffect != ScoreChainAwardMode.None))
@@ -401,7 +401,7 @@ namespace Massive.Scoring
                 if (chain != null)
                 {
                     if (rule.multiplierEligible)
-                        personalMultiplier = Mathf.Max(1, chain.CurrentMultiplier);
+                        personalMultiplier = Math.Max(1d, chain.CurrentMultiplier);
                 }
                 else if (_warnedMissingChainPlayerIds.Add(earner.playerID))
                 {
@@ -412,10 +412,8 @@ namespace Massive.Scoring
             }
 
             int teamAmplifierMultiplier = GetTeamAmplifierMultiplier(teamID);
-            int combinedMultiplier = SaturatingIntMultiply(
-                personalMultiplier,
-                teamAmplifierMultiplier);
-            long finalScore = EnergyScoreMath.SaturatingMultiply(baseScore, combinedMultiplier);
+            double combinedMultiplier = personalMultiplier * teamAmplifierMultiplier;
+            long finalScore = EnergyScoreMath.SaturatingScale(baseScore, combinedMultiplier);
             long previousTotal = GetTeamScore(teamID);
             long newTotal = EnergyScoreMath.SaturatingAdd(previousTotal, finalScore);
 
@@ -444,8 +442,8 @@ namespace Massive.Scoring
             // The current multiplier applies to this award; chain progression applies
             // to the next qualifying award.
             chain?.ApplyAward(rule.chainEffect, Mathf.Max(0f, rule.chainCharge));
-            int highestMultiplierReached = chain != null
-                ? Mathf.Max(personalMultiplier, chain.CurrentMultiplier)
+            double highestMultiplierReached = chain != null
+                ? Math.Max(personalMultiplier, chain.CurrentMultiplier)
                 : personalMultiplier;
             RecordContribution(result, earner, highestMultiplierReached);
 
@@ -536,12 +534,6 @@ namespace Massive.Scoring
             });
         }
 
-        private static int SaturatingIntMultiply(int a, int b)
-        {
-            long value = (long)Mathf.Max(1, a) * Mathf.Max(1, b);
-            return value >= int.MaxValue ? int.MaxValue : (int)value;
-        }
-
         private void RecordTelemetry(ScoreAwardResult result)
         {
             if (!_telemetry.TryGetValue(result.rewardKey, out MutableTelemetry stats))
@@ -567,7 +559,7 @@ namespace Massive.Scoring
         private void RecordContribution(
             ScoreAwardResult result,
             PlayerControllerScript earner,
-            int highestMultiplierReached)
+            double highestMultiplierReached)
         {
             if (earner == null) return;
 
@@ -582,9 +574,9 @@ namespace Massive.Scoring
             }
 
             contribution.count++;
-            contribution.highestMultiplier = Mathf.Max(
+            contribution.highestMultiplier = Math.Max(
                 contribution.highestMultiplier,
-                Mathf.Max(result.multiplier, highestMultiplierReached));
+                Math.Max(result.multiplier, highestMultiplierReached));
             contribution.baseScore = EnergyScoreMath.SaturatingAdd(contribution.baseScore, result.baseMilliElectronVolts);
             contribution.finalScore = EnergyScoreMath.SaturatingAdd(contribution.finalScore, result.finalMilliElectronVolts);
         }

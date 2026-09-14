@@ -26,10 +26,13 @@ Material:
     m_Ints: []
     m_Floats:
     - _Contrast: 0.2
+    - _Defocus: 0
+    - _DefocusWidth: 0.25
     - _GlowWidth: 0.211
-    - _Intensity: 0.7
+    - _Intensity: 1
     - _Opacity: 1
     m_Colors:
-    - _Color: {r: 1, g: 0.11635202, b: 0.30240944, a: 0.34901962}
+    - _Color: {r: 1, g: 0.025, b: 0.012, a: 1}
+    - _GlowColor: {r: 1, g: 0.19, b: 0.025, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1

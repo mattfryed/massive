@@ -3,6 +3,8 @@ using UnityEngine;
 
 namespace Massive.Enemies
 {
+    public enum EnemyBatchTelegraphMode { PerCluster = 0, PerEnemy = 1 }
+
     [Serializable]
     public sealed class EnemyBatchSpawnRule
     {
@@ -25,6 +27,8 @@ namespace Massive.Enemies
         [Header("Spawn warning")]
         [Tooltip("Optional outline warning at the fixed batch center. No prefab preserves immediate spawning.")]
         public EnemySpawnTelegraph telegraphPrefab;
+        [Tooltip("One shared cluster marker, or staggered markers at each member's reserved spawn position.")]
+        public EnemyBatchTelegraphMode telegraphMode;
         [Tooltip("Active gameplay seconds between the warning appearing and the first unit. Pauses with spawning.")]
         [Min(0f)] public float telegraphSeconds = 3f;
         public float WarningSeconds => telegraphPrefab != null ? Mathf.Max(0f, telegraphSeconds) : 0f;

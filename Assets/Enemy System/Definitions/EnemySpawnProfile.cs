@@ -24,6 +24,11 @@ namespace Massive.Enemies
         [Tooltip("Cap for this enemy type from this profile. 0 = no cap. If enemy.maxAliveOverride > 0, the smaller one wins.")]
         public int maxAlive;
 
+        [Header("Spawn warning (optional)")]
+        public EnemySpawnTelegraph telegraphPrefab;
+        [Min(0f)] public float telegraphSeconds;
+        [Min(.1f)] public float blockedSpawnTimeout;
+
         public float GetWeight()
         {
             if (enemy == null) return 0f;

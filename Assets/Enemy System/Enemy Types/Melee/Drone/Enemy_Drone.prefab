@@ -349,13 +349,19 @@ MonoBehaviour:
   decisionInterval: 0.2
   retargetDistanceRatio: 0.65
   acceleration: 7
-  idleSpeed: 0.25
+  idleSpeed: 0.85
   separationRadius: 0.85
   separationStrength: 1.1
   bodyRadius: 0.23
   shieldRecoilSpeed: 3
   shieldRecoverySeconds: 0.45
   spawnGraceSeconds: 0.5
+  swarmNeighborRadius: 3.5
+  swarmCohesion: 1.2
+  swarmAlignment: 0.3
+  swarmCircling: 0.9
+  swarmWander: 0.45
+  swarmRoamRadius: 4
 --- !u!114 &5389996514213337474
 MonoBehaviour:
   m_ObjectHideFlags: 0

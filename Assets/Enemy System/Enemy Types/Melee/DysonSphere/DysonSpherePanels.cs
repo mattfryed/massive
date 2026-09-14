@@ -352,7 +352,8 @@ namespace Massive.Enemies
             if (!Application.isPlaying && !generateInEditMode)
                 return;
 
-            RebuildIfNeeded(force: true);
+            // OnEnable owns the initial build and resets it for spawn before rendering.
+            // Building here as well leaves a full shell queued for deferred destruction.
             CacheCoreIfNeeded();
         }
         private void OnEnable()
@@ -624,7 +625,11 @@ namespace Massive.Enemies
             {
                 var child = _panelsRoot.GetChild(i);
                 if (child != null)
+                {
+                    // Destroy is deferred; retired fill renderers must disappear in this frame.
+                    child.gameObject.SetActive(false);
                     Destroy(child.gameObject);
+                }
             }
         }
 
@@ -1344,7 +1349,7 @@ namespace Massive.Enemies
         /// Builds a true icosphere mesh (subdivide + project vertices onto the sphere).
         /// Output is vertices on a sphere of the given radius + a triangle index list.
         /// </summary>
-        private static void GenerateIcosphere(int subdivisions, float radius, List<Vector3> outVerts, List<int> outTris)
+        public static void GenerateIcosphere(int subdivisions, float radius, List<Vector3> outVerts, List<int> outTris)
         {
             outVerts.Clear();
             outTris.Clear();

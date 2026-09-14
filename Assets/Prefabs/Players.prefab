@@ -356,6 +356,7 @@ GameObject:
   - component: {fileID: 562461102613263482}
   - component: {fileID: 6132357155083758080}
   - component: {fileID: 7438244145939044982}
+  - component: {fileID: 2549781808327581102}
   m_Layer: 0
   m_Name: Player 4
   m_TagString: Player
@@ -539,31 +540,12 @@ MonoBehaviour:
   minNuggets: 5
   midNuggets: 50
   maxNuggets: 300
-  overflowScoresToTeam: 1
-  overflowScorePerMass: 0.25
-  spawnOverflowScoreVFX: 1
-  overflowVfxMaxBlobsPerEvent: 3
   legacyGoalShrink01: 0.0045
   lifeFx: {fileID: 2576928353877044453}
   respawnPointOverride: {fileID: 4276482732142744694}
   deathFxSeconds: 0.5
   respawnDelaySeconds: 1.25
   respawnFxSeconds: 0.75
-  respawnQueryMaxHits: 32
-  respawnTreatFullBufferAsBlocked: 1
-  deathDistortionBubblePrefab: {fileID: 8942209640182647904, guid: 1af534a4f77e47141add26fdd8eb439a,
-    type: 3}
-  respawnDistortionBubblePrefab: {fileID: 8942209640182647904, guid: 1af534a4f77e47141add26fdd8eb439a,
-    type: 3}
-  distortionBubbleAnchor: {fileID: 1642557640334243339}
-  distortionBubbleOffsetWS: {x: 0, y: 0, z: 0}
-  parentDistortionToAnchor: 0
-  deathDistortionAutoDestroySeconds: 2
-  respawnDistortionAutoDestroySeconds: 2
-  showPlayerToastOnRespawn: 1
-  respawnToastLifetime: 1.25
-  respawnToastPenaltyAsPercent: 1
-  respawnToastPenaltyLabel: TEAM MASS
   playMatchSpawnOnSceneLoad: 1
   matchSpawnFxSeconds: -2
   showPlayerIdToastOnMatchStart: 1
@@ -592,6 +574,12 @@ MonoBehaviour:
   didPlayerTapActionThisFrame: 0
   shieldOn: 0
   temporarilyEliminated: 0
+  enemyHitVisualFeedback: 1
+  enemyHitKnockback: 1
+  enemyHitFullStrengthDamage: 0.08
+  enemyHitRecoilSpeed: {x: 0.9, y: 2}
+  enemyHitRecoilSeconds: 0.16
+  enemyHitRecoilLockout: 0.12
 --- !u!114 &6053901523157150560
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -621,6 +609,33 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 4294967295
   comboInputBuffer: 0.15
+  comboWindowAfterActivationWindow: 1
+  comboWindowEndNormalized: 1
+  swipeArcCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  visualDirectionFollowsCombatFacing: 1
   forwardReference: {fileID: 2138244321642689187}
   onStageStarted:
     m_PersistentCalls:
@@ -763,6 +778,80 @@ MonoBehaviour:
   currentResponse: 6
   maxAcceleration: 30
   factorSmoothTime: 0.1
+--- !u!114 &2549781808327581102
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 392038114670197601}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8a62c8cb06c1e274f9ad55a2bc377211, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  visualStyle: 3
+  plasmaMaterial: {fileID: 2100000, guid: 1e3ff57d3bf5f334d9b0c5347380e37b, type: 2}
+  arcSweepTreatment: 1
+  volumetricArcMaterial: {fileID: 2100000, guid: 64e60ee169162c4459ebdcbb5f516b70, type: 2}
+  attackController: {fileID: 6053901523157150560}
+  thrustPrefabEffect:
+    prefab: {fileID: 7699698589382392644, guid: ce614ff6f5639fb4ab201b6b5b437127, type: 3}
+    rotationOffset: {x: 0, y: 0, z: 0}
+    positionOffset: {x: 0, y: 0, z: 0.25}
+    referenceReach: 5
+    reachScale: 1
+    widthScale: 1
+    sourceStartTime: 0.32
+    sourceActiveEndTime: 0.65
+    sourceRecoveryEndTime: 0.95
+    tint: {r: 1, g: 1, b: 1, a: 1}
+    intensity: 1
+    smoke: 0
+    accentParticles: 1
+    groundImpact: 0
+    distortion: 0
+  swipePrefabEffect:
+    prefab: {fileID: 1011157772751556, guid: ca63c6ac7458764498741e0306f78528, type: 3}
+    rotationOffset: {x: -90, y: -90, z: 0}
+    positionOffset: {x: 0, y: 0, z: 0}
+    referenceReach: 2.5
+    reachScale: 1
+    widthScale: 1
+    sourceStartTime: 0
+    sourceActiveEndTime: 0.18
+    sourceRecoveryEndTime: 0.65
+    tint: {r: 1, g: 1, b: 1, a: 1}
+    intensity: 1
+    smoke: 0
+    accentParticles: 1
+    groundImpact: 0
+    distortion: 0
+  previewProfile: {fileID: 11400000, guid: f8da97854828d82479cb4fca1898b16f, type: 2}
+  meleeExtent: {fileID: 4133923452391157508}
+  legacyMeleeParticles: []
+  solidBody: 1
+  brightRim: 1
+  flowingFilaments: 1
+  softHalo: 1
+  bodyOpacity: 1
+  rimIntensity: 0.95
+  filamentIntensity: 0.8
+  haloIntensity: 0.08
+  rimWidth: 0.045
+  edgeWarble: 0.3
+  noiseScale: 3
+  flowSpeed: 1
+  reachScale: 1
+  widthScale: 1
+  sweepBend: 32
+  rootOffset: 0.22
+  surfaceHeight: 0.06
+  repulsorBandWidth: 0.14
+  windupOpacity: 0.22
+  recoveryOpacity: 0.16
+  previewPlaybackSpeed: 0.35
+  previewRepeatDelay: 0.45
 --- !u!1 &584772934661744130
 GameObject:
   m_ObjectHideFlags: 0
@@ -972,6 +1061,9 @@ MonoBehaviour:
   decoHoldJitterAmp: 0.03
   decoHoldJitterFreq: 26
   decoGhostOpacity: 0.8
+  enemyDamagePulseSeconds: 0.35
+  enemyDamageDentStrength: 1
+  enemyDamageOutlineBoost: 1.5
 --- !u!1 &835418250316044982
 GameObject:
   m_ObjectHideFlags: 0
@@ -1156,6 +1248,9 @@ MonoBehaviour:
   decoHoldJitterAmp: 0.03
   decoHoldJitterFreq: 26
   decoGhostOpacity: 0.8
+  enemyDamagePulseSeconds: 0.35
+  enemyDamageDentStrength: 1
+  enemyDamageOutlineBoost: 1.5
 --- !u!1 &872897441411467076
 GameObject:
   m_ObjectHideFlags: 0
@@ -1469,6 +1564,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   visuals: {fileID: 5662841754779593160}
   nuggets: {fileID: 7751010235578249214}
+  useUnscaledTime: 1
   ease:
     serializedVersion: 2
     m_Curve:
@@ -1971,6 +2067,9 @@ MonoBehaviour:
   decoHoldJitterAmp: 0.03
   decoHoldJitterFreq: 26
   decoGhostOpacity: 0.8
+  enemyDamagePulseSeconds: 0.35
+  enemyDamageDentStrength: 1
+  enemyDamageOutlineBoost: 1.5
 --- !u!1 &2557442963147718670
 GameObject:
   m_ObjectHideFlags: 0
@@ -2296,6 +2395,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   visuals: {fileID: 4780815745119117673}
   nuggets: {fileID: 2503543484036481096}
+  useUnscaledTime: 1
   ease:
     serializedVersion: 2
     m_Curve:
@@ -2848,6 +2948,7 @@ GameObject:
   - component: {fileID: 2830504071976160163}
   - component: {fileID: 8662673505827970028}
   - component: {fileID: 3387532621364373653}
+  - component: {fileID: 7252369150595988181}
   m_Layer: 0
   m_Name: Player 3
   m_TagString: Player
@@ -3031,31 +3132,12 @@ MonoBehaviour:
   minNuggets: 5
   midNuggets: 50
   maxNuggets: 300
-  overflowScoresToTeam: 1
-  overflowScorePerMass: 0.25
-  spawnOverflowScoreVFX: 1
-  overflowVfxMaxBlobsPerEvent: 3
   legacyGoalShrink01: 0.0045
   lifeFx: {fileID: 5812985964868278873}
   respawnPointOverride: {fileID: 4965124703129042962}
   deathFxSeconds: 1
   respawnDelaySeconds: 1
   respawnFxSeconds: 2
-  respawnQueryMaxHits: 32
-  respawnTreatFullBufferAsBlocked: 1
-  deathDistortionBubblePrefab: {fileID: 8942209640182647904, guid: 1af534a4f77e47141add26fdd8eb439a,
-    type: 3}
-  respawnDistortionBubblePrefab: {fileID: 8942209640182647904, guid: 1af534a4f77e47141add26fdd8eb439a,
-    type: 3}
-  distortionBubbleAnchor: {fileID: 8268123285256121554}
-  distortionBubbleOffsetWS: {x: 0, y: 0, z: 0}
-  parentDistortionToAnchor: 0
-  deathDistortionAutoDestroySeconds: 2
-  respawnDistortionAutoDestroySeconds: 2
-  showPlayerToastOnRespawn: 1
-  respawnToastLifetime: 1.25
-  respawnToastPenaltyAsPercent: 1
-  respawnToastPenaltyLabel: TEAM MASS
   playMatchSpawnOnSceneLoad: 1
   matchSpawnFxSeconds: -2
   showPlayerIdToastOnMatchStart: 1
@@ -3084,6 +3166,12 @@ MonoBehaviour:
   didPlayerTapActionThisFrame: 0
   shieldOn: 0
   temporarilyEliminated: 0
+  enemyHitVisualFeedback: 1
+  enemyHitKnockback: 1
+  enemyHitFullStrengthDamage: 0.08
+  enemyHitRecoilSpeed: {x: 0.9, y: 2}
+  enemyHitRecoilSeconds: 0.16
+  enemyHitRecoilLockout: 0.12
 --- !u!114 &8069449206212830527
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3113,6 +3201,33 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 4294967295
   comboInputBuffer: 0.15
+  comboWindowAfterActivationWindow: 1
+  comboWindowEndNormalized: 1
+  swipeArcCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  visualDirectionFollowsCombatFacing: 1
   forwardReference: {fileID: 7093163964905583013}
   onStageStarted:
     m_PersistentCalls:
@@ -3255,6 +3370,80 @@ MonoBehaviour:
   currentResponse: 6
   maxAcceleration: 30
   factorSmoothTime: 0.1
+--- !u!114 &7252369150595988181
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4478566604985342078}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8a62c8cb06c1e274f9ad55a2bc377211, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  visualStyle: 3
+  plasmaMaterial: {fileID: 2100000, guid: 1e3ff57d3bf5f334d9b0c5347380e37b, type: 2}
+  arcSweepTreatment: 1
+  volumetricArcMaterial: {fileID: 2100000, guid: 64e60ee169162c4459ebdcbb5f516b70, type: 2}
+  attackController: {fileID: 8069449206212830527}
+  thrustPrefabEffect:
+    prefab: {fileID: 7699698589382392644, guid: ce614ff6f5639fb4ab201b6b5b437127, type: 3}
+    rotationOffset: {x: 0, y: 0, z: 0}
+    positionOffset: {x: 0, y: 0, z: 0.25}
+    referenceReach: 5
+    reachScale: 1
+    widthScale: 1
+    sourceStartTime: 0.32
+    sourceActiveEndTime: 0.65
+    sourceRecoveryEndTime: 0.95
+    tint: {r: 1, g: 1, b: 1, a: 1}
+    intensity: 1
+    smoke: 0
+    accentParticles: 1
+    groundImpact: 0
+    distortion: 0
+  swipePrefabEffect:
+    prefab: {fileID: 1011157772751556, guid: ca63c6ac7458764498741e0306f78528, type: 3}
+    rotationOffset: {x: -90, y: -90, z: 0}
+    positionOffset: {x: 0, y: 0, z: 0}
+    referenceReach: 2.5
+    reachScale: 1
+    widthScale: 1
+    sourceStartTime: 0
+    sourceActiveEndTime: 0.18
+    sourceRecoveryEndTime: 0.65
+    tint: {r: 1, g: 1, b: 1, a: 1}
+    intensity: 1
+    smoke: 0
+    accentParticles: 1
+    groundImpact: 0
+    distortion: 0
+  previewProfile: {fileID: 11400000, guid: f8da97854828d82479cb4fca1898b16f, type: 2}
+  meleeExtent: {fileID: 1887117900618186869}
+  legacyMeleeParticles: []
+  solidBody: 1
+  brightRim: 1
+  flowingFilaments: 1
+  softHalo: 1
+  bodyOpacity: 1
+  rimIntensity: 0.95
+  filamentIntensity: 0.8
+  haloIntensity: 0.08
+  rimWidth: 0.045
+  edgeWarble: 0.3
+  noiseScale: 3
+  flowSpeed: 1
+  reachScale: 1
+  widthScale: 1
+  sweepBend: 32
+  rootOffset: 0.22
+  surfaceHeight: 0.06
+  repulsorBandWidth: 0.14
+  windupOpacity: 0.22
+  recoveryOpacity: 0.16
+  previewPlaybackSpeed: 0.35
+  previewRepeatDelay: 0.45
 --- !u!1 &4530543394128760712
 GameObject:
   m_ObjectHideFlags: 0
@@ -3559,6 +3748,9 @@ MonoBehaviour:
   decoHoldJitterAmp: 0.03
   decoHoldJitterFreq: 26
   decoGhostOpacity: 0.8
+  enemyDamagePulseSeconds: 0.35
+  enemyDamageDentStrength: 1
+  enemyDamageOutlineBoost: 1.5
 --- !u!1 &5500702363611855205
 GameObject:
   m_ObjectHideFlags: 0
@@ -4324,6 +4516,7 @@ GameObject:
   - component: {fileID: 7181159435398090212}
   - component: {fileID: 6120169519258287194}
   - component: {fileID: 8381267655638476602}
+  - component: {fileID: 8631463030349580079}
   m_Layer: 0
   m_Name: Player 1
   m_TagString: Player
@@ -4507,31 +4700,12 @@ MonoBehaviour:
   minNuggets: 5
   midNuggets: 50
   maxNuggets: 300
-  overflowScoresToTeam: 1
-  overflowScorePerMass: 0.25
-  spawnOverflowScoreVFX: 1
-  overflowVfxMaxBlobsPerEvent: 3
   legacyGoalShrink01: 0.0045
   lifeFx: {fileID: 6649313875854253755}
   respawnPointOverride: {fileID: 4137262321808284719}
   deathFxSeconds: 0.5
   respawnDelaySeconds: 1.25
   respawnFxSeconds: 0.75
-  respawnQueryMaxHits: 32
-  respawnTreatFullBufferAsBlocked: 1
-  deathDistortionBubblePrefab: {fileID: 8942209640182647904, guid: 1af534a4f77e47141add26fdd8eb439a,
-    type: 3}
-  respawnDistortionBubblePrefab: {fileID: 8942209640182647904, guid: 1af534a4f77e47141add26fdd8eb439a,
-    type: 3}
-  distortionBubbleAnchor: {fileID: 3771797657263773121}
-  distortionBubbleOffsetWS: {x: 0, y: 0, z: 0}
-  parentDistortionToAnchor: 0
-  deathDistortionAutoDestroySeconds: 2
-  respawnDistortionAutoDestroySeconds: 2
-  showPlayerToastOnRespawn: 1
-  respawnToastLifetime: 1.25
-  respawnToastPenaltyAsPercent: 1
-  respawnToastPenaltyLabel: TEAM MASS
   playMatchSpawnOnSceneLoad: 1
   matchSpawnFxSeconds: -2
   showPlayerIdToastOnMatchStart: 1
@@ -4560,6 +4734,12 @@ MonoBehaviour:
   didPlayerTapActionThisFrame: 0
   shieldOn: 0
   temporarilyEliminated: 0
+  enemyHitVisualFeedback: 1
+  enemyHitKnockback: 1
+  enemyHitFullStrengthDamage: 0.08
+  enemyHitRecoilSpeed: {x: 0.9, y: 2}
+  enemyHitRecoilSeconds: 0.16
+  enemyHitRecoilLockout: 0.12
 --- !u!114 &7449126616696641186
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -4589,6 +4769,33 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 4294967295
   comboInputBuffer: 0.15
+  comboWindowAfterActivationWindow: 1
+  comboWindowEndNormalized: 1
+  swipeArcCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  visualDirectionFollowsCombatFacing: 1
   forwardReference: {fileID: 4259332121503468344}
   onStageStarted:
     m_PersistentCalls:
@@ -4731,6 +4938,80 @@ MonoBehaviour:
   currentResponse: 6
   maxAcceleration: 30
   factorSmoothTime: 0.1
+--- !u!114 &8631463030349580079
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7043992040001868691}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8a62c8cb06c1e274f9ad55a2bc377211, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  visualStyle: 3
+  plasmaMaterial: {fileID: 2100000, guid: 1e3ff57d3bf5f334d9b0c5347380e37b, type: 2}
+  arcSweepTreatment: 1
+  volumetricArcMaterial: {fileID: 2100000, guid: 64e60ee169162c4459ebdcbb5f516b70, type: 2}
+  attackController: {fileID: 7449126616696641186}
+  thrustPrefabEffect:
+    prefab: {fileID: 7699698589382392644, guid: ce614ff6f5639fb4ab201b6b5b437127, type: 3}
+    rotationOffset: {x: 0, y: 0, z: 0}
+    positionOffset: {x: 0, y: 0, z: 0.25}
+    referenceReach: 5
+    reachScale: 1
+    widthScale: 1
+    sourceStartTime: 0.32
+    sourceActiveEndTime: 0.65
+    sourceRecoveryEndTime: 0.95
+    tint: {r: 1, g: 1, b: 1, a: 1}
+    intensity: 1
+    smoke: 0
+    accentParticles: 1
+    groundImpact: 0
+    distortion: 0
+  swipePrefabEffect:
+    prefab: {fileID: 1011157772751556, guid: ca63c6ac7458764498741e0306f78528, type: 3}
+    rotationOffset: {x: -90, y: -90, z: 0}
+    positionOffset: {x: 0, y: 0, z: 0}
+    referenceReach: 2.5
+    reachScale: 1
+    widthScale: 1
+    sourceStartTime: 0
+    sourceActiveEndTime: 0.18
+    sourceRecoveryEndTime: 0.65
+    tint: {r: 1, g: 1, b: 1, a: 1}
+    intensity: 1
+    smoke: 0
+    accentParticles: 1
+    groundImpact: 0
+    distortion: 0
+  previewProfile: {fileID: 11400000, guid: f8da97854828d82479cb4fca1898b16f, type: 2}
+  meleeExtent: {fileID: 6050816925445004006}
+  legacyMeleeParticles: []
+  solidBody: 1
+  brightRim: 1
+  flowingFilaments: 1
+  softHalo: 1
+  bodyOpacity: 1
+  rimIntensity: 0.95
+  filamentIntensity: 0.8
+  haloIntensity: 0.08
+  rimWidth: 0.045
+  edgeWarble: 0.3
+  noiseScale: 3
+  flowSpeed: 1
+  reachScale: 1
+  widthScale: 1
+  sweepBend: 32
+  rootOffset: 0.22
+  surfaceHeight: 0.06
+  repulsorBandWidth: 0.14
+  windupOpacity: 0.22
+  recoveryOpacity: 0.16
+  previewPlaybackSpeed: 0.35
+  previewRepeatDelay: 0.45
 --- !u!1 &7099389551411198482
 GameObject:
   m_ObjectHideFlags: 0
@@ -4958,6 +5239,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   visuals: {fileID: 2692724027371701905}
   nuggets: {fileID: 1626793139032393414}
+  useUnscaledTime: 1
   ease:
     serializedVersion: 2
     m_Curve:
@@ -5067,6 +5349,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   visuals: {fileID: 6510273009048140649}
   nuggets: {fileID: 9100418957489359483}
+  useUnscaledTime: 1
   ease:
     serializedVersion: 2
     m_Curve:
@@ -5201,6 +5484,7 @@ GameObject:
   - component: {fileID: 2764018769313091554}
   - component: {fileID: 5461854745555159754}
   - component: {fileID: 7621770994169106218}
+  - component: {fileID: 1228755355689586678}
   m_Layer: 0
   m_Name: Player 2
   m_TagString: Player
@@ -5384,31 +5668,12 @@ MonoBehaviour:
   minNuggets: 5
   midNuggets: 50
   maxNuggets: 300
-  overflowScoresToTeam: 1
-  overflowScorePerMass: 0.25
-  spawnOverflowScoreVFX: 1
-  overflowVfxMaxBlobsPerEvent: 3
   legacyGoalShrink01: 0.0045
   lifeFx: {fileID: 3712545333748925412}
   respawnPointOverride: {fileID: 1079406687142751165}
   deathFxSeconds: 0.5
   respawnDelaySeconds: 1.25
   respawnFxSeconds: 0.75
-  respawnQueryMaxHits: 32
-  respawnTreatFullBufferAsBlocked: 1
-  deathDistortionBubblePrefab: {fileID: 8942209640182647904, guid: 1af534a4f77e47141add26fdd8eb439a,
-    type: 3}
-  respawnDistortionBubblePrefab: {fileID: 8942209640182647904, guid: 1af534a4f77e47141add26fdd8eb439a,
-    type: 3}
-  distortionBubbleAnchor: {fileID: 6389561842378151905}
-  distortionBubbleOffsetWS: {x: 0, y: 0, z: 0}
-  parentDistortionToAnchor: 0
-  deathDistortionAutoDestroySeconds: 2
-  respawnDistortionAutoDestroySeconds: 2
-  showPlayerToastOnRespawn: 1
-  respawnToastLifetime: 1.25
-  respawnToastPenaltyAsPercent: 1
-  respawnToastPenaltyLabel: TEAM MASS
   playMatchSpawnOnSceneLoad: 1
   matchSpawnFxSeconds: -2
   showPlayerIdToastOnMatchStart: 1
@@ -5437,6 +5702,12 @@ MonoBehaviour:
   didPlayerTapActionThisFrame: 0
   shieldOn: 0
   temporarilyEliminated: 0
+  enemyHitVisualFeedback: 1
+  enemyHitKnockback: 1
+  enemyHitFullStrengthDamage: 0.08
+  enemyHitRecoilSpeed: {x: 0.9, y: 2}
+  enemyHitRecoilSeconds: 0.16
+  enemyHitRecoilLockout: 0.12
 --- !u!114 &2858261058606723727
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -5466,6 +5737,33 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 4294967295
   comboInputBuffer: 0.15
+  comboWindowAfterActivationWindow: 1
+  comboWindowEndNormalized: 1
+  swipeArcCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  visualDirectionFollowsCombatFacing: 1
   forwardReference: {fileID: 3926127567115470239}
   onStageStarted:
     m_PersistentCalls:
@@ -5608,6 +5906,80 @@ MonoBehaviour:
   currentResponse: 6
   maxAcceleration: 30
   factorSmoothTime: 0.1
+--- !u!114 &1228755355689586678
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8459673253657699572}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8a62c8cb06c1e274f9ad55a2bc377211, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  visualStyle: 3
+  plasmaMaterial: {fileID: 2100000, guid: 1e3ff57d3bf5f334d9b0c5347380e37b, type: 2}
+  arcSweepTreatment: 1
+  volumetricArcMaterial: {fileID: 2100000, guid: 64e60ee169162c4459ebdcbb5f516b70, type: 2}
+  attackController: {fileID: 2858261058606723727}
+  thrustPrefabEffect:
+    prefab: {fileID: 7699698589382392644, guid: ce614ff6f5639fb4ab201b6b5b437127, type: 3}
+    rotationOffset: {x: 0, y: 0, z: 0}
+    positionOffset: {x: 0, y: 0, z: 0.25}
+    referenceReach: 5
+    reachScale: 1
+    widthScale: 1
+    sourceStartTime: 0.32
+    sourceActiveEndTime: 0.65
+    sourceRecoveryEndTime: 0.95
+    tint: {r: 1, g: 1, b: 1, a: 1}
+    intensity: 1
+    smoke: 0
+    accentParticles: 1
+    groundImpact: 0
+    distortion: 0
+  swipePrefabEffect:
+    prefab: {fileID: 1011157772751556, guid: ca63c6ac7458764498741e0306f78528, type: 3}
+    rotationOffset: {x: -90, y: -90, z: 0}
+    positionOffset: {x: 0, y: 0, z: 0}
+    referenceReach: 2.5
+    reachScale: 1
+    widthScale: 1
+    sourceStartTime: 0
+    sourceActiveEndTime: 0.18
+    sourceRecoveryEndTime: 0.65
+    tint: {r: 1, g: 1, b: 1, a: 1}
+    intensity: 1
+    smoke: 0
+    accentParticles: 1
+    groundImpact: 0
+    distortion: 0
+  previewProfile: {fileID: 11400000, guid: f8da97854828d82479cb4fca1898b16f, type: 2}
+  meleeExtent: {fileID: 5653485825805828132}
+  legacyMeleeParticles: []
+  solidBody: 1
+  brightRim: 1
+  flowingFilaments: 1
+  softHalo: 1
+  bodyOpacity: 1
+  rimIntensity: 0.95
+  filamentIntensity: 0.8
+  haloIntensity: 0.08
+  rimWidth: 0.045
+  edgeWarble: 0.3
+  noiseScale: 3
+  flowSpeed: 1
+  reachScale: 1
+  widthScale: 1
+  sweepBend: 32
+  rootOffset: 0.22
+  surfaceHeight: 0.06
+  repulsorBandWidth: 0.14
+  windupOpacity: 0.22
+  recoveryOpacity: 0.16
+  previewPlaybackSpeed: 0.35
+  previewRepeatDelay: 0.45
 --- !u!1 &8459699647868600381
 GameObject:
   m_ObjectHideFlags: 0

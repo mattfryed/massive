@@ -28,6 +28,10 @@ MonoBehaviour:
     weightOverride: -1
     minSecondsSinceMatchStart: 25
     maxAlive: 2
+    telegraphPrefab: {fileID: 7134231835184742519, guid: bf689d5e7baa3a34fb6fea6ffffd064f,
+      type: 3}
+    telegraphSeconds: 3
+    blockedSpawnTimeout: 2
   batches:
   - enabled: 1
     enemy: {fileID: 11400000, guid: 75a66946007406a418daf7b6acea56bd, type: 2}
@@ -43,4 +47,5 @@ MonoBehaviour:
     blockedBatchTimeout: 2
     telegraphPrefab: {fileID: 8608423406655236858, guid: 9bdfe8b86ed5b4f409ed2e0b1bab1ccf,
       type: 3}
+    telegraphMode: 0
     telegraphSeconds: 3

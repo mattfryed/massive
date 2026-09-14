@@ -29,7 +29,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1.25, y: 1.25, z: 1.25}
+  m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
@@ -100,7 +100,13 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   fadeInSeconds: 0.35
-  fadeOutSeconds: 0.45
+  fadeOutSeconds: 0.9
+  wireframeDelay: 0.28
+  sizeMultiplierRange: {x: 1, y: 1}
+  defocusWidth: 0.25
+  wireframeColor: {r: 1, g: 0.025, b: 0.012, a: 1}
+  glowColor: {r: 1, g: 0.19, b: 0.025, a: 1}
+  ghostColor: {r: 1, g: 0.12, b: 0.018, a: 1}
   rollDegreesPerSecond: 32
   breathScale: 0.035
   breathFrequency: 0.7
@@ -110,3 +116,6 @@ MonoBehaviour:
   ghostLifetime: 0.9
   ghostDistance: 0.75
   ghostVariation: 0.25
+  ghostEndScale: 0.3
+  diffuseGlowStrength: 0.42
+  diffuseGlowSize: 2.4

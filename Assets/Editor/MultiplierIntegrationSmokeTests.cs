@@ -129,6 +129,9 @@ public static class MultiplierIntegrationSmokeTests
             PlayerControllerScript p3 = CreatePlayer(2, 2, service, owned);
             service.ResetForMatch(openScoring: true);
 
+            FluidMultiplierValidation.RunChecks(service, p1, p3, check, owned);
+            service.ResetForMatch(openScoring: true);
+
             check(service.GetTeamAmplifierMultiplier(1) == 1 &&
                   service.GetTeamAmplifierMultiplier(2) == 1,
                 "Both team Amplifiers start at x1");
@@ -145,10 +148,10 @@ public static class MultiplierIntegrationSmokeTests
             }
 
             PlayerScoreChain p1Chain = p1.GetComponent<PlayerScoreChain>();
-            check(p1Chain.CurrentMultiplier == 2 && Mathf.Approximately(p1Chain.Progress01, 0f),
-                "Personal bar promotes at its threshold and resets");
-            check(service.GetTeamScore(1) == 4000L,
-                "Promotion affects the next award, not the threshold award");
+            check(p1Chain.CurrentMultiplier == 2 && Mathf.Approximately(p1Chain.Progress01, 1f / 15f),
+                "Personal bar crosses x2 without resetting");
+            check(service.GetTeamScore(1) == 5500L,
+                "Each award uses the fractional multiplier earned before that action");
 
             check(service.AdvanceTeamAmplifier(1) && service.GetTeamAmplifierMultiplier(1) == 2,
                 "Team capture advances x1 to x2");
@@ -162,7 +165,7 @@ public static class MultiplierIntegrationSmokeTests
             check(amplified.multiplier == 2 && amplified.teamAmplifierMultiplier == 2 &&
                   amplified.combinedMultiplier == 4 && amplified.finalMilliElectronVolts == 4000L,
                 "Personal and team factors compose correctly");
-            check(service.GetTeamScore(1) == 8000L && service.GetTeamScore(2) == 0L,
+            check(service.GetTeamScore(1) == 9500L && service.GetTeamScore(2) == 0L,
                 "Amplifier affects only its team");
 
             check(service.AdvanceTeamAmplifier(1) && service.AdvanceTeamAmplifier(1) &&

@@ -12,6 +12,7 @@ namespace Massive.Enemies
         [Min(.05f)] public float ghostLifetime = .9f;
         [Min(0f)] public float ghostDistance = .75f;
         [Range(0f, .6f)] public float ghostVariation = .25f;
+        [Range(.05f, 1f)] public float ghostEndScale = .3f;
 
         private sealed class Ghost
         {
@@ -59,6 +60,7 @@ namespace Massive.Enemies
                 go.layer = gameObject.layer; go.transform.SetParent(transform, false);
                 go.AddComponent<MeshFilter>().sharedMesh = _ghostMesh;
                 var renderer = go.AddComponent<MeshRenderer>(); renderer.sharedMaterial = _renderer.sharedMaterial;
+                renderer.localBounds = _renderer.localBounds;
                 renderer.shadowCastingMode = ShadowCastingMode.Off; renderer.receiveShadows = false;
                 renderer.enabled = false;
                 var ghost = new Ghost { transform = go.transform, renderer = renderer };
@@ -104,9 +106,13 @@ namespace Massive.Enemies
                 // Fixed world-XZ direction for each life, independent of the main crystal's axial roll.
                 ghost.transform.position = transform.position + ghost.direction * (travel * ghost.distance);
                 ghost.transform.rotation = ghost.rotation;
-                ghost.transform.localScale = Vector3.one * (1f + .04f * progress);
+                ghost.transform.localScale = Vector3.one * Mathf.Lerp(1f, ghostEndScale, Mathf.SmoothStep(0f, 1f, progress));
                 ghost.properties.SetFloat(OpacityId, opacity);
                 ghost.properties.SetFloat(ContrastId, 0f);
+                ghost.properties.SetColor(ColorId, ghostColor);
+                ghost.properties.SetColor(GlowColorId, glowColor);
+                ghost.properties.SetFloat(DefocusId, Defocus);
+                ghost.properties.SetFloat(DefocusWidthId, defocusWidth);
                 ghost.renderer.SetPropertyBlock(ghost.properties);
             }
         }

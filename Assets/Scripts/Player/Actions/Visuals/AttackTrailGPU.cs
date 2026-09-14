@@ -81,6 +81,18 @@ public class AttackTrailGPU : MonoBehaviour
 
     private bool _externalActive = false;
 
+    // Presentation only: other effects (notably Time Dilation) still own external activation.
+    private bool _meleeVisualSuppressed;
+    public bool MeleeVisualSuppressed => _meleeVisualSuppressed;
+
+    public void SetMeleeVisualSuppressed(bool suppressed)
+    {
+        if (_meleeVisualSuppressed == suppressed) return;
+        _meleeVisualSuppressed = suppressed;
+        _emitAccumulator = 0f;
+        _needRebuild = true; // discard lingering melee particles when switching treatments
+    }
+
     public void SetExternalActive(bool active)
     {
         _externalActive = active;
@@ -270,7 +282,7 @@ public class AttackTrailGPU : MonoBehaviour
         // --- determine origin ---
         Vector3 origin = GetTrailOriginWS();
 
-        bool attackActive = (attackController != null && attackController.IsAttacking && attackController.CurrentStage != null);
+        bool attackActive = (!_meleeVisualSuppressed && attackController != null && attackController.IsAttacking && attackController.CurrentStage != null);
         bool externalActive = allowExternalActivation && _externalActive;
 
         // --- external motion (Time Dilation) ---

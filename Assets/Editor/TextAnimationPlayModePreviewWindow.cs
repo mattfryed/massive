@@ -224,7 +224,7 @@ public sealed class TextAnimationPlayModePreviewWindow : EditorWindow
         {
             EditorGUILayout.LabelField(
                 "Personal",
-                $"x{chain.CurrentMultiplier}  {chain.Progress01:P0} to next tier");
+                $"x{PlayerScoreChainPresenter.FormatMultiplier(chain.CurrentMultiplier)}  {chain.Progress01:P0} to maximum");
             EditorGUILayout.LabelField(
                 "Team Amplifier",
                 teamID > 0 ? $"x{_scoreService.GetTeamAmplifierMultiplier(teamID)}" : "—");

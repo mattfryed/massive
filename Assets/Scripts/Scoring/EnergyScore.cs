@@ -116,6 +116,19 @@ namespace Massive.Scoring
             if (a > long.MaxValue / b) return long.MaxValue;
             return a * b;
         }
+
+        /// <summary>Apply a fractional multiplier, rounding once to the nearest meV.</summary>
+        public static long SaturatingScale(long value, double multiplier)
+        {
+            if (value <= 0L || double.IsNaN(multiplier) || multiplier <= 0d) return 0L;
+            if (double.IsPositiveInfinity(multiplier) || multiplier >= (double)long.MaxValue)
+                return long.MaxValue;
+
+            // Decimal arithmetic preserves the integer energy total even at TeV scale.
+            decimal factor = (decimal)multiplier;
+            if (factor >= (decimal)long.MaxValue / value) return long.MaxValue;
+            return (long)decimal.Round(value * factor, 0, MidpointRounding.AwayFromZero);
+        }
     }
 
     public static class EnergyScoreFormatter

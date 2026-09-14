@@ -1,0 +1,156 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5fe5861ec151be54682605aaade9f45d, type: 3}
+  m_Name: January pressure pulse
+  m_EditorClassIdentifier: 
+  manifest:
+    schemaVersion: 1
+    title: "January 3, 2026 \u2014 observed pressure pulse"
+    model: SWMF/BATS-R-US 2023
+    runId: Wei_Liu_090426_GM_1
+    sourceUrl: https://ccmc.gsfc.nasa.gov/ror/results/viewrun.php?runnumber=Wei_Liu_090426_GM_1
+    attribution: SWMF/BATS-R-US, University of Michigan; simulation by NASA CCMC,
+      requested by Wei Liu; OMNI upstream observations; GEOPACK coordinate transforms.
+    limitations: A pressure-pulse excerpt, not a complete geomagnetic storm or a
+      statistical event catalogue. Source run inner boundary 2.5 Re; display masks
+      below 3.25 Re. Native AMR cells resampled by inverse-distance-squared weighting
+      of 8 nearest cell centres onto a 0.75 Re grid. This display interpolation does
+      not preserve divergence or resolve reconnection. 5-minute snapshots interpolate
+      linearly during playback. Upstream inputs are model boundary inputs, not local
+      plasma velocities. Physical units are retained; visual and gameplay scales
+      are artistic.
+    coordinateSystem: GSM
+    nx: 65
+    ny: 49
+    nz: 49
+    originRe: {x: -30, y: -18, z: -18}
+    spacingRe: {x: 0.75, y: 0.75, z: 0.75}
+    innerBoundaryRe: 3.25
+    frames:
+    - utc: 2026-01-03T02:50:00Z
+      file: field-0250.bytes
+      sha256: a1474c9318afb5a0d4f39e1c26eb167fae867e6457d51d31a333419bbc8b6a4c
+      sourceFile: GM/IO2/3d__var_1_e20260103-025000-000.out
+      unixSeconds: 1767408600
+      gsmToGeo: {x: -0.20160592, y: 0.025673727, z: 0.91918945, w: 0.33732277}
+      dipoleAxisGsm: {x: -0.51000106, y: 0, z: 0.86017376}
+      upstreamVelocityKmS: {x: -589.667, y: 45.338, z: 40.004}
+      upstreamBNt: {x: 5.353, y: -5.633, z: 3.517}
+      upstreamDensity: 1.813
+      upstreamTemperatureK: 267639
+      upstreamDynamicPressureNpa: 1.0654956
+    - utc: 2026-01-03T02:55:00Z
+      file: field-0255.bytes
+      sha256: 4cfd285599c48adcb9c6cffd1f51c58d7f4c47893b292859148c9b9de611518e
+      sourceFile: GM/IO2/3d__var_1_e20260103-025500-026.out
+      unixSeconds: 1767408900
+      gsmToGeo: {x: -0.20072418, y: 0.02941625, z: 0.91540855, w: 0.34766608}
+      dipoleAxisGsm: {x: -0.5115296, y: 0, z: 0.8592656}
+      upstreamVelocityKmS: {x: -583.209, y: 68.905, z: 48.252}
+      upstreamBNt: {x: 4.492, y: -4.871, z: 5.298}
+      upstreamDensity: 1.985
+      upstreamTemperatureK: 343916
+      upstreamDynamicPressureNpa: 1.1527872
+    - utc: 2026-01-03T03:00:00Z
+      file: field-0300.bytes
+      sha256: 0de400eb9313309501994a60078af3824e30afa89c9025df967af9bf9170fda4
+      sourceFile: GM/IO2/3d__var_1_e20260103-030000-000.out
+      unixSeconds: 1767409200
+      gsmToGeo: {x: -0.19977458, y: 0.03316708, z: 0.91150784, w: 0.3579714}
+      dipoleAxisGsm: {x: -0.5129973, y: 0, z: 0.8583902}
+      upstreamVelocityKmS: {x: -567.032, y: 55.74, z: 3.851}
+      upstreamBNt: {x: 6.052, y: -5.22, z: 1.224}
+      upstreamDensity: 1.985
+      upstreamTemperatureK: 265436
+      upstreamDynamicPressureNpa: 1.0778784
+    - utc: 2026-01-03T03:05:00Z
+      file: field-0305.bytes
+      sha256: 4e95a5a38f8cdfefdcb8e5bcf87210a9c0b1adbd614723e829e7c6b1da67a3e6
+      sourceFile: GM/IO2/3d__var_1_e20260103-030500-035.out
+      unixSeconds: 1767409500
+      gsmToGeo: {x: -0.19875684, y: 0.036924236, z: 0.90748763, w: 0.36823708}
+      dipoleAxisGsm: {x: -0.5144036, y: 0, z: 0.85754824}
+      upstreamVelocityKmS: {x: -666.533, y: 60.338, z: -64.139}
+      upstreamBNt: {x: 0.004, y: -5.781, z: -4.62}
+      upstreamDensity: 2.186
+      upstreamTemperatureK: 484181
+      upstreamDynamicPressureNpa: 1.6527467
+    - utc: 2026-01-03T03:10:00Z
+      file: field-0310.bytes
+      sha256: 4592287434a76398c60b935e332ccf9a52e19b49b40cbd6672a4e3ed2aa12c4b
+      sourceFile: GM/IO2/3d__var_1_e20260103-031000-000.out
+      unixSeconds: 1767409800
+      gsmToGeo: {x: -0.19767082, y: 0.040685717, z: 0.90334815, w: 0.37846145}
+      dipoleAxisGsm: {x: -0.5157458, y: 0, z: 0.8567416}
+      upstreamVelocityKmS: {x: -694.886, y: 27.511, z: -115.33}
+      upstreamBNt: {x: 1.988, y: -4.465, z: -2.763}
+      upstreamDensity: 2.881
+      upstreamTemperatureK: 679611
+      upstreamDynamicPressureNpa: 2.394591
+    - utc: 2026-01-03T03:15:00Z
+      file: field-0315.bytes
+      sha256: f830ed9f5e35e9613e14f1ad823959c693f1a1357cd2dc63be76673e4d71edf6
+      sourceFile: GM/IO2/3d__var_1_e20260103-031500-006.out
+      unixSeconds: 1767410100
+      gsmToGeo: {x: -0.19651638, y: 0.044449497, z: 0.8990897, w: 0.38864288}
+      dipoleAxisGsm: {x: -0.5170261, y: 0, z: 0.8559696}
+      upstreamVelocityKmS: {x: -559.2, y: 68.367, z: 41.91}
+      upstreamBNt: {x: 4.033, y: -7.224, z: 1.184}
+      upstreamDensity: 1.859
+      upstreamTemperatureK: 203419
+      upstreamDynamicPressureNpa: 0.9923201
+    - utc: 2026-01-03T03:20:00Z
+      file: field-0320.bytes
+      sha256: 24e6c0cd77694fdf41c8997b0375362b10106b81bbe80e02bdc7ce1c7519933e
+      sourceFile: GM/IO2/3d__var_1_e20260103-032000-000.out
+      unixSeconds: 1767410400
+      gsmToGeo: {x: -0.19529349, y: 0.048213534, z: 0.8947126, w: 0.39877966}
+      dipoleAxisGsm: {x: -0.51824105, y: 0, z: 0.85523456}
+      upstreamVelocityKmS: {x: -624.841, y: 20.518, z: 10.644}
+      upstreamBNt: {x: 1.202, y: -8.489, z: 0.685}
+      upstreamDensity: 2.019
+      upstreamTemperatureK: 415181
+      upstreamDynamicPressureNpa: 1.320283
+    - utc: 2026-01-03T03:25:00Z
+      file: field-0325.bytes
+      sha256: 751d16d3c62e4167d61bde2ca3d6148eb774b65e123fd24721aa840dc5345143
+      sourceFile: GM/IO2/3d__var_1_e20260103-032500-008.out
+      unixSeconds: 1767410700
+      gsmToGeo: {x: -0.19400215, y: 0.051975764, z: 0.89021736, w: 0.40887013}
+      dipoleAxisGsm: {x: -0.5193918, y: 0, z: 0.85453624}
+      upstreamVelocityKmS: {x: -615.053, y: 37.428, z: -0.138}
+      upstreamBNt: {x: 7.287, y: 3.57, z: 2.35}
+      upstreamDensity: 2.177
+      upstreamTemperatureK: 378663
+      upstreamDynamicPressureNpa: 1.3825682
+    - utc: 2026-01-03T03:30:00Z
+      file: field-0330.bytes
+      sha256: 64220591f117452d7eb09e0f4c2629a606b094e7afe8ace47a708274b8e1bc22
+      sourceFile: GM/IO2/3d__var_1_e20260103-033000-000.out
+      unixSeconds: 1767411000
+      gsmToGeo: {x: -0.19264247, y: 0.055734113, z: 0.8856042, w: 0.41891265}
+      dipoleAxisGsm: {x: -0.5204783, y: 0, z: 0.85387486}
+      upstreamVelocityKmS: {x: -543.101, y: 139.234, z: 6.105}
+      upstreamBNt: {x: 7.92, y: 1.711, z: 1.745}
+      upstreamDensity: 2.129
+      upstreamTemperatureK: 247179
+      upstreamDynamicPressureNpa: 1.1195184
+  frames:
+  - {fileID: 4900000, guid: 72313e6bb96ccf343bb8acadff88362a, type: 3}
+  - {fileID: 4900000, guid: 6513252301d499a4dbc0f8f6df314219, type: 3}
+  - {fileID: 4900000, guid: 3e5dcc8934f71954695ffb0cfb2e45f3, type: 3}
+  - {fileID: 4900000, guid: fb192f5f8baab5c4695848dc951f1ddf, type: 3}
+  - {fileID: 4900000, guid: d6b2202ec3e507c4ab586f35bb2c114b, type: 3}
+  - {fileID: 4900000, guid: 8b32dd4fc6e32c241ad3de0421cf1eb0, type: 3}
+  - {fileID: 4900000, guid: b40c46680cacaa7468fd15557538afc3, type: 3}
+  - {fileID: 4900000, guid: 6718b5d37cdd56e4d8ad055a5a867339, type: 3}
+  - {fileID: 4900000, guid: df604029af5bfac448e531a45fdfc323, type: 3}

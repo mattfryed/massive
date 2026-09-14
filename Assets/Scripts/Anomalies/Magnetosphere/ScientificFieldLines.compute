@@ -1,0 +1,83 @@
+#pragma kernel Trace
+
+Texture3D<float4> _FieldA, _FieldB;
+SamplerState sampler_FieldA;
+struct Segment { float4 a; float4 b; };
+RWStructuredBuffer<Segment> _Segments;
+float3 _Origin, _Spacing, _Dimensions, _Dipole, _FrameOmega;
+float _Blend, _InnerRadius, _Step;
+int _SeedCount, _Steps, _Flow;
+
+bool Inside(float3 p)
+{
+    float3 g = (p - _Origin) / _Spacing;
+    return all(g >= 0) && all(g <= _Dimensions - 1) && length(p) >= _InnerRadius;
+}
+
+float3 Field(float3 p)
+{
+    float3 uv = ((p - _Origin) / _Spacing + .5) / _Dimensions;
+    float3 f = lerp(_FieldA.SampleLevel(sampler_FieldA, uv, 0).xyz,
+                    _FieldB.SampleLevel(sampler_FieldA, uv, 0).xyz, _Blend);
+    return _Flow != 0 ? f - cross(_FrameOmega, p * 6371.2) : f;
+}
+
+float Hash(float n) { return frac(sin(n * 127.1 + 311.7) * 43758.5453); }
+
+[numthreads(64, 1, 1)]
+void Trace(uint3 id : SV_DispatchThreadID)
+{
+    uint seed = id.x;
+    if (seed >= (uint)_SeedCount) return;
+    float3 p;
+    if (_Flow != 0)
+    {
+        p = _Origin + (_Dimensions - 1) * _Spacing *
+            float3(.15 + .8 * Hash(seed * 3 + 1), .15 + .7 * Hash(seed * 3 + 2), .15 + .7 * Hash(seed * 3 + 3));
+    }
+    else
+    {
+        // Rings around both model magnetic poles; no arbitrary warble or envelope deformation.
+        float3 axis = normalize(_Dipole);
+        float3 side = normalize(cross(axis, float3(0, 1, 0)));
+        float3 other = cross(axis, side);
+        uint azimuthCount = max(3, _SeedCount / 8);
+        uint ring = seed / azimuthCount;
+        float theta = radians(18 + (ring % 4) * 12);
+        float phi = 6.28318530718 * (seed % azimuthCount) / azimuthCount;
+        float sign = ring < 4 ? 1 : -1;
+        p = (_InnerRadius + 1.1) * (axis * cos(theta) * sign +
+            sin(theta) * (side * cos(phi) + other * sin(phi)));
+    }
+    float3 start = p;
+    for (uint direction = 0; direction < 2; direction++)
+    {
+        p = start;
+        bool alive = Inside(p);
+        for (uint i = 0; i < (uint)_Steps; i++)
+        {
+            uint slot = (seed * 2 + direction) * _Steps + i;
+            Segment s; s.a = 0; s.b = 0;
+            if (alive)
+            {
+                float3 f = Field(p);
+                float magnitude = length(f);
+                float sign = direction == 0 ? 1 : -1;
+                float3 mid = p + sign * .5 * _Step * f / max(magnitude, 1e-8);
+                if (magnitude < 1e-6 || !Inside(mid)) alive = false;
+                else
+                {
+                    float3 fm = Field(mid);
+                    float3 next = p + sign * _Step * fm / max(length(fm), 1e-8);
+                    if (!Inside(next) || length(fm) < 1e-6) alive = false;
+                    else
+                    {
+                        s.a = float4(p, magnitude); s.b = float4(next, 1);
+                        p = next;
+                    }
+                }
+            }
+            _Segments[slot] = s;
+        }
+    }
+}

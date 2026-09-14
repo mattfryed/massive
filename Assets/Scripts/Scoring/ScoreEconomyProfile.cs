@@ -29,10 +29,10 @@ namespace Massive.Scoring
     [Serializable]
     public struct ScoreChainSettings
     {
-        [Tooltip("Multiplier values in ascending order. Index 0 should normally be x1.")]
+        [Tooltip("Control points for continuous personal multiplier growth. Charge interpolates between these values; the last is the cap. Index 0 should normally be x1.")]
         public int[] multiplierSteps;
 
-        [Tooltip("Charge needed to advance from each multiplier tier. The last multiplier has no next tier, so this array normally has one fewer entry than Multiplier Steps.")]
+        [Tooltip("Charge needed to move between consecutive multiplier control points. Every fraction of charge immediately increases the multiplier. One fewer entry than Multiplier Steps.")]
         public float[] chargeRequiredPerTier;
 
         [Min(0.05f)]

@@ -7,6 +7,8 @@ public class PlayerStormPush : MonoBehaviour
     [Header("Auto-wired refs (optional overrides)")]
     [SerializeField] private DynamoStormController storm;
     [SerializeField] private PlayerControllerScript player;
+    [Tooltip("Optional observed MHD flow. Assign explicitly to use scientific Dynamo playback.")]
+    [SerializeField] private Massive.Dynamo.ScientificMagnetosphere scientificField;
 
     [Header("Storm Current")]
     [Tooltip("Target drift speed at stormFactor=1.")]
@@ -24,6 +26,8 @@ public class PlayerStormPush : MonoBehaviour
     private Rigidbody rb;
     private float fSmoothed;
     private float fVel;
+
+    public void SetScientificField(Massive.Dynamo.ScientificMagnetosphere field) => scientificField = field;
 
     private void Awake()
     {
@@ -43,10 +47,25 @@ public class PlayerStormPush : MonoBehaviour
 
     private void FixedUpdate()
     {
-        if (!storm || rb == null) return;
+        if (rb == null) return;
 
         if (player && player.temporarilyEliminated)
             return;
+
+        if (scientificField != null)
+        {
+            // A configured scientific source owns flow, including missing/out-of-domain behavior.
+            if (scientificField.TryGetPlanarDrift(rb.position, stormMaxDriftSpeed, out Vector3 drift))
+            {
+                Vector3 planar = rb.linearVelocity;
+                planar.y = 0;
+                Vector3 acceleration = Vector3.ClampMagnitude(
+                    (drift - planar) * Mathf.Max(.01f, currentResponse), Mathf.Max(0, maxAcceleration));
+                rb.AddForce(acceleration, ForceMode.Acceleration);
+            }
+            return;
+        }
+        if (!storm) return;
 
         Transform key = (player != null) ? player.transform : transform;
         float f = storm.GetStormFactor01(key);

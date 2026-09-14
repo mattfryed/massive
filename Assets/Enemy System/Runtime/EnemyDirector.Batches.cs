@@ -22,6 +22,8 @@ namespace Massive.Enemies
             public EnemyBatchSpawnRule rule;
             public float remaining, blocked;
             public int pending;
+            public int unannounced;
+            public float nextMemberSpawnAge;
             public bool hasAnchor;
             public Vector3 anchor;
             public EnemySpawnTelegraph telegraph;
@@ -65,11 +67,14 @@ namespace Massive.Enemies
                 var warning = _telegraphs[i];
                 if (!warning || !warning.Advance(delta)) _telegraphs.RemoveAt(i);
             }
+            TickReservedSpawns(delta);
             foreach (var state in _batches)
             {
                 var r = state.rule;
                 if (!r.enabled || r.enemy == null || r.enemy.prefab == null)
-                { if (state.pending > 0) FinishBatch(state); continue; }
+                { if (state.pending > 0) { CancelReservations(state); FinishBatch(state); } continue; }
+                if (r.telegraphPrefab != null && r.telegraphMode == EnemyBatchTelegraphMode.PerEnemy)
+                { TickIndividualBatch(state, delta); continue; }
                 state.remaining -= delta;
                 if (state.remaining > 0f) continue;
                 if (state.pending == 0)
@@ -83,7 +88,7 @@ namespace Massive.Enemies
                     if (r.telegraphPrefab != null)
                     {
                         state.telegraph = Instantiate(r.telegraphPrefab, state.anchor, r.enemy.prefab.transform.rotation, transform);
-                        state.telegraph.Begin(); _telegraphs.Add(state.telegraph);
+                        state.telegraph.Begin(r.WarningSeconds, SpawnWorldScale(r.enemy)); _telegraphs.Add(state.telegraph);
                         state.remaining = r.WarningSeconds;
                         if (state.remaining > 0f) continue;
                     }
@@ -92,6 +97,7 @@ namespace Massive.Enemies
                 if (TrySpawnEnemy(r.enemy, r.EffectiveCap, state.hasAnchor ? (Vector3?)state.anchor : null,
                     r.batchRadius, out position))
                 {
+                    if (state.telegraph) { state.telegraph.Complete(); state.telegraph = null; }
                     if (!state.hasAnchor) { state.anchor = position; state.hasAnchor = true; }
                     state.pending--; state.blocked = 0f;
                     if (state.pending > 0) state.remaining = Mathf.Max(.05f, r.intervalWithinBatch);
@@ -110,13 +116,14 @@ namespace Massive.Enemies
         private void FinishBatch(BatchState state)
         {
             if (state.telegraph) state.telegraph.Complete();
-            state.telegraph = null; state.pending = 0; state.blocked = 0f; state.hasAnchor = false;
+            state.telegraph = null; state.pending = 0; state.unannounced = 0; state.blocked = 0f; state.hasAnchor = false;
             // Preserve completion-to-next-unit cadence where possible; the full warning always wins.
             state.remaining = Mathf.Max(0f, state.rule.DelayAt(GameplayAge) - state.rule.WarningSeconds);
         }
 
         private void CancelBatchTelegraphs()
         {
+            _reservedSpawns.Clear();
             foreach (var state in _batches)
                 if (state.pending > 0 || state.hasAnchor) FinishBatch(state);
             foreach (var warning in _telegraphs) if (warning) warning.Cancel();
@@ -127,6 +134,12 @@ namespace Massive.Enemies
         {
             position = default;
             if (!CanSpawnEnemy(def, cap) || !TryFindSpawnPosition(def, clusterCenter, clusterRadius, out position)) return false;
+            SpawnAt(def, position);
+            return true;
+        }
+
+        private void SpawnAt(EnemyDefinition def, Vector3 position)
+        {
             var go = Instantiate(def.prefab, position, def.prefab.transform.rotation, enemyRoot);
             if (go.TryGetComponent<Rigidbody>(out var rb))
             {
@@ -137,17 +150,27 @@ namespace Massive.Enemies
             if (enemy == null) enemy = go.AddComponent<EnemyBase>();
             enemy.Init(def, this); RegisterEnemy(enemy); TotalSpawned++;
             if (_cachedAnomalyRunning && spawnProfile.freezeExistingEnemiesDuringAnomalies) enemy.Pause(true);
-            return true;
         }
 
-        private bool CanSpawnEnemy(EnemyDefinition def, int cap)
+        private Vector3 SpawnWorldScale(EnemyDefinition def) => Vector3.Scale(def.prefab.transform.localScale,
+            enemyRoot ? enemyRoot.lossyScale : Vector3.one);
+
+        private bool CanSpawnEnemy(EnemyDefinition def, int cap, ReservedSpawn ownReservation = null)
         {
             if (spawnProfile == null || !spawnProfile.enabled || def == null || def.prefab == null || arenaBounds == null) return false;
             if (_matchPaused || (_cachedAnomalyRunning && !spawnProfile.allowSpawningDuringAnomalies)) return false;
-            if (spawnProfile.maxAliveTotal > 0 && _alive.Count >= spawnProfile.maxAliveTotal) return false;
+            int reservedTotal = 0, reservedType = 0, reservedCategory = 0;
+            foreach (var reservation in _reservedSpawns)
+            {
+                if (reservation == ownReservation) continue;
+                reservedTotal++;
+                if (reservation.enemy == def) reservedType++;
+                if (reservation.enemy.category == def.category) reservedCategory++;
+            }
+            if (spawnProfile.maxAliveTotal > 0 && _alive.Count + reservedTotal >= spawnProfile.maxAliveTotal) return false;
             _aliveByDef.TryGetValue(def, out int count);
             int effectiveCap = cap <= 0 ? def.maxAliveOverride : def.maxAliveOverride <= 0 ? cap : Mathf.Min(cap, def.maxAliveOverride);
-            if (effectiveCap > 0 && count >= effectiveCap || !CategoryCapAllows(def.category)) return false;
+            if (effectiveCap > 0 && count + reservedType >= effectiveCap || !CategoryCapAllows(def.category, reservedCategory)) return false;
             return true;
         }
 
@@ -175,20 +198,31 @@ namespace Massive.Enemies
                         Mathf.Lerp(rect.yMin, rect.yMax, (float)_placementRandom.NextDouble())));
                 }
                 else if (!TrySamplePointInArena(clearance, out p)) continue;
-                if (placementRegion != null && !placementRegion.IsValidCached(p, clearance, out _)) continue;
-                if (!IsSpawnPointClear(p, clearance) || !IsFarEnoughFromPlayers(p)) continue;
-                // Trigger-only Drones also reserve space, independently of the optional physics mask.
-                bool occupied = false;
-                foreach (var live in _alive)
-                {
-                    if (live == null) continue;
-                    float separation = clearance + (live.Definition != null ? live.Definition.spawnRadiusWorld : clearance);
-                    if ((live.transform.position - p).sqrMagnitude < separation * separation) { occupied = true; break; }
-                }
-                if (occupied) continue;
+                if (!IsPlacementClear(def, p, null)) continue;
                 position = p; return true;
             }
             return false;
+        }
+
+        private bool IsPlacementClear(EnemyDefinition def, Vector3 p, ReservedSpawn ownReservation)
+        {
+            float clearance = Mathf.Max(spawnCheckRadiusWorld, def.spawnRadiusWorld);
+            if (!arenaBounds.ContainsWorldPoint(p, borderBufferWorld + clearance)) return false;
+            if (placementRegion != null && !placementRegion.IsValidCached(p, clearance, out _)) return false;
+            if (!IsSpawnPointClear(p, clearance) || !IsFarEnoughFromPlayers(p)) return false;
+            foreach (var live in _alive)
+            {
+                if (live == null) continue;
+                float separation = clearance + (live.Definition != null ? live.Definition.spawnRadiusWorld : clearance);
+                if ((live.transform.position - p).sqrMagnitude < separation * separation) return false;
+            }
+            foreach (var reservation in _reservedSpawns)
+            {
+                if (reservation == ownReservation) continue;
+                float separation = clearance + Mathf.Max(spawnCheckRadiusWorld, reservation.enemy.spawnRadiusWorld);
+                if ((reservation.position - p).sqrMagnitude < separation * separation) return false;
+            }
+            return true;
         }
     }
 }
