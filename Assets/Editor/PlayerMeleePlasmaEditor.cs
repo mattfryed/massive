@@ -200,7 +200,13 @@ internal static class PlayerMeleePlasmaPreviewGUI
         new GUIContent("Volumetric — black & white")
     };
     private static readonly int[] SweepValues = { 0, 1 };
-    private static readonly string[] StageNames = { "1 — Thrust", "2 — Sweep", "3 — Finisher" };
+    private static readonly GUIContent[] RepulsorNames =
+    {
+        new GUIContent("Volumetric outward pulse"), new GUIContent("Plasma ring comparison"),
+        new GUIContent("Off")
+    };
+    private static readonly int[] RepulsorValues = { 0, 1, 2 };
+    private static readonly string[] StageNames = { "1 — Thrust", "2 — Sweep", "3 — Repulsor" };
 
     public static void DrawStyle(SerializedObject serialized)
     {
@@ -221,6 +227,17 @@ internal static class PlayerMeleePlasmaPreviewGUI
                 int sweepValue = EditorGUILayout.IntPopup(new GUIContent("Sweep treatment", "Compare the assigned sweep prefab with a black and white 3D density volume. Thrust and finisher keep their own treatments."),
                     sweep.intValue, SweepNames, SweepValues);
                 if (EditorGUI.EndChangeCheck()) sweep.intValue = sweepValue;
+            }
+        }
+        if (property.intValue == 1 || property.intValue == 3)
+        {
+            var repulsor = serialized.FindProperty("repulsorTreatment");
+            if (repulsor != null)
+            {
+                EditorGUI.BeginChangeCheck();
+                int repulsorValue = EditorGUILayout.IntPopup(new GUIContent("Repulsor treatment", "Third-stage energy presentation. Body feedback and grid response have separate controls on their own components."),
+                    repulsor.intValue, RepulsorNames, RepulsorValues);
+                if (EditorGUI.EndChangeCheck()) repulsor.intValue = repulsorValue;
             }
         }
     }
@@ -264,14 +281,19 @@ internal static class PlayerMeleePlasmaPreviewGUI
                 plasma.ScrubPreview(selectedStage, frame);
                 RefreshViews();
             }
-            if ((int)plasma.visualStyle == 3 && (selectedStage == 0 ||
-                (selectedStage == 1 && (int)plasma.arcSweepTreatment == 1)))
+            bool repulsorAftermath = selectedStage == 2 &&
+                ((int)plasma.visualStyle == 1 || (int)plasma.visualStyle == 3) &&
+                plasma.repulsorTreatment == RepulsorVisualTreatment.VolumetricPulse;
+            if (repulsorAftermath || ((int)plasma.visualStyle == 3 && (selectedStage == 0 ||
+                (selectedStage == 1 && (int)plasma.arcSweepTreatment == 1))))
             {
                 string tooltip = selectedStage == 0
                     ? "Inspect the thrust's visual tail after the attack stage ends: 0 is the stage end, 1 is the end of Thrust Linger. This tail deals no damage."
+                    : selectedStage == 2
+                    ? "Inspect the Repulsor after its active window closes: 0 is the end of the physical pulse, 1 is the end of Pulse Linger. This tail deals no damage."
                     : "Inspect the sweep's visual tail after the damage window closes: 0 is the end of the active window, 1 is the end of World-space Linger. This tail deals no damage.";
                 bool matchingPreview = selectedStage == plasma.PreviewStage &&
-                    (selectedStage == 0 ? plasma.IsThrustTrailPreview : plasma.IsVolumeSweepPreview);
+                    (selectedStage == 0 ? plasma.IsThrustTrailPreview : selectedStage == 2 ? plasma.IsRepulsorPulsePreview : plasma.IsVolumeSweepPreview);
                 EditorGUI.BeginChangeCheck();
                 float aftermath = EditorGUILayout.Slider(new GUIContent("Scrub lingering trail", tooltip),
                     matchingPreview ? plasma.PreviewAftermathNormalizedTime : 0f, 0f, 1f);
@@ -349,7 +371,7 @@ internal static class PlayerMeleePlasmaPreviewGUI
         int value = style != null ? style.intValue : 0;
         if (value == 3)
         {
-            EditorGUILayout.HelpBox("Thrust keeps its assigned prefab. Use Sweep treatment above to compare the sweep prefab with a black and white volume. The finisher keeps the existing plasma ring study.", MessageType.None);
+            EditorGUILayout.HelpBox("Thrust, Sweep and Repulsor have separate treatments. The Repulsor expands from the player outline during its physical activation window, then briefly fades in world space.", MessageType.None);
             DrawPrefabEffect(serialized, "thrustPrefabEffect", "Thrust", "Prick 5");
             EditorGUILayout.LabelField("Thrust trail — visual only", EditorStyles.miniBoldLabel);
             DrawField(serialized, "thrustWorldEmission", "World-space Emission", "The emitter follows the player's current position and aim. Emitted particles keep their world-space position and heading as the player moves.");
@@ -372,13 +394,14 @@ internal static class PlayerMeleePlasmaPreviewGUI
             else
                 DrawPrefabEffect(serialized, "swipePrefabEffect", "Sweep", "Sword Slash 5");
             EditorGUILayout.Space(8);
+            DrawRepulsor(serialized);
+            EditorGUILayout.Space(8);
             EditorGUILayout.LabelField("Shared placement and attack phases", EditorStyles.boldLabel);
             DrawField(serialized, "surfaceHeight", "Surface Height", "Height of the attack visual above the playing field.");
             DrawField(serialized, "windupOpacity", "Windup Opacity", "Prefab-effect visibility before the damage window opens, including Prick 5. Volumetric tendrils begin at the damage window's start.");
             DrawField(serialized, "recoveryOpacity", "Recovery Opacity", "Prefab-effect visibility during attack recovery. After the thrust stage ends, its remaining particles use Thrust Linger (s) and Thrust Fade Curve. The volumetric sweep uses World-space Linger (s) and Fade Curve.");
             if (sweep != null && sweep.intValue == 1)
                 EditorGUILayout.HelpBox("Windup Opacity and Recovery Opacity adjust Prick 5 during its stage; its aftermath uses Thrust Linger (s) and Thrust Fade Curve. Volumetric tendrils begin when the damage window opens and use World-space Linger (s) and Fade Curve.", MessageType.None);
-            DrawField(serialized, "plasmaMaterial", "Finisher Material", "Shared material used by the unchanged finisher plasma ring study.");
             DrawReferences(serialized);
             return;
         }
@@ -391,6 +414,8 @@ internal static class PlayerMeleePlasmaPreviewGUI
             return;
         }
 
+        DrawRepulsor(serialized);
+        EditorGUILayout.Space(8);
         var iterator = serialized.GetIterator();
         bool children = true;
         while (iterator.NextVisible(children))
@@ -400,9 +425,47 @@ internal static class PlayerMeleePlasmaPreviewGUI
                 iterator.name == "previewPlaybackSpeed" || iterator.name == "previewRepeatDelay" ||
                 iterator.name == "thrustPrefabEffect" || iterator.name == "swipePrefabEffect" ||
                 iterator.name.StartsWith("thrust", System.StringComparison.Ordinal) ||
-                iterator.name == "arcSweepTreatment" || iterator.name.StartsWith("volume", System.StringComparison.Ordinal)) continue;
+                iterator.name == "arcSweepTreatment" || iterator.name.StartsWith("volume", System.StringComparison.Ordinal) ||
+                iterator.name == "repulsorTreatment" || iterator.name.StartsWith("repulsorPulse", System.StringComparison.Ordinal)) continue;
             EditorGUILayout.PropertyField(iterator, true);
         }
+    }
+
+    private static void DrawRepulsor(SerializedObject serialized)
+    {
+        EditorGUILayout.LabelField("Repulsor — outward energy pulse", EditorStyles.boldLabel);
+        var treatment = serialized.FindProperty("repulsorTreatment");
+        if (treatment == null) return;
+        if (treatment.intValue == 2)
+        {
+            EditorGUILayout.HelpBox("Repulsor energy is off. Body pulse and grid response remain independently adjustable on Player Repulsor Feedback and Player Repulsor Grid Pulse.", MessageType.None);
+            return;
+        }
+        if (treatment.intValue == 1)
+        {
+            EditorGUILayout.HelpBox("Flat plasma ring comparison. Select Volumetric outward pulse above for the new three-dimensional energy treatment.", MessageType.None);
+            DrawField(serialized, "plasmaMaterial", "Ring Material", "Material used by the comparison ring.");
+            DrawField(serialized, "repulsorBandWidth", "Ring Width", "Thickness of the comparison ring; visual only.");
+            return;
+        }
+        EditorGUILayout.HelpBox("A full-circle volume begins at the player outline when the Repulsor activates, follows the physical pulse radius and briefly lingers at its release position. Radius and expansion timing come from the attack profile. The lingering effect deals no damage.", MessageType.None);
+        DrawField(serialized, "repulsorPulseMaterial", "Pulse Material Override", "Optional. The bundled MeleeRepulsor shader supplies the default material automatically.");
+        DrawSlider(serialized, "repulsorPulseWidth", "Pulse Width", .035f, .5f, "Radial width of the energy around the physical pulse. Scales with Player Size.");
+        DrawSlider(serialized, "repulsorPulseThickness", "Pulse Depth", .025f, .6f, "Three-dimensional thickness above and below the playing plane. Scales with Player Size.");
+        DrawSlider(serialized, "repulsorPulseDensity", "Density", .1f, 6f, "Opacity of the dark body and luminous channels.");
+        DrawSlider(serialized, "repulsorPulseTurbulence", "Turbulence", 0f, .4f, "Irregular displacement of the ring and its internal flowing strands.");
+        DrawSlider(serialized, "repulsorPulseBreakup", "Local Breakup", 0f, 1f, "Contrast between active regions and quieter gaps around the circle.");
+        DrawSlider(serialized, "repulsorPulseFlow", "Internal Flow", 0f, 5f, "Motion inside the pulse, independent of physical expansion and preview playback speed.");
+        DrawSlider(serialized, "repulsorPulseLinger", "Pulse Linger (s)", 0f, 1f, "Visual lifetime after the active window closes. The pulse remains anchored at its release position.");
+        DrawSlider(serialized, "repulsorPulseFade", "Pulse Fade Curve", .5f, 4f, "Shapes the fade of the lingering pulse.");
+        EditorGUILayout.LabelField("Black and white layers", EditorStyles.miniBoldLabel);
+        DrawField(serialized, "repulsorPulseBlackBody", "Black Body", "Dark three-dimensional matter between the hot channels.");
+        DrawField(serialized, "repulsorPulseWhiteEdge", "White Edge", "Fine bright strands near the outer edge.");
+        DrawSlider(serialized, "repulsorPulseEdgeIntensity", "Edge Intensity", 0f, 2f, "Brightness of the white edge strands.");
+        DrawField(serialized, "repulsorPulseFilaments", "Internal Filaments", "Twisting luminous channels within the volume.");
+        DrawSlider(serialized, "repulsorPulseFilamentIntensity", "Filament Intensity", 0f, 2f, "Brightness of the internal channels.");
+        DrawField(serialized, "repulsorPulseWisps", "Fine Wisps", "Localized curls surrounding the main pulse.");
+        DrawSlider(serialized, "repulsorPulseWispIntensity", "Wisp Intensity", 0f, 1f, "Brightness of the optional fine wisps.");
     }
 
     private static void DrawVolumetricSweep(SerializedObject serialized)

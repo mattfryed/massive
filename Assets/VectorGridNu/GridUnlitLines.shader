@@ -26,6 +26,7 @@ Shader "MASSIVE/GridUnlitLines"
           #include "UnityCG.cginc"
           #include "GridCurveSampling.hlsl"
           #include "AmplifierGridTreatment.hlsl"
+          #include "RepulsorGridPulse.hlsl"
           float4 _LineColor;
           float _LinePixelWidth;   // kept for future AA work
           float _DispBrightness;
@@ -60,6 +61,7 @@ Shader "MASSIVE/GridUnlitLines"
               float3 displaced = SampleSimPosExtended(presentedUV);
               float3 flat = FlatPositionFromUV(presentedUV);
               displaced = AmpDisplace(displaced, flat.xy);
+              displaced = RepulsorDisplace(displaced, flat.xy);
 
               o.dispMag = length(displaced - flat);
               o.pos = UnityObjectToClipPos(float4(displaced, 1));
@@ -115,6 +117,7 @@ Shader "MASSIVE/GridUnlitLines"
 
             #include "GridCurveSampling.hlsl"
             #include "AmplifierGridTreatment.hlsl"
+            #include "RepulsorGridPulse.hlsl"
             int _BorderOnly;
             float4 _BorderColor;
             float  _BorderHalfWidth;
@@ -148,6 +151,9 @@ Shader "MASSIVE/GridUnlitLines"
                 pPrev = AmpDisplace(pPrev, FlatPositionFromUV(v.uv - h).xy);
                 pCurr = AmpDisplace(pCurr, FlatPositionFromUV(v.uv).xy);
                 pNext = AmpDisplace(pNext, FlatPositionFromUV(v.uv + h).xy);
+                pPrev = RepulsorDisplace(pPrev, FlatPositionFromUV(v.uv - h).xy);
+                pCurr = RepulsorDisplace(pCurr, FlatPositionFromUV(v.uv).xy);
+                pNext = RepulsorDisplace(pNext, FlatPositionFromUV(v.uv + h).xy);
 
                 float2 td = (pNext.xy - pPrev.xy);
                 float  L2 = max(1e-12, dot(td, td));

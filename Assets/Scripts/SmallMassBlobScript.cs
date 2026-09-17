@@ -1,6 +1,7 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using Massive.Player;
 
 public class SmallMassBlobScript : MonoBehaviour
 {
@@ -10,12 +11,36 @@ public class SmallMassBlobScript : MonoBehaviour
     private GameObject child;
     private float timeToAutoKill = 30f;
     private float bornTime;
+    private Vector3 authoredVisualScale;
+    private bool visualScaleCaptured;
+    private float visualSize = 1f;
     // Start is called before the first frame update
 
 
     private void Awake()
     {
         bornTime = Time.time;
+        CaptureVisualScale();
+    }
+
+    /// <summary>Sets a launch-time visual size without changing travel forces or lifetime.</summary>
+    public void ConfigureVisualSize(float size)
+    {
+        CaptureVisualScale();
+        visualSize = Mathf.Max(0.01f, size);
+        transform.localScale = authoredVisualScale * visualSize;
+        foreach (ParticleSystem particles in GetComponentsInChildren<ParticleSystem>(true))
+        {
+            var main = particles.main;
+            main.scalingMode = ParticleSystemScalingMode.Hierarchy;
+        }
+    }
+
+    private void CaptureVisualScale()
+    {
+        if (visualScaleCaptured) return;
+        authoredVisualScale = transform.localScale;
+        visualScaleCaptured = true;
     }
     void Start()
     {
@@ -75,7 +100,14 @@ public class SmallMassBlobScript : MonoBehaviour
             gameObject.GetComponent<Rigidbody>().AddForce(direction.normalized * 25f);
 
             // if distance is close enough to target, destroy this blob
-            if (direction.magnitude < .48f)
+            PlayerControllerScript targetPlayer = target.GetComponentInParent<PlayerControllerScript>();
+            float arrivalDistance = .48f;
+            if (targetPlayer != null)
+            {
+                float bodyRadius = PlayerScaleAdjuster.BodyRadiusOf(targetPlayer);
+                if (bodyRadius > 0f) arrivalDistance = bodyRadius * .96f;
+            }
+            if (direction.magnitude < arrivalDistance)
             {
                 Destroy(gameObject);
             }
@@ -100,7 +132,7 @@ public class SmallMassBlobScript : MonoBehaviour
         {
             // just fade out until ya gone
             transform.localScale *= .97f;
-            if (transform.localScale.x < .1f)
+            if (transform.localScale.x < .1f * visualSize)
             {
                 Destroy(gameObject);
             }

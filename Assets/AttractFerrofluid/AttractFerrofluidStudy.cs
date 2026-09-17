@@ -31,12 +31,19 @@ namespace Massive.AttractStudy
         public Texture2D logoDistanceField;
         public Transform originalLogo;
         [Range(.25f,1.3f)] public float logoScale=1;
+        [Tooltip("Extra space between letters, as a fraction of the original word width. Zero preserves the original spacing."),Range(-.008f,.06f)]
+        public float logoLetterSpacing;
         [Range(1.5f,2.9f)] public float logoArcWidth=2.2f;
         [Range(-.4f,.4f)] public float logoElevation=.12f;
         [Range(0,.03f)] public float logoRecess=.016f;
         [Range(0,1)] public float logoSurfaceFlow=1;
         [Tooltip("How much the white letter floor follows the mounds. Zero keeps it stable; one follows the full surface motion."),Range(0,1)]
         public float logoTypeFlow=0;
+        [Header("Lettering arrival")]
+        public bool animateLogoArrival=true;
+        [Min(0)] public float logoArrivalDelay=.25f;
+        [Min(.1f)] public float logoArrivalDuration=3;
+        public float LogoRevealProgress=>!animateLogoArrival?1:Mathf.Clamp01((logoArrivalElapsed-Mathf.Max(0,logoArrivalDelay))/Mathf.Max(.1f,logoArrivalDuration));
         public bool LogoIsEmbedded=>useFerrofluid && embeddedLogo && logoDistanceField!=null && originalLogo!=null;
         public Vector2 AttractionTarget {get;private set;}
         public Vector2 SmoothedAttraction=>attraction.Position;
@@ -45,6 +52,7 @@ namespace Massive.AttractStudy
 #if UNITY_EDITOR
         // Recording supplies the same per-player movement values as the input boundary.
         public System.Func<IReadOnlyList<Vector2>> PreviewInputProvider {get;set;}
+        public float? PreviewArrivalDeltaTime {get;set;}
 #endif
         public float AnimationTime {get;private set;}
         public Renderer SurfaceRenderer {get;private set;}
@@ -62,11 +70,15 @@ namespace Massive.AttractStudy
         Renderer[] logoRenderers;
         bool[] logoRendererStates;
         Vector3 logoRight,logoUp,logoFront;
+        float logoArrivalElapsed;
+        bool logoWasEmbedded;
         static readonly int TimeId=Shader.PropertyToID("_FluidTime"),DensityId=Shader.PropertyToID("_Density"),ReliefId=Shader.PropertyToID("_Relief"),WetnessId=Shader.PropertyToID("_Wetness");
         static readonly int RimWidthId=Shader.PropertyToID("_RimWidth"),RimAngleId=Shader.PropertyToID("_RimAngle");
         static readonly int AttractionId=Shader.PropertyToID("_Attraction");
         static readonly int LogoFieldId=Shader.PropertyToID("_LogoField"),LogoSettingsId=Shader.PropertyToID("_LogoSettings");
         static readonly int LogoEnabledId=Shader.PropertyToID("_LogoEnabled");
+        static readonly int LogoSpacingId=Shader.PropertyToID("_LogoSpacing");
+        static readonly int LogoRevealId=Shader.PropertyToID("_LogoReveal");
         static readonly int LogoFlowId=Shader.PropertyToID("_LogoFlow");
         static readonly int LogoTypeFlowId=Shader.PropertyToID("_LogoTypeFlow");
         static readonly int LogoMeshGuardId=Shader.PropertyToID("_LogoMeshGuard");
@@ -83,6 +95,7 @@ namespace Massive.AttractStudy
             if(surfaceShader==null)surfaceShader=Shader.Find("MASSIVE/Study/Attract Ferrofluid");
             if(surfaceShader==null){Debug.LogError("[Attract Ferrofluid] Missing surface shader.",this);enabled=false;return;}
             AnimationTime=0;
+            ReplayLogoArrival();logoWasEmbedded=LogoIsEmbedded;
             attraction.Reset();AttractionTarget=Vector2.zero;AttractionOffset=Vector3.zero;ActiveInputPlayers=0;
             inputCamera=attractionCamera!=null?attractionCamera:Camera.main;
             // Capture the orientation once: the imprint belongs to the surface,
@@ -109,9 +122,18 @@ namespace Massive.AttractStudy
             if(SurfaceRenderer==null)CreateSurface();
             if(SurfaceRenderer==null)return;
             AnimationTime+=Time.deltaTime*Mathf.Max(0,motionSpeed);
+            // Arrival uses menu time, independently of surface speed or a time
+            // scale inherited from gameplay. Cap stalls so the reveal stays visible.
+            float arrivalDelta=Time.unscaledDeltaTime;
+#if UNITY_EDITOR
+            if(PreviewArrivalDeltaTime.HasValue)arrivalDelta=PreviewArrivalDeltaTime.Value;
+#endif
+            if(LogoIsEmbedded!=logoWasEmbedded){ReplayLogoArrival();logoWasEmbedded=LogoIsEmbedded;}
+            if(LogoIsEmbedded)logoArrivalElapsed+=Mathf.Clamp(arrivalDelta,0,.05f);
             UpdateAttraction(Time.deltaTime);Apply();
             UpdateLogoVisibility();
         }
+        public void ReplayLogoArrival(){logoArrivalElapsed=0;}
         IReadOnlyList<Vector2> ReadPlayerSticks()
         {
 #if UNITY_EDITOR
@@ -153,6 +175,8 @@ namespace Massive.AttractStudy
             float width=Mathf.Clamp(Mathf.Clamp(logoArcWidth,1.5f,2.9f)*Mathf.Clamp(logoScale,.25f,1.3f),.375f,2.9f);
             float height=logoDistanceField!=null?width*logoDistanceField.height/logoDistanceField.width:.5f;
             properties.SetFloat(LogoEnabledId,LogoIsEmbedded?1:0);
+            properties.SetFloat(LogoSpacingId,Mathf.Clamp(logoLetterSpacing,-.008f,.06f));
+            properties.SetFloat(LogoRevealId,LogoRevealProgress);
             properties.SetFloat(LogoFlowId,Mathf.Clamp01(logoSurfaceFlow));
             properties.SetFloat(LogoTypeFlowId,Mathf.Clamp01(logoTypeFlow));
             // Use the actual mesh, since changing resolution takes effect on enable.
@@ -191,10 +215,12 @@ namespace Massive.AttractStudy
             Dispose(visual);Dispose(mesh);Dispose(material);
             visual=null;mesh=null;material=null;SurfaceRenderer=null;properties=null;AnimationTime=0;
             original=null;
+            logoArrivalElapsed=0;logoWasEmbedded=false;
             attraction.Reset();AttractionTarget=Vector2.zero;AttractionOffset=Vector3.zero;ActiveInputPlayers=0;
             playerSticks.Clear();horizontalAction=-1;verticalAction=-1;inputCamera=null;
 #if UNITY_EDITOR
             PreviewInputProvider=null;
+            PreviewArrivalDeltaTime=null;
 #endif
         }
         static void Dispose(Object item){if(item==null)return;if(Application.isPlaying)Destroy(item);else DestroyImmediate(item);}

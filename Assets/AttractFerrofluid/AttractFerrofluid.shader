@@ -12,6 +12,8 @@ Shader "MASSIVE/Study/Attract Ferrofluid"
         _WhiteDominant("White mounds with black valleys",Float)=0
         _LogoField("Logo signed distance",2D)="black"{}
         _LogoEnabled("Embedded lettering enabled",Float)=0
+        _LogoSpacing("Letter spacing",Float)=0
+        _LogoReveal("Lettering arrival",Range(0,1))=1
         _LogoFlow("Letter ridge undulation",Range(0,1))=1
         _LogoTypeFlow("White type undulation",Range(0,1))=0
         _LogoMeshGuard("Letter floor geometry margin",Float)=.025
@@ -33,32 +35,48 @@ Shader "MASSIVE/Study/Attract Ferrofluid"
             #pragma domain domain
             #pragma fragment frag
             #include "UnityCG.cginc"
-            float _Density,_Relief,_Wetness,_FluidTime,_RimWidth,_RimAngle,_LogoEnabled,_LogoFlow,_LogoTypeFlow,_LogoMeshGuard,_WhiteDominant;
+            float _Density,_Relief,_Wetness,_FluidTime,_RimWidth,_RimAngle,_LogoEnabled,_LogoFlow,_LogoTypeFlow,_LogoMeshGuard,_WhiteDominant,_LogoSpacing;
             float4 _Attraction;
             sampler2D _LogoField;
             float4 _LogoSettings,_LogoRight,_LogoUp,_LogoFront;
             float4 _LogoField_TexelSize;
+            float _LogoReveal;
             struct appdata{float4 vertex:POSITION;};
             struct controlPoint{float4 vertex:INTERNALTESSPOS;};
             struct tessFactors{float edge[3]:SV_TessFactor;float inside:SV_InsideTessFactor;};
             // Sample-frequency interpolation lets the camera's existing MSAA
             // resolve our internal hard borders, not just triangle silhouettes.
             // Each sample remains opaque pure black or pure white.
-            struct v2f{float4 position:SV_POSITION;sample float3 viewNormal:TEXCOORD0;sample float3 viewPosition:TEXCOORD1;sample float3 viewRadial:TEXCOORD2;sample float3 localRadial:TEXCOORD3;sample float3 shoulderRadial:TEXCOORD4;sample float moundHeight:TEXCOORD5;};
+            struct v2f{float4 position:SV_POSITION;sample float3 viewNormal:TEXCOORD0;sample float3 viewPosition:TEXCOORD1;sample float3 viewRadial:TEXCOORD2;sample float3 localRadial:TEXCOORD3;sample float3 shoulderRadial:TEXCOORD4;sample float moundHeight:TEXCOORD5;sample float floorReached:TEXCOORD6;};
 
-            float logoDistance(float3 n)
+            float logoRestDistance(float3 n)
             {
                 if(_LogoEnabled<.5)return -1;
                 float front=dot(n,_LogoFront.xyz);
                 if(front<=0)return -1;
                 float2 angles=float2(atan2(dot(n,_LogoRight.xyz),front),asin(clamp(dot(n,_LogoUp.xyz),-1,1)));
                 float2 uv=(angles-float2(0,_LogoSettings.z))/_LogoSettings.xy+.5;
-                float outside=length((uv-saturate(uv))*_LogoSettings.xy);
+                float2 bounded=saturate(uv);
+                if(abs(_LogoSpacing)>.000001)
+                {
+                    // Midpoints of the six gaps in MassiveLogoDistance. Translate
+                    // each complete outline, including its recess, without widening
+                    // the glyph or changing its vertical scale.
+                    const float cuts[6]={.1962890625,.3640136719,.5021972656,.6491699219,.7077636719,.8676757813};
+                    int glyph=0;
+                    [unroll]for(int j=0;j<6;j++)
+                        glyph+=uv.x>cuts[j]+(j-2.5)*_LogoSpacing?1:0;
+                    uv.x-=(glyph-3)*_LogoSpacing;
+                    float lo=glyph==0?0:cuts[glyph-1];
+                    float hi=glyph==6?1:cuts[glyph];
+                    bounded=float2(clamp(uv.x,lo,hi),saturate(uv.y));
+                }
+                float outside=length((uv-bounded)*_LogoSettings.xy);
                 if(outside>.2)return -1;
                 // Exact distance to the source mesh outlines, packed as 16 bits
                 // in RG. Linear decoding commutes with bilinear filtering. B
                 // marks the new encoding so older study textures still work.
-                float3 encoded=tex2Dlod(_LogoField,float4(uv,0,0)).rgb;
+                float3 encoded=tex2Dlod(_LogoField,float4(bounded,0,0)).rgb;
                 float value=encoded.b>.99?dot(encoded.rg,float2(256.0/257.0,1.0/257.0)):encoded.r;
                 float range=encoded.b>.99?256:64;
                 // Extend the negative field beyond the texture padding, so the
@@ -67,13 +85,49 @@ Shader "MASSIVE/Study/Attract Ferrofluid"
             }
 
             #include "AttractFerrofluidField.hlsl"
-            float radius(float3 n,out float3 logoN)
+            float arrivalDepth()
+            {
+                // Sink the small initial opening before uncovering its floor.
+                // The outward retreat resumes as soon as this downstroke ends.
+                return smoothstep(.20,.34,saturate(_LogoReveal));
+            }
+            float logoDistance(float3 n)
+            {
+                // At both endpoints this is the original continuous liquid
+                // shell or the exact approved recessed lettering, respectively.
+                if(_LogoReveal<=0)return -1;
+                float d=logoRestDistance(n);
+                if(_LogoReveal>=1 || d<-.2)return d;
+                float p=saturate(_LogoReveal);
+                float opening=p<=.22?.4*smoothstep(.12,.22,p):lerp(.4,1,smoothstep(.34,1,p));
+                float remaining=1-opening;
+                float scale=_LogoSettings.x/2.2;
+                float2 local=float2(dot(n,_LogoRight.xyz),dot(n,_LogoUp.xyz))/max(scale,.1);
+                // Eroding the signed field opens each stroke from its thick
+                // interior. Broad, flowing perturbations leave rounded liquid
+                // scallops at the retreating edge, then disappear completely.
+                float wave=noise(float3(local*32,p*.8+7.3));
+                float detail=noise(float3(local*53+13.7,p*.6+21.1));
+                float retreat=(.048*remaining+.17*pow(remaining,9))*scale;
+                retreat*=clamp(.58+.65*wave+.18*detail,.45,1.55);
+                return d-retreat;
+            }
+            float arrivalCollarSettle()
+            {
+                // The broad resting collar must not announce the whole recess
+                // before any white is exposed. Open with a narrow liquid lip,
+                // then relax into the approved ridge near the end of arrival.
+                return smoothstep(.65,1,saturate(_LogoReveal));
+            }
+            float radius(float3 n,out float3 logoN,out float floorReached)
             {
                 float3 moundSlope;float surface=fluidSurface(n,moundSlope);
                 float3 tangentSlope=moundSlope-n*dot(n,moundSlope);
                 // Transport the outer shoulder only. The inner letter boundary
                 // and the recessed spherical floor keep their original mapping.
                 float transport=.012*min(_LogoSettings.x/2.2,1)*(_Relief/.1)*saturate(_LogoFlow);
+                float collarSettle=arrivalCollarSettle();
+                if(_LogoReveal<1)transport*=lerp(.1,1,collarSettle);
                 logoN=normalize(n+tangentSlope*transport);
                 float bevelScale=_LogoSettings.x/2.2;
                 float d=logoDistance(n);
@@ -85,9 +139,17 @@ Shader "MASSIVE/Study/Attract Ferrofluid"
                 float clearance=.006*bevelScale+.65*_LogoSettings.w;
                 float inner=.006*bevelScale-_LogoMeshGuard-clearance;
                 float outer=inner-.042*bevelScale;
+                if(_LogoReveal<1)
+                {
+                    float partingInner=.006*bevelScale-(.003*bevelScale+.12*_LogoMeshGuard);
+                    outer=lerp(partingInner-.008*bevelScale,outer,collarSettle);
+                    inner=lerp(partingInner,inner,collarSettle);
+                }
                 float shoulder=1-smoothstep(outer,inner,d);
                 float movedDistance=d+clamp(logoDistance(logoN)-d,-.014*bevelScale,.014*bevelScale)*shoulder;
                 float cut=smoothstep(outer,inner,movedDistance);
+                if(_LogoReveal<1)cut*=arrivalDepth();
+                floorReached=cut;
                 float floorRadius=.455+_Relief*.42-_LogoSettings.w;
                 // Independently couple the white floor to the actual mound
                 // heights. Zero preserves the stable type exactly. The same
@@ -96,12 +158,13 @@ Shader "MASSIVE/Study/Attract Ferrofluid"
                 floorRadius=lerp(floorRadius,surface-_LogoSettings.w,saturate(_LogoTypeFlow));
                 return lerp(surface,floorRadius,cut);
             }
+            float radius(float3 n,out float3 logoN){float unused;return radius(n,logoN,unused);}
             float radius(float3 n){float3 unused;return radius(n,unused);}
             controlPoint tessVert(appdata input){controlPoint o;o.vertex=input.vertex;return o;}
             float edgeDetail(float3 a,float3 b)
             {
                 if(_LogoEnabled<.5)return 1;
-                float d=abs(logoDistance(normalize(a+b)));
+                float d=abs(logoRestDistance(normalize(a+b)));
                 float band=.085*_LogoSettings.x/2.2+_LogoMeshGuard;
                 // Only the lettering area receives extra geometry. A shared
                 // edge uses the same midpoint from both triangles, so the
@@ -127,7 +190,7 @@ Shader "MASSIVE/Study/Attract Ferrofluid"
                 const float e=.0015;
                 float3 nt=normalize(n+tangent*e),nb=normalize(n+bitangent*e);
                 float3 mt=normalize(n-tangent*e),mb=normalize(n-bitangent*e);
-                float3 logoN;float r=radius(n,logoN);float3 p=n*r;
+                float3 logoN;float r=radius(n,logoN,o.floorReached);float3 p=n*r;
                 float3 normal=normalize(cross(nt*radius(nt)-mt*radius(mt),nb*radius(nb)-mb*radius(mb)));
                 o.position=UnityObjectToClipPos(float4(p,1));
                 o.viewPosition=UnityObjectToViewPos(float4(p,1));
@@ -173,14 +236,24 @@ Shader "MASSIVE/Study/Attract Ferrofluid"
                 // Team one's small menu spheres expose the same moving relief
                 // as white crests and black valleys. The title keeps its original
                 // reflection treatment; every sample is still opaque black/white.
-                if(_WhiteDominant>.5)white=step(.43,i.moundHeight);
+                if(_WhiteDominant>.5)white=step(.425-saturate(_Wetness)*.06,i.moundHeight);
                 float lettering=logoDistance(normalize(i.localRadial));
                 // Black shoulder and wall separate the white inlay from passing
                 // reflections. There is no translucent decal or text overlay.
                 float bevelScale=_LogoSettings.x/2.2;
                 float shoulder=logoDistance(normalize(i.shoulderRadial));
                 float clearance=.006*bevelScale+.65*_LogoSettings.w;
-                if(shoulder>-.018*bevelScale-_LogoMeshGuard-clearance || lettering>.006*bevelScale)white=step(.006*bevelScale,lettering);
+                float restingBorder=-.018*bevelScale-_LogoMeshGuard-clearance;
+                float partingBorder=-.001*bevelScale-.12*_LogoMeshGuard;
+                float border=restingBorder;
+                if(_LogoReveal<1)border=lerp(partingBorder,restingBorder,arrivalCollarSettle());
+                float letterWhite=step(.006*bevelScale,lettering);
+                // Gate on the actual tessellated surface, interpolated at each
+                // MSAA sample. A white outline alone could run across triangles
+                // still descending into the recess. Keep those liquid-black
+                // until their supporting surface has reached the letter floor.
+                if(_LogoReveal<1)letterWhite*=step(.99999,i.floorReached);
+                if(arrivalDepth()>.01 && (shoulder>border || lettering>.006*bevelScale))white=letterWhite;
                 return float4(white,white,white,1);
             }
             ENDHLSL

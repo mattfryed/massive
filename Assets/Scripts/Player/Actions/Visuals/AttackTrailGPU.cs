@@ -396,6 +396,13 @@ public class AttackTrailGPU : MonoBehaviour
             useStageDuration = 1f;
         }
 
+        // This buffer stores world positions, so hierarchy scale does not reach it.
+        float playerSize = PlayerScaleAdjuster.SizeOf(this);
+        useTrailLength *= playerSize;
+        useBaseWidth *= playerSize;
+        useTipWidth *= playerSize;
+        useForwardSpeed *= playerSize;
+
         // Emit only if we have meaningful stageT (compute won't spawn otherwise)
         bool stageActiveForEmit = (stageT >= 0.02f);
 
@@ -419,8 +426,9 @@ public class AttackTrailGPU : MonoBehaviour
         sim.SetFloat("_TrailDrag", trailDrag);
         sim.SetFloat("_MinLife", useMinLife);
         sim.SetFloat("_MaxLife", useMaxLife);
-        sim.SetFloat("_SizeStart", sizeStart);
-        sim.SetFloat("_SizeEnd", sizeEnd);
+        sim.SetFloat("_SizeStart", sizeStart * playerSize);
+        sim.SetFloat("_SizeEnd", sizeEnd * playerSize);
+        sim.SetFloat("_PlayerSize", playerSize);
         sim.SetFloat("_StageT", stageT);
         sim.SetFloat("_StageDuration", useStageDuration);
 

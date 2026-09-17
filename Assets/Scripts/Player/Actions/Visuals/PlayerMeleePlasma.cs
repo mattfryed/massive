@@ -70,14 +70,16 @@ namespace Massive.Player
             {
                 if (!PreviewActive) return "Stopped";
                 var stage = PreviewAttackStage;
-                if ((IsVolumeSweepPreview || IsThrustTrailPreview) && previewClock > PreviewAftermathStart)
+                if ((IsVolumeSweepPreview || IsThrustTrailPreview || IsRepulsorPulsePreview) && previewClock > PreviewAftermathStart)
                     return "World-space trail — no hitbox";
                 if (stage == null) return "No attack profile";
-                return PreviewNormalizedTime < stage.ActivationStartNormalized ? "Windup" :
-                    PreviewNormalizedTime <= stage.ActivationEndNormalized ? "Active" : "Recovery";
+                float start = stage.StageType == AttackStageType.FinisherRepulsor ? RepulsorActivationStart(stage) : stage.ActivationStartNormalized;
+                float end = stage.StageType == AttackStageType.FinisherRepulsor ? RepulsorActivationEnd(stage) : stage.ActivationEndNormalized;
+                return PreviewNormalizedTime < start ? "Windup" : PreviewNormalizedTime <= end ? "Active" : "Recovery";
             }
         }
-        public bool IsRendering => (ribbonRenderer && ribbonRenderer.enabled) || PrefabEffectIsRendering || VolumeArcIsRendering || ThrustTrailIsRendering;
+        public bool IsRendering => (ribbonRenderer && ribbonRenderer.enabled) || PrefabEffectIsRendering || VolumeArcIsRendering || ThrustTrailIsRendering || RepulsorPulseIsRendering;
+        float PlayerVisualSize => PlayerScaleAdjuster.SizeOf(this);
 
         PlayerControllerScript owner;
         PlayerVisualController playerVisuals;
@@ -120,7 +122,9 @@ namespace Massive.Player
         {
             if (!attackController) attackController = GetComponent<PlayerAttackController>();
             owner = GetComponent<PlayerControllerScript>();
-            playerVisuals = GetComponent<PlayerVisualController>();
+            playerVisuals = GetComponentInChildren<PlayerVisualController>(true);
+            repulsorBodyFeedback = GetComponent<PlayerRepulsorFeedback>();
+            repulsorGridFeedback = GetComponent<PlayerRepulsorGridPulse>();
             legacyTrail = GetComponent<AttackTrailGPU>();
             repulsor = GetComponentInChildren<PlayerRepulsorAOE>(true);
             if (repulsor) repulsorCollider = repulsor.GetComponent<SphereCollider>();
@@ -163,8 +167,11 @@ namespace Massive.Player
                 EndVolumeAttackTracking();
             if (!attackController.IsAttacking || attackController.CurrentStage == null || attackController.CurrentStage.StageType != AttackStageType.PrimaryLunge)
                 EndThrustAttackTracking();
+            if (!attackController.IsAttacking || attackController.CurrentStage == null || attackController.CurrentStage.StageType != AttackStageType.FinisherRepulsor)
+                EndRepulsorPulseTracking();
             TickVolumeAftermath(Time.time);
             TickThrustAftermath(Time.time);
+            TickRepulsorPulseAftermath(Time.time);
             if (!attackController.IsAttacking)
             { HideNonVolume(); return; }
             RenderStage(attackController.CurrentStage, attackController.StageNormalizedTime,
@@ -229,6 +236,14 @@ namespace Massive.Player
 
         void RenderStage(AttackStage stage, float t, Vector3 direction, int swipeSign, float clock, bool preview)
         {
+            if (!UsesRepulsorPulse || (preview && (stage == null || stage.StageType != AttackStageType.FinisherRepulsor))) HideRepulsorPulses();
+            if (stage != null && stage.StageType == AttackStageType.FinisherRepulsor && repulsorTreatment != RepulsorVisualTreatment.PlasmaRing)
+            {
+                HideNonVolume();
+                if (preview) { HideVolumeArc(); HideThrustTrails(); }
+                if (repulsorTreatment == RepulsorVisualTreatment.VolumetricPulse) RenderRepulsorPulse(stage, t, clock, preview);
+                return;
+            }
             if (stage != null && visualStyle == MeleeVisualStyle.SwordSlashes && stage.StageType == AttackStageType.PrimaryLunge)
             {
                 HideNonVolume();
@@ -256,7 +271,9 @@ namespace Massive.Player
             if (stage == null || (visualStyle != MeleeVisualStyle.Plasma && visualStyle != MeleeVisualStyle.SwordSlashes) || !plasmaMaterial) { HideNonVolume(); return; }
             if (!preview && stage.StageType == AttackStageType.FinisherRepulsor && (!repulsor || !repulsor.isActiveAndEnabled)) { HideNonVolume(); return; }
             bool ring = stage.StageType == AttackStageType.FinisherRepulsor && (preview || repulsor);
-            float start = stage.ActivationStartNormalized, end = stage.ActivationEndNormalized;
+            float start = ring ? RepulsorActivationStart(stage) : stage.ActivationStartNormalized;
+            float end = ring ? RepulsorActivationEnd(stage) : stage.ActivationEndNormalized;
+            if (ring && t < start) { HideNonVolume(); return; }
             float forming = start > .0001f ? Mathf.Clamp01(t / start) : 1;
             float recovering = Mathf.Clamp01((t - end) / Mathf.Max(.001f, 1 - end));
             float opacity = t < start ? windupOpacity * forming : t <= end ? 1 : recoveryOpacity * (1 - recovering);
@@ -265,8 +282,9 @@ namespace Massive.Player
             direction.y = 0;
             direction = direction.sqrMagnitude > .0001f ? direction.normalized : Vector3.right;
             Vector3 origin = playerVisuals && playerVisuals.visuals ? playerVisuals.visuals.position : transform.position;
-            origin.y += surfaceHeight;
-            float reach = 1.725f, radius = .25f;
+            float playerSize = PlayerVisualSize;
+            origin.y += surfaceHeight * playerSize;
+            float reach = 1.725f * playerSize, radius = .25f * playerSize;
             if (meleeExtent)
             {
                 var axis = meleeExtent.direction == 0 ? Vector3.right : meleeExtent.direction == 1 ? Vector3.up : Vector3.forward;
@@ -281,11 +299,13 @@ namespace Massive.Player
             float extent = Mathf.Lerp(.35f, 1, forming) * (1 - .3f * recovering);
             float halfWidth = radius * widthScale / .69f;
             float activeT = Mathf.Clamp01((t - start) / Mathf.Max(.001f, end - start));
-            float ringRadius = ring ? stage.RepulsorMaxRadius * Mathf.Clamp01(stage.RepulsorRadiusCurve != null ? stage.RepulsorRadiusCurve.Evaluate(activeT) : activeT) : 0;
+            float ringStart = ring ? RepulsorOutlineRadius(preview ? stage : null) : 0f;
+            float ringRadius = ring ? Mathf.Lerp(ringStart, Mathf.Max(ringStart, stage.RepulsorMaxRadius * playerSize),
+                Mathf.Clamp01(stage.RepulsorRadiusCurve != null ? stage.RepulsorRadiusCurve.Evaluate(activeT) : activeT)) : 0;
             if (ring && !preview && repulsorCollider)
             {
                 if (!repulsorCollider.enabled) { HideNonVolume(); return; }
-                origin = repulsorCollider.transform.TransformPoint(repulsorCollider.center) + Vector3.up * surfaceHeight;
+                origin = repulsorCollider.transform.TransformPoint(repulsorCollider.center) + Vector3.up * (surfaceHeight * playerSize);
                 ringRadius = repulsorCollider.radius * Mathf.Max(Mathf.Abs(repulsorCollider.transform.lossyScale.x), Mathf.Abs(repulsorCollider.transform.lossyScale.z));
             }
             for (int i = 0; i <= Segments; i++)
@@ -298,13 +318,14 @@ namespace Massive.Player
                     float a = u * Mathf.PI * 2;
                     across = new Vector3(Mathf.Cos(a), 0, Mathf.Sin(a));
                     center = origin + across * ringRadius;
-                    width = Mathf.Min(repulsorBandWidth * widthScale / .69f, ringRadius * .4f);
+                    width = Mathf.Min(repulsorBandWidth * playerSize * widthScale / .69f, ringRadius * .4f);
                 }
                 else
                 {
                     float bend = stage.StageType == AttackStageType.ComboSwipe ? -swipeSign * sweepBend * Mathf.Sin(u * Mathf.PI) : 0;
                     Vector3 radial = Quaternion.AngleAxis(bend, Vector3.up) * direction;
-                    center = origin + radial * Mathf.Lerp(rootOffset, Mathf.Max(rootOffset, reach * extent), u);
+                    float rootDistance = rootOffset * playerSize;
+                    center = origin + radial * Mathf.Lerp(rootDistance, Mathf.Max(rootDistance, reach * extent), u);
                     across = Vector3.Cross(Vector3.up, radial);
                     // Taper is geometric: no floating billboard or abrupt rectangular end.
                     width = halfWidth * Mathf.Pow(Mathf.Max(0, Mathf.Sin(Mathf.PI * u)), .6f) * Mathf.Lerp(1, .45f, u);
@@ -377,17 +398,20 @@ namespace Massive.Player
             ApplyLegacyVisibility();
             Vector3 direction = playerVisuals && playerVisuals.gameplayFacing ? playerVisuals.gameplayFacing.right : transform.right;
             var stage = PreviewAttackStage;
+            PreviewRepulsorBody(stage);
             if (stage != null && stage.StageType == AttackStageType.ComboSwipe)
                 direction = Quaternion.AngleAxis(Mathf.Lerp(-stage.RotationArc * .5f, stage.RotationArc * .5f,
                     Mathf.SmoothStep(0, 1, PreviewNormalizedTime)), Vector3.up) * direction;
             RenderStage(stage, PreviewNormalizedTime, direction, 1, previewClock, true);
+            PreviewRepulsorGrid(stage);
         }
         void HideNonVolume() { if (ribbonRenderer) ribbonRenderer.enabled = false; HidePrefabEffects(); }
-        void Hide() { HideNonVolume(); HideVolumeArc(); HideThrustTrails(); }
+        void Hide() { HideNonVolume(); HideVolumeArc(); HideThrustTrails(); HideRepulsorPulses(); StopRepulsorPresentationPreview(); }
         void ReleaseGraphics()
         {
             ReleaseThrustTrails();
             ReleaseVolumeArc();
+            ReleaseRepulsorPulses();
             ReleasePrefabEffects();
             if (ribbonObject) { if (Application.isPlaying) Destroy(ribbonObject); else DestroyImmediate(ribbonObject); }
             if (ribbonMesh) { if (Application.isPlaying) Destroy(ribbonMesh); else DestroyImmediate(ribbonMesh); }

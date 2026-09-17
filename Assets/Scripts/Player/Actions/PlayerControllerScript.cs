@@ -639,6 +639,7 @@ if (showPlayerIdToastOnMatchStart)
         }
 
         // Apply to your existing exposed fields
+        movementActionInput = input.attackDown || input.attackHeld || input.attackUp || input.shieldDown || input.shieldHeld;
         moveHorizontal = input.move.x;
         moveVertical   = input.move.y;
         movement       = new Vector3(moveHorizontal, 0f, moveVertical);
@@ -731,12 +732,22 @@ if (showPlayerIdToastOnMatchStart)
 
     private void FixedUpdate()
     {
-        if (_worldGameplaySuppressed || _matchInputLocked) return;
+        if (_worldGameplaySuppressed || _matchInputLocked)
+        {
+            ProtectActionMomentum(.2f);
+            return;
+        }
 
-        if (temporarilyEliminated || isStunned || IsExternallyStunned) return;
+        if (temporarilyEliminated || isStunned || IsExternallyStunned)
+        {
+            ProtectActionMomentum(.2f);
+            return;
+        }
         if (!rb) return;
 
-        float moveMul = ExternalMovementMultiplier;
+        // Geometry can change independently from locomotion. When proportional
+        // movement is enabled, scale propulsion and its speed ceiling together.
+        float moveMul = ExternalMovementMultiplier * PlayerScaleAdjuster.MovementOf(this);
 
         if (attackController != null && attackController.IsAttacking)
             moveMul *= attackingMoveScale;
@@ -758,6 +769,7 @@ if (showPlayerIdToastOnMatchStart)
 
         Vector3 vel = rb.linearVelocity;
         Vector3 velXZ = new Vector3(vel.x, 0f, vel.z);
+        ApplyJoystickReversal(ref vel, ref velXZ);
 
         // Deadzone + rescale so you still get full strength at the rim
         float inputMag = input.magnitude;
@@ -1293,7 +1305,7 @@ isActive = timeSinceLastActivity <= idleTime;
 
     private bool IsRespawnSpotClear(Vector3 pos)
     {
-        var hits = Physics.OverlapSphere(pos, respawnCheckRadius, respawnBlockMask, QueryTriggerInteraction.Ignore);
+        var hits = Physics.OverlapSphere(pos, respawnCheckRadius * PlayerScaleAdjuster.SizeOf(this), respawnBlockMask, QueryTriggerInteraction.Ignore);
         foreach (var h in hits)
         {
             if (!h || !h.enabled) continue;
@@ -1342,7 +1354,11 @@ private void SetCollidersEnabled(bool enabled)
         newBlob.transform.position = transform.position;
 
         var smb = newBlob.GetComponent<SmallMassBlobScript>();
-        if (smb) smb.target = newTarget;
+        if (smb)
+        {
+            smb.ConfigureVisualSize(PlayerScaleAdjuster.SizeOf(this));
+            smb.target = newTarget;
+        }
     }
 
     // ===== Stun =====
@@ -1397,16 +1413,18 @@ private void SetCollidersEnabled(bool enabled)
             rb.linearVelocity = v - planarV;
 
             // Predictable, mass-independent kick:
-            float kick = stunKnockbackVelocity * s;
+            float movementScale = PlayerScaleAdjuster.MovementOf(this);
+            float kick = stunKnockbackVelocity * s * movementScale;
             rb.AddForce(dir * kick, ForceMode.VelocityChange);
 
             // Safety clamp so you can never get launched across the map
             Vector3 v2 = rb.linearVelocity;
             Vector3 planar2 = new Vector3(v2.x, 0f, v2.z);
             float mag = planar2.magnitude;
-            if (mag > stunMaxPlanarSpeed && mag > 0.0001f)
+            float maxStunSpeed = stunMaxPlanarSpeed * movementScale;
+            if (mag > maxStunSpeed && mag > 0.0001f)
             {
-                planar2 = (planar2 / mag) * stunMaxPlanarSpeed;
+                planar2 = (planar2 / mag) * maxStunSpeed;
                 rb.linearVelocity = new Vector3(planar2.x, v2.y, planar2.z);
             }
         }

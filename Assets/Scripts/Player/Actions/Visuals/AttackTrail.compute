@@ -39,6 +39,7 @@ float  _SizeEnd;
 
 float  _StageT;   // 0..1
 float _StageDuration; // seconds
+float _PlayerSize;
 
 float3 _CamForwardWS;
 
@@ -255,7 +256,7 @@ p.state   = 1u;
         if (dot(normalDir, normalDir) > 1e-6)
         {
             normalDir = normalize(normalDir);
-            float noiseStrength = 0.5;                 // tweak: how “kinky” it is
+            float noiseStrength = 0.5 * _PlayerSize;
             vel += normalDir * (n * noiseStrength * _Dt);
         }
     }

@@ -64,6 +64,7 @@ namespace Massive.Player
             public Vector3 origin;
             public Quaternion facing;
             public float reach, born, activationStart, activationEnd, noiseSeed;
+            public float sizeScale = 1f;
             public int handedness;
             public bool alive, anchored;
             public readonly Vector3[] centres = new Vector3[32];
@@ -96,12 +97,14 @@ namespace Massive.Player
         public bool IsThrustTrailPreview => visualStyle == MeleeVisualStyle.SwordSlashes && PreviewAttackStage != null &&
             PreviewAttackStage.StageType == AttackStageType.PrimaryLunge;
         float PreviewAftermathStart => PreviewAttackStage == null ? 0 : IsThrustTrailPreview ?
-            PreviewAttackStage.Duration : PreviewAttackStage.ActivationEndNormalized * PreviewAttackStage.Duration;
-        float PreviewLinger => IsThrustTrailPreview ? Mathf.Max(0, thrustLingerSeconds) : Mathf.Max(0, volumeLingerSeconds);
+            PreviewAttackStage.Duration : IsRepulsorPulsePreview ? RepulsorActivationEnd(PreviewAttackStage) * PreviewAttackStage.Duration :
+                PreviewAttackStage.ActivationEndNormalized * PreviewAttackStage.Duration;
+        float PreviewLinger => IsThrustTrailPreview ? Mathf.Max(0, thrustLingerSeconds) :
+            IsRepulsorPulsePreview ? Mathf.Max(0, repulsorPulseLinger) : Mathf.Max(0, volumeLingerSeconds);
         float PreviewVisualDuration => PreviewAttackStage == null ? 0 :
-            IsVolumeSweepPreview || IsThrustTrailPreview ? Mathf.Max(PreviewAttackStage.Duration, PreviewAftermathStart + PreviewLinger) :
+            IsVolumeSweepPreview || IsThrustTrailPreview || IsRepulsorPulsePreview ? Mathf.Max(PreviewAttackStage.Duration, PreviewAftermathStart + PreviewLinger) :
                 PreviewAttackStage.Duration;
-        public float PreviewAftermathNormalizedTime => IsVolumeSweepPreview || IsThrustTrailPreview ?
+        public float PreviewAftermathNormalizedTime => IsVolumeSweepPreview || IsThrustTrailPreview || IsRepulsorPulsePreview ?
             Mathf.Clamp01((previewClock - PreviewAftermathStart) / Mathf.Max(.0001f, PreviewLinger)) : 0;
 
         public void ScrubPreviewAftermath(int stageIndex, float normalizedTime)
@@ -138,12 +141,12 @@ namespace Massive.Player
         {
             get
             {
-                return transform.position + Vector3.up * surfaceHeight;
+                return transform.position + Vector3.up * (surfaceHeight * PlayerVisualSize);
             }
         }
         float VolumePhysicalReach()
         {
-            if (!meleeExtent) return 1.725f;
+            if (!meleeExtent) return 1.725f * PlayerVisualSize;
             Vector3 axis = meleeExtent.direction == 0 ? Vector3.right : meleeExtent.direction == 1 ? Vector3.up : Vector3.forward;
             Vector3 outer = meleeExtent.transform.TransformPoint(meleeExtent.center) +
                 meleeExtent.transform.TransformVector(axis * Mathf.Max(meleeExtent.radius, meleeExtent.height * .5f));
@@ -154,12 +157,15 @@ namespace Massive.Player
         void RenderVolumeArc(AttackStage stage, float t, Vector3 direction, int swipeSign, float clock, bool preview)
         {
             if (!volumetricArcMaterial) { HideVolumeArc(); return; }
-            bool beginning = activeVolume == null || (!preview && (volumeLastStage != stage || t + .001f < volumeLastStageT));
+            bool beginning = activeVolume == null ||
+                (preview && !Mathf.Approximately(activeVolume.sizeScale, PlayerVisualSize)) ||
+                (!preview && (volumeLastStage != stage || t + .001f < volumeLastStageT));
             if (beginning)
             {
                 EndVolumeAttackTracking();
                 activeVolume = AcquireVolumeEmission(preview ? 0 : nextVolumeEmission++ % volumeEmissions.Length);
                 var e = activeVolume;
+                e.sizeScale = PlayerVisualSize;
                 e.facing = VolumeEmitterHeading(preview, direction);
                 e.origin = VolumeOrigin; e.reach = VolumePhysicalReach();
                 e.born = preview ? 0 : clock - t * stage.Duration;
@@ -176,7 +182,8 @@ namespace Massive.Player
             activeVolume.activationEnd = stage.ActivationEndNormalized * stage.Duration;
             activeVolume.stageDuration = stage.Duration;
             float elapsed = preview ? clock : clock - activeVolume.born;
-            RecordVolumePath(activeVolume, elapsed, VolumeOrigin, VolumeEmitterHeading(preview, direction));
+            Vector3 emissionOrigin = transform.position + Vector3.up * (surfaceHeight * activeVolume.sizeScale);
+            RecordVolumePath(activeVolume, elapsed, emissionOrigin, VolumeEmitterHeading(preview, direction));
             activeVolume.anchored |= t >= stage.ActivationStartNormalized;
             volumeLastStage = stage; volumeLastStageT = t;
             UpdateVolumeEmission(activeVolume, elapsed);
@@ -246,10 +253,13 @@ namespace Massive.Player
             e.renderer.enabled = layers && opacity > .001f;
             if (!e.renderer.enabled) return;
 
-            float radius = Mathf.Max(.2f, e.reach * volumeReachScale);
-            float width = Mathf.Clamp(volumeRadialWidth, .05f, radius * .75f);
-            float thickness = Mathf.Max(.03f, volumeThickness);
-            float turbulence = Mathf.Clamp(volumeTurbulence, 0, .3f);
+            float playerSize = Mathf.Max(.001f, e.sizeScale);
+            // Reach is already measured through the scaled collider. Only extra world
+            // distances need the size factor; retain it for this emission's aftermath.
+            float radius = Mathf.Max(.2f * playerSize, e.reach * volumeReachScale);
+            float width = Mathf.Clamp(volumeRadialWidth * playerSize, .05f * playerSize, radius * .75f);
+            float thickness = Mathf.Max(.03f, volumeThickness) * playerSize;
+            float turbulence = Mathf.Clamp(volumeTurbulence, 0, .3f) * playerSize;
             var frame = Matrix4x4.TRS(e.origin, e.facing, Vector3.one);
             var inverseFrame = frame.inverse;
             Vector3 min = new Vector3(float.PositiveInfinity,float.PositiveInfinity,float.PositiveInfinity), max = -min;
@@ -263,8 +273,8 @@ namespace Massive.Player
                 min = Vector3.Min(min, point); max = Vector3.Max(max, point);
             }
             Vector3 boundsCentre = (min + max) * .5f;
-            Vector3 bounds = (max - min) * .5f + new Vector3(width * 2.5f + turbulence * 2 + .1f,
-                thickness + turbulence + .04f, width * 2.5f + turbulence * 2 + .1f);
+            Vector3 bounds = (max - min) * .5f + new Vector3(width * 2.5f + turbulence * 2 + .1f * playerSize,
+                thickness + turbulence + .04f * playerSize, width * 2.5f + turbulence * 2 + .1f * playerSize);
             e.root.transform.SetPositionAndRotation(frame.MultiplyPoint3x4(boundsCentre), e.facing);
             e.root.transform.localScale = bounds;
             var p = e.properties;
@@ -283,7 +293,9 @@ namespace Massive.Player
             p.SetVector(ArcShapeId, new Vector4(radius, width, thickness, Mathf.Clamp(volumeArcDegrees, 60, 300) * Mathf.Deg2Rad * .5f));
             p.SetVector(ArcMotionId, new Vector4(turbulence, Mathf.Max(1, volumeNoiseScale), elapsed * volumeFlowSpeed, e.handedness));
             p.SetVector(ArcLayersId, new Vector4(volumeBlackBody ? 1 : 0, volumeWhiteEdge ? 1 : 0, volumeFilaments ? 1 : 0, volumeSatelliteWisp ? 1 : 0));
-            p.SetVector(ArcLightId, new Vector4(Mathf.Max(.1f, volumeDensity), volumeEdgeIntensity, volumeFilamentIntensity, Mathf.Max(.3f, volumeTaper)));
+            // The ray marcher integrates density over metres: smaller copies need the
+            // reciprocal density to preserve the same optical weight and layer controls.
+            p.SetVector(ArcLightId, new Vector4(Mathf.Max(.1f, volumeDensity) / playerSize, volumeEdgeIntensity, volumeFilamentIntensity, Mathf.Max(.3f, volumeTaper)));
             p.SetVector(ArcPhaseId, new Vector4(opacity, forming, aftermath, 0));
             p.SetVector(ArcTransportId, new Vector4(elapsed, e.activationStart, Mathf.Max(.12f, volumeTravelDuration), Mathf.Max(0, volumeEmissionSpacing)));
             int tendrils = Mathf.Min(12, Mathf.Clamp(volumeTendrilCount, 2, 10) + Mathf.Clamp(volumeExtraTendrils, 0, 6));

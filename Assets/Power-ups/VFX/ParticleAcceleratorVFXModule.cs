@@ -1,4 +1,5 @@
 using UnityEngine;
+using Massive.Player;
 
 namespace Massive.PowerUps
 {
@@ -93,8 +94,11 @@ private int _burstSerial = 0;
         // Cached volume sizes (WORLD) for conversion
         private float _ringVolumeSizeWorld = 1f;
         private float _orbVolumeSizeWorld = 1f;
+        private float _spatialScale = 1f;
 
         public int RingDots => ringDots;
+        private float SpatialScale => _spatialScale;
+        private float ProjectileReachScale => PlayerScaleAdjuster.ProjectileReachOf(owner != null ? (Component)owner : this);
 
         public void Bind(PlayerControllerScript p)
         {
@@ -102,6 +106,8 @@ private int _burstSerial = 0;
             // Keep module at player origin (since hub parents under player)
             transform.localPosition = Vector3.zero;
             transform.localRotation = Quaternion.identity;
+            RecomputeVolumeSizes();
+            ApplyVolumeScales();
         }
 
         private void Awake()
@@ -120,14 +126,15 @@ private int _burstSerial = 0;
 
         private void RecomputeVolumeSizes()
         {
+            _spatialScale = PlayerScaleAdjuster.SizeOf(owner != null ? (Component)owner : this);
             // We scale the unit cube so that our ring fits inside it in OBJECT space.
             // If cube world size is S, then object-space coordinate = worldOffset / S.
             // We need ringRadiusWorld + dotRadiusWorld to be comfortably < S * 0.5.
             float ringExtentWorld = ringRadiusWorld + ringDotMaxRadiusWorld + ringVolumePaddingWorld;
-            _ringVolumeSizeWorld = Mathf.Max(0.5f, ringExtentWorld * 2f); // cube size in world
+            _ringVolumeSizeWorld = Mathf.Max(0.5f, ringExtentWorld * 2f) * SpatialScale;
 
             float orbExtentWorld = (orbMaxRadiusWorld * burstRadiusMult) + orbVolumePaddingWorld;
-            _orbVolumeSizeWorld = Mathf.Max(0.35f, orbExtentWorld * 2f);
+            _orbVolumeSizeWorld = Mathf.Max(0.35f, orbExtentWorld * 2f) * SpatialScale;
         }
 
         private static Mesh GetCubeMesh()
@@ -188,8 +195,17 @@ private int _burstSerial = 0;
 
         private void ApplyVolumeScales()
         {
-            if (_ringSdf) _ringSdf.transform.localScale = Vector3.one * _ringVolumeSizeWorld;
-            if (_orbSdf)  _orbSdf.transform.localScale  = Vector3.one * _orbVolumeSizeWorld;
+            if (_ringSdf) SetWorldVolumeScale(_ringSdf.transform, _ringVolumeSizeWorld);
+            if (_orbSdf) SetWorldVolumeScale(_orbSdf.transform, _orbVolumeSizeWorld);
+        }
+
+        private static void SetWorldVolumeScale(Transform target, float size)
+        {
+            Vector3 parentScale = target.parent != null ? target.parent.lossyScale : Vector3.one;
+            target.localScale = new Vector3(
+                size / Mathf.Max(0.0001f, Mathf.Abs(parentScale.x)),
+                size / Mathf.Max(0.0001f, Mathf.Abs(parentScale.y)),
+                size / Mathf.Max(0.0001f, Mathf.Abs(parentScale.z)));
         }
 
         public void SetVisible(bool on)
@@ -278,14 +294,17 @@ _shardSpinMul = new float[n];
         {
             if (!_visible || !owner) return;
 
+            // Live size adjustments also affect a module already equipped or cooling down.
+            RecomputeVolumeSizes();
+            ApplyVolumeScales();
             Vector3 center = GetOwnerCenterWS();
-            center.y += vfxPlaneYOffsetWorld;
+            center.y += vfxPlaneYOffsetWorld * SpatialScale;
 
 _rayDots.SetTuning(
-    startRadiusWorld: rayStartRadiusWorld,
-    dotRadiusWorld: rayDotRadiusWorld,
-    spacingWorld: rayDotSpacingWorld,
-    yLiftWorld: rayDotYLiftWorld,
+    startRadiusWorld: rayStartRadiusWorld * SpatialScale,
+    dotRadiusWorld: rayDotRadiusWorld * SpatialScale,
+    spacingWorld: rayDotSpacingWorld * ProjectileReachScale,
+    yLiftWorld: rayDotYLiftWorld * SpatialScale,
     easeSpeed: rayEaseSpeed,
     fadeAlphaWithScale: rayFadeAlphaWithScale
 );
@@ -329,11 +348,13 @@ public Vector3 GetVfxOriginWS()
 {
     if (!owner) return transform.position;
 
+    _spatialScale = PlayerScaleAdjuster.SizeOf(owner);
+
     var vc = owner.visualsController;
     Vector3 c = (vc != null && vc.visuals != null) ? vc.visuals.position : owner.transform.position;
 
     // match what the module uses
-    c.y += vfxPlaneYOffsetWorld;
+    c.y += vfxPlaneYOffsetWorld * SpatialScale;
     return c;
 }
 
@@ -361,15 +382,15 @@ public Vector3 GetVfxOriginWS()
                     float g01 = (i < full) ? 1f : (i == full ? frac : 0f);
                     g01 = Ease(Mathf.Clamp01(g01));
 
-                    float rW = Mathf.Lerp(ringDotBaseRadiusWorld, ringDotMaxRadiusWorld, g01);
+                    float rW = Mathf.Lerp(ringDotBaseRadiusWorld, ringDotMaxRadiusWorld, g01) * SpatialScale;
                     float rOS = rW * invS;
 
                     float a = start + step * (ringClockwise ? -i : i);
 
                     // WORLD offset
-                    float xW = Mathf.Cos(a) * ringRadiusWorld;
-                    float zW = Mathf.Sin(a) * ringRadiusWorld;
-                    float yW = ringHeightWorld;
+                    float xW = Mathf.Cos(a) * ringRadiusWorld * SpatialScale;
+                    float zW = Mathf.Sin(a) * ringRadiusWorld * SpatialScale;
+                    float yW = ringHeightWorld * SpatialScale;
 
                     // OBJECT position inside cube
                     Vector3 pOS = new Vector3(xW, yW, zW) * invS;
@@ -400,11 +421,11 @@ public Vector3 GetVfxOriginWS()
                             rW = (u <= 0.0001f) ? 0f : Mathf.Lerp(0f, ringDotBaseRadiusWorld, u);
                         }
 
-                        float rOS = rW * invS;
+                        float rOS = rW * SpatialScale * invS;
 
                         float a = start + step * (ringClockwise ? -i : i);
-                        float xW = Mathf.Cos(a) * ringRadiusWorld;
-                        float zW = Mathf.Sin(a) * ringRadiusWorld;
+                        float xW = Mathf.Cos(a) * ringRadiusWorld * SpatialScale;
+                        float zW = Mathf.Sin(a) * ringRadiusWorld * SpatialScale;
                         float yW = 0f;
 
                         Vector3 pOS = new Vector3(xW, yW, zW) * invS;
@@ -420,13 +441,13 @@ public Vector3 GetVfxOriginWS()
                     for (int i = 0; i < ringDots; i++)
                     {
                         float a = start + step * (ringClockwise ? -i : i);
-                        float xW = Mathf.Cos(a) * ringRadiusWorld;
-                        float zW = Mathf.Sin(a) * ringRadiusWorld;
+                        float xW = Mathf.Cos(a) * ringRadiusWorld * SpatialScale;
+                        float zW = Mathf.Sin(a) * ringRadiusWorld * SpatialScale;
                         float yW = 0f; // keep ring dots in the plane
 
 
                         Vector3 pOS = new Vector3(xW, yW, zW) * invS;
-                        _ringSdf.AddBall(pOS, ringDotBaseRadiusWorld * invS);
+                        _ringSdf.AddBall(pOS, ringDotBaseRadiusWorld * SpatialScale * invS);
                     }
                 }
             }
@@ -451,11 +472,11 @@ private void BuildOrb(Vector3 centerWS)
         return;
     }
 
-    Vector3 orbCenterWS = centerWS + _aimDirWS * orbForwardOffsetWorld; // centerWS already has Y plane offset
+    Vector3 orbCenterWS = centerWS + _aimDirWS * (orbForwardOffsetWorld * SpatialScale);
     float invS = 1f / Mathf.Max(0.0001f, _orbVolumeSizeWorld);
 
     // Base orb radius from charge
-    float rW = Mathf.Lerp(orbMinRadiusWorld, orbMaxRadiusWorld, _charge01);
+    float rW = Mathf.Lerp(orbMinRadiusWorld, orbMaxRadiusWorld, _charge01) * SpatialScale;
 
     // --- Scaling jitter while charging (orb only) ---
     // Use a stable per-player offset so different players don't jitter in sync.
@@ -491,8 +512,8 @@ private void BuildOrb(Vector3 centerWS)
         int n = (_shardDirs != null) ? _shardDirs.Length : 0;
         if (n > 0)
         {
-            float spreadW = Mathf.Lerp(burstSpreadMinWorld, burstSpreadMaxWorld, _burstCharge01) * ease;
-            float shardBaseRW = Mathf.Lerp(burstShardRadiusMinWorld, burstShardRadiusMaxWorld, _burstCharge01) * pulse;
+            float spreadW = Mathf.Lerp(burstSpreadMinWorld, burstSpreadMaxWorld, _burstCharge01) * ease * SpatialScale;
+            float shardBaseRW = Mathf.Lerp(burstShardRadiusMinWorld, burstShardRadiusMaxWorld, _burstCharge01) * pulse * SpatialScale;
 
 
             for (int i = 0; i < n; i++)

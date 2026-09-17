@@ -43,6 +43,7 @@ namespace Massive.Player
             public ThrustEnergy energy;
             public ThrustPose emitterPose;
             public float born, activationStart, activationEnd, lastElapsed, lastSourceTime;
+            public float sizeScale = 1f, physicalReach;
             public float recoveryStart, recoverySource, birthCutoff;
             public bool alive, tracking, activated, emitterFrozen, preview, rendererPoseCaptured;
         }
@@ -69,6 +70,7 @@ namespace Massive.Player
             { HideThrustTrails(); return; }
             bool beginning = activeThrust == null || activeThrust.stage != stage ||
                 activeThrust.instance == null || activeThrust.instance.source != settings.prefab ||
+                (preview && !Mathf.Approximately(activeThrust.sizeScale, PlayerVisualSize)) ||
                 (!preview && t + .001f < lastThrustStageT);
             if (beginning)
             {
@@ -76,6 +78,9 @@ namespace Massive.Player
                 activeThrust = AcquireThrustTrail(preview ? 0 : nextThrustTrail++ % thrustTrails.Length, settings);
                 var trail = activeThrust;
                 trail.stage = stage;
+                // Retained particles keep their emission size when the player is resized.
+                trail.sizeScale = PlayerVisualSize;
+                trail.physicalReach = VolumePhysicalReach();
                 trail.preview = preview;
                 trail.born = preview ? 0 : clock - t * stage.Duration;
                 trail.activationStart = stage.ActivationStartNormalized * stage.Duration;
@@ -116,11 +121,11 @@ namespace Massive.Player
             direction = direction.sqrMagnitude > .0001f ? direction.normalized : Vector3.right;
             Quaternion facing = Quaternion.LookRotation(direction, Vector3.up);
             Vector3 origin = playerVisuals && playerVisuals.visuals ? playerVisuals.visuals.position : transform.position;
-            origin.y += surfaceHeight;
+            origin.y += surfaceHeight * trail.sizeScale;
             var instance = trail.instance;
             trail.emitterPose = new ThrustPose
             {
-                position = origin + facing * settings.positionOffset,
+                position = origin + facing * (settings.positionOffset * trail.sizeScale),
                 rotation = facing,
                 scale = new Vector3(Mathf.Max(.01f, settings.widthScale), 1, 1)
             };
@@ -133,10 +138,10 @@ namespace Massive.Player
                 instance.anchor.transform.localScale = trail.emitterPose.scale;
                 trail.rendererPoseCaptured = thrustWorldEmission;
             }
-            float reach = VolumePhysicalReach();
+            float reach = trail.physicalReach;
             instance.effect.transform.localPosition = Vector3.zero;
             instance.effect.transform.localRotation = Quaternion.Euler(settings.rotationOffset);
-            instance.effect.transform.localScale = Vector3.one * Mathf.Max(.01f, reach * settings.reachScale / Mathf.Max(.01f, settings.referenceReach));
+            instance.effect.transform.localScale = Vector3.one * Mathf.Max(.01f * trail.sizeScale, reach * settings.reachScale / Mathf.Max(.01f, settings.referenceReach));
             for (int s = 0; s < instance.systems.Length; s++)
             {
                 var psTransform = instance.systems[s].transform;

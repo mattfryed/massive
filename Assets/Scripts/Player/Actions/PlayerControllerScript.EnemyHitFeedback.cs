@@ -1,4 +1,5 @@
 using Massive.Enemies;
+using Massive.Player;
 using UnityEngine;
 
 public partial class PlayerControllerScript
@@ -56,13 +57,14 @@ public partial class PlayerControllerScript
         _enemyHitKickTime = Time.time;
         _nextEnemyHitKickTime = Time.time + Mathf.Max(.02f, enemyHitRecoilLockout);
         float speed = Mathf.Lerp(Mathf.Max(0f, enemyHitRecoilSpeed.x), Mathf.Max(0f, enemyHitRecoilSpeed.y), strength);
-        speed *= ExternalMovementMultiplier;
+        float movementMultiplier = ExternalMovementMultiplier * PlayerScaleAdjuster.MovementOf(this);
+        speed *= movementMultiplier;
         Vector3 velocity = rb.linearVelocity;
         // Replace only the impact-axis component, so swarm hits cannot accumulate speed.
         // Preserve tangential steering and vertical motion; physics still resolves walls.
         Vector3 planar = Vector3.ProjectOnPlane(velocity, Vector3.up);
         planar += away * (speed - Vector3.Dot(planar, away));
-        if (clampSpeed) planar = Vector3.ClampMagnitude(planar, Mathf.Max(speed, maxMoveSpeed * ExternalMovementMultiplier));
+        if (clampSpeed) planar = Vector3.ClampMagnitude(planar, Mathf.Max(speed, maxMoveSpeed * movementMultiplier));
         rb.linearVelocity = new Vector3(planar.x, velocity.y, planar.z);
     }
 

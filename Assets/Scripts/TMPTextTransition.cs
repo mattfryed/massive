@@ -51,6 +51,9 @@ public class TMPTextTransition : MonoBehaviour
     [Min(0f)] [SerializeField] private float inDuration = 0.35f;
     [Min(0f)] [SerializeField] private float outDuration = 0.25f;
 
+    [Tooltip("Optional limit on animation seconds advanced per frame. Zero retains elapsed-time timing. Set a small value to keep loading stalls from skipping a short intro/outro.")]
+    [Min(0f)] [SerializeField] private float maximumAnimationStep = 0f;
+
     [Header("Stagger (per target)")]
     [Min(0f)] [SerializeField] private float inTargetStagger = 0f;
     [Min(0f)] [SerializeField] private float outTargetStagger = 0f;
@@ -132,6 +135,8 @@ public class TMPTextTransition : MonoBehaviour
     private Coroutine _routine;
     private bool _hasAutoPlayed;
     private bool _skipRequested;
+
+    public bool IsPlaying => _routine != null;
 
     void Awake()
     {
@@ -450,14 +455,16 @@ public void RefreshBaseColorsFromCurrent()
 
         float start = Now();
         float total = inDuration + Mathf.Max(0, _cache.Count - 1) * inTargetStagger;
+        float elapsed = 0f;
 
         while (!_skipRequested)
         {
-            float elapsed = Now() - start;
+            if (maximumAnimationStep <= 0f) elapsed = Now() - start;
             if (elapsed >= total) break;
 
             ApplyStatePerTarget(elapsed, inDuration, inTargetStagger, isIn: true, inEffects, inEasing, inCustomEasing);
             yield return null;
+            if (maximumAnimationStep > 0f) elapsed += AnimationStep();
         }
 
         ApplyStateAllTargets(1f, 1f, isIn: true, inEffects);
@@ -497,14 +504,16 @@ public void RefreshBaseColorsFromCurrent()
 
         float start = Now();
         float total = outDuration + Mathf.Max(0, _cache.Count - 1) * outTargetStagger;
+        float elapsed = 0f;
 
         while (!_skipRequested)
         {
-            float elapsed = Now() - start;
+            if (maximumAnimationStep <= 0f) elapsed = Now() - start;
             if (elapsed >= total) break;
 
             ApplyStatePerTarget(elapsed, outDuration, outTargetStagger, isIn: false, outEffects, outEasing, outCustomEasing);
             yield return null;
+            if (maximumAnimationStep > 0f) elapsed += AnimationStep();
         }
 
         ApplyStateAllTargets(0f, 1f, isIn: false, outEffects);
@@ -786,6 +795,10 @@ public void RefreshBaseColorsFromCurrent()
     }
 
     private float Now() => useUnscaledTime ? Time.unscaledTime : Time.time;
+
+    private float AnimationStep() => Mathf.Min(
+        useUnscaledTime ? Time.unscaledDeltaTime : Time.deltaTime,
+        maximumAnimationStep);
 
     private object Wait(float seconds) =>
         useUnscaledTime ? (object)new WaitForSecondsRealtime(seconds) : new WaitForSeconds(seconds);

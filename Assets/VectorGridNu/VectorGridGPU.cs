@@ -653,6 +653,7 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
 
     void ApplyCurveUniforms(MaterialPropertyBlock block)
     {
+        Massive.Player.PlayerRepulsorGridPulse.WriteGridProperties(this, block);
         // Optional scene-local visual experiment; no simulation or collider changes.
         if (TryGetComponent<Massive.Multiplier.AmplifierGoalTreatments>(out var amplifier))
             amplifier.WriteGridProperties(block);

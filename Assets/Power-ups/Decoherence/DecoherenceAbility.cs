@@ -126,7 +126,11 @@ namespace Massive.PowerUps
 
             dir.Normalize();
 
-            Vector3 targetPos = _defender.transform.position + dir * _def.passThroughDistance;
+            float defenderSize = PlayerScaleAdjuster.SizeOf(_defender);
+            float clearance = PlayerScaleAdjuster.BodyRadiusOf(attacker) + PlayerScaleAdjuster.BodyRadiusOf(_defender)
+                + 0.05f * Mathf.Max(defenderSize, PlayerScaleAdjuster.SizeOf(attacker));
+            float passDistance = Mathf.Max(_def.passThroughDistance * defenderSize, clearance);
+            Vector3 targetPos = _defender.transform.position + dir * passDistance;
 
             var rb = attacker.GetComponent<Rigidbody>();
             if (rb) rb.MovePosition(targetPos);

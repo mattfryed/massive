@@ -121,6 +121,7 @@ void TryResolveGrid()
         Vector3 localPos = grid.transform.InverseTransformPoint(transform.position);
         Vector3 vel = GetVelocity(_rb);
         float speed = vel.magnitude;
+        float playerSize = Massive.Player.PlayerScaleAdjuster.SizeOf(this);
 
         for (int i = 0; i < profile.modules.Length; i++)
         {
@@ -146,6 +147,8 @@ void TryResolveGrid()
                 if (m.radiusOverSpeed != null) radius *= m.radiusOverSpeed.Evaluate(speed);
                 if (m.strengthOverSpeed != null) strength *= m.strengthOverSpeed.Evaluate(speed);
             }
+            // Per-player dimensions only. The shared profile and its force strength stay authored.
+            radius *= playerSize;
 
             bool useDir = m.directional || m.useVelocity || m.type == GridModuleType.DirectionalWake || m.type == GridModuleType.Vortex || m.type == GridModuleType.Jiggle;
             Vector3 dir = (m.fixedDirection.sqrMagnitude > 1e-6f ? m.fixedDirection.normalized : Vector3.right);
@@ -233,14 +236,15 @@ void TryResolveGrid()
                             if (!m.autoStart) break;   // NEW
                             s.t = 0f;
                         }
-                        float traveled = m.waveSpeed * s.t;
+                        float waveSpeed = m.waveSpeed * playerSize;
+                        float traveled = waveSpeed * s.t;
                         float rMid = radius + traveled;
-                        float rMin = Mathf.Max(0.1f, rMid - m.waveThickness * 0.5f);
-                        float rMax = rMid + m.waveThickness * 0.5f;
+                        float rMin = Mathf.Max(0.1f * playerSize, rMid - m.waveThickness * playerSize * 0.5f);
+                        float rMax = rMid + m.waveThickness * playerSize * 0.5f;
                         outForces.Add(VectorGridGPU.MakeRadial(localPos, rMin, strength * 0.5f, inner));
                         outForces.Add(VectorGridGPU.MakeRadial(localPos, rMax, -strength * 0.5f, inner));
                         s.t += Time.deltaTime;
-                        if (!m.loopPulse && rMid > radius + 4f * m.waveSpeed) s.t = -1f;
+                        if (!m.loopPulse && rMid > radius + 4f * waveSpeed) s.t = -1f;
                         break;
                     }
             }

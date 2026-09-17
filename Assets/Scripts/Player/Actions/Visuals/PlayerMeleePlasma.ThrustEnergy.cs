@@ -73,6 +73,7 @@ namespace Massive.Player
             if (trail.energy == null) trail.energy = new ThrustEnergy();
             var energy = trail.energy;
             if (energy.count >= ThrustEnergyCapacity) return;
+            float playerSize = trail.sizeScale;
             float weight = particle.GetCurrentColor(ps).a / 255f * passOpacity;
             if (weight <= .005f || particle.remainingLifetime <= 0) return;
             var frame = thrustWorldEmission ? birth.matrix : ps.transform.localToWorldMatrix;
@@ -95,7 +96,7 @@ namespace Massive.Player
                 else { axis = z; halfLength = lz; radius = Mathf.Max(lx, ly); }
                 center = particleMatrix.MultiplyPoint3x4(meshBounds.center);
                 halfLength *= .72f;
-                radius = radius * .4f + .015f;
+                radius = radius * .4f + .015f * playerSize;
             }
             else
             {
@@ -106,13 +107,13 @@ namespace Massive.Player
                 float diameter = Mathf.Max(size.x, Mathf.Max(size.y, size.z)) * scale;
                 float stretch = renderer.renderMode == ParticleSystemRenderMode.Stretch ? Mathf.Abs(renderer.lengthScale) : 1;
                 halfLength = diameter * Mathf.Max(1, stretch) * .28f;
-                radius = diameter * .18f + .015f;
+                radius = diameter * .18f + .015f * playerSize;
             }
             if (axis.sqrMagnitude < .000001f) axis = Vector3.forward;
             axis.Normalize();
             // The pockets remain local to authored body particles, never a full-player halo.
-            halfLength = Mathf.Clamp(halfLength, .025f, Mathf.Max(.08f, VolumePhysicalReach() * .7f));
-            radius = Mathf.Clamp(radius, .02f, .16f);
+            halfLength = Mathf.Clamp(halfLength, .025f * playerSize, Mathf.Max(.08f * playerSize, trail.physicalReach * .7f));
+            radius = Mathf.Clamp(radius, .02f * playerSize, .16f * playerSize);
             Vector3 start = center - axis * halfLength;
             Vector3 end = center + axis * halfLength;
             Vector3 up = frame.MultiplyVector(Vector3.up).normalized;
@@ -121,7 +122,7 @@ namespace Massive.Player
             energy.starts[index] = new Vector4(start.x, start.y, start.z, radius);
             energy.ends[index] = new Vector4(end.x, end.y, end.z, Mathf.Clamp01(weight));
             energy.frames[index] = new Vector4(up.x, up.y, up.z, (particle.randomSeed & 65535u) * (6.2831853f / 65535f));
-            float pad = radius * 1.75f * Mathf.Max(1, Mathf.Lerp(.5f, 1.4f, thrustGlowDepth)) + .035f;
+            float pad = radius * 1.75f * Mathf.Max(1, Mathf.Lerp(.5f, 1.4f, thrustGlowDepth)) + .035f * playerSize;
             Vector3 minimum = Vector3.Min(start, end) - Vector3.one * pad;
             Vector3 maximum = Vector3.Max(start, end) + Vector3.one * pad;
             energy.minimum = index == 0 ? minimum : Vector3.Min(energy.minimum, minimum);
@@ -137,7 +138,7 @@ namespace Massive.Player
             if (!material) { HideThrustEnergy(trail); return; }
             EnsureThrustEnergyGraphics(energy);
             Vector3 center = (energy.minimum + energy.maximum) * .5f;
-            Vector3 extents = Vector3.Max(Vector3.one * .025f, (energy.maximum - energy.minimum) * .5f);
+            Vector3 extents = Vector3.Max(Vector3.one * (.025f * trail.sizeScale), (energy.maximum - energy.minimum) * .5f);
             energy.root.transform.SetPositionAndRotation(center, Quaternion.identity);
             energy.root.transform.localScale = extents;
             energy.renderer.sharedMaterial = material;

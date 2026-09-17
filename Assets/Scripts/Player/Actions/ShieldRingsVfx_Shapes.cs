@@ -73,6 +73,7 @@ namespace Massive.Player
         private float duration;
         private float strength01;
         private float startRadius;
+        private float effectSize = 1f;
 
         public bool IsPlaying => playing;
 
@@ -150,13 +151,14 @@ namespace Massive.Player
         private void BuildRings()
         {
             rings.Clear();
+            effectSize = PlayerScaleAdjuster.SizeOf(visuals ? visuals : (Component)followTarget);
             startRadius = GetPlayerRadiusWorld();
 
             int count = Mathf.RoundToInt(Mathf.Lerp(minRings, maxRings, strength01));
             count = Mathf.Clamp(count, 0, maxRings);
             if (count <= 0) return;
 
-            float thicknessBase = Mathf.Lerp(minThickness, maxThickness, strength01);
+            float thicknessBase = Mathf.Lerp(minThickness, maxThickness, strength01) * effectSize;
 
             // Use System.Random to avoid disturbing UnityEngine.Random global state
             int seedInt = unchecked((int)(Time.time * 1000f) ^ GetInstanceID());
@@ -170,7 +172,7 @@ namespace Massive.Player
                 float seed = (float)rng.NextDouble() * 1000f + i * 13.37f;
 
                 // Concentric expansion
-                float targetRadius = startRadius + radiusGrow + ringSpacing * i;
+                float targetRadius = startRadius + (radiusGrow + ringSpacing * i) * effectSize;
 
                 // Outer ring thickness falloff
                 float falloff = Mathf.Lerp(1f, 1f - thicknessFalloff, ringT01);
@@ -180,7 +182,7 @@ namespace Massive.Player
                 float ang = (float)rng.NextDouble() * (Mathf.PI * 2f);
                 float mag = (float)rng.NextDouble();
                 Vector2 dir = new Vector2(Mathf.Cos(ang), Mathf.Sin(ang));
-                Vector2 staticOffset = dir * (staticOffsetMax * mag * strength01 * falloff);
+                Vector2 staticOffset = dir * (staticOffsetMax * mag * strength01 * falloff * effectSize);
 
                 rings.Add(new Ring
                 {
@@ -217,13 +219,31 @@ namespace Massive.Player
                 }
             }
 
-            return 0.5f;
+            return 0.5f * effectSize;
         }
 
         public override void DrawShapes(Camera cam)
         {
             if (!playing || rings.Count == 0 || followTarget == null)
                 return;
+
+            // Follow live player resizing without restarting the shield envelope or
+            // changing its noise seeds. Cached dimensions are already world-space.
+            float currentSize = PlayerScaleAdjuster.SizeOf(visuals ? visuals : (Component)followTarget);
+            if (!Mathf.Approximately(currentSize, effectSize))
+            {
+                float ratio = currentSize / Mathf.Max(.0001f, effectSize);
+                startRadius *= ratio;
+                for (int i = 0; i < rings.Count; i++)
+                {
+                    Ring ring = rings[i];
+                    ring.targetRadius *= ratio;
+                    ring.targetThickness *= ratio;
+                    ring.staticOffset *= ratio;
+                    rings[i] = ring;
+                }
+                effectSize = currentSize;
+            }
 
             float elapsed = Time.time - startTime;
             float t01 = (duration <= 0.0001f) ? 1f : Mathf.Clamp01(elapsed / duration);
@@ -254,7 +274,7 @@ namespace Massive.Player
                 Draw.ThicknessSpace = ThicknessSpace.Meters;
 
                 // Draw in a horizontal plane (XZ) around the target
-                Vector3 posWS = followTarget.position + Vector3.up * heightOffset;
+                Vector3 posWS = followTarget.position + Vector3.up * (heightOffset * effectSize);
                 Draw.Matrix = Matrix4x4.TRS(posWS, Quaternion.Euler(-90f, 0f, 0f), Vector3.one);
 
                 for (int i = 0; i < rings.Count; i++)
@@ -266,14 +286,14 @@ namespace Massive.Player
                     float nR = Mathf.PerlinNoise(r.seed + 20.456f, time * jitterFrequency) * 2f - 1f;
                     float nT = Mathf.PerlinNoise(r.seed + 30.789f, time * jitterFrequency) * 2f - 1f;
 
-                    Vector2 dynOffset = new Vector2(nX, nY) * (dynamicOffsetMax * strength01 * mult * env);
+                    Vector2 dynOffset = new Vector2(nX, nY) * (dynamicOffsetMax * strength01 * mult * env * effectSize);
                     Vector2 totalOffset = (r.staticOffset + dynOffset) * env;
 
                     float radius = Mathf.Lerp(startRadius, r.targetRadius, atk);
-                    radius += nR * radiusJitter * strength01 * mult * env;
+                    radius += nR * radiusJitter * strength01 * mult * env * effectSize;
 
                     float thickness = r.targetThickness * env;
-                    thickness += nT * thicknessJitter * strength01 * mult * env;
+                    thickness += nT * thicknessJitter * strength01 * mult * env * effectSize;
                     thickness = Mathf.Max(0f, thickness);
 
                     if (thickness <= 0.0001f)

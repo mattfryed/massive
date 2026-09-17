@@ -12,6 +12,7 @@ namespace Massive.Player
         // Public read-only events for listeners (melee, VFX, etc.)
         public UnityEvent<AttackStage> OnStageStarted  => onStageStarted;
         public UnityEvent<AttackStage> OnStageCompleted => onStageCompleted;
+        public event System.Action<AttackStage> StageCancelled;
 
         [Header("Profile")]
         [SerializeField]
@@ -83,6 +84,11 @@ namespace Massive.Player
         [Header("Combo Tuning")]
         [SerializeField, Min(0f)]
         private float comboInputBuffer = 0.15f;
+
+        [Tooltip("Use the same final portion of every chainable stage for the next button press, independently of hitbox timing. Disable to use the legacy activation-based combo window.")]
+        [SerializeField] private bool useSharedComboWindow = true;
+        [Tooltip("Seconds at the end of each stage during which the next attack may be queued. Input buffering still applies before this window opens.")]
+        [SerializeField, Min(0f)] private float sharedComboWindowSeconds = 0.15f;
 
         [Header("Combo Window")]
         [Tooltip("If true, combo presses are accepted AFTER the stage's activation window (useful for recovery-cancel style combos).\nIf false, combos use the activation window itself (legacy behavior).")]
@@ -157,6 +163,13 @@ namespace Massive.Player
 
         }
 
+
+        private void OnDisable()
+        {
+            // Death and world suppression disable this controller. Release the
+            // active stage immediately so child hitboxes cannot outlive it.
+            CancelAttack();
+        }
 
         private void Update()
         {
@@ -414,7 +427,12 @@ private Vector3 GetAttackDirection()
             float start;
             float end;
 
-            if (comboWindowAfterActivationWindow)
+            if (useSharedComboWindow)
+            {
+                start = Mathf.Clamp01(1f - sharedComboWindowSeconds / currentStage.Duration);
+                end = 1f;
+            }
+            else if (comboWindowAfterActivationWindow)
             {
                 // "After-window" combos: let the player chain during recovery.
                 start = currentStage.ActivationEndNormalized;
@@ -438,6 +456,9 @@ private Vector3 GetAttackDirection()
         {
             AttackStage finishedStage = currentStage;
             onStageCompleted.Invoke(finishedStage);
+
+            if (!isAttacking || currentStage != finishedStage)
+                return;
 
             int nextStageIndex = currentStageIndex + 1;
             bool hasNextStage = attackProfile.GetStage(nextStageIndex) != null;
@@ -480,7 +501,12 @@ private Vector3 GetAttackDirection()
             stageAttackDirectionWS = ComputeAttackDirectionFromInput();
 
             // Per-stage travel (so we never edit the AttackStage asset)
-            stageTravelDistanceWS = currentStage.TravelDistance;
+            // Copy the shared profile's authored distance into per-player state.
+            // Root scale already handles local hitboxes; world displacement needs
+            // an explicit factor, fixed for the lifetime of this attack stage.
+            stageTravelDistanceWS = currentStage.StageType == AttackStageType.FinisherRepulsor
+                ? 0f
+                : currentStage.TravelDistance * PlayerScaleAdjuster.ActionReachOf(this);
             stageStopDistanceWS = stageTravelDistanceWS;
             lockedTarget = null;
 
@@ -560,12 +586,14 @@ private Vector3 GetAttackDirection()
             if (!isAttacking)
                 return;
 
-            if (signalComplete && currentStage != null)
-            {
-                onStageCompleted.Invoke(currentStage);
-            }
-
+            AttackStage cancelledStage = currentStage;
             EndAttackSequence();
+            if (cancelledStage != null)
+            {
+                StageCancelled?.Invoke(cancelledStage);
+                if (signalComplete)
+                    onStageCompleted.Invoke(cancelledStage);
+            }
         }
 
         /// <summary>
@@ -610,7 +638,9 @@ private Vector3 GetAttackDirection()
     if (aimDir.sqrMagnitude < 0.0001f) return;
     aimDir.Normalize();
 
-    float maxDist = (lockOnMaxDistanceOverride > 0f) ? lockOnMaxDistanceOverride : stageTravelDistanceWS;
+    float maxDist = (lockOnMaxDistanceOverride > 0f)
+        ? lockOnMaxDistanceOverride * PlayerScaleAdjuster.ActionReachOf(this)
+        : stageTravelDistanceWS;
     if (maxDist <= 0.0001f) return;
 
     float cosLimit = Mathf.Cos(lockOnConeHalfAngleDeg * Mathf.Deg2Rad);

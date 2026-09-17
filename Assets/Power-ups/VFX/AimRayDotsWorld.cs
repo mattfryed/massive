@@ -137,7 +137,12 @@ public void SetTuning(
 
                 // Scale ease
                 float s = diameter * d.current01;
-                d.t.localScale = new Vector3(s, s, s);
+                // Dot tuning is in world units even when the pool lives under a scaled player.
+                Vector3 parentScale = d.t.parent != null ? d.t.parent.lossyScale : Vector3.one;
+                d.t.localScale = new Vector3(
+                    s / Mathf.Max(0.0001f, Mathf.Abs(parentScale.x)),
+                    s / Mathf.Max(0.0001f, Mathf.Abs(parentScale.y)),
+                    s / Mathf.Max(0.0001f, Mathf.Abs(parentScale.z)));
 
                 // Optional alpha fade (if shader supports _Color)
                 if (fadeAlphaWithScale && d.r != null)

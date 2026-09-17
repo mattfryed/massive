@@ -78,8 +78,9 @@ namespace Massive.Player
             HidePrefabEffect(swipe ? thrustInstance : swipeInstance);
 
             Vector3 origin = playerVisuals && playerVisuals.visuals ? playerVisuals.visuals.position : transform.position;
-            origin.y += surfaceHeight;
-            float reach = 1.725f;
+            float playerSize = PlayerVisualSize;
+            origin.y += surfaceHeight * playerSize;
+            float reach = 1.725f * playerSize;
             if (meleeExtent)
             {
                 Vector3 axis = meleeExtent.direction == 0 ? Vector3.right : meleeExtent.direction == 1 ? Vector3.up : Vector3.forward;
@@ -88,12 +89,12 @@ namespace Massive.Player
                 Vector3 planar = outer - transform.position; planar.y = 0; reach = planar.magnitude;
             }
             Quaternion facing = Quaternion.LookRotation(direction, Vector3.up);
-            instance.anchor.transform.SetPositionAndRotation(origin + facing * settings.positionOffset, facing);
-            // Compensate the player's scale: calibration and offsets are world metres.
+            instance.anchor.transform.SetPositionAndRotation(origin + facing * (settings.positionOffset * playerSize), facing);
+            // Collider reach already includes the player's size; avoid inheriting it twice.
             Vector3 ownerScale = transform.lossyScale;
             instance.anchor.transform.localScale = new Vector3(1 / Mathf.Max(.0001f, Mathf.Abs(ownerScale.x)),
                 1 / Mathf.Max(.0001f, Mathf.Abs(ownerScale.y)), 1 / Mathf.Max(.0001f, Mathf.Abs(ownerScale.z)));
-            float scale = Mathf.Max(.01f, reach * settings.reachScale / Mathf.Max(.01f, settings.referenceReach));
+            float scale = Mathf.Max(.01f * playerSize, reach * settings.reachScale / Mathf.Max(.01f, settings.referenceReach));
             instance.effect.transform.localRotation = Quaternion.Euler(settings.rotationOffset);
             instance.effect.transform.localScale = Vector3.one * scale;
             // Mirror in attack space so successive left/right sweeps retain the same handedness as the sword.

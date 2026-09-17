@@ -66,7 +66,7 @@ namespace Massive.Player
         private float animationTransitionDuration = 0.05f;
 
         [Header("Repulsor (Finisher)")]
-        [Tooltip("Max world radius for FinisherRepulsor hitbox / VFX.")]
+        [Tooltip("Final Repulsor radius in world units at player size 1. Starts at the live body outline and scales with the player.")]
         [SerializeField]
         private float repulsorMaxRadius = 3.0f;
 

@@ -384,6 +384,7 @@ private void SnapshotEntrantsAtClose()
                 dir.Normalize();
 
                 // Reposition and push
+                pcs.ProtectActionMomentum(.25f);
                 rb.position = starPos + dir * ejectDistance;
     #if UNITY_6000_0_OR_NEWER
                 rb.linearVelocity = dir * ejectImpulse;

@@ -1,4 +1,5 @@
 using UnityEngine;
+using Massive.Player;
 
 namespace Massive.PowerUps
 {
@@ -20,6 +21,8 @@ namespace Massive.PowerUps
         private float _pendingCharge01;
         private Vector3 _pendingDirWS;
         private float _telegraphRemaining;
+
+        public bool IsMovementActionActive => _charging || _pendingFire || _telegraphRemaining > 0f;
 
         // local cooldown tracking so we can drive refill visuals
         private float _cooldownRemaining;
@@ -100,11 +103,13 @@ public void PreTickInput(in PowerUpInputState input)
     if (_telegraphRemaining > 0f && _pendingFire)
         preview01 = _pendingCharge01;
 
-    float thickness = Mathf.Lerp(_def.beamThicknessMin, _def.beamThicknessMax, preview01);
-    float maxDist   = Mathf.Lerp(_def.minDistanceOnTap, _def.maxDistance, preview01);
+    float size = PlayerScaleAdjuster.SizeOf(_owner);
+    float thickness = Mathf.Lerp(_def.beamThicknessMin, _def.beamThicknessMax, preview01) * size;
+    float maxDist   = Mathf.Lerp(_def.minDistanceOnTap, _def.maxDistance, preview01) * PlayerScaleAdjuster.ProjectileReachOf(_owner);
 
     Vector3 origin = (_vfx != null) ? _vfx.GetVfxOriginWS() : _owner.transform.position;
-    float blocked = ComputeBlockedDistance(origin, dir, maxDist, thickness * 0.5f, _def.blockMask);
+    float muzzleOffset = 0.6f * size;
+    float blocked = muzzleOffset + ComputeBlockedDistance(origin + dir * muzzleOffset, dir, maxDist, thickness * 0.5f, _def.blockMask);
 
     _vfx?.SetState(
         charging: _charging,
@@ -216,20 +221,23 @@ public void PreTickInput(in PowerUpInputState input)
             if (dir.sqrMagnitude < 0.0001f) dir = _owner.transform.forward;
             dir.Normalize();
 
-            float dist = Mathf.Lerp(_def.minDistanceOnTap, _def.maxDistance, charge01);
-            float thickness = Mathf.Lerp(_def.beamThicknessMin, _def.beamThicknessMax, charge01);
+            // Snapshot the owner's geometry; an airborne shot keeps its launch size.
+            float size = PlayerScaleAdjuster.SizeOf(_owner);
+            float dist = Mathf.Lerp(_def.minDistanceOnTap, _def.maxDistance, charge01) * PlayerScaleAdjuster.ProjectileReachOf(_owner);
+            float thickness = Mathf.Lerp(_def.beamThicknessMin, _def.beamThicknessMax, charge01) * size;
             float massRemove = Mathf.Lerp(_def.massRemovedMin, _def.massRemovedMax, charge01);
 
             var prb = _owner.GetComponent<Rigidbody>();
             if (prb != null)
             {
-                float recoil = Mathf.Lerp(_def.recoilVelocityMin, _def.recoilVelocityMax, charge01);
+                float recoil = Mathf.Lerp(_def.recoilVelocityMin, _def.recoilVelocityMax, charge01) * PlayerScaleAdjuster.MovementOf(_owner);
 
                 // Kick opposite shot direction (planar)
                 Vector3 kick = -dir * recoil;
                 kick.y = 0f;
 
                 // VelocityChange is great here (consistent regardless of mass)
+                _owner.ProtectActionMomentum(.25f);
                 prb.AddForce(kick, ForceMode.VelocityChange);
             }
 
@@ -244,7 +252,7 @@ public void PreTickInput(in PowerUpInputState input)
 
             go.name = "PA_Beam";
             Vector3 origin = (_vfx != null) ? _vfx.GetVfxOriginWS() : _owner.transform.position;
-            go.transform.position = origin + dir * 0.6f; // + optional y lift if you want
+            go.transform.position = origin + dir * (0.6f * size);
 
             go.transform.localScale = Vector3.one; // IMPORTANT: don't scale the hierarchy
             go.transform.rotation = Quaternion.LookRotation(dir, Vector3.up);
@@ -262,7 +270,7 @@ public void PreTickInput(in PowerUpInputState input)
             var proj = go.GetComponent<ParticleAcceleratorProjectile>();
             if (!proj) proj = go.AddComponent<ParticleAcceleratorProjectile>();
 
-            float capLen = Mathf.Lerp(_def.beamVisualMinLength, _def.beamVisualMaxLength, charge01);
+            float capLen = Mathf.Lerp(_def.beamVisualMinLength, _def.beamVisualMaxLength, charge01) * size;
 
             // Optional: never exceed the actual travel distance for this shot
             capLen = Mathf.Min(capLen, dist);
@@ -277,7 +285,8 @@ public void PreTickInput(in PowerUpInputState input)
                 transferToShooter: _def.transferMassToShooter,
                 blockMask: _def.blockMask,
                 charge01: charge01,
-                beamVisualMaxLength: capLen
+                beamVisualMaxLength: capLen,
+                spatialScale: size
                 // impactPrefabOverride: (optional) you can pass one here if you add it to the definition
 
             );

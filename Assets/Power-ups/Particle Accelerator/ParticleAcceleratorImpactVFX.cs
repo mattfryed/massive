@@ -30,10 +30,13 @@ namespace Massive.PowerUps
         private float[] _sizeMul;
 
         private float _volumeSizeWorld;
+        private float _spatialScale = 1f;
 
-        public void Init(float charge01, int seed)
+        public void Init(float charge01, int seed, float spatialScale = 1f)
         {
             _charge01 = Mathf.Clamp01(charge01);
+            _spatialScale = Mathf.Max(0.01f, spatialScale);
+            _t = 0f;
 
             int n = Mathf.RoundToInt(Mathf.Lerp(shardsMin, shardsMax, _charge01));
             n = Mathf.Clamp(n, 3, 24);
@@ -56,8 +59,12 @@ namespace Massive.PowerUps
             float maxCoreR  = Mathf.Lerp(coreRadiusMin, coreRadiusMax, _charge01);
 
             float extent = maxCoreR + maxSpread + maxShardR + 0.25f;
-            _volumeSizeWorld = Mathf.Max(0.35f, extent * 2f);
-            transform.localScale = Vector3.one * _volumeSizeWorld;
+            _volumeSizeWorld = Mathf.Max(0.35f, extent * 2f) * _spatialScale;
+            Vector3 parentScale = transform.parent != null ? transform.parent.lossyScale : Vector3.one;
+            transform.localScale = new Vector3(
+                _volumeSizeWorld / Mathf.Max(0.0001f, Mathf.Abs(parentScale.x)),
+                _volumeSizeWorld / Mathf.Max(0.0001f, Mathf.Abs(parentScale.y)),
+                _volumeSizeWorld / Mathf.Max(0.0001f, Mathf.Abs(parentScale.z)));
         }
 
         private void Awake()
@@ -78,9 +85,9 @@ namespace Massive.PowerUps
 
             float invS = 1f / Mathf.Max(0.0001f, _volumeSizeWorld);
 
-            float coreR = Mathf.Lerp(coreRadiusMin, coreRadiusMax, _charge01) * pulse;
-            float spread = Mathf.Lerp(spreadMin, spreadMax, _charge01) * ease;
-            float shardBase = Mathf.Lerp(shardRadiusMin, shardRadiusMax, _charge01) * pulse;
+            float coreR = Mathf.Lerp(coreRadiusMin, coreRadiusMax, _charge01) * pulse * _spatialScale;
+            float spread = Mathf.Lerp(spreadMin, spreadMax, _charge01) * ease * _spatialScale;
+            float shardBase = Mathf.Lerp(shardRadiusMin, shardRadiusMax, _charge01) * pulse * _spatialScale;
 
             _sdf.Clear();
 

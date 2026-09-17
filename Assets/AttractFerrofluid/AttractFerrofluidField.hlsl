@@ -43,7 +43,7 @@
                 }
                 return float4(slope,sum);
             }
-            float fluidSurface(float3 n,out float3 moundSlope)
+            float fluidSurfaceAtDensity(float3 n,float density,out float3 moundSlope)
             {
                 // A continuous 3D field avoids latitude seams and needle-like tips.
                 // The cubic-sphere tessellation resolves hundreds of rounded lobes.
@@ -53,7 +53,7 @@
                 // The shell stays centered; a bounded offset keeps this map smooth.
                 float3 sampleN=normalize(n-_Attraction.xyz);
                 float3 q=sampleN+.085*sin(sampleN.zxy*3.2+orbit.yzx*1.8);
-                float3 flow=q*_Density*.8+orbit*.68;
+                float3 flow=q*density*.8+orbit*.68;
                 float body=noise(sampleN*2.3+orbit*.22);
                 float4 mounds=roundedBlobs(flow);
                 float lobes=mounds.w;
@@ -63,5 +63,9 @@
                 // and keeps overlapping blobs from building tall pointed peaks.
                 float surface=.455+.018*(body-.5)+_Relief*.72*(1-exp(-lobes*(.86+.14*folds)));
                 moundSlope=mounds.xyz; return surface;
+            }
+            float fluidSurface(float3 n,out float3 moundSlope)
+            {
+                return fluidSurfaceAtDensity(n,_Density,moundSlope);
             }
 #endif

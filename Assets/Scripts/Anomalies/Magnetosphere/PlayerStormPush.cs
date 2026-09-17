@@ -61,6 +61,8 @@ public class PlayerStormPush : MonoBehaviour
                 planar.y = 0;
                 Vector3 acceleration = Vector3.ClampMagnitude(
                     (drift - planar) * Mathf.Max(.01f, currentResponse), Mathf.Max(0, maxAcceleration));
+                if (player && acceleration.sqrMagnitude > .000001f)
+                    player.ProtectActionMomentum(.1f);
                 rb.AddForce(acceleration, ForceMode.Acceleration);
             }
             return;
@@ -89,6 +91,8 @@ public class PlayerStormPush : MonoBehaviour
         if (aMag > maxAcceleration)
             accel *= (maxAcceleration / aMag);
 
+        if (player && accel.sqrMagnitude > .000001f)
+            player.ProtectActionMomentum(.1f);
         rb.AddForce(accel, ForceMode.Acceleration);
     }
 }

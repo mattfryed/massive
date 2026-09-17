@@ -3,6 +3,7 @@ Shader "MASSIVE/NuggetInstanced"
     Properties{
         _Color ("Color", Color) = (1,1,1,1)
         _DotRadius ("Dot Radius", Float) = 0.03
+        _PlayerSize ("Player size", Float) = 1
         _OutlineColor ("Outline Color", Color) = (1,1,1,1)
         _OutlineWidth ("Outline Width", Float) = 0.02
         _DrawOutline ("Draw Outline (0/1)", Float) = 0
@@ -36,6 +37,7 @@ Shader "MASSIVE/NuggetInstanced"
 
             float4 _Color;
             float  _DotRadius;
+            float  _PlayerSize;
 
             // Per-camera data set from C#
             float3 _CamRightWS;
@@ -55,10 +57,10 @@ Shader "MASSIVE/NuggetInstanced"
 
                 // Local → world for this nugget
                 float3 local = _NuggetPos[v.iid];       // (x,0,z) local offsets
-                float3 Pw    = _CenterWS + local;
+                float3 Pw    = _CenterWS + local * _PlayerSize;
 
                 // Billboard in world space
-                float s = _DotRadius;
+                float s = _DotRadius * _PlayerSize;
                 float3 world = Pw + _CamRightWS * (corner.x * s) + _CamUpWS * (corner.y * s);
 
                 o.pos = UnityWorldToClipPos(world);
@@ -107,6 +109,7 @@ return float4(_Color.rgb * fa, fa); // premultiplied, with opacity
             StructuredBuffer<float3> _NuggetPos;
             float4 _OutlineColor;
             float  _DotRadius;
+            float  _PlayerSize;
             float  _OutlineWidth;
             float  _DrawOutline; // 0 or 1
             float3 _CamRightWS, _CamUpWS, _CenterWS;
@@ -123,9 +126,9 @@ return float4(_Color.rgb * fa, fa); // premultiplied, with opacity
                 float2 corner = uv*2.0-1.0;
 
                 float3 local = _NuggetPos[v.iid];
-                float3 Pw    = _CenterWS + local;
+                float3 Pw    = _CenterWS + local * _PlayerSize;
 
-                float s = _DotRadius + _OutlineWidth;   // bigger!
+                float s = (_DotRadius + _OutlineWidth) * _PlayerSize;
                 float3 world = Pw + _CamRightWS*(corner.x*s) + _CamUpWS*(corner.y*s);
 
                 o.pos = UnityWorldToClipPos(world);

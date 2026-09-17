@@ -23,6 +23,7 @@ namespace Massive.PowerUps
         private LayerMask _blockMask;
 
         private float _charge01;
+        private float _spatialScale = 1f;
 
         // World origin at the moment the beam spawned
         private Vector3 _originWS;
@@ -52,7 +53,8 @@ namespace Massive.PowerUps
             LayerMask blockMask,
             float charge01 = 0f,
             float beamVisualMaxLength = -1f,
-            GameObject impactPrefabOverride = null)
+            GameObject impactPrefabOverride = null,
+            float spatialScale = 1f)
         {
             _shooter = shooter;
 
@@ -70,6 +72,7 @@ namespace Massive.PowerUps
             _blockMask = blockMask;
 
             _charge01 = Mathf.Clamp01(charge01);
+            _spatialScale = Mathf.Max(0.01f, spatialScale);
 
             // Cap length cannot exceed travel distance.
             // If <= 0, treat as "no cap" (beam grows until hit/maxDistance).
@@ -91,7 +94,11 @@ namespace Massive.PowerUps
             if (impactPrefabOverride) impactPrefab = impactPrefabOverride;
 
             if (!beamVisual) beamVisual = GetComponentInChildren<ParticleAcceleratorBeamVisual>(true);
-            if (beamVisual) beamVisual.gameObject.SetActive(true);
+            if (beamVisual)
+            {
+                beamVisual.SetSpatialScale(_spatialScale);
+                beamVisual.gameObject.SetActive(true);
+            }
         }
 
         private void Update()
@@ -277,7 +284,7 @@ namespace Massive.PowerUps
             if (fx != null)
             {
                 int seed = (int)(Time.time * 1000f) ^ (_shooter ? _shooter.playerID * 73856093 : 83492791);
-                fx.Init(_charge01, seed);
+                fx.Init(_charge01, seed, _spatialScale);
             }
         }
     }

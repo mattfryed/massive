@@ -17,6 +17,7 @@ namespace Massive.Players.UI
         [SerializeField] private bool followTarget = true;
         [SerializeField] private Vector3 followOffset = new Vector3(0f, 0.25f, 0f);
         private Transform _target;
+        private bool scaleFollowOffsetWithPlayer;
 
         [Header("World-Space Canvas")]
         [SerializeField] private bool autoSetupWorldCanvas = true;
@@ -82,7 +83,8 @@ namespace Massive.Players.UI
         private void LateUpdate()
         {
             if (followTarget && _target)
-                transform.position = _target.position + followOffset;
+                transform.position = _target.position + followOffset *
+                    (scaleFollowOffsetWithPlayer ? Massive.Player.PlayerScaleAdjuster.SizeOf(_target) : 1f);
 
             if (!billboardToCamera) return;
 
@@ -193,9 +195,10 @@ namespace Massive.Players.UI
             return (cams != null && cams.Length > 0) ? cams[0] : null;
         }
 
-            public void SetFollowOffset(Vector3 offsetWS)
+            public void SetFollowOffset(Vector3 offsetWS, bool relativeToPlayerSize = false)
         {
             followOffset = offsetWS;
+            scaleFollowOffsetWithPlayer = relativeToPlayerSize;
         }
     }
 

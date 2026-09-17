@@ -18,6 +18,8 @@ namespace Massive.PowerUps
 
         public bool HasActive => active != null && remaining > 0f;
         public PowerUpDefinition ActiveDefinition => active;
+        public bool HasMovementAction => HasActive &&
+            _ability is ParticleAcceleratorAbility accelerator && accelerator.IsMovementActionActive;
 
         private PlayerControllerScript _player; // your existing controller
         private IPowerUpAbility _ability;

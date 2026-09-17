@@ -48,6 +48,12 @@ namespace Massive.PowerUps
         private float _charge01;
 
         private float _volumeSizeWorld = 1f;
+        private float _spatialScale = 1f;
+
+        public void SetSpatialScale(float scale)
+        {
+            _spatialScale = Mathf.Max(0.01f, scale);
+        }
 
         private void Awake()
         {
@@ -72,7 +78,7 @@ namespace Massive.PowerUps
             seg.y = 0f;
 
             float len = seg.magnitude;
-            if (len <= 0.02f)
+            if (len <= 0.02f * _spatialScale)
             {
                 _sdf.Clear();
                 _sdf.Apply();
@@ -92,17 +98,21 @@ namespace Massive.PowerUps
             // Volume size (world)
             if (useFixedVolumeSize)
             {
-                _volumeSizeWorld = Mathf.Max(0.35f, fixedVolumeSizeWorld);
+                _volumeSizeWorld = Mathf.Max(0.35f, fixedVolumeSizeWorld) * _spatialScale;
+                _volumeSizeWorld = Mathf.Max(_volumeSizeWorld, len + 2f * (Mathf.Max(headR, tailR) + paddingWorld * _spatialScale));
             }
             else
             {
-                float extent = (len * 0.5f) + Mathf.Max(headR, tailR) + paddingWorld;
-                _volumeSizeWorld = Mathf.Max(0.35f, extent * 2f);
+                float extent = (len * 0.5f) + Mathf.Max(headR, tailR) + paddingWorld * _spatialScale;
+                _volumeSizeWorld = Mathf.Max(0.35f * _spatialScale, extent * 2f);
             }
 
-            // Apply scale ONLY if it actually changed a lot (or once at start)
-            if (Mathf.Abs(transform.localScale.x - _volumeSizeWorld) > 0.001f)
-                transform.localScale = Vector3.one * _volumeSizeWorld;
+            // Geometry is specified in world units, independently of prefab parent scale.
+            Vector3 parentScale = transform.parent != null ? transform.parent.lossyScale : Vector3.one;
+            transform.localScale = new Vector3(
+                _volumeSizeWorld / Mathf.Max(0.0001f, Mathf.Abs(parentScale.x)),
+                _volumeSizeWorld / Mathf.Max(0.0001f, Mathf.Abs(parentScale.y)),
+                _volumeSizeWorld / Mathf.Max(0.0001f, Mathf.Abs(parentScale.z)));
 
 
             // Place + align the volume
@@ -121,7 +131,7 @@ namespace Massive.PowerUps
             _sdf.AddBall(new Vector3(0f, 0f, -half) * invS, tailR * invS);
 
             // Effective spacing (prevents dense chains getting fatter in the middle)
-            float spacing = Mathf.Max(segmentSpacingWorld, bodyR * minSpacingRadiusFactor);
+            float spacing = Mathf.Max(segmentSpacingWorld * _spatialScale, bodyR * minSpacingRadiusFactor);
 
             // Compute interior count (keep under 32 balls total)
             const int maxInterior = 30;
@@ -134,14 +144,14 @@ namespace Massive.PowerUps
             else
             {
                 // “density”: interior grows with length
-                interior = Mathf.CeilToInt(len * Mathf.Max(0.1f, segmentsPerWorldUnit)) - 1;
+                interior = Mathf.CeilToInt(len * Mathf.Max(0.1f, segmentsPerWorldUnit) / _spatialScale) - 1;
                 interior = Mathf.Clamp(interior, 0, maxInterior);
             }
             if (interior > 0)
             {
                 float step = len / (interior + 1f);
 
-                float ramp = Mathf.Max(0.05f, muzzleRampWorld);
+                float ramp = Mathf.Max(0.05f, muzzleRampWorld) * _spatialScale;
 
                 for (int i = 0; i < interior; i++)
                 {

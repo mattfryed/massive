@@ -95,12 +95,12 @@ public void ShowForPlayer(PlayerControllerScript player, float overrideTotalSeco
         offset += up * screenUpOffsetWorld;
     }
 
-    Vector3 pos = player.transform.position + offset;
+    Vector3 pos = player.transform.position + offset * Massive.Player.PlayerScaleAdjuster.SizeOf(player);
 
     var toast = Instantiate(toastPrefab, pos, Quaternion.identity, parent);
 
     // IMPORTANT toast follows the player:
-    toast.SetFollowOffset(offset); // (the follow-offset fix you already applied)
+    toast.SetFollowOffset(offset, relativeToPlayerSize: true);
 
     float t = (overrideTotalSeconds > 0f) ? overrideTotalSeconds : totalSeconds;
     toast.Play(player.transform, text, introSeconds, t, outroSeconds, cam);

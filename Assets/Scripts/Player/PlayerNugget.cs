@@ -118,11 +118,14 @@ void HandlePreCull(Camera cam)
     // Bind render data (safe to redundantly set here)
     _mpb.SetBuffer("_NuggetPos", _pos);
     _mpb.SetFloat("_DotRadius", dotRadius);
+    // Simulation remains in the authored body frame; scale only its rendered output.
+    _mpb.SetFloat("_PlayerSize", Massive.Player.PlayerScaleAdjuster.SizeOf(this) *
+        (controller != null ? controller.RepulsorVisualScale : 1f));
 
     // Base center (plus deco pre-jitter if active)
     Vector3 baseCenter = GetBlobCenterWS();
     if (controller != null)
-        baseCenter += controller.DecoPreJitterWS;
+        baseCenter += controller.DecoPreJitterWS + controller.RepulsorVisualOffsetWS;
 
     // Determine if we are in split mode
     float splitT = (controller != null) ? Mathf.Clamp01(controller.DecoSplit01) : 0f;

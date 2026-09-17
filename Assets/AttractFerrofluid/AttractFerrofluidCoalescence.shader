@@ -10,7 +10,7 @@ Shader "MASSIVE/Study/Attract Ferrofluid Coalescence"
         _Attraction("Attraction offset",Vector)=(0,0,0,0)
         _FluidTime("Flow time",Float)=0
         _WhiteDominant("White mounds",Float)=0
-        _FormationCore("Collected liquid",Float)=0
+        _FormationCore("Reservoir size",Float)=.24
     }
     SubShader
     {
@@ -31,8 +31,8 @@ Shader "MASSIVE/Study/Attract Ferrofluid Coalescence"
             struct output{float4 color:SV_Target;float depth:SV_Depth;};
             v2f vert(appdata v)
             {
-                // A fixed envelope, not a growing render mesh. The implicit
-                // surface inside it can split and merge into separate droplets.
+                // Fixed envelope. The inner surface swells from a permanent
+                // reservoir through attached lobes, independent of mesh scale.
                 v2f o;o.localPosition=normalize(v.vertex.xyz)*.79;
                 o.position=UnityObjectToClipPos(float4(o.localPosition,1));return o;
             }
@@ -40,6 +40,14 @@ Shader "MASSIVE/Study/Attract Ferrofluid Coalescence"
             {
                 float h=max(k-abs(a-b),0)/k;
                 return min(a,b)-h*h*k*.25;
+            }
+            float formingSurface(float3 n)
+            {
+                float3 unused;
+                // A thumbnail-sized reservoir needs broad readable mounds.
+                // Fine player detail arrives continuously as its mass grows.
+                float density=lerp(min(2.5,_Density),_Density,smoothstep(.24,.8,_FormationCore));
+                return fluidSurfaceAtDensity(n,density,unused);
             }
             float field(float3 p)
             {
@@ -50,7 +58,7 @@ Shader "MASSIVE/Study/Attract Ferrofluid Coalescence"
                     float3 unused;float radius=.49;
                     // Only rays near the body need the fine surface kernels.
                     if(abs(lengthP-.49*_FormationCore)<.12)
-                        radius=fluidSurface(p/max(lengthP,.0001),unused);
+                        radius=formingSurface(p/max(lengthP,.0001));
                     distance=lengthP-radius*_FormationCore;
                 }
                 [unroll]for(int j=0;j<8;j++)
@@ -92,9 +100,8 @@ Shader "MASSIVE/Study/Attract Ferrofluid Coalescence"
                 white=max(white,rim);
                 if(_WhiteDominant>.5)
                 {
-                    float3 unused;float height=(fluidSurface(normalize(p),unused)-.455)/max(_Relief,.001);
-                    // White droplets acquire black valleys as the body joins.
-                    white=step(.43*smoothstep(.35,.85,_FormationCore),height);
+                    float height=(formingSurface(normalize(p))-.455)/max(_Relief,.001);
+                    white=step(.425-saturate(_Wetness)*.06,height);
                 }
                 output o;o.color=float4(white,white,white,1);
                 float4 clipPosition=UnityObjectToClipPos(float4(p,1));o.depth=clipPosition.z/clipPosition.w;

@@ -152,7 +152,7 @@ public float gameplayFacingMaxYawSpeed = 2500f;
     public Vector3 DecoPreJitterWS           => _decoPreJitterWS;
     public Vector3 DecoGhostJitterA_WS       => _decoGhostJitterA_WS;
     public Vector3 DecoGhostJitterB_WS       => _decoGhostJitterB_WS;
-    public float  DecoSplitSeparationWorld   => decoSplitSeparationWorld;
+    public float  DecoSplitSeparationWorld   => decoSplitSeparationWorld * Massive.Player.PlayerScaleAdjuster.SizeOf(this);
     public float  DecoGhostOpacity           => decoGhostOpacity;
     public float  DecoSplitFillAlpha         => decoSplitFillAlpha;
 
@@ -771,14 +771,14 @@ public void SetMoveInput(Vector2 stick)
         Vector3 jitter = Vector3.zero;
         if (_chargeJitter01 > 0.001f)
         {
-            float amp = 0.06f * _chargeJitter01;
+            float amp = 0.06f * _chargeJitter01 * Massive.Player.PlayerScaleAdjuster.SizeOf(this);
             float tt = Time.time * (16f + 20f * _chargeJitter01);
             jitter = new Vector3(Mathf.Sin(tt * 1.13f), 0f, Mathf.Sin(tt * 0.97f + 1.7f)) * amp;
         }
 
-        Vector3 basePos = visuals.position + jitter + _decoPreJitterWS;
+        Vector3 basePos = visuals.position + jitter + _decoPreJitterWS + RepulsorVisualOffsetWS;
         Quaternion baseRot = visuals.rotation;
-        Vector3 baseScale = visuals.lossyScale;
+        Vector3 baseScale = visuals.lossyScale * RepulsorVisualScale;
 
         // 0 = normal, 1 = fully split
         float t = Mathf.Clamp01(_decoSplit01);
@@ -827,7 +827,7 @@ public void SetMoveInput(Vector2 stick)
             if (side.sqrMagnitude < 0.0001f) side = Vector3.forward;
             side.Normalize();
 
-            float halfSep = 0.5f * decoSplitSeparationWorld * t;
+            float halfSep = 0.5f * DecoSplitSeparationWorld * t;
             Vector3 off = side * halfSep;
 
             // Optional: ghosty transparency (safe if shader has these properties)
@@ -1007,7 +1007,7 @@ private void DrawBlob(
     float x = Mathf.Sin(t * 1.13f + seed) + Mathf.Sin(t * 2.07f + seed * 1.7f);
     float z = Mathf.Sin(t * 0.97f + seed * 2.3f) + Mathf.Sin(t * 1.71f + seed * 0.9f);
 
-    return new Vector3(x, 0f, z) * (0.5f * amp);
+    return new Vector3(x, 0f, z) * (0.5f * amp * Massive.Player.PlayerScaleAdjuster.SizeOf(this));
 }
 
     void UpdateGameplayFacingRoot()

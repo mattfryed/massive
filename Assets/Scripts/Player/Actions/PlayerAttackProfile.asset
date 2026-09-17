@@ -79,7 +79,7 @@ MonoBehaviour:
     activationFrameStart: 4
     activationFrameEnd: 10
     animationFrameRate: 60
-    allowComboCancel: 0
+    allowComboCancel: 1
     travelDistance: 1
     distanceCurve:
       serializedVersion: 2
@@ -133,14 +133,14 @@ MonoBehaviour:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-  - stageName: 1
+  - stageName: Repulsor
     stageType: 2
-    duration: 0.3
-    activationFrameStart: 4
-    activationFrameEnd: 10
+    duration: 0.6
+    activationFrameStart: 10
+    activationFrameEnd: 25
     animationFrameRate: 60
     allowComboCancel: 0
-    travelDistance: 1
+    travelDistance: 0
     distanceCurve:
       serializedVersion: 2
       m_Curve:

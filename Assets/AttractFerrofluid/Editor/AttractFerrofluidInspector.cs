@@ -19,10 +19,21 @@ public sealed class AttractFerrofluidInspector : Editor
         EditorGUILayout.LabelField("Lettering",EditorStyles.boldLabel);
         Field("embeddedLogo","Embed MASSIVE Lettering","On places white lettering in the sphere. Off restores the original floating title.");
         Field("logoScale","Lettering Scale","Uniform scale on the sphere; 1 is the approved study size. Range 0.25–1.3.");
+        Field("logoLetterSpacing","Letter Spacing","Adds space between the seven letters without stretching them. Zero retains the original spacing; negative values tighten it.");
         Field("logoRecess","Embed Depth","Depth below the reference surface, in sphere-local units.");
         Field("logoElevation","Vertical Position","Vertical angle of the lettering around the sphere.");
         Field("logoSurfaceFlow","Ridge Undulation","How strongly the mounds move the outer ridge where it joins the liquid.");
         Field("logoTypeFlow","Type Undulation","0 keeps the white letter faces steady. 1 follows the full mound motion. Independent of Ridge Undulation.");
+        EditorGUILayout.Space();
+        Field("animateLogoArrival","Animate Lettering Arrival","Uncovers the embedded title from the liquid when the scene or sphere starts.");
+        if(serializedObject.FindProperty("animateLogoArrival").boolValue)
+        {
+            Field("logoArrivalDelay","Arrival Delay","Seconds the sphere stays completely covered before the liquid recedes.");
+            Field("logoArrivalDuration","Reveal Duration","Seconds for the liquid to withdraw from the centers of the letter strokes.");
+            using(new EditorGUI.DisabledScope(!Application.isPlaying))
+                if(GUILayout.Button("Replay Lettering Arrival"))
+                    foreach(var item in targets)((AttractFerrofluidStudy)item).ReplayLogoArrival();
+        }
         EditorGUILayout.HelpBox("Controls update live in Play Mode. Set them before entering Play Mode to save your preferred scene defaults. Embedded lettering is used when the ferrofluid sphere is on.",MessageType.Info);
         showSurface=EditorGUILayout.Foldout(showSurface,"Surface and lighting",true);
         if(showSurface)
