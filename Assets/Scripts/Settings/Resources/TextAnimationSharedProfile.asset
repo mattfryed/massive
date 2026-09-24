@@ -1,0 +1,19 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 82ae8290fb6479840a95ca622f551610, type: 3}
+  m_Name: TextAnimationSharedProfile
+  m_EditorClassIdentifier: 
+  sharedEnabled: 1
+  scoreDigitMorphPreset: {fileID: 11400000, guid: 94f7c11e93b89064ab2b6cc265c51945,
+    type: 2}
+  scoreDigitMorphIntensity: 1
+  energyTierProfile: {fileID: 11400000, guid: 2e4211ebb8d13e645a1f49496f2bc702, type: 2}

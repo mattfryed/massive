@@ -6,7 +6,7 @@ namespace Massive.Player
     /// <summary>A brief displacement of the existing grid, emitted at repulsor activation.</summary>
     [ExecuteAlways, DisallowMultipleComponent]
     [AddComponentMenu("MASSIVE/Player/Repulsor Grid Pulse")]
-    public sealed class PlayerRepulsorGridPulse : MonoBehaviour
+    public sealed partial class PlayerRepulsorGridPulse : MonoBehaviour
     {
         [Header("Grid Pulse")]
         public bool pulseEnabled = true;
@@ -41,6 +41,7 @@ namespace Massive.Player
         private int nextPulse;
         private PlayerControllerScript owner;
         private PlayerRepulsorAOE repulsor;
+        private PlayerAttackController attack;
         private bool preview;
         private float previewElapsed, previewWorldRadius = -1f;
         private Vector3? previewOrigin;
@@ -69,6 +70,7 @@ namespace Massive.Player
         private void ResolveReferences()
         {
             if (!owner) owner = GetComponentInParent<PlayerControllerScript>();
+            if (!attack && owner) attack = owner.GetComponent<PlayerAttackController>();
             if (!repulsor)
             {
                 var candidate = owner != null
@@ -110,7 +112,7 @@ namespace Massive.Player
         /// <summary>Creates one bounded pulse at the player's current position. Normal play calls this from PulseStarted.</summary>
         public void TriggerPulse()
         {
-            if (!pulseEnabled || !isActiveAndEnabled || !Application.isPlaying) return;
+            if (!Effective_pulseEnabled || !isActiveAndEnabled || !Application.isPlaying) return;
             ResolveReferences();
             Pulse pulse = MakePulse();
             pulse.active = true;
@@ -148,18 +150,21 @@ namespace Massive.Player
         private Pulse MakePulse()
         {
             float size = Mathf.Max(0.01f, PlayerScaleAdjuster.SizeOf(owner != null ? (Component)owner : this));
-            float radius = Mathf.Max(0.1f, travelRadius) * size;
+            var stage = PlayerRepulsorAOE.FindRepulsorStage(attack ? attack.Profile : null);
+            float attackScale = repulsor != null && repulsor.IsPulseActive ? repulsor.PulseScale : stage != null ? stage.RepulsorScale : 1f;
+            float effectSize = size * attackScale;
+            float radius = Mathf.Max(0.1f, Effective_travelRadius) * effectSize;
             float bodyRadius = owner != null ? PlayerScaleAdjuster.BodyRadiusOf(owner) : 0.5f * size;
             float startRadius = repulsor != null && repulsor.IsPulseActive ? repulsor.StartRadiusWorld : bodyRadius;
             return new Pulse
             {
                 origin = repulsor != null && repulsor.IsPulseActive ? repulsor.OriginWorld
                     : owner != null ? owner.transform.position : transform.position,
-                seconds = Mathf.Max(0.05f, duration),
+                seconds = Mathf.Max(0.05f, Effective_duration),
                 radius = radius,
-                amplitude = Mathf.Clamp(intensity, 0f, 0.5f) * size,
-                width = Mathf.Max(0.05f, packetWidth) * size,
-                curl = Mathf.Clamp01(curl),
+                amplitude = Mathf.Clamp(Effective_intensity, 0f, 0.5f) * effectSize,
+                width = Mathf.Max(0.05f, Effective_packetWidth) * effectSize,
+                curl = Mathf.Clamp01(Effective_curl),
                 startRadius = Mathf.Clamp(startRadius, 0f, radius * 0.6f)
             };
         }

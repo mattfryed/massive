@@ -1,0 +1,72 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 90c81cc76bca9af4ba65ca19c7e70c49, type: 3}
+  m_Name: PlayerTuningProfile
+  m_EditorClassIdentifier: 
+  sharedEnabled: 1
+  attackProfile: {fileID: 11400000, guid: f8da97854828d82479cb4fca1898b16f, type: 2}
+  movement:
+    movePower: 24
+    maxMoveSpeed: 7.5
+    clampSpeed: 1
+    lateralFriction: 35
+    reverseBrake: 75
+    reverseDotThreshold: 0
+    idleBrake: 33
+    moveDeadzone: 0.05
+    attackingMoveScale: 0.6
+    shieldMoveMultiplier: 0.15
+  combat:
+    attackCooldown: 0.5
+    comboInputBuffer: 0.15
+    useSharedComboWindow: 1
+    sharedComboWindowSeconds: 0.15
+    comboWindowAfterActivationWindow: 1
+    comboWindowEndNormalized: 1
+    swipeArcCurve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    visualDirectionFollowsCombatFacing: 1
+    lockOnEnabled: 1
+    lockOnConeHalfAngleDeg: 25
+    lockOnMaxDistanceOverride: 0
+    lockOnDirectionBlend: 0.85
+  repulsor:
+    applyKnockback: 1
+    knockbackVelocity: 12
+    maxPlanarSpeedAfterHit: 16
+    applyStun: 0
+    stunStrength01: 0.35
+    applyMassLoss: 0
+    massLossScale01: 0.25
+    giveAttackerMass: 0

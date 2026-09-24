@@ -1,0 +1,516 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &-3458661880640849685
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 10505602ad7268e47a77b6747992c924, type: 3}
+  m_Name: PlayerAttackProfile
+  m_EditorClassIdentifier: 
+  stages:
+  - stageName: 0
+    stageType: 0
+    duration: 0.3
+    activationFrameStart: 3
+    activationFrameEnd: 36
+    animationFrameRate: 60
+    allowComboCancel: 1
+    customComboWindow: 0
+    comboWindowStartSeconds: 0.15
+    comboWindowEndSeconds: 0.3
+    earlyComboHandoff: 0
+    comboHandoffSeconds: 0.3
+    travelDistance: 2
+    distanceCurve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    rotationArc: 0
+    animationStateName: Thrust
+    animationTransitionDuration: 0
+    repulsorScale: 1
+    repulsorEnemyDamage: 1
+    repulsorMaxRadius: 3
+    repulsorRadiusCurve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+  - stageName: 1
+    stageType: 1
+    duration: 0.4
+    activationFrameStart: 4
+    activationFrameEnd: 10
+    animationFrameRate: 60
+    allowComboCancel: 1
+    customComboWindow: 0
+    comboWindowStartSeconds: 0.15
+    comboWindowEndSeconds: 0.3
+    earlyComboHandoff: 0
+    comboHandoffSeconds: 0.3
+    travelDistance: 1
+    distanceCurve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    rotationArc: 120
+    animationStateName: 
+    animationTransitionDuration: 0.1
+    repulsorScale: 1
+    repulsorEnemyDamage: 1
+    repulsorMaxRadius: 3
+    repulsorRadiusCurve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+  - stageName: Repulsor
+    stageType: 2
+    duration: 0.6
+    activationFrameStart: 10
+    activationFrameEnd: 25
+    animationFrameRate: 60
+    allowComboCancel: 0
+    customComboWindow: 0
+    comboWindowStartSeconds: 0.15
+    comboWindowEndSeconds: 0.3
+    earlyComboHandoff: 0
+    comboHandoffSeconds: 0.3
+    travelDistance: 0
+    distanceCurve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    rotationArc: 180
+    animationStateName: 
+    animationTransitionDuration: 0
+    repulsorScale: 1
+    repulsorEnemyDamage: 1
+    repulsorMaxRadius: 3
+    repulsorRadiusCurve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 43a38e4e167b4764ba1443b819d07082, type: 3}
+  m_Name: Dynamo baseline
+  m_EditorClassIdentifier: 
+  tuning: {fileID: 9074662780427352732}
+  attacks: {fileID: -3458661880640849685}
+  players: {fileID: 7920596399159900025}
+  visuals: {fileID: 7388286689946661562}
+--- !u!114 &7388286689946661562
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 326cb516282675648aefd66e0f9b5e0a, type: 3}
+  m_Name: MeleeVisualProfile
+  m_EditorClassIdentifier: 
+  sharedEnabled: 1
+  visualStyle: 3
+  plasmaMaterial: {fileID: 2100000, guid: 1e3ff57d3bf5f334d9b0c5347380e37b, type: 2}
+  solidBody: 1
+  brightRim: 1
+  flowingFilaments: 1
+  softHalo: 1
+  bodyOpacity: 1
+  rimIntensity: 0.95
+  filamentIntensity: 0.8
+  haloIntensity: 0.08
+  rimWidth: 0.045
+  edgeWarble: 0.3
+  noiseScale: 3
+  flowSpeed: 1
+  reachScale: 1
+  widthScale: 1
+  sweepBend: 32
+  rootOffset: 0.22
+  surfaceHeight: 0.062
+  repulsorBandWidth: 0.14
+  windupOpacity: 0.22
+  recoveryOpacity: 0.16
+  thrustPrefabEffect:
+    prefab: {fileID: 7699698589382392644, guid: ce614ff6f5639fb4ab201b6b5b437127,
+      type: 3}
+    rotationOffset: {x: 0, y: 0, z: 0}
+    positionOffset: {x: 0, y: 0, z: 0.25}
+    referenceReach: 5
+    reachScale: 1.097
+    widthScale: 1.507
+    sourceStartTime: 0.32
+    sourceActiveEndTime: 0.65
+    sourceRecoveryEndTime: 0.95
+    tint: {r: 1, g: 1, b: 1, a: 1}
+    intensity: 1
+    smoke: 0
+    accentParticles: 0
+    groundImpact: 0
+    distortion: 1
+  swipePrefabEffect:
+    prefab: {fileID: 1011157772751556, guid: ca63c6ac7458764498741e0306f78528, type: 3}
+    rotationOffset: {x: -90, y: -90, z: 0}
+    positionOffset: {x: 0, y: 0, z: 0}
+    referenceReach: 2.5
+    reachScale: 1
+    widthScale: 1
+    sourceStartTime: 0
+    sourceActiveEndTime: 0.18
+    sourceRecoveryEndTime: 0.65
+    tint: {r: 1, g: 1, b: 1, a: 1}
+    intensity: 1
+    smoke: 0
+    accentParticles: 1
+    groundImpact: 0
+    distortion: 0
+  arcSweepTreatment: 1
+  volumetricArcMaterial: {fileID: 2100000, guid: 64e60ee169162c4459ebdcbb5f516b70,
+    type: 2}
+  volumeReachScale: 0.681
+  volumeArcDegrees: 240
+  volumeRadialWidth: 0.276
+  volumeThickness: 0.264
+  volumeDensity: 2.83
+  volumeTaper: 1.55
+  volumeTurbulence: 0.073
+  volumeNoiseScale: 5.14
+  volumeFlowSpeed: 1.15
+  volumeBlackBody: 1
+  volumeWhiteEdge: 1
+  volumeFilaments: 1
+  volumeSatelliteWisp: 1
+  volumeEdgeIntensity: 0.77
+  volumeFilamentIntensity: 0.77
+  volumeTendrilCount: 5
+  volumeExtraTendrils: 3
+  volumeTravelDuration: 0.328
+  volumeEmissionSpacing: 0.0235
+  volumeTailLength: 0.373
+  volumeBranching: 0.543
+  volumeConvergenceRate: 2.44
+  volumeLingerSeconds: 0.55
+  volumeDissolve: 1.65
+  volumeSheath: 1
+  volumeCounterflow: 1
+  volumeWake: 1
+  volumeSheathIntensity: 0.574
+  volumeCounterflowIntensity: 0.45
+  volumeWakeIntensity: 0.35
+  volumeOrganicGlow: 1
+  volumeGlowBreakup: 0.7
+  volumeGlowDepth: 0.65
+  volumeGlowFlow: 1.3
+  volumeCrackle: 1
+  volumeCrackleAmount: 0.35
+  volumeCrackleScale: 12
+  volumeCrackleRate: 9
+  thrustLingerSeconds: 0.4
+  thrustFadeCurve: 1.3
+  thrustWorldEmission: 1
+  thrustEmissionPasses: 3
+  thrustOrganicGlow: 1
+  thrustGlowIntensity: 0.65
+  thrustGlowBreakup: 0.7
+  thrustGlowDepth: 0.6
+  thrustGlowFlow: 1.3
+  thrustEnergyMaterial: {fileID: 0}
+  repulsorTreatment: 3
+  repulsorPulseMaterial: {fileID: 0}
+  repulsorPulseWidth: 0.32
+  repulsorPulseThickness: 0.28
+  repulsorPulseDensity: 2.8
+  repulsorPulseTurbulence: 0.3
+  repulsorPulseBreakup: 0.7
+  repulsorPulseFlow: 1.3
+  repulsorPulseLinger: 0.42
+  repulsorPulseFade: 1.25
+  repulsorPulseBlackBody: 1
+  repulsorPulseWhiteEdge: 1
+  repulsorPulseFilaments: 1
+  repulsorPulseWisps: 1
+  repulsorPulseEdgeIntensity: 0.9
+  repulsorPulseFilamentIntensity: 1
+  repulsorPulseWispIntensity: 0.3
+  repulsorReleaseFlash: 1
+  repulsorTurbulentWake: 1
+  repulsorDissolveBreakup: 0.92
+  repulsorImplosion: 1
+  repulsorBlastVolume: 1
+  repulsorSeismicStreak: 1
+  repulsorRadiance: 1.35
+  repulsorBlastOpacity: 0.38
+  repulsorBlastDepth: 0.55
+  repulsorChargeIntensity: 0.8
+  repulsorBurstRays: 1
+  repulsorBurstCrescents: 1
+  repulsorBurstIntensity: 0.85
+  repulsorBurstSpread: 1
+  repulsorSparkEjecta: 1
+  repulsorArcDischarge: 1
+  repulsorEjectaDensity: 0.65
+  body:
+    bodyPulseEnabled: 1
+    contraction: 0.1
+    expansion: 0.15
+    reboundRiseTime: 0.055
+    settleTime: 0.3
+    vibrationAmount: 0.018
+    vibrationFrequency: 28
+    recoveryEnabled: 1
+    recoveryMovement: 0.55
+    recoveryDuration: 0.35
+  grid:
+    pulseEnabled: 1
+    intensity: 0.12
+    travelRadius: 2.5
+    duration: 0.45
+    packetWidth: 0.55
+    curl: 0.2
+--- !u!114 &7920596399159900025
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8b4c7ed4b7d82d24e80256744f5c90d2, type: 3}
+  m_Name: PlayerGlobalModifiers
+  m_EditorClassIdentifier: 
+  globalSizeEnabled: 1
+  globalReversalEnabled: 1
+  players:
+  - size: 0.66
+    scaleActionReach: 1
+    scaleMovement: 0
+    scaleProjectileRange: 0
+    reversalEnabled: 1
+    backwardConeDegrees: 100
+    retainedMomentum: 0.75
+  - size: 1
+    scaleActionReach: 1
+    scaleMovement: 0
+    scaleProjectileRange: 0
+    reversalEnabled: 1
+    backwardConeDegrees: 100
+    retainedMomentum: 0
+  - size: 0.66
+    scaleActionReach: 1
+    scaleMovement: 0
+    scaleProjectileRange: 0
+    reversalEnabled: 1
+    backwardConeDegrees: 100
+    retainedMomentum: 0
+  - size: 1
+    scaleActionReach: 1
+    scaleMovement: 0
+    scaleProjectileRange: 0
+    reversalEnabled: 1
+    backwardConeDegrees: 100
+    retainedMomentum: 0
+--- !u!114 &9074662780427352732
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 90c81cc76bca9af4ba65ca19c7e70c49, type: 3}
+  m_Name: PlayerTuningProfile
+  m_EditorClassIdentifier: 
+  sharedEnabled: 1
+  attackProfile: {fileID: -3458661880640849685}
+  movement:
+    movePower: 24
+    maxMoveSpeed: 7.5
+    clampSpeed: 1
+    lateralFriction: 35
+    reverseBrake: 75
+    reverseDotThreshold: 0
+    idleBrake: 33
+    moveDeadzone: 0.05
+    attackingMoveScale: 0.6
+    shieldMoveMultiplier: 0.15
+  combat:
+    attackCooldown: 0.5
+    comboInputBuffer: 0.15
+    useSharedComboWindow: 1
+    sharedComboWindowSeconds: 0.15
+    comboWindowAfterActivationWindow: 1
+    comboWindowEndNormalized: 1
+    swipeArcCurve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    visualDirectionFollowsCombatFacing: 1
+    lockOnEnabled: 1
+    lockOnConeHalfAngleDeg: 25
+    lockOnMaxDistanceOverride: 0
+    lockOnDirectionBlend: 0.85
+  repulsor:
+    applyKnockback: 1
+    knockbackVelocity: 12
+    maxPlanarSpeedAfterHit: 16
+    applyStun: 0
+    stunStrength01: 0.35
+    applyMassLoss: 0
+    massLossScale01: 0.25
+    giveAttackerMass: 0

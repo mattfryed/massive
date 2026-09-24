@@ -54,6 +54,7 @@ namespace Massive.Scoring
         public event Action<ScoreAwardResult> ScoreAwarded;
         public event Action<EnergyTierPromotion> TierPromoted;
         public event Action<TeamAmplifierSnapshot> TeamAmplifierChanged;
+        public event Action<int> TeamAmplifierCaptureRejected;
         public event Action ScoresReset;
 
         public ScoreEconomyProfile Profile => profile;
@@ -218,6 +219,20 @@ namespace Massive.Scoring
         {
             return profile.TeamAmplifierSettings.GetMultiplier(
                 GetTeamAmplifierTierIndex(teamID));
+        }
+
+        public bool IsTeamAmplifierMaxed(int teamID) =>
+            profile != null && (teamID == 1 || teamID == 2) &&
+            GetTeamAmplifierTierIndex(teamID) >= profile.TeamAmplifierSettings.MaxIndex;
+
+        public bool AreAllTeamsAmplifierMaxed => IsTeamAmplifierMaxed(1) && IsTeamAmplifierMaxed(2);
+
+        /// <summary>Feedback only: a playable Core approached a goal that is already full.</summary>
+        public bool NotifyAmplifierCaptureRejected(int teamID)
+        {
+            if (!_scoringOpen || !IsTeamAmplifierMaxed(teamID)) return false;
+            TeamAmplifierCaptureRejected?.Invoke(teamID);
+            return true;
         }
 
         public void ResetMultipliers()

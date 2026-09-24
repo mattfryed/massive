@@ -14,10 +14,12 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   modules:
   - tag: Gravity
-    type: 0
-    radius: 2
-    strength: 6
+    type: 7
+    radius: 3.25
+    strength: 0.8
     innerFrac: 0.263
+    responseSeconds: 0.06
+    releaseSeconds: 0.2
     directional: 0
     useVelocity: 1
     pullAgainstVelocity: 1

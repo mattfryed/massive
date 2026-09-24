@@ -1,0 +1,35 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 633eb33eb55322d4881291f7374ce043, type: 3}
+  m_Name: ResonanceSharedProfile
+  m_EditorClassIdentifier: 
+  sharedEnabled: 1
+  formation:
+    spawnSeconds: 2.4
+    despawnSeconds: 1.2
+    sizeGrowthPower: 1.41
+    condensationPower: 3.3
+    birthDistribution: 1
+    localSpawnSpread: 0.25
+    alongArcSpread: 0.25
+    fieldCoherence: 0.405
+    fieldWavelength: 2
+    birthPulse: 0.15
+    vibrationStrength: 0.08
+    vibrationFrequency: 6
+  cycle:
+    initialSpawnDelay: 6
+    respawnDelay: 8
+    respawnDelayVariation: {x: -2, y: 2}
+    placementRetryDelay: 0.5
+    maximumActiveSeconds: 30
+    timeoutWarningSeconds: 5

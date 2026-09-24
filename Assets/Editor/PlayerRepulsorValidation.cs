@@ -83,7 +83,9 @@ namespace Massive.EditorTools
                 Invoke(attack, "UpdateStage", .26f);
                 check((bool)Get(attack, "comboQueued"), "a recent early press is buffered into the shared window");
                 Invoke(attack, "StartStage", 1);
-                Set(attack, "lastAttackPressTime", Time.time - .16f);
+                // This update crosses the .25s window opening by .01s. Expiry is
+                // measured at that opening, not at the end of the update.
+                Set(attack, "lastAttackPressTime", Time.time - .18f);
                 Invoke(attack, "UpdateStage", .26f);
                 check(!(bool)Get(attack, "comboQueued"), "an expired early press cannot queue the next stage");
 
@@ -186,7 +188,7 @@ namespace Massive.EditorTools
                     near((float)Invoke(aoe, "GetOutlineRadiusWorld"), .55f * size * .9f,
                         "shell includes live body contraction");
                     visuals.ClearRepulsorVisual();
-                    float end = authoredRepulsor.RepulsorMaxRadius * PlayerScaleAdjuster.SizeOf(owner);
+                    float end = authoredRepulsor.GetRepulsorRadius(PlayerScaleAdjuster.SizeOf(owner));
                     sphere.enabled = true;
                     Invoke(aoe, "SetWorldRadius", end);
                     near(aoe.RadiusWorld, end, "nested collider scale does not multiply reach twice");

@@ -434,6 +434,7 @@ if (showPlayerIdToastOnMatchStart)
 
     private void Awake()
     {
+        Massive.Player.PlayerGlobalModifiers.EnsureRuntimeComponents(this);
         if (controlMode == PlayerControlMode.Rewired)
         EnsureRewiredPlayer();
 
@@ -590,7 +591,7 @@ if (showPlayerIdToastOnMatchStart)
         // moveHorizontal = rewiredPlayer.GetAxis("MoveH");
         // moveVertical = rewiredPlayer.GetAxis("MoveV");
         // movement = new Vector3(moveHorizontal, 0f, moveVertical);
-        // float moveDz2 = moveDeadzone * moveDeadzone;
+        // float moveDz2 = Effective_moveDeadzone * Effective_moveDeadzone;
         // bool moveActive = movement.sqrMagnitude > moveDz2;
 
         
@@ -644,7 +645,7 @@ if (showPlayerIdToastOnMatchStart)
         moveVertical   = input.move.y;
         movement       = new Vector3(moveHorizontal, 0f, moveVertical);
 
-        float moveDz2  = moveDeadzone * moveDeadzone;
+        float moveDz2  = Effective_moveDeadzone * Effective_moveDeadzone;
         bool moveActive = movement.sqrMagnitude > moveDz2;
 
         // Aim memory for power-ups (unchanged)
@@ -750,18 +751,18 @@ if (showPlayerIdToastOnMatchStart)
         float moveMul = ExternalMovementMultiplier * PlayerScaleAdjuster.MovementOf(this);
 
         if (attackController != null && attackController.IsAttacking)
-            moveMul *= attackingMoveScale;
+            moveMul *= Effective_attackingMoveScale;
 
         bool canShield = !(attackController != null && attackController.IsAttacking) && !IsExternallyStunned;
         if (shieldOn && canShield)
-            moveMul *= shieldMoveMultiplier;
+            moveMul *= Effective_shieldMoveMultiplier;
 
         if (powerUps != null)
             moveMul *= powerUps.MovementMultiplier * powerUps.MovementMultiplierWhileCharging;
 
-        float dz2 = moveDeadzone * moveDeadzone;
+        float dz2 = Effective_moveDeadzone * Effective_moveDeadzone;
         // if (movement.sqrMagnitude > dz2)
-        //     rb.AddForce(movement * movePower * moveMul, ForceMode.Force);
+        //     rb.AddForce(movement * Effective_movePower * moveMul, ForceMode.Force);
 
         // --- Movement (arcade traction) ---
         Vector3 input = movement;
@@ -773,7 +774,7 @@ if (showPlayerIdToastOnMatchStart)
 
         // Deadzone + rescale so you still get full strength at the rim
         float inputMag = input.magnitude;
-        float dz = moveDeadzone;
+        float dz = Effective_moveDeadzone;
 
         bool hasInput = inputMag > dz;
         Vector3 inputDir = Vector3.zero;
@@ -792,38 +793,38 @@ if (showPlayerIdToastOnMatchStart)
             Vector3 lateralVel = velXZ - Vector3.Project(velXZ, inputDir);
 
             // Acceleration mode = consistent “feel” regardless of mass changes
-            rb.AddForce(EnemyHitBraking(-lateralVel * lateralFriction), ForceMode.Acceleration);
+            rb.AddForce(EnemyHitBraking(-lateralVel * Effective_lateralFriction), ForceMode.Acceleration);
 
             // 2) Extra brake when reversing direction
             float speed = velXZ.magnitude;
             if (speed > 0.001f)
             {
                 float dot = Vector3.Dot(velXZ / speed, inputDir); // -1..1
-                if (dot < reverseDotThreshold)
-                    rb.AddForce(EnemyHitBraking(-velXZ * reverseBrake), ForceMode.Acceleration);
+                if (dot < Effective_reverseDotThreshold)
+                    rb.AddForce(EnemyHitBraking(-velXZ * Effective_reverseBrake), ForceMode.Acceleration);
             }
         }
         else
         {
             // 3) Brake when no input (optional)
-            rb.AddForce(EnemyHitBraking(-velXZ * idleBrake), ForceMode.Acceleration);
+            rb.AddForce(EnemyHitBraking(-velXZ * Effective_idleBrake), ForceMode.Acceleration);
         }
 
         // 4) Your existing propulsion (keeps “heavy blob” mass effect)
         if (hasInput)
         {
             // Use direction * input01, so tiny-stick still moves but with controlled ramp
-            Vector3 drive = inputDir * (input01 * movePower * moveMul);
+            Vector3 drive = inputDir * (input01 * Effective_movePower * moveMul);
             rb.AddForce(drive, ForceMode.Force);
         }
 
         // 5) Clamp XZ speed so you can crank responsiveness without raising top speed
-        if (clampSpeed)
+        if (Effective_clampSpeed)
         {
             Vector3 v2 = rb.linearVelocity;
             Vector3 v2xz = new Vector3(v2.x, 0f, v2.z);
 
-            float max = Mathf.Max(0.1f, maxMoveSpeed * moveMul);
+            float max = Mathf.Max(0.1f, Effective_maxMoveSpeed * moveMul);
             float max2 = max * max;
 
             if (v2xz.sqrMagnitude > max2)

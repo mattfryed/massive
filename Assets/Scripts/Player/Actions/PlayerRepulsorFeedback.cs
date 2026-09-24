@@ -5,7 +5,7 @@ namespace Massive.Player
     /// <summary>Visual-only body recoil and a short locomotion recovery for the third attack.</summary>
     [DisallowMultipleComponent]
     [AddComponentMenu("MASSIVE/Player/Repulsor Body and Recovery")]
-    public sealed class PlayerRepulsorFeedback : MonoBehaviour
+    public sealed partial class PlayerRepulsorFeedback : MonoBehaviour
     {
         [Header("Body Pulse")]
         public bool bodyPulseEnabled = true;
@@ -76,7 +76,7 @@ namespace Massive.Player
         {
             if (stage == null || stage.StageType != AttackStageType.FinisherRepulsor) return;
             if (activeStage == null) return; // Cancellation may also signal legacy completion.
-            if (recoveryEnabled && recoveryDuration > 0f)
+            if (Effective_recoveryEnabled && Effective_recoveryDuration > 0f)
             {
                 recoveryAt = Time.time;
                 ApplyRecovery(0f);
@@ -99,41 +99,41 @@ namespace Massive.Player
 
         void ApplyRecovery(float elapsed)
         {
-            float t = recoveryDuration > 0f ? Mathf.Clamp01(elapsed / recoveryDuration) : 1f;
-            RecoveryMultiplier = recoveryEnabled ? Mathf.Lerp(recoveryMovement, 1f, Mathf.SmoothStep(0f, 1f, t)) : 1f;
+            float t = Effective_recoveryDuration > 0f ? Mathf.Clamp01(elapsed / Effective_recoveryDuration) : 1f;
+            RecoveryMultiplier = Effective_recoveryEnabled ? Mathf.Lerp(Effective_recoveryMovement, 1f, Mathf.SmoothStep(0f, 1f, t)) : 1f;
             if (player)
             {
-                if (t < 1f && recoveryEnabled) player.SetMovementInfluence(this, RecoveryMultiplier);
+                if (t < 1f && Effective_recoveryEnabled) player.SetMovementInfluence(this, RecoveryMultiplier);
                 else player.RemoveMovementInfluence(this);
             }
-            if (t >= 1f || !recoveryEnabled) recoveryAt = float.NegativeInfinity;
+            if (t >= 1f || !Effective_recoveryEnabled) recoveryAt = float.NegativeInfinity;
         }
 
         void ApplyBody(float elapsed, AttackStage stage)
         {
             if (!visuals) return;
-            if (!bodyPulseEnabled || elapsed < 0f) { visuals.ClearRepulsorVisual(); return; }
+            if (!Effective_bodyPulseEnabled || elapsed < 0f) { visuals.ClearRepulsorVisual(); return; }
             float release = (repulsor ? repulsor.EffectiveActivationStart(stage) : stage.ActivationStartNormalized) * stage.Duration;
             float scale;
             Vector3 offset = Vector3.zero;
             if (elapsed < release)
             {
                 float t = release > 0f ? elapsed / release : 1f;
-                scale = Mathf.Lerp(1f, 1f - contraction, Mathf.SmoothStep(0f, 1f, t));
-                float a = vibrationAmount * PlayerScaleAdjuster.SizeOf(this) * Mathf.Sin(t * Mathf.PI);
-                float phase = elapsed * vibrationFrequency * 2f * Mathf.PI;
+                scale = Mathf.Lerp(1f, 1f - Effective_contraction, Mathf.SmoothStep(0f, 1f, t));
+                float a = Effective_vibrationAmount * PlayerScaleAdjuster.SizeOf(this) * Mathf.Sin(t * Mathf.PI);
+                float phase = elapsed * Effective_vibrationFrequency * 2f * Mathf.PI;
                 offset = new Vector3(Mathf.Sin(phase) + .3f * Mathf.Sin(phase * 1.71f), 0f,
                     Mathf.Cos(phase * 1.23f)) * a;
             }
             else
             {
                 float age = elapsed - release;
-                if (age < reboundRiseTime)
-                    scale = Mathf.Lerp(release > 0f ? 1f - contraction : 1f, 1f + expansion, Mathf.SmoothStep(0f, 1f, age / Mathf.Max(.01f, reboundRiseTime)));
+                if (age < Effective_reboundRiseTime)
+                    scale = Mathf.Lerp(release > 0f ? 1f - Effective_contraction : 1f, 1f + Effective_expansion, Mathf.SmoothStep(0f, 1f, age / Mathf.Max(.01f, Effective_reboundRiseTime)));
                 else
                 {
-                    float t = Mathf.Clamp01((age - reboundRiseTime) / Mathf.Max(.02f, settleTime));
-                    scale = 1f + expansion * Mathf.Cos(t * Mathf.PI * 2f) * Mathf.Exp(-4f * t) * (1f - t);
+                    float t = Mathf.Clamp01((age - Effective_reboundRiseTime) / Mathf.Max(.02f, Effective_settleTime));
+                    scale = 1f + Effective_expansion * Mathf.Cos(t * Mathf.PI * 2f) * Mathf.Exp(-4f * t) * (1f - t);
                 }
             }
             visuals.SetRepulsorVisual(scale, offset);

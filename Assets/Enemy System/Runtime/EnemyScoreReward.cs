@@ -28,7 +28,8 @@ namespace Massive.Enemies
             if (defeat.creditedPlayer == null || defeat.creditedPlayer.IsPseudoPlayer) return;
             if (defeat.source != EnemyDamageSource.Sword &&
                 defeat.source != EnemyDamageSource.Projectile &&
-                defeat.source != EnemyDamageSource.ShieldReflect) return;
+                defeat.source != EnemyDamageSource.ShieldReflect &&
+                defeat.source != EnemyDamageSource.Repulsor) return;
             if (_enemy.OwnerTeamId == defeat.creditedPlayer.teamID) return;
 
             string key = _enemy.Definition != null ? _enemy.Definition.defeatRewardKey : null;

@@ -1,3 +1,4 @@
+using Massive.EditorTools;
 using Massive.Multiplier;
 using UnityEditor;
 using UnityEngine;
@@ -26,10 +27,14 @@ public sealed class AmplifierTreatmentsWindow : EditorWindow
         if (target == null) target = Object.FindFirstObjectByType<AmplifierGoalTreatments>();
         if (target == null)
         {
-            EditorGUILayout.HelpBox("Open Dynamo Prototype, then install the scene treatment workbench.", MessageType.Info);
+            if (GUILayout.Button("Edit Shared Amplifier Settings")) { SharedSettingsEditing.EnsureProfiles(); SharedSettingsWindow.Open(Massive.Settings.SharedSettingsRuntime.Load<Massive.Settings.AmplifierSharedProfile>()); }
+            EditorGUILayout.HelpBox("Open a configured scene to preview these shared effects.", MessageType.Info);
             if (GUILayout.Button("Set up Dynamo treatments")) target = Install();
             return;
         }
+        SharedSettingsEditing.Banner(new SerializedObject(target));
+        var settingsOwner = SharedSettingsEditing.Owner(target);
+        Undo.RecordObject(settingsOwner, "Adjust shared amplifier treatment");
         EditorGUILayout.LabelField(target.Preview?"LIVE PREVIEW — VISUAL SIMULATION":"PREVIEW STOPPED — GAMEPLAY CONTROLS THE EFFECTS", EditorStyles.boldLabel);
         Undo.RecordObject(target,"Adjust amplifier preview");
         EditorGUI.BeginChangeCheck();
@@ -53,7 +58,7 @@ public sealed class AmplifierTreatmentsWindow : EditorWindow
         target.PreviewTeam=GUILayout.Toolbar(target.PreviewTeam-1,new[]{"Light","Dark"})+1;
         EditorGUILayout.EndHorizontal();
         target.Settings.allowEffectsOverGrid=EditorGUILayout.Toggle("Allow Effects Over Grid",target.Settings.allowEffectsOverGrid);
-        if(EditorGUI.EndChangeCheck()){target.RenderTreatment();EditorUtility.SetDirty(target);}
+        if(EditorGUI.EndChangeCheck()){target.RenderTreatment();EditorUtility.SetDirty(target);SharedSettingsEditing.Save(settingsOwner);}
         EditorGUILayout.HelpBox(target.Preview?"Pause holds the frame. Stop removes the preview core and test multiplier. Entering Play Mode stops preview automatically.":"Preview is off. Your effect settings are retained for real captures. Start Preview or Capture now to test visuals again.",MessageType.None);
         scroll = EditorGUILayout.BeginScrollView(scroll);
         EditorGUILayout.LabelField("Color interference — spectral edge strands",EditorStyles.boldLabel);
@@ -63,13 +68,13 @@ public sealed class AmplifierTreatmentsWindow : EditorWindow
         bool seamHeld=EditorGUILayout.Toggle("Interference while held",target.Settings.seamHeld);
         if(EditorGUI.EndChangeCheck())
         {
-            Undo.RecordObject(target,"Change chromatic seam state");
+            Undo.RecordObject(settingsOwner,"Change color interference");
             target.Settings.seamMode=seamMode;target.Settings.seamCapture=seamCapture;target.Settings.seamHeld=seamHeld;
-            target.RenderTreatment();EditorUtility.SetDirty(target);
+            target.RenderTreatment();SharedSettingsEditing.Save(settingsOwner);
         }
         EditorGUILayout.HelpBox("Clustered fringe gathers color into edge patches. Drifting interference moves and mixes those patches. Neither paints the goal interior.",MessageType.None);
         EditorGUILayout.BeginHorizontal();
-        for (int i = 0; i < 4; i++) if (GUILayout.Button((i + 1).ToString())) { Undo.RecordObject(target, "Change amplifier treatment"); target.ApplyPreset(i); EditorUtility.SetDirty(target); }
+        for (int i = 0; i < 4; i++) if (GUILayout.Button((i + 1).ToString())) { Undo.RecordObject(settingsOwner, "Change amplifier treatment"); target.ApplyPreset(i); SharedSettingsEditing.Save(settingsOwner); }
         EditorGUILayout.EndHorizontal();
         for (int i = 0; i < 4; i++) EditorGUILayout.LabelField((i + 1) + " · " + AmplifierTreatmentSettings.Names[i], EditorStyles.miniLabel);
         EditorGUILayout.BeginHorizontal();
@@ -83,7 +88,10 @@ public sealed class AmplifierTreatmentsWindow : EditorWindow
         serialized.Update();
         foreach (string name in new[] { "playbackSpeed", "showControls", "legacyCaptureFeedback" })
             EditorGUILayout.PropertyField(serialized.FindProperty(name), true);
-        var field=serialized.FindProperty("treatment");var end=field.GetEndProperty();
+        serialized.ApplyModifiedProperties();
+        var tuning = SharedSettingsEditing.Tuning(target);
+        tuning.Update();
+        var field=tuning.FindProperty("treatment");var end=field.GetEndProperty();
         field.NextVisible(true);
         while(!SerializedProperty.EqualContents(field,end))
         {
@@ -92,7 +100,9 @@ public sealed class AmplifierTreatmentsWindow : EditorWindow
             EditorGUILayout.PropertyField(field,new GUIContent(label),true);
             if(!field.NextVisible(false))break;
         }
-        if(serialized.ApplyModifiedProperties())target.RenderTreatment();
+        SharedSettingsEditing.Apply(tuning);
+        tuning.Dispose();
+        serialized.Dispose();
         EditorGUILayout.EndScrollView();
         EditorGUILayout.BeginHorizontal(EditorStyles.toolbar);
         if(GUILayout.Button("Capture now",EditorStyles.toolbarButton))target.TriggerPreview();

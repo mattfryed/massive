@@ -34,24 +34,58 @@ namespace Massive.Multiplier.Editor
                 Check(Finite(AmplifierResonanceSpawner.SampleDelay(float.NaN, Vector2.zero, .5)), "NaN delay sanitized", ref passed);
                 Check(Finite(AmplifierResonanceSpawner.SampleDelay(8, new Vector2(float.PositiveInfinity, float.NaN), .5)), "non-finite variation sanitized", ref passed);
                 Check(Finite(AmplifierResonanceSpawner.SampleDelay(8, new Vector2(-2, 2), double.NaN)), "NaN random input sanitized", ref passed);
+                Check(Near(AmplifierResonanceSpawner.EvaluateTimeoutWarning(24, 30, 5), 0), "surface stays calm before final five seconds", ref passed);
+                Check(Near(AmplifierResonanceSpawner.EvaluateTimeoutWarning(25, 30, 5), 0), "warning begins at twenty-five seconds", ref passed);
+                Check(Near(AmplifierResonanceSpawner.EvaluateTimeoutWarning(27.5f, 30, 5), .5f), "surface instability builds during warning", ref passed);
+                Check(Near(AmplifierResonanceSpawner.EvaluateTimeoutWarning(35, 30, 5), 1), "late warning saturates", ref passed);
+                Check(Near(AmplifierResonanceSpawner.EvaluateTimeoutWarning(99, 0, 5), 0), "disabled time-out has no warning", ref passed);
+                Check(Near(AmplifierResonanceSpawner.EvaluateTimeoutWarning(29, 30, 0), 0), "zero warning window disables cue", ref passed);
+                Check(Near(AmplifierResonanceSpawner.EvaluateTimeoutWarning(1, 2, 5), .5f), "warning window never exceeds lifetime", ref passed);
 
                 var root = new GameObject("Amplifier pair rules validation");
                 SceneManager.MoveGameObjectToScene(root, scene);
                 var spawner = root.AddComponent<AmplifierResonanceSpawner>();
+                Check(Near(spawner.maximumActiveSeconds, 30) && Near(spawner.timeoutWarningSeconds, 5), "new sequence defaults to thirty seconds with five-second warning", ref passed);
                 spawner.startAutomatically = false; spawner.spawnRegion = root.GetComponent<AmplifierSpawnRegion>();
                 spawner.spawnRegion.drawZones = false;
                 Check(!spawner.StartCycle() && spawner.Phase == AmplifierEncounterPhase.Stopped,
                     "edit-mode Start Cycle refuses runtime side effects", ref passed);
 
+                var warningObject = Child(root, "Surface warning fixture"); warningObject.SetActive(false);
+                var warningRenderer = warningObject.AddComponent<MeshRenderer>();
+                var warningVisual = warningObject.AddComponent<AmplifierCoreVisual>();
+                var warningShader = Shader.Find("MASSIVE/Amplifier Core/Neutral Shell");
+                Check(warningShader != null, "Core shell shader available for warning", ref passed);
+                var warningMaterial = new Material(warningShader) { hideFlags = HideFlags.HideAndDontSave };
+                try
+                {
+                    warningRenderer.sharedMaterial = warningMaterial;
+                    var properties = new SerializedObject(warningVisual);
+                    properties.FindProperty("shellRenderer").objectReferenceValue = warningRenderer;
+                    properties.ApplyModifiedPropertiesWithoutUndo();
+                    warningVisual.SetTimeoutWarning(.75f);
+                    warningVisual.SetExcitement(1f); warningVisual.SetExcitement(0f);
+                    warningVisual.SetLifecycleReveal(1f, 1f);
+                    var block = new MaterialPropertyBlock(); warningRenderer.GetPropertyBlock(block);
+                    Check(Near(warningVisual.TimeoutWarning01, .75f) && Near(block.GetFloat("_TimeoutWarning"), .75f),
+                        "attraction excitement and reveal cannot erase surface warning", ref passed);
+                    Check(Near(warningMaterial.GetFloat("_TimeoutWarning"), 0f), "warning does not mutate shared material", ref passed);
+                    warningVisual.RestorePresentation(); warningRenderer.GetPropertyBlock(block);
+                    Check(Near(warningVisual.TimeoutWarning01, 0) && Near(block.GetFloat("_TimeoutWarning"), 0),
+                        "presentation reset clears warning state and shader property", ref passed);
+                }
+                finally { UnityEngine.Object.DestroyImmediate(warningMaterial); }
+
                 var actualCore = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Power-ups/Amplifier Core/Amplifier Core.prefab");
                 Check(actualCore != null && actualCore.GetComponent<AmplifierCoreGameplay>() != null, "actual gameplay Core prefab available", ref passed);
                 var corePrefab = actualCore.GetComponent<AmplifierCoreGameplay>();
                 string originalCore = EditorJsonUtility.ToJson(corePrefab);
-                Check(Near(AmplifierResonanceSpawner.EstimateCoreRadius(corePrefab), .75f), "actual .75-radius Core sphere measured without AABB inflation", ref passed);
+                float expectedCoreRadius = .75f * corePrefab.PendingScaleRatio;
+                Check(Near(AmplifierResonanceSpawner.EstimateCoreRadius(corePrefab), expectedCoreRadius), "actual Core sphere includes effective global scale without AABB inflation", ref passed);
                 spawner.corePrefab = corePrefab; spawner.minimumCoreRadius = .9f;
-                Check(Near(spawner.CorePlacementRadius, .9f), "minimum radius is a floor", ref passed);
+                Check(Near(spawner.CorePlacementRadius, Mathf.Max(.9f, expectedCoreRadius)), "minimum radius is a floor", ref passed);
                 spawner.minimumCoreRadius = .1f;
-                Check(Near(spawner.CorePlacementRadius, .75f), "authored collider prevents unsafe radius override", ref passed);
+                Check(Near(spawner.CorePlacementRadius, Mathf.Max(.1f, expectedCoreRadius)), "effective collider prevents unsafe radius override", ref passed);
                 Check(AmplifierResonanceSpawner.EstimateCoreRadius(null) == 0f, "null Core radius is zero", ref passed);
 
                 var footprintObject = Child(root, "Footprint fixture"); footprintObject.SetActive(false);

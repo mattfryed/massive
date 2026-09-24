@@ -1,11 +1,13 @@
 # Player size testing
 
-Open **MASSIVE → Player → Player Size Controls**, or select a player root and use
-**Player Scale Adjuster → Player Size (%)**. The window includes inactive players.
-Edit-mode changes are saved with the scene; Play-mode changes are temporary.
+Open **MASSIVE → Player → Player Size Controls** to edit the global P1–P4 profile.
+Menu changes save across scenes and builds, including changes made in Play Mode.
+For a scene-specific exception, select a player root and disable **Player Scale
+Adjuster → Use Global Player Size**, then edit its preserved local size. Local
+Play-mode edits are temporary. See **Global Player Modifiers.md** for scope and controls.
 
-In `S-8_DYNAMO-PROTOTYPE`, the four actual roster players have this component.
-P1 starts at 50%; P2/P3/P4 start at 100%. P1's saved collider radius was 0.275
+The shared profile starts from the current Dynamo tuning: P1/P3 at 66%, P2/P4 at
+100%. During the original local-size implementation, P1's saved collider radius was 0.275
 and its visual radius 0.35, with a unit root scale. Those two fields were restored
 to P3's 0.5 baseline before applying 50%. Other player-specific attack tuning,
 colors, particle counts and references are retained. The inactive sample prefab
@@ -59,7 +61,8 @@ calibrate their world sizes.
 New custom effects need this same integration if they use independent world-space
 distances. There is no safe automatic interpretation of arbitrary future scripts.
 The dormant legacy `PlayerArc` is not wired to the inspected players and was not
-changed. Other scenes behave as before until a scaler is added to their players.
+changed. Older player prefabs automatically receive a scaler in gameplay when
+the global profile is present; their local fallback preserves their authored scale.
 
 ## Validation
 

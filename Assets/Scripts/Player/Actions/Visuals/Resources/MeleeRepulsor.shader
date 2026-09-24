@@ -9,6 +9,8 @@ Shader "MASSIVE/MeleeRepulsor"
         _PulseLayers ("Dark body / white edge / filaments / wisps", Vector) = (1,1,1,1)
         _PulseLight ("Density / edge / filaments / wisps", Vector) = (2.4,.9,1,.3)
         _PulsePhase ("Opacity / expansion / fade", Vector) = (1,0,0,0)
+        _PulseBurst ("Launch flash / wake / erosion / age", Vector) = (1,1,.8,0)
+        _PulseRange ("Player outline / maximum reach", Vector) = (.5,3,0,0)
     }
     SubShader
     {
@@ -26,7 +28,7 @@ Shader "MASSIVE/MeleeRepulsor"
             #pragma fragment frag
             #include "UnityCG.cginc"
 
-            float4 _PulseOrigin, _PulseBounds, _PulseShape, _PulseMotion, _PulseLayers, _PulseLight, _PulsePhase;
+            float4 _PulseOrigin, _PulseBounds, _PulseShape, _PulseMotion, _PulseLayers, _PulseLight, _PulsePhase, _PulseBurst, _PulseRange;
             struct v2f { float4 position : SV_POSITION; float3 world : TEXCOORD0; };
             struct output { float4 color : SV_Target; float depth : SV_Depth; };
             v2f vert(float4 vertex : POSITION)
@@ -57,61 +59,73 @@ Shader "MASSIVE/MeleeRepulsor"
             float2 medium(float3 p)
             {
                 float rho = length(p.xz);
+                if (rho < _PulseRange.x*.78) return 0;
                 float width = max(.001,_PulseShape.y), height = max(.001,_PulseShape.z);
                 float radial = (rho-_PulseShape.x)/width;
                 float vertical = p.y/height;
-                if (abs(radial)>2.45 || abs(vertical)>2.45) return 0;
+                if (radial > 1.65 || radial < -3.8 || abs(vertical)>2.25) return 0;
                 float angle = atan2(p.z,p.x);
                 float time = _PulseMotion.x, seed = _PulseMotion.y;
-                float breakup = saturate(_PulseMotion.w), warp = saturate(_PulseMotion.z);
+                float breakup = saturate(_PulseMotion.w), warp = saturate(_PulseMotion.z*2.5);
+                float fade = saturate(_PulsePhase.z);
+                float2 direction = p.xz/max(.0001,rho);
+                // Closed circular domains avoid a seam. Radial advection and a rolling
+                // cross-section stretch the turbulence backwards from the pressure front.
+                float sweptAngle = angle + max(0,-radial)*(.16+.045*sin(angle*3+seed));
+                float2 sweptDirection = float2(cos(sweptAngle),sin(sweptAngle));
+                float3 q = float3(sweptDirection*7.8, radial*1.1 + vertical*.25-time*2.8)+seed*float3(3.1,7.7,1.3);
+                float coarse = volumeNoise(q);
+                float3 curl = sin(q.yzx*1.4+time)*cos(q.zxy*.9-time*.7);
+                float fine = volumeNoise(q*2.13+curl*.65+float3(vertical*.6,-radial*.3,time));
+                float grain = volumeNoise(q*5.17+curl+float3(time*1.5,0,-time));
+                float field = coarse*.57+fine*.30+grain*.13;
+                float cluster = smoothstep(.20,.77,coarse);
+                float scallop = ((coarse-.5)*.82+(fine-.5)*.28)*warp;
+                float r = radial-scallop;
+                float y = vertical-(fine-.5)*warp*.65;
 
-                // Integer angular harmonics close seamlessly around the full circle.
-                // Distinct phases make localized activity drift without breathing in unison.
-                float3 domain = float3(cos(angle)*4.1,sin(angle)*4.1,vertical*1.4) +
-                    float3(radial*.43,time*.26,seed+time*.33);
-                float coarse = volumeNoise(domain);
-                float detail = volumeNoise(domain*3.17+float3(seed,radial*.7,-time*.68));
-                float localCurl = (coarse-.5)*2;
-                float wave = sin(angle*7+time*1.13+seed) + .43*sin(angle*11-time*.83-seed*1.7)+localCurl*1.5;
-                float crossflow = cos(angle*5-time*.91+seed) + .32*sin(angle*13+time*.57)+(detail-.5)*1.3;
-                radial -= warp*wave;
-                vertical -= warp*crossflow*.75;
-                float support = 1-smoothstep(1.7,2.35,max(abs(radial),abs(vertical)));
-                float activity = .45+.2*sin(angle*3-time*.67+seed)+.18*sin(angle*8+time*.37-seed)+(coarse-.5)*.55;
-                float occupied = lerp(1,smoothstep(.08,.75,activity),breakup);
-                float section = radial*radial+vertical*vertical;
+                // The main edge remains tied to physical reach. Its luminous crest is
+                // backed by a broad torn sheet, not several concentric outlines.
+                float front = exp(-pow((r+.035)/(.035+.10*cluster),2)-y*y*4.5);
+                float frontBreaks = .025+1.1*pow(smoothstep(.28,.71,fine),2.5);
+                float earlyFlash = exp(-max(0,_PulseBurst.w)*42)*_PulseBurst.x;
+                float edge = front*frontBreaks*_PulseLayers.y*_PulseLight.y*(1+earlyFlash*3.5);
+                edge *= 1-smoothstep(.02,.48,fade);
 
-                float body = exp(-section*2.1)*lerp(.30,1,occupied)*_PulseLayers.x;
+                float behind = -r;
+                float wakeLength = lerp(1.0,3.3,cluster);
+                float wakeEnvelope = smoothstep(-.15,.32,behind)*(1-smoothstep(wakeLength*.36,wakeLength,behind));
+                float rolling = sin(atan2(y,r+.55)*2.0 + coarse*5.0-time*4.5);
+                float wakeHeight = .58+.26*cluster+.20*rolling;
+                float crossSection = exp(-pow(y/max(.18,wakeHeight),2)*2.0);
+                float occupancy = smoothstep(.23,.60,field+rolling*.08);
+                float cavities = smoothstep(.53,.72,fine)*breakup;
+                float sheet = wakeEnvelope*crossSection*occupancy*(1-cavities*.92);
+                // Sharp curved ridges trace the inside of the billowing sheet. Noise
+                // mixes broad folds with fine striation instead of uniform glow.
+                float3 folds = q*1.85+curl*1.4;
+                float membrane = dot(sin(folds),cos(folds.yzx*.93+time*.8));
+                float ridge = 1-abs(membrane);
+                float channels = smoothstep(.91,.995,ridge)*sheet*smoothstep(.30,.62,grain);
+                float hotCell = smoothstep(.51,.72,field)*sheet;
+                float vein = smoothstep(.61,.82,grain)*sheet*.4;
+                float filament = max(channels,max(vein,hotCell*.65))*_PulseLayers.z*_PulseLight.z;
+                float litFold = sheet*(.035+.30*pow(saturate((field-.23)/.48),1.5)) * _PulseBurst.y;
 
-                // Three interwoven paths pass through the depth of the shell. They are
-                // volumes with hot interiors and dark gaps, not a screen-facing outline.
-                float channelR = .40*sin(angle*6-time*1.1+seed)+.16*sin(angle*15+time*.6)+localCurl*.33;
-                float channelY = .43*cos(angle*6-time*1.1+seed)+.12*sin(angle*9-time*.8)+(detail-.5)*.36;
-                float breadth = lerp(.65,1.45,smoothstep(.22,.77,coarse));
-                float q0 = pow((radial-channelR)/(.25*breadth),2)+pow((vertical-channelY)/(.38*breadth),2);
-                float q1 = pow((radial+.40*sin(angle*9+time*.73+seed*1.3)-localCurl*.21)/(.18*breadth),2)+
-                    pow((vertical-.36*cos(angle*9+time*.73+seed*1.3))/ (.28*breadth),2);
-                float q2 = pow((radial-.68-.12*sin(angle*12-time*1.6)-(detail-.5)*.26)/.13,2)+
-                    pow((vertical+.23*sin(angle*12-time*1.6))/.27,2);
-                float filaments = saturate(exp(-q0*1.55)+exp(-q1*1.6)*.9);
-                float sheath = saturate(exp(-q0*.30)+exp(-q1*.37)*.7)*.24;
-                float filamentAmount = lerp(.26,1,occupied)*_PulseLayers.z*max(0,_PulseLight.z);
-                filaments *= filamentAmount;
-                sheath *= filamentAmount*lerp(.5,1.2,detail);
-                float edge = exp(-q2*1.5)*lerp(.40,1,occupied)*_PulseLayers.y*max(0,_PulseLight.y);
-
-                float flare = .5+.5*sin(angle*4+seed-time*.45);
-                float wispR = 1.0+.26*sin(angle*10+time*1.3+seed)+localCurl*.24;
-                float wispY = .5*sin(angle*10+time*1.3+seed)+(detail-.5)*.4;
-                float wisp = exp(-pow((radial-wispR)/.13,2)-pow((vertical-wispY)/.25,2));
-                wisp *= smoothstep(.60,.93,flare)*_PulseLayers.w*max(0,_PulseLight.w);
-
-                float hot = max(filaments,edge)+wisp*.75;
-                float darkPocket = smoothstep(.56,.86,detail)*breakup;
-                hot *= 1-darkPocket*.48;
-                float extinction = (body*2.0+hot*29+sheath*5.0)*support*max(.01,_PulseLight.x);
-                float emission = (hot*29+sheath*2.0)*(1-darkPocket*.12)*support*max(.01,_PulseLight.x);
-                return float2(extinction,min(extinction,emission));
+                // A few finite curls peel off the dense front, while broad dark
+                // pockets preserve contrast against both black space and grid lines.
+                float wispPath = r+.68+sin(angle*5.0+time*1.7+seed)*.30+(coarse-.5)*.8;
+                float wisp = exp(-pow(wispPath/.14,2)-pow((y-.6)/.32,2));
+                wisp *= smoothstep(.53,.75,coarse)*_PulseLayers.w*_PulseLight.w;
+                float dark = sheet*_PulseLayers.x*9 + exp(-pow((r+.30)/.45,2)-y*y*2)*_PulseLayers.x*2;
+                float erosion = smoothstep(fade*.91,fade*.91+.16,field+(.5-grain)*.15);
+                erosion = lerp(1,erosion,_PulseBurst.z);
+                float density = max(.01,_PulseLight.x);
+                float light = edge*60 + filament*31 + litFold*18 + wisp*22;
+                float extinction = (dark+light)*erosion*density;
+                float emission = (edge*60+filament*31+litFold*9+wisp*22)*erosion*density;
+                float support = smoothstep(-3.8,-3.4,radial)*(1-smoothstep(1.3,1.65,radial))*(1-smoothstep(1.8,2.2,abs(vertical)));
+                return float2(extinction,emission)*support*smoothstep(_PulseRange.x*.78,_PulseRange.x*1.08,rho);
             }
 
             output frag(v2f i)

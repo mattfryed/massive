@@ -3,21 +3,21 @@ using UnityEngine.Rendering;
 
 namespace Massive.Player
 {
-    public enum RepulsorVisualTreatment { VolumetricPulse, PlasmaRing, Off }
+    public enum RepulsorVisualTreatment { VolumetricPulse, PlasmaRing, Off, SeismicDetonation }
 
     public sealed partial class PlayerMeleePlasma
     {
         [Header("Third stage — outward repulsor pulse")]
-        public RepulsorVisualTreatment repulsorTreatment = RepulsorVisualTreatment.VolumetricPulse;
+        public RepulsorVisualTreatment repulsorTreatment = RepulsorVisualTreatment.SeismicDetonation;
         [Tooltip("Optional. An included shader supplies the pulse when this is empty.")]
         public Material repulsorPulseMaterial;
-        [Range(.035f, .5f)] public float repulsorPulseWidth = .16f;
-        [Range(.025f, .6f)] public float repulsorPulseThickness = .18f;
-        [Range(.1f, 6)] public float repulsorPulseDensity = 2.4f;
-        [Range(0, .4f)] public float repulsorPulseTurbulence = .12f;
+        [Range(.035f, .5f)] public float repulsorPulseWidth = .32f;
+        [Range(.025f, .6f)] public float repulsorPulseThickness = .28f;
+        [Range(.1f, 6)] public float repulsorPulseDensity = 2.8f;
+        [Range(0, .4f)] public float repulsorPulseTurbulence = .30f;
         [Range(0, 1)] public float repulsorPulseBreakup = .7f;
         [Range(0, 5)] public float repulsorPulseFlow = 1.3f;
-        [Range(0, 1)] public float repulsorPulseLinger = .28f;
+        [Range(0, 1)] public float repulsorPulseLinger = .42f;
         [Range(.5f, 4)] public float repulsorPulseFade = 1.25f;
         public bool repulsorPulseBlackBody = true;
         public bool repulsorPulseWhiteEdge = true;
@@ -26,6 +26,18 @@ namespace Massive.Player
         [Range(0, 2)] public float repulsorPulseEdgeIntensity = .9f;
         [Range(0, 2)] public float repulsorPulseFilamentIntensity = 1f;
         [Range(0, 1)] public float repulsorPulseWispIntensity = .3f;
+        [Header("Shockwave burst")]
+        public bool repulsorReleaseFlash = true;
+        public bool repulsorTurbulentWake = true;
+        [Range(0f, 1f)] public float repulsorDissolveBreakup = .92f;
+        [Header("Seismic detonation")]
+        public bool repulsorImplosion = true;
+        public bool repulsorBlastVolume = true;
+        public bool repulsorSeismicStreak = true;
+        [Range(0f, 3f)] public float repulsorRadiance = 1.35f;
+        [Range(0f, 1f)] public float repulsorBlastOpacity = .38f;
+        [Range(.1f, 1f)] public float repulsorBlastDepth = .55f;
+        [Range(0f, 2f)] public float repulsorChargeIntensity = .8f;
 
         sealed class RepulsorPulse
         {
@@ -46,6 +58,7 @@ namespace Massive.Player
         Mesh repulsorPulseProxy;
         Material ownedRepulsorPulseMaterial;
         bool repulsorPulseMaterialResolved;
+        Material ownedDetonationMaterial;
         PlayerRepulsorFeedback repulsorBodyFeedback;
         PlayerRepulsorGridPulse repulsorGridFeedback;
         static readonly int PulseOriginId = Shader.PropertyToID("_PulseOrigin");
@@ -55,9 +68,13 @@ namespace Massive.Player
         static readonly int PulseLayersId = Shader.PropertyToID("_PulseLayers");
         static readonly int PulseLightId = Shader.PropertyToID("_PulseLight");
         static readonly int PulsePhaseId = Shader.PropertyToID("_PulsePhase");
+        static readonly int PulseBurstId = Shader.PropertyToID("_PulseBurst");
+        static readonly int PulseRangeId = Shader.PropertyToID("_PulseRange");
+        static readonly int DetonationLayersId = Shader.PropertyToID("_DetonationLayers");
+        static readonly int DetonationArtId = Shader.PropertyToID("_DetonationArt");
 
-        bool UsesRepulsorPulse => repulsorTreatment == RepulsorVisualTreatment.VolumetricPulse &&
-            (visualStyle == MeleeVisualStyle.Plasma || visualStyle == MeleeVisualStyle.SwordSlashes);
+        bool UsesRepulsorPulse => (Effective_repulsorTreatment == RepulsorVisualTreatment.VolumetricPulse || Effective_repulsorTreatment == RepulsorVisualTreatment.SeismicDetonation) &&
+            (Effective_visualStyle == MeleeVisualStyle.Plasma || Effective_visualStyle == MeleeVisualStyle.SwordSlashes);
         public bool IsRepulsorPulsePreview => UsesRepulsorPulse && PreviewAttackStage != null &&
             PreviewAttackStage.StageType == AttackStageType.FinisherRepulsor;
         bool RepulsorPulseIsRendering
@@ -77,7 +94,7 @@ namespace Massive.Player
         {
             if (Application.isPlaying || !repulsorBodyFeedback) return;
             if (stage != null && stage.StageType == AttackStageType.FinisherRepulsor &&
-                (visualStyle == MeleeVisualStyle.Plasma || visualStyle == MeleeVisualStyle.SwordSlashes))
+                (Effective_visualStyle == MeleeVisualStyle.Plasma || Effective_visualStyle == MeleeVisualStyle.SwordSlashes))
                 repulsorBodyFeedback.Preview(previewClock, stage);
             else repulsorBodyFeedback.StopPreview();
         }
@@ -86,7 +103,7 @@ namespace Massive.Player
         {
             if (Application.isPlaying || !repulsorGridFeedback) return;
             if (stage != null && stage.StageType == AttackStageType.FinisherRepulsor &&
-                (visualStyle == MeleeVisualStyle.Plasma || visualStyle == MeleeVisualStyle.SwordSlashes))
+                (Effective_visualStyle == MeleeVisualStyle.Plasma || Effective_visualStyle == MeleeVisualStyle.SwordSlashes))
             {
                 float elapsed = previewClock - RepulsorActivationStart(stage) * stage.Duration;
                 if (elapsed >= 0)
@@ -109,7 +126,17 @@ namespace Massive.Player
 
         Material ResolveRepulsorPulseMaterial()
         {
-            if (repulsorPulseMaterial) return repulsorPulseMaterial;
+            if (Effective_repulsorPulseMaterial) return Effective_repulsorPulseMaterial;
+            if (Effective_repulsorTreatment == RepulsorVisualTreatment.SeismicDetonation)
+            {
+                if (!ownedDetonationMaterial)
+                {
+                    var shader = Resources.Load<Shader>("MeleeRepulsorDetonation");
+                    if (shader) ownedDetonationMaterial = new Material(shader)
+                    { name = "Repulsor detonation (temporary)", hideFlags = HideFlags.HideAndDontSave };
+                }
+                return ownedDetonationMaterial;
+            }
             if (!repulsorPulseMaterialResolved)
             {
                 repulsorPulseMaterialResolved = true;
@@ -125,7 +152,7 @@ namespace Massive.Player
         {
             Vector3 origin = playerVisuals && playerVisuals.visuals ? playerVisuals.visuals.position : transform.position;
             if (playerVisuals) origin += playerVisuals.RepulsorVisualOffsetWS;
-            return origin + Vector3.up * (surfaceHeight * size);
+            return origin + Vector3.up * (Effective_surfaceHeight * size);
         }
 
         float RepulsorOutlineRadius(AttackStage previewStage = null)
@@ -150,7 +177,9 @@ namespace Massive.Player
             if (!UsesRepulsorPulse || stage == null || (!preview && (!repulsor || !repulsor.isActiveAndEnabled)))
             { HideRepulsorPulses(); return; }
             bool beginning = activeRepulsorPulse == null || activeRepulsorPulse.stage != stage ||
-                (preview && (!Mathf.Approximately(activeRepulsorPulse.size, PlayerVisualSize) || clock + .0001f < activeRepulsorPulse.lastElapsed)) ||
+                (preview && (!Mathf.Approximately(activeRepulsorPulse.size, PlayerVisualSize * stage.RepulsorScale) ||
+                    !Mathf.Approximately(activeRepulsorPulse.maximumRadius, stage.GetRepulsorRadius(PlayerVisualSize, RepulsorOutlineRadius(stage))) ||
+                    clock + .0001f < activeRepulsorPulse.lastElapsed)) ||
                 (!preview && t + .001f < lastRepulsorStageT);
             if (beginning)
             {
@@ -160,7 +189,7 @@ namespace Massive.Player
                 pulse.stage = stage;
                 pulse.born = preview ? 0 : clock - t * stage.Duration;
                 pulse.preview = preview;
-                pulse.size = PlayerVisualSize;
+                pulse.size = PlayerVisualSize * stage.RepulsorScale;
                 pulse.activationStart = RepulsorActivationStart(stage) * stage.Duration;
                 pulse.activationEnd = Mathf.Max(pulse.activationStart + .001f, RepulsorActivationEnd(stage) * stage.Duration);
                 pulse.emitted = false;
@@ -172,20 +201,26 @@ namespace Massive.Player
             }
             var current = activeRepulsorPulse;
             float elapsed = Mathf.Max(0, preview ? clock : clock - current.born);
+            if (!current.emitted && elapsed < current.activationStart)
+            {
+                current.origin = RepulsorVisualOrigin(PlayerVisualSize);
+                current.startRadius = RepulsorOutlineRadius(stage);
+                current.maximumRadius = stage.GetRepulsorRadius(PlayerVisualSize, current.startRadius);
+            }
             if (!current.emitted && elapsed >= current.activationStart)
             {
                 if (!preview && !repulsor.IsPulseActive)
-                { current.lastElapsed = elapsed; current.renderer.enabled = false; return; }
+                { current.lastElapsed = elapsed; current.renderer.enabled = false; HideRepulsorBurst(current); return; }
                 // Capture a world frame exactly when the stage releases its force.
                 // Direct scrubs must sample the launch pose, not the later body kick.
                 if (preview && repulsorBodyFeedback) repulsorBodyFeedback.Preview(current.activationStart, stage);
-                current.size = PlayerVisualSize;
-                current.origin = RepulsorVisualOrigin(current.size);
+                current.size = PlayerVisualSize * (preview ? stage.RepulsorScale : repulsor.PulseScale);
+                current.origin = RepulsorVisualOrigin(PlayerVisualSize);
                 current.startRadius = RepulsorOutlineRadius(preview ? stage : null);
-                current.maximumRadius = Mathf.Max(current.startRadius, stage.RepulsorMaxRadius * current.size);
+                current.maximumRadius = stage.GetRepulsorRadius(PlayerVisualSize, current.startRadius);
                 if (!preview)
                 {
-                    current.origin = repulsor.OriginWorld + Vector3.up * (surfaceHeight * current.size);
+                    current.origin = repulsor.OriginWorld + Vector3.up * (Effective_surfaceHeight * PlayerVisualSize);
                     current.startRadius = repulsor.StartRadiusWorld;
                     current.maximumRadius = repulsor.EndRadiusWorld;
                 }
@@ -212,7 +247,7 @@ namespace Massive.Player
             {
                 float elapsed = pulse.preview ? pulse.lastElapsed : Mathf.Max(0, Time.time - pulse.born);
                 if (!pulse.emitted)
-                { pulse.alive = false; if (pulse.renderer) pulse.renderer.enabled = false; }
+                { pulse.alive = false; if (pulse.renderer) pulse.renderer.enabled = false; HideRepulsorBurst(pulse); }
                 else if (elapsed < pulse.activationEnd)
                 {
                     pulse.stopTime = elapsed;
@@ -235,40 +270,67 @@ namespace Massive.Player
         {
             pulse.lastElapsed = elapsed;
             float stop = Mathf.Min(pulse.activationEnd, pulse.stopTime);
-            float linger = Mathf.Max(0, repulsorPulseLinger);
-            if (!pulse.emitted || elapsed < pulse.activationStart)
-            { pulse.renderer.enabled = false; return; }
+            float linger = Mathf.Max(0, Effective_repulsorPulseLinger);
+            bool detonation = Effective_repulsorTreatment == RepulsorVisualTreatment.SeismicDetonation;
+            bool charging = !pulse.emitted && elapsed < pulse.activationStart && detonation && pulse.tracking;
+            if ((!pulse.emitted || elapsed < pulse.activationStart) && !charging)
+            { pulse.renderer.enabled = false; HideRepulsorBurst(pulse); return; }
             if (elapsed >= stop + linger)
-            { pulse.alive = false; pulse.renderer.enabled = false; return; }
+            { pulse.alive = false; pulse.renderer.enabled = false; HideRepulsorBurst(pulse); return; }
             float fade = Mathf.Clamp01((elapsed - stop) / Mathf.Max(.001f, linger));
-            float onset = Mathf.SmoothStep(0, 1, (elapsed - pulse.activationStart) / .025f);
-            float opacity = onset * (1 - Mathf.SmoothStep(0, 1, Mathf.Pow(fade, Mathf.Max(.5f, repulsorPulseFade))));
-            bool layers = repulsorPulseBlackBody || repulsorPulseWhiteEdge || repulsorPulseFilaments || repulsorPulseWisps;
+            float onset = charging ? Mathf.SmoothStep(0, 1, elapsed / Mathf.Max(.001f, pulse.activationStart)) :
+                Mathf.SmoothStep(0, 1, (elapsed - pulse.activationStart) / (detonation ? .008f : .025f));
+            float opacity = onset * (1 - Mathf.SmoothStep(0, 1, Mathf.Pow(fade, Mathf.Max(.5f, Effective_repulsorPulseFade))));
+            bool layers = Effective_repulsorPulseBlackBody || Effective_repulsorPulseWhiteEdge || Effective_repulsorPulseFilaments || Effective_repulsorPulseWisps || Effective_repulsorTurbulentWake ||
+                (detonation && (Effective_repulsorImplosion || Effective_repulsorBlastVolume || Effective_repulsorSeismicStreak || Effective_repulsorReleaseFlash));
             Material material = ResolveRepulsorPulseMaterial();
             pulse.renderer.enabled = layers && opacity > .001f && material;
-            if (!pulse.renderer.enabled) return;
             float size = Mathf.Max(.001f, pulse.size);
-            float radius = float.IsPositiveInfinity(pulse.stopTime) ? RepulsorPulseRadius(pulse, elapsed) : pulse.stoppedRadius;
+            float radius = charging ? pulse.startRadius : float.IsPositiveInfinity(pulse.stopTime) ? RepulsorPulseRadius(pulse, elapsed) : pulse.stoppedRadius;
             if (!pulse.preview && pulse.tracking && pulse == activeRepulsorPulse && repulsor && repulsor.IsPulseActive)
                 radius = repulsor.RadiusWorld;
             pulse.lastRadius = radius;
-            float width = Mathf.Max(.035f, repulsorPulseWidth) * size;
-            float height = Mathf.Max(.025f, repulsorPulseThickness) * size;
-            Vector3 bounds = new Vector3(radius + width * 2.5f, height * 2.5f, radius + width * 2.5f);
+            UpdateRepulsorBurst(pulse, elapsed, radius, fade, opacity);
+            if (!pulse.renderer.enabled) return;
+            // Only the increasingly broken visual residue drifts beyond the last
+            // contact radius. The readable active crest uses the collider exactly.
+            float expansion = Mathf.Clamp01((elapsed - pulse.activationStart) / Mathf.Max(.001f, pulse.activationEnd - pulse.activationStart));
+            float visualRadius = radius + radius * .065f * Mathf.SmoothStep(0, 1, fade);
+            float width = Mathf.Max(.035f, Effective_repulsorPulseWidth) * size * Mathf.Lerp(.52f, 1f, expansion);
+            float height = Mathf.Max(.025f, Effective_repulsorPulseThickness) * size * Mathf.Lerp(.65f, 1f, expansion);
+            Vector3 bounds = new Vector3(visualRadius + width * 1.7f, height * 2.3f, visualRadius + width * 1.7f);
+            if (detonation)
+            {
+                float footprint = charging ? pulse.startRadius * 2.7f : Mathf.Max(visualRadius + Mathf.Max(width * 1.7f, .4f * size), pulse.startRadius * 3.2f);
+                bounds = new Vector3(footprint, Mathf.Max(height * 2.3f, visualRadius * Effective_repulsorBlastDepth + .18f * size), footprint);
+                if (charging) bounds.y = Mathf.Max(bounds.y, pulse.startRadius * 2.7f / 1.7f + .1f * size);
+            }
             pulse.root.transform.SetPositionAndRotation(pulse.origin, Quaternion.identity);
             pulse.root.transform.localScale = bounds;
             var p = pulse.properties;
             p.SetVector(PulseOriginId, pulse.origin);
             p.SetVector(PulseBoundsId, bounds);
-            p.SetVector(PulseShapeId, new Vector4(radius, width, height, size));
-            p.SetVector(PulseMotionId, new Vector4((elapsed - pulse.activationStart) * repulsorPulseFlow,
-                pulse.seed * 6.2831853f, Mathf.Clamp01(repulsorPulseTurbulence), Mathf.Clamp01(repulsorPulseBreakup)));
-            p.SetVector(PulseLayersId, new Vector4(repulsorPulseBlackBody ? 1 : 0, repulsorPulseWhiteEdge ? 1 : 0,
-                repulsorPulseFilaments ? 1 : 0, repulsorPulseWisps ? 1 : 0));
-            p.SetVector(PulseLightId, new Vector4(Mathf.Max(.1f, repulsorPulseDensity) / size,
-                repulsorPulseEdgeIntensity, repulsorPulseFilamentIntensity, repulsorPulseWispIntensity));
+            p.SetVector(PulseShapeId, new Vector4(visualRadius, width, height, size));
+            p.SetVector(PulseMotionId, new Vector4((elapsed - pulse.activationStart) * Effective_repulsorPulseFlow,
+                pulse.seed * 6.2831853f, Mathf.Clamp01(Effective_repulsorPulseTurbulence), Mathf.Clamp01(Effective_repulsorPulseBreakup)));
+            p.SetVector(PulseLayersId, new Vector4(Effective_repulsorPulseBlackBody ? 1 : 0, Effective_repulsorPulseWhiteEdge ? 1 : 0,
+                Effective_repulsorPulseFilaments ? 1 : 0, Effective_repulsorPulseWisps ? 1 : 0));
+            p.SetVector(PulseLightId, new Vector4(Mathf.Max(.1f, Effective_repulsorPulseDensity) / size,
+                Effective_repulsorPulseEdgeIntensity, Effective_repulsorPulseFilamentIntensity, Effective_repulsorPulseWispIntensity));
             p.SetVector(PulsePhaseId, new Vector4(opacity, Mathf.Clamp01((elapsed - pulse.activationStart) /
                 Mathf.Max(.001f, pulse.activationEnd - pulse.activationStart)), fade, 0));
+            p.SetVector(PulseBurstId, new Vector4(Effective_repulsorReleaseFlash ? 1 : 0,
+                Effective_repulsorTurbulentWake ? 1 : 0, Effective_repulsorDissolveBreakup, elapsed - pulse.activationStart));
+            p.SetVector(PulseRangeId, new Vector4(pulse.startRadius, pulse.maximumRadius, 0, 0));
+            if (detonation)
+            {
+                p.SetVector(PulseRangeId, new Vector4(pulse.startRadius, pulse.maximumRadius,
+                    charging ? Mathf.Clamp01(elapsed / Mathf.Max(.001f, pulse.activationStart)) : 1,
+                    pulse.activationEnd - pulse.activationStart));
+                p.SetVector(DetonationLayersId, new Vector4(Effective_repulsorImplosion ? 1 : 0,
+                    Effective_repulsorBlastVolume ? 1 : 0, Effective_repulsorSeismicStreak ? 1 : 0, Effective_repulsorBlastOpacity));
+                p.SetVector(DetonationArtId, new Vector4(Effective_repulsorRadiance, Effective_repulsorBlastDepth, Effective_repulsorChargeIntensity, 0));
+            }
             pulse.renderer.sharedMaterial = material;
             pulse.renderer.SetPropertyBlock(p);
         }
@@ -296,6 +358,7 @@ namespace Massive.Player
             pulse.renderer.lightProbeUsage = LightProbeUsage.Off;
             pulse.renderer.reflectionProbeUsage = ReflectionProbeUsage.Off;
             pulse.properties = new MaterialPropertyBlock();
+            InitializeRepulsorBurst(pulse);
             repulsorPulses[index] = pulse;
             return pulse;
         }
@@ -303,7 +366,7 @@ namespace Massive.Player
         void HideRepulsorPulses()
         {
             foreach (var pulse in repulsorPulses)
-                if (pulse != null) { pulse.alive = pulse.tracking = false; if (pulse.renderer) pulse.renderer.enabled = false; }
+                if (pulse != null) { pulse.alive = pulse.tracking = false; if (pulse.renderer) pulse.renderer.enabled = false; HideRepulsorBurst(pulse); }
             activeRepulsorPulse = null; lastRepulsorStageT = -1;
         }
 
@@ -312,12 +375,15 @@ namespace Massive.Player
             HideRepulsorPulses();
             for (int i = 0; i < repulsorPulses.Length; i++)
             {
+                if (repulsorPulses[i] != null) ReleaseRepulsorBurst(repulsorPulses[i]);
                 if (repulsorPulses[i] != null && repulsorPulses[i].root)
                 { if (Application.isPlaying) Destroy(repulsorPulses[i].root); else DestroyImmediate(repulsorPulses[i].root); }
                 repulsorPulses[i] = null;
             }
             if (repulsorPulseProxy) { if (Application.isPlaying) Destroy(repulsorPulseProxy); else DestroyImmediate(repulsorPulseProxy); }
             if (ownedRepulsorPulseMaterial) { if (Application.isPlaying) Destroy(ownedRepulsorPulseMaterial); else DestroyImmediate(ownedRepulsorPulseMaterial); }
+            if (ownedDetonationMaterial) { if (Application.isPlaying) Destroy(ownedDetonationMaterial); else DestroyImmediate(ownedDetonationMaterial); }
+            ownedDetonationMaterial = null;
             repulsorPulseProxy = null; ownedRepulsorPulseMaterial = null;
             repulsorPulseMaterialResolved = false; nextRepulsorPulse = 0;
         }

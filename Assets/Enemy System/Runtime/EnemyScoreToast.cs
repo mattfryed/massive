@@ -6,7 +6,7 @@ using UnityEngine.SceneManagement;
 
 namespace Massive.Enemies
 {
-    /// <summary>Small, scene-owned, reusable labels. The score service is the only source of displayed amounts.</summary>
+    /// <summary>Scene-owned reusable labels for accepted score awards and actual pickup mass restored.</summary>
     public sealed class EnemyScoreToast : MonoBehaviour
     {
         public TMP_Text label;
@@ -18,6 +18,7 @@ namespace Massive.Enemies
         private Vector3 origin, up;
         private Camera view;
         public long Amount { get; private set; }
+        public float MassRestored { get; private set; }
         public static int ActiveCount { get { int n = 0; foreach (var t in pool) if (t != null && t.gameObject.activeSelf) n++; return n; } }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -26,6 +27,22 @@ namespace Massive.Enemies
         public static EnemyScoreToast Show(EnemyScoreToast prefab, ScoreAwardResult award, Scene scene)
         {
             if (prefab == null || prefab.label == null || !award.accepted || award.finalMilliElectronVolts <= 0) return null;
+            var display = EnergyScoreFormatter.GetDisplayValue(award.finalMilliElectronVolts);
+            string amount = EnergyScoreFormatter.FormatValue(award.finalMilliElectronVolts, 1, display.fractionalThousandths == 0 ? 0 : 3);
+            if (display.fractionalThousandths != 0) amount = amount.TrimEnd('0').TrimEnd('.');
+            return ShowValue(prefab, "+" + amount + " " + display.unitLabel, award.finalMilliElectronVolts, 0f, award.worldPosition, scene);
+        }
+
+        public static EnemyScoreToast ShowMass(EnemyScoreToast prefab, float restored, float range, Vector3 position, Scene scene)
+        {
+            if (restored <= 0f || range <= 0f) return null;
+            string percent = (restored / range * 100f).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+            return ShowValue(prefab, "+" + percent + "% MASS", 0L, restored, position, scene);
+        }
+
+        private static EnemyScoreToast ShowValue(EnemyScoreToast prefab, string text, long score, float mass, Vector3 position, Scene scene)
+        {
+            if (prefab == null || prefab.label == null) return null;
             EnemyScoreToast toast = null, oldest = null;
             for (int i = pool.Count - 1; i >= 0; i--)
             {
@@ -40,16 +57,13 @@ namespace Massive.Enemies
             if (toast == null) return null;
             if (toast.gameObject.scene != scene) SceneManager.MoveGameObjectToScene(toast.gameObject, scene);
             toast.lifetime = prefab.lifetime; toast.riseDistance = prefab.riseDistance;
-            toast.Amount = award.finalMilliElectronVolts;
+            toast.Amount = score; toast.MassRestored = mass;
             toast.age = 0f; toast.startedAt = Time.unscaledTime; toast.view = Camera.main;
             if (toast.view == null) toast.view = FindFirstObjectByType<Camera>();
             toast.up = toast.view != null ? toast.view.transform.up : Vector3.forward;
-            toast.origin = award.worldPosition + Vector3.up * .2f + toast.up * .25f;
+            toast.origin = position + Vector3.up * .2f + toast.up * .25f;
             toast.transform.position = toast.origin;
-            var display = EnergyScoreFormatter.GetDisplayValue(toast.Amount);
-            string amount = EnergyScoreFormatter.FormatValue(toast.Amount, 1, display.fractionalThousandths == 0 ? 0 : 3);
-            if (display.fractionalThousandths != 0) amount = amount.TrimEnd('0').TrimEnd('.');
-            toast.label.text = "+" + amount + " " + display.unitLabel;
+            toast.label.text = text;
             toast.label.color = Color.white; toast.gameObject.SetActive(true); toast.FaceCamera();
             return toast;
         }

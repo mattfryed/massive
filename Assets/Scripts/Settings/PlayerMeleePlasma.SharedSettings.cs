@@ -1,0 +1,134 @@
+using UnityEngine;
+using TMPro;
+using Massive.Player;
+using Massive.Multiplier;
+using Massive.Resonance;
+using Massive.Scoring;
+
+namespace Massive.Player
+{
+    public sealed partial class PlayerMeleePlasma : Massive.Settings.ISharedSettingsConsumer
+    {
+        [SerializeField, Tooltip("Use the shared project profile across scenes. Turn off to restore this component's local tuning.")]
+        private bool useSharedSettings = true;
+        public bool UseSharedSettings { get => useSharedSettings; set => useSharedSettings = value; }
+        public Massive.Settings.SharedSettingsProfile SharedSettingsAsset => Massive.Settings.SharedSettingsRuntime.Load<Massive.Settings.MeleeVisualProfile>();
+        public string SharedSettingsGroup => "";
+        public void RefreshSharedSettings()
+        {
+            visibilityDirty = true;
+            if (!isActiveAndEnabled) return;
+            ApplyLegacyVisibility();
+            if (PreviewActive) UpdatePreviewVisual();
+        }
+        private Massive.Settings.MeleeVisualProfile SharedProfile => Massive.Settings.SharedSettingsRuntime.Resolve<Massive.Settings.MeleeVisualProfile>(this, useSharedSettings);
+        public MeleeVisualStyle Effective_visualStyle => SharedProfile != null ? SharedProfile.visualStyle : visualStyle;
+        public Material Effective_plasmaMaterial => SharedProfile != null && SharedProfile.plasmaMaterial != null ? SharedProfile.plasmaMaterial : plasmaMaterial;
+        public bool Effective_solidBody => SharedProfile != null ? SharedProfile.solidBody : solidBody;
+        public bool Effective_brightRim => SharedProfile != null ? SharedProfile.brightRim : brightRim;
+        public bool Effective_flowingFilaments => SharedProfile != null ? SharedProfile.flowingFilaments : flowingFilaments;
+        public bool Effective_softHalo => SharedProfile != null ? SharedProfile.softHalo : softHalo;
+        public float Effective_bodyOpacity => SharedProfile != null ? SharedProfile.bodyOpacity : bodyOpacity;
+        public float Effective_rimIntensity => SharedProfile != null ? SharedProfile.rimIntensity : rimIntensity;
+        public float Effective_filamentIntensity => SharedProfile != null ? SharedProfile.filamentIntensity : filamentIntensity;
+        public float Effective_haloIntensity => SharedProfile != null ? SharedProfile.haloIntensity : haloIntensity;
+        public float Effective_rimWidth => SharedProfile != null ? SharedProfile.rimWidth : rimWidth;
+        public float Effective_edgeWarble => SharedProfile != null ? SharedProfile.edgeWarble : edgeWarble;
+        public float Effective_noiseScale => SharedProfile != null ? SharedProfile.noiseScale : noiseScale;
+        public float Effective_flowSpeed => SharedProfile != null ? SharedProfile.flowSpeed : flowSpeed;
+        public float Effective_reachScale => SharedProfile != null ? SharedProfile.reachScale : reachScale;
+        public float Effective_widthScale => SharedProfile != null ? SharedProfile.widthScale : widthScale;
+        public float Effective_sweepBend => SharedProfile != null ? SharedProfile.sweepBend : sweepBend;
+        public float Effective_rootOffset => SharedProfile != null ? SharedProfile.rootOffset : rootOffset;
+        public float Effective_surfaceHeight => SharedProfile != null ? SharedProfile.surfaceHeight : surfaceHeight;
+        public float Effective_repulsorBandWidth => SharedProfile != null ? SharedProfile.repulsorBandWidth : repulsorBandWidth;
+        public float Effective_windupOpacity => SharedProfile != null ? SharedProfile.windupOpacity : windupOpacity;
+        public float Effective_recoveryOpacity => SharedProfile != null ? SharedProfile.recoveryOpacity : recoveryOpacity;
+        public MeleePrefabEffectSettings Effective_thrustPrefabEffect => SharedProfile != null && SharedProfile.thrustPrefabEffect != null ? SharedProfile.thrustPrefabEffect : thrustPrefabEffect;
+        public MeleePrefabEffectSettings Effective_swipePrefabEffect => SharedProfile != null && SharedProfile.swipePrefabEffect != null ? SharedProfile.swipePrefabEffect : swipePrefabEffect;
+        public ArcSweepTreatment Effective_arcSweepTreatment => SharedProfile != null ? SharedProfile.arcSweepTreatment : arcSweepTreatment;
+        public Material Effective_volumetricArcMaterial => SharedProfile != null && SharedProfile.volumetricArcMaterial != null ? SharedProfile.volumetricArcMaterial : volumetricArcMaterial;
+        public float Effective_volumeReachScale => SharedProfile != null ? SharedProfile.volumeReachScale : volumeReachScale;
+        public float Effective_volumeArcDegrees => SharedProfile != null ? SharedProfile.volumeArcDegrees : volumeArcDegrees;
+        public float Effective_volumeRadialWidth => SharedProfile != null ? SharedProfile.volumeRadialWidth : volumeRadialWidth;
+        public float Effective_volumeThickness => SharedProfile != null ? SharedProfile.volumeThickness : volumeThickness;
+        public float Effective_volumeDensity => SharedProfile != null ? SharedProfile.volumeDensity : volumeDensity;
+        public float Effective_volumeTaper => SharedProfile != null ? SharedProfile.volumeTaper : volumeTaper;
+        public float Effective_volumeTurbulence => SharedProfile != null ? SharedProfile.volumeTurbulence : volumeTurbulence;
+        public float Effective_volumeNoiseScale => SharedProfile != null ? SharedProfile.volumeNoiseScale : volumeNoiseScale;
+        public float Effective_volumeFlowSpeed => SharedProfile != null ? SharedProfile.volumeFlowSpeed : volumeFlowSpeed;
+        public bool Effective_volumeBlackBody => SharedProfile != null ? SharedProfile.volumeBlackBody : volumeBlackBody;
+        public bool Effective_volumeWhiteEdge => SharedProfile != null ? SharedProfile.volumeWhiteEdge : volumeWhiteEdge;
+        public bool Effective_volumeFilaments => SharedProfile != null ? SharedProfile.volumeFilaments : volumeFilaments;
+        public bool Effective_volumeSatelliteWisp => SharedProfile != null ? SharedProfile.volumeSatelliteWisp : volumeSatelliteWisp;
+        public float Effective_volumeEdgeIntensity => SharedProfile != null ? SharedProfile.volumeEdgeIntensity : volumeEdgeIntensity;
+        public float Effective_volumeFilamentIntensity => SharedProfile != null ? SharedProfile.volumeFilamentIntensity : volumeFilamentIntensity;
+        public int Effective_volumeTendrilCount => SharedProfile != null ? SharedProfile.volumeTendrilCount : volumeTendrilCount;
+        public int Effective_volumeExtraTendrils => SharedProfile != null ? SharedProfile.volumeExtraTendrils : volumeExtraTendrils;
+        public float Effective_volumeTravelDuration => SharedProfile != null ? SharedProfile.volumeTravelDuration : volumeTravelDuration;
+        public float Effective_volumeEmissionSpacing => SharedProfile != null ? SharedProfile.volumeEmissionSpacing : volumeEmissionSpacing;
+        public float Effective_volumeTailLength => SharedProfile != null ? SharedProfile.volumeTailLength : volumeTailLength;
+        public float Effective_volumeBranching => SharedProfile != null ? SharedProfile.volumeBranching : volumeBranching;
+        public float Effective_volumeConvergenceRate => SharedProfile != null ? SharedProfile.volumeConvergenceRate : volumeConvergenceRate;
+        public float Effective_volumeLingerSeconds => SharedProfile != null ? SharedProfile.volumeLingerSeconds : volumeLingerSeconds;
+        public float Effective_volumeDissolve => SharedProfile != null ? SharedProfile.volumeDissolve : volumeDissolve;
+        public bool Effective_volumeSheath => SharedProfile != null ? SharedProfile.volumeSheath : volumeSheath;
+        public bool Effective_volumeCounterflow => SharedProfile != null ? SharedProfile.volumeCounterflow : volumeCounterflow;
+        public bool Effective_volumeWake => SharedProfile != null ? SharedProfile.volumeWake : volumeWake;
+        public float Effective_volumeSheathIntensity => SharedProfile != null ? SharedProfile.volumeSheathIntensity : volumeSheathIntensity;
+        public float Effective_volumeCounterflowIntensity => SharedProfile != null ? SharedProfile.volumeCounterflowIntensity : volumeCounterflowIntensity;
+        public float Effective_volumeWakeIntensity => SharedProfile != null ? SharedProfile.volumeWakeIntensity : volumeWakeIntensity;
+        public bool Effective_volumeOrganicGlow => SharedProfile != null ? SharedProfile.volumeOrganicGlow : volumeOrganicGlow;
+        public float Effective_volumeGlowBreakup => SharedProfile != null ? SharedProfile.volumeGlowBreakup : volumeGlowBreakup;
+        public float Effective_volumeGlowDepth => SharedProfile != null ? SharedProfile.volumeGlowDepth : volumeGlowDepth;
+        public float Effective_volumeGlowFlow => SharedProfile != null ? SharedProfile.volumeGlowFlow : volumeGlowFlow;
+        public bool Effective_volumeCrackle => SharedProfile != null ? SharedProfile.volumeCrackle : volumeCrackle;
+        public float Effective_volumeCrackleAmount => SharedProfile != null ? SharedProfile.volumeCrackleAmount : volumeCrackleAmount;
+        public float Effective_volumeCrackleScale => SharedProfile != null ? SharedProfile.volumeCrackleScale : volumeCrackleScale;
+        public float Effective_volumeCrackleRate => SharedProfile != null ? SharedProfile.volumeCrackleRate : volumeCrackleRate;
+        public float Effective_thrustLingerSeconds => SharedProfile != null ? SharedProfile.thrustLingerSeconds : thrustLingerSeconds;
+        public float Effective_thrustFadeCurve => SharedProfile != null ? SharedProfile.thrustFadeCurve : thrustFadeCurve;
+        public bool Effective_thrustWorldEmission => SharedProfile != null ? SharedProfile.thrustWorldEmission : thrustWorldEmission;
+        public int Effective_thrustEmissionPasses => SharedProfile != null ? SharedProfile.thrustEmissionPasses : thrustEmissionPasses;
+        public bool Effective_thrustOrganicGlow => SharedProfile != null ? SharedProfile.thrustOrganicGlow : thrustOrganicGlow;
+        public float Effective_thrustGlowIntensity => SharedProfile != null ? SharedProfile.thrustGlowIntensity : thrustGlowIntensity;
+        public float Effective_thrustGlowBreakup => SharedProfile != null ? SharedProfile.thrustGlowBreakup : thrustGlowBreakup;
+        public float Effective_thrustGlowDepth => SharedProfile != null ? SharedProfile.thrustGlowDepth : thrustGlowDepth;
+        public float Effective_thrustGlowFlow => SharedProfile != null ? SharedProfile.thrustGlowFlow : thrustGlowFlow;
+        public Material Effective_thrustEnergyMaterial => SharedProfile != null && SharedProfile.thrustEnergyMaterial != null ? SharedProfile.thrustEnergyMaterial : thrustEnergyMaterial;
+        public RepulsorVisualTreatment Effective_repulsorTreatment => SharedProfile != null ? SharedProfile.repulsorTreatment : repulsorTreatment;
+        public Material Effective_repulsorPulseMaterial => SharedProfile != null && SharedProfile.repulsorPulseMaterial != null ? SharedProfile.repulsorPulseMaterial : repulsorPulseMaterial;
+        public float Effective_repulsorPulseWidth => SharedProfile != null ? SharedProfile.repulsorPulseWidth : repulsorPulseWidth;
+        public float Effective_repulsorPulseThickness => SharedProfile != null ? SharedProfile.repulsorPulseThickness : repulsorPulseThickness;
+        public float Effective_repulsorPulseDensity => SharedProfile != null ? SharedProfile.repulsorPulseDensity : repulsorPulseDensity;
+        public float Effective_repulsorPulseTurbulence => SharedProfile != null ? SharedProfile.repulsorPulseTurbulence : repulsorPulseTurbulence;
+        public float Effective_repulsorPulseBreakup => SharedProfile != null ? SharedProfile.repulsorPulseBreakup : repulsorPulseBreakup;
+        public float Effective_repulsorPulseFlow => SharedProfile != null ? SharedProfile.repulsorPulseFlow : repulsorPulseFlow;
+        public float Effective_repulsorPulseLinger => SharedProfile != null ? SharedProfile.repulsorPulseLinger : repulsorPulseLinger;
+        public float Effective_repulsorPulseFade => SharedProfile != null ? SharedProfile.repulsorPulseFade : repulsorPulseFade;
+        public bool Effective_repulsorPulseBlackBody => SharedProfile != null ? SharedProfile.repulsorPulseBlackBody : repulsorPulseBlackBody;
+        public bool Effective_repulsorPulseWhiteEdge => SharedProfile != null ? SharedProfile.repulsorPulseWhiteEdge : repulsorPulseWhiteEdge;
+        public bool Effective_repulsorPulseFilaments => SharedProfile != null ? SharedProfile.repulsorPulseFilaments : repulsorPulseFilaments;
+        public bool Effective_repulsorPulseWisps => SharedProfile != null ? SharedProfile.repulsorPulseWisps : repulsorPulseWisps;
+        public float Effective_repulsorPulseEdgeIntensity => SharedProfile != null ? SharedProfile.repulsorPulseEdgeIntensity : repulsorPulseEdgeIntensity;
+        public float Effective_repulsorPulseFilamentIntensity => SharedProfile != null ? SharedProfile.repulsorPulseFilamentIntensity : repulsorPulseFilamentIntensity;
+        public float Effective_repulsorPulseWispIntensity => SharedProfile != null ? SharedProfile.repulsorPulseWispIntensity : repulsorPulseWispIntensity;
+        public bool Effective_repulsorReleaseFlash => SharedProfile != null ? SharedProfile.repulsorReleaseFlash : repulsorReleaseFlash;
+        public bool Effective_repulsorTurbulentWake => SharedProfile != null ? SharedProfile.repulsorTurbulentWake : repulsorTurbulentWake;
+        public float Effective_repulsorDissolveBreakup => SharedProfile != null ? SharedProfile.repulsorDissolveBreakup : repulsorDissolveBreakup;
+        public bool Effective_repulsorImplosion => SharedProfile != null ? SharedProfile.repulsorImplosion : repulsorImplosion;
+        public bool Effective_repulsorBlastVolume => SharedProfile != null ? SharedProfile.repulsorBlastVolume : repulsorBlastVolume;
+        public bool Effective_repulsorSeismicStreak => SharedProfile != null ? SharedProfile.repulsorSeismicStreak : repulsorSeismicStreak;
+        public float Effective_repulsorRadiance => SharedProfile != null ? SharedProfile.repulsorRadiance : repulsorRadiance;
+        public float Effective_repulsorBlastOpacity => SharedProfile != null ? SharedProfile.repulsorBlastOpacity : repulsorBlastOpacity;
+        public float Effective_repulsorBlastDepth => SharedProfile != null ? SharedProfile.repulsorBlastDepth : repulsorBlastDepth;
+        public float Effective_repulsorChargeIntensity => SharedProfile != null ? SharedProfile.repulsorChargeIntensity : repulsorChargeIntensity;
+        public bool Effective_repulsorBurstRays => SharedProfile != null ? SharedProfile.repulsorBurstRays : repulsorBurstRays;
+        public bool Effective_repulsorBurstCrescents => SharedProfile != null ? SharedProfile.repulsorBurstCrescents : repulsorBurstCrescents;
+        public float Effective_repulsorBurstIntensity => SharedProfile != null ? SharedProfile.repulsorBurstIntensity : repulsorBurstIntensity;
+        public float Effective_repulsorBurstSpread => SharedProfile != null ? SharedProfile.repulsorBurstSpread : repulsorBurstSpread;
+        public bool Effective_repulsorSparkEjecta => SharedProfile != null ? SharedProfile.repulsorSparkEjecta : repulsorSparkEjecta;
+        public bool Effective_repulsorArcDischarge => SharedProfile != null ? SharedProfile.repulsorArcDischarge : repulsorArcDischarge;
+        public float Effective_repulsorEjectaDensity => SharedProfile != null ? SharedProfile.repulsorEjectaDensity : repulsorEjectaDensity;
+    }
+}

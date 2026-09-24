@@ -16,6 +16,7 @@ public class GridInteractor : MonoBehaviour
 
     // runtime state per-module (timers/activation)
     Rigidbody _rb;
+    Massive.Multiplier.AmplifierCoreGameplay _amplifierCore;
     GridTuningMixer _mixer;
     readonly Dictionary<int, ModuleState> _state = new();
     class ModuleState { public float t = -1f; public bool active = true; }
@@ -44,6 +45,7 @@ void TryResolveGrid()
     {
         // cache RB once
         if (_rb == null) _rb = GetComponent<Rigidbody>();
+        if (_amplifierCore == null) _amplifierCore = GetComponent<Massive.Multiplier.AmplifierCoreGameplay>();
 
     TryResolveGrid();
 
@@ -122,6 +124,7 @@ void TryResolveGrid()
         Vector3 vel = GetVelocity(_rb);
         float speed = vel.magnitude;
         float playerSize = Massive.Player.PlayerScaleAdjuster.SizeOf(this);
+        float coreSize = _amplifierCore != null ? _amplifierCore.CoreScale : 1f;
 
         for (int i = 0; i < profile.modules.Length; i++)
         {
@@ -147,8 +150,8 @@ void TryResolveGrid()
                 if (m.radiusOverSpeed != null) radius *= m.radiusOverSpeed.Evaluate(speed);
                 if (m.strengthOverSpeed != null) strength *= m.strengthOverSpeed.Evaluate(speed);
             }
-            // Per-player dimensions only. The shared profile and its force strength stay authored.
-            radius *= playerSize;
+            // Object dimensions only. Shared profile and force strength stay authored.
+            radius *= playerSize * coreSize;
 
             bool useDir = m.directional || m.useVelocity || m.type == GridModuleType.DirectionalWake || m.type == GridModuleType.Vortex || m.type == GridModuleType.Jiggle;
             Vector3 dir = (m.fixedDirection.sqrMagnitude > 1e-6f ? m.fixedDirection.normalized : Vector3.right);
@@ -157,6 +160,13 @@ void TryResolveGrid()
 
             switch (m.type)
             {
+                case GridModuleType.ResponsiveRadial:
+                    // Presentation owns this field; do not also enqueue a spring impulse.
+                    // Submit to this actor's grid, even in multi-grid/additive setups.
+                    grid.AddResponsiveAttractor(GetInstanceID(), i, new Vector2(localPos.x, localPos.y),
+                        radius, strength, m.responseSeconds, m.releaseSeconds);
+                    break;
+
                 case GridModuleType.ConstantRadial:
                     outForces.Add(VectorGridGPU.MakeRadial(localPos, radius, strength, inner));
                     break;

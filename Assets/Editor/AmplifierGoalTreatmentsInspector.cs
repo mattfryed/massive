@@ -1,3 +1,4 @@
+using Massive.EditorTools;
 using Massive.Multiplier;
 using UnityEditor;
 using UnityEngine;
@@ -18,16 +19,21 @@ public sealed class AmplifierGoalTreatmentsInspector : Editor
         bool loop=GUILayout.Toggle(workbench.LoopCapture,"Loop Capture","Button");
         if(loop!=workbench.LoopCapture){Undo.RecordObject(workbench,"Loop capture");workbench.LoopCapture=loop;if(loop)workbench.StartPreview();EditorUtility.SetDirty(workbench);AmplifierTreatmentsWindow.Open();}
         EditorGUILayout.EndHorizontal();
+        SharedSettingsEditing.Banner(serializedObject);
         serializedObject.Update();
         foreach(var name in new[]{"previewTeam","heldLevel","playbackSpeed","loopInterval","showControls"})
             EditorGUILayout.PropertyField(serializedObject.FindProperty(name));
-        var field=serializedObject.FindProperty("treatment");var end=field.GetEndProperty();field.NextVisible(true);
+        serializedObject.ApplyModifiedProperties();
+        var tuning = SharedSettingsEditing.Tuning(workbench);
+        tuning.Update();
+        var field=tuning.FindProperty("treatment");var end=field.GetEndProperty();field.NextVisible(true);
         while(!SerializedProperty.EqualContents(field,end))
         {
             if(field.name.EndsWith("Shimmer"))field.isExpanded=true;
             EditorGUILayout.PropertyField(field,new GUIContent(field.displayName.Replace("Seam ","Interference ")),true);
             if(!field.NextVisible(false))break;
         }
-        serializedObject.ApplyModifiedProperties();
+        SharedSettingsEditing.Apply(tuning);
+        tuning.Dispose();
     }
 }

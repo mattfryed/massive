@@ -22,7 +22,8 @@ public class GridInteractionProfileEditor : Editor
         "Vortex (Spin)",
         "Jiggle (Noise)",
         "Traveling Wave (Ring)",
-        "Celestial Body (Constant Radial)"
+        "Celestial Body (Constant Radial)",
+        "Player Attraction (Responsive)"
     };
 
     void OnEnable()
@@ -60,6 +61,10 @@ public class GridInteractionProfileEditor : Editor
         EditorGUILayout.LabelField("Profile Multipliers", EditorStyles.boldLabel);
         EditorGUILayout.PropertyField(_strengthMult);
         EditorGUILayout.PropertyField(_radiusMult);
+
+        var currentProfile = (GridInteractionProfile)target;
+        if (currentProfile.modules != null && currentProfile.modules.Any(m => m.type == GridModuleType.ResponsiveRadial))
+            EditorGUILayout.HelpBox("Responsive attraction controls the existing grid's visual shape independently of player mass and global spring settings. Radius follows player size; Response Time is how quickly it follows movement. Release Time applies when the source switches off. Other grid forces remain simulated normally.", MessageType.Info);
 
         // Play-mode info
         if (!EditorApplication.isPlaying)
@@ -225,6 +230,14 @@ public class GridInteractionProfileEditor : Editor
                 SetFloat (el,"innerFrac",0.15f);
                 SetBool  (el,"scaleBySpeed",false);
                 break;
+
+            case 7: // Responsive player attraction
+                SetEnum(el, "type", (int)GridModuleType.ResponsiveRadial);
+                SetString(el, "tag", "Gravity");
+                SetFloat(el, "radius", 3.25f); SetFloat(el, "strength", .8f);
+                SetFloat(el, "responseSeconds", .06f); SetFloat(el, "releaseSeconds", .2f);
+                SetBool(el, "scaleBySpeed", false);
+                break;
         }
 
         serializedObject.ApplyModifiedProperties();
@@ -237,6 +250,8 @@ public class GridInteractionProfileEditor : Editor
         SetFloat (el,"radius",3f);
         SetFloat (el,"strength",10f);
         SetFloat (el,"innerFrac",0f);
+        SetFloat (el,"responseSeconds",.06f);
+        SetFloat (el,"releaseSeconds",.2f);
         SetBool  (el,"directional",false);
         SetBool  (el,"useVelocity",false);
         SetBool  (el,"pullAgainstVelocity",true);

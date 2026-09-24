@@ -42,7 +42,7 @@ namespace Massive.Player
 
         Material ResolveThrustEnergyMaterial()
         {
-            if (thrustEnergyMaterial) return thrustEnergyMaterial;
+            if (Effective_thrustEnergyMaterial) return Effective_thrustEnergyMaterial;
             if (!thrustEnergyMaterialResolved)
             {
                 thrustEnergyMaterialResolved = true;
@@ -62,21 +62,21 @@ namespace Massive.Player
             if (trail.energy != null)
             {
                 trail.energy.count = 0;
-                if (!thrustOrganicGlow || thrustGlowIntensity <= .001f) HideThrustEnergy(trail);
+                if (!Effective_thrustOrganicGlow || Effective_thrustGlowIntensity <= .001f) HideThrustEnergy(trail);
             }
         }
 
         void AddThrustEnergy(ThrustTrail trail, ParticleSystem ps, ParticleSystemRenderer renderer,
             ParticleSystem.Particle particle, ThrustBirth birth, float passOpacity)
         {
-            if (!thrustOrganicGlow || thrustGlowIntensity <= .001f) return;
+            if (!Effective_thrustOrganicGlow || Effective_thrustGlowIntensity <= .001f) return;
             if (trail.energy == null) trail.energy = new ThrustEnergy();
             var energy = trail.energy;
             if (energy.count >= ThrustEnergyCapacity) return;
             float playerSize = trail.sizeScale;
             float weight = particle.GetCurrentColor(ps).a / 255f * passOpacity;
             if (weight <= .005f || particle.remainingLifetime <= 0) return;
-            var frame = thrustWorldEmission ? birth.matrix : ps.transform.localToWorldMatrix;
+            var frame = Effective_thrustWorldEmission ? birth.matrix : ps.transform.localToWorldMatrix;
             Vector3 size = particle.GetCurrentSize3D(ps);
             size = new Vector3(Mathf.Abs(size.x), Mathf.Abs(size.y), Mathf.Abs(size.z));
             var particleMatrix = frame * Matrix4x4.TRS(particle.position, Quaternion.Euler(particle.rotation3D), size);
@@ -122,7 +122,7 @@ namespace Massive.Player
             energy.starts[index] = new Vector4(start.x, start.y, start.z, radius);
             energy.ends[index] = new Vector4(end.x, end.y, end.z, Mathf.Clamp01(weight));
             energy.frames[index] = new Vector4(up.x, up.y, up.z, (particle.randomSeed & 65535u) * (6.2831853f / 65535f));
-            float pad = radius * 1.75f * Mathf.Max(1, Mathf.Lerp(.5f, 1.4f, thrustGlowDepth)) + .035f * playerSize;
+            float pad = radius * 1.75f * Mathf.Max(1, Mathf.Lerp(.5f, 1.4f, Effective_thrustGlowDepth)) + .035f * playerSize;
             Vector3 minimum = Vector3.Min(start, end) - Vector3.one * pad;
             Vector3 maximum = Vector3.Max(start, end) + Vector3.one * pad;
             energy.minimum = index == 0 ? minimum : Vector3.Min(energy.minimum, minimum);
@@ -132,7 +132,7 @@ namespace Massive.Player
         void RenderThrustEnergy(ThrustTrail trail, float elapsed, float opacity)
         {
             var energy = trail.energy;
-            if (!thrustOrganicGlow || thrustGlowIntensity <= .001f || opacity <= .001f || energy == null || energy.count == 0)
+            if (!Effective_thrustOrganicGlow || Effective_thrustGlowIntensity <= .001f || opacity <= .001f || energy == null || energy.count == 0)
             { HideThrustEnergy(trail); return; }
             Material material = ResolveThrustEnergyMaterial();
             if (!material) { HideThrustEnergy(trail); return; }
@@ -149,7 +149,7 @@ namespace Massive.Player
             properties.SetInt(EnergyCountId, energy.count);
             properties.SetVector(EnergyBoundsCenterId, center);
             properties.SetVector(EnergyBoundsExtentsId, extents);
-            properties.SetVector(EnergyControlsId, new Vector4(thrustGlowIntensity, thrustGlowBreakup, thrustGlowDepth, elapsed * thrustGlowFlow));
+            properties.SetVector(EnergyControlsId, new Vector4(Effective_thrustGlowIntensity, Effective_thrustGlowBreakup, Effective_thrustGlowDepth, elapsed * Effective_thrustGlowFlow));
             properties.SetFloat(EnergyOpacityId, Mathf.Clamp01(opacity));
             energy.renderer.SetPropertyBlock(properties);
             energy.renderer.enabled = true;

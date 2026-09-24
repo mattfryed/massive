@@ -1,11 +1,15 @@
 using UnityEngine;
 using Massive.Scoring;
+using System.Collections.Generic;
 
 namespace Massive.PowerUps
 {
     [DisallowMultipleComponent]
     public class PowerUpPickup : MonoBehaviour
     {
+        private static readonly List<PowerUpPickup> activePickups = new List<PowerUpPickup>();
+        public static IReadOnlyList<PowerUpPickup> ActivePickups => activePickups;
+        public int ColliderHierarchyVersion { get; private set; }
         public PowerUpDefinition definition;
 
         [Header("Activation")]
@@ -41,6 +45,8 @@ namespace Massive.PowerUps
 
         private void OnEnable()
         {
+            if (!activePickups.Contains(this)) activePickups.Add(this);
+            ColliderHierarchyVersion++;
             _despawning = false;
             _activated = false;
 
@@ -57,6 +63,9 @@ namespace Massive.PowerUps
                 else _deathTime = Time.time + life;
             }
         }
+
+        private void OnDisable() { activePickups.Remove(this); }
+        private void OnTransformChildrenChanged() { ColliderHierarchyVersion++; }
 
         private void Update()
         {

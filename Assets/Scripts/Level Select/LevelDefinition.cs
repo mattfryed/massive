@@ -7,6 +7,10 @@ public class LevelDefinition : ScriptableObject
     public int levelNumber = 1;
     public string levelTitle = "SUPERNOVA";
 
+    [Header("Characteristic Scale")]
+    [Tooltip("Base-10 exponent of the represented length in meters (for example, -18 for HIGGS).")]
+    [Range(-35, 30)] public int scaleExponent;
+
     [Header("Gameplay Scene")]
     public SceneReference gameplayScene = new SceneReference();
 

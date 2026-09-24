@@ -1,9 +1,11 @@
 # Joystick reversal test
 
-Open **MASSIVE → Player → Joystick Reversal Controls**, or select a player root
-and edit **Player Movement Reversal**. It is installed on all four Dynamo prototype
-roster players, enabled with a **100° backward cone** and **0% retained momentum**.
-Other scenes keep their existing movement until this component is added.
+Open **MASSIVE → Player → Joystick Reversal Controls** for the shared P1–P4 settings
+used across scenes and builds. The profile starts from the Dynamo tuning: a
+**100° backward cone**, **75% retained momentum for P1**, and **0% for P2–P4**.
+Older player prefabs receive the component automatically when gameplay starts.
+For a local exception, select a player root and turn off **Use Global Joystick Settings**
+on **Player Movement Reversal**, then edit its preserved local values.
 
 - **Backward Cone** is the full angular width, centered opposite the current
   horizontal velocity. 100° means ±50° around directly backward. It is unrelated
@@ -33,7 +35,8 @@ Future abilities that inject momentum should call
 sustained movement-action state through the existing action gating. Rigidbody
 velocity alone cannot identify the source of arbitrary future external forces.
 
-Edit-mode settings save with the scene; Play-mode changes are temporary.
+The menu edits a shared asset and saves changes even in Play Mode. Component-local
+settings save with the scene; local Play-mode edits remain temporary.
 Run **MASSIVE → Player → Validate Joystick Reversal** for isolated checks of cone
 boundaries, retention, input transitions and momentum protection.
 

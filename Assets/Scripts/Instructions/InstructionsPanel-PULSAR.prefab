@@ -411,6 +411,7 @@ MonoBehaviour:
   inDelay: 0
   inDuration: 1
   outDuration: 0.25
+  maximumAnimationStep: 0
   inTargetStagger: 0
   outTargetStagger: 0
   inEasing: 2
@@ -976,6 +977,7 @@ MonoBehaviour:
   inDelay: 0
   inDuration: 0.35
   outDuration: 0.25
+  maximumAnimationStep: 0
   inTargetStagger: 0
   outTargetStagger: 0
   inEasing: 2
@@ -1214,6 +1216,7 @@ MonoBehaviour:
   inDelay: 0
   inDuration: 1
   outDuration: 0.25
+  maximumAnimationStep: 0
   inTargetStagger: 0
   outTargetStagger: 0
   inEasing: 2

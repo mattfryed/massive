@@ -14,6 +14,7 @@ Shader "MASSIVE/Amplifier Core/Neutral Shell"
         _EmbossStrength ("Goop Roundness", Range(0.0, 1.2)) = 0.58
         _ShadeThreshold ("Black Ribbon Shading", Range(0.0, 1.0)) = 0.60
         _RimLight ("Black Edge Definition", Range(0.0, 1.0)) = 0.32
+        [HideInInspector] _TimeoutWarning ("Sequence Time-out Instability", Float) = 0
 
         [Header(Layered Thickness)]
         _ShellThickness ("Shell Thickness", Range(0.0, 0.12)) = 0.075
@@ -52,6 +53,7 @@ Shader "MASSIVE/Amplifier Core/Neutral Shell"
         float _EmbossStrength;
         float _ShadeThreshold;
         float _RimLight;
+        float _TimeoutWarning;
         float _ShellThickness;
         float _DepthSteps;
 
@@ -93,6 +95,16 @@ Shader "MASSIVE/Amplifier Core/Neutral Shell"
             float3 p = spherePosition * _CellScale + _PatternOffset.xyz;
             float flowTime = _Time.y * _FlowSpeed;
 
+            // Spatially different, interfering motion grows stronger as expiry approaches.
+            // This deforms the authored surface field, without vibrating the physical Core.
+            float instability = clamp(_TimeoutWarning, 0.0, 2.0);
+            float warningTime = _Time.y;
+            float3 jitter = float3(
+                sin(p.y * 2.9 + warningTime * 19.7) * sin(p.z * 1.7 - warningTime * 11.3),
+                sin(p.z * 3.1 - warningTime * 23.1) * sin(p.x * 2.3 + warningTime * 13.7),
+                sin(p.x * 2.7 + warningTime * 17.3) * sin(p.y * 1.9 - warningTime * 29.9));
+            p += jitter * instability * 0.65;
+
             float warpStrength = lerp(0.12, 0.32, _CellIrregularity);
             float3 warp = float3(
                 sin(p.y * 1.35 + p.z * 0.73 + flowTime * 0.91),
@@ -108,6 +120,7 @@ Shader "MASSIVE/Amplifier Core/Neutral Shell"
             float flowPulse = sin(p.x * 1.27 - p.y * 0.83 + flowTime * 1.41);
             flowPulse += sin(p.z * 1.11 + p.y * 0.67 - flowTime * 0.96) * 0.5;
             localThreshold = _BandWidth * (1.0 + flowPulse * 0.18 * _FlowAmount);
+            localThreshold *= 1.0 + instability * 0.17 * sin(p.x * 2.3 + p.z * 1.7 + warningTime * 21.7);
         }
 
         fixed4 RenderOuter(v2f input) : SV_Target

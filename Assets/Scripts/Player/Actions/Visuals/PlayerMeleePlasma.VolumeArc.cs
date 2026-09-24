@@ -91,16 +91,16 @@ namespace Massive.Player
                 return false;
             }
         }
-        bool UsesVolumeSweep => visualStyle == MeleeVisualStyle.SwordSlashes && arcSweepTreatment == ArcSweepTreatment.Volumetric;
+        bool UsesVolumeSweep => Effective_visualStyle == MeleeVisualStyle.SwordSlashes && Effective_arcSweepTreatment == ArcSweepTreatment.Volumetric;
         public bool IsVolumeSweepPreview => UsesVolumeSweep && PreviewAttackStage != null &&
             PreviewAttackStage.StageType == AttackStageType.ComboSwipe;
-        public bool IsThrustTrailPreview => visualStyle == MeleeVisualStyle.SwordSlashes && PreviewAttackStage != null &&
+        public bool IsThrustTrailPreview => Effective_visualStyle == MeleeVisualStyle.SwordSlashes && PreviewAttackStage != null &&
             PreviewAttackStage.StageType == AttackStageType.PrimaryLunge;
         float PreviewAftermathStart => PreviewAttackStage == null ? 0 : IsThrustTrailPreview ?
             PreviewAttackStage.Duration : IsRepulsorPulsePreview ? RepulsorActivationEnd(PreviewAttackStage) * PreviewAttackStage.Duration :
                 PreviewAttackStage.ActivationEndNormalized * PreviewAttackStage.Duration;
-        float PreviewLinger => IsThrustTrailPreview ? Mathf.Max(0, thrustLingerSeconds) :
-            IsRepulsorPulsePreview ? Mathf.Max(0, repulsorPulseLinger) : Mathf.Max(0, volumeLingerSeconds);
+        float PreviewLinger => IsThrustTrailPreview ? Mathf.Max(0, Effective_thrustLingerSeconds) :
+            IsRepulsorPulsePreview ? Mathf.Max(0, Effective_repulsorPulseLinger) : Mathf.Max(0, Effective_volumeLingerSeconds);
         float PreviewVisualDuration => PreviewAttackStage == null ? 0 :
             IsVolumeSweepPreview || IsThrustTrailPreview || IsRepulsorPulsePreview ? Mathf.Max(PreviewAttackStage.Duration, PreviewAftermathStart + PreviewLinger) :
                 PreviewAttackStage.Duration;
@@ -141,7 +141,7 @@ namespace Massive.Player
         {
             get
             {
-                return transform.position + Vector3.up * (surfaceHeight * PlayerVisualSize);
+                return transform.position + Vector3.up * (Effective_surfaceHeight * PlayerVisualSize);
             }
         }
         float VolumePhysicalReach()
@@ -156,7 +156,7 @@ namespace Massive.Player
 
         void RenderVolumeArc(AttackStage stage, float t, Vector3 direction, int swipeSign, float clock, bool preview)
         {
-            if (!volumetricArcMaterial) { HideVolumeArc(); return; }
+            if (!Effective_volumetricArcMaterial) { HideVolumeArc(); return; }
             bool beginning = activeVolume == null ||
                 (preview && !Mathf.Approximately(activeVolume.sizeScale, PlayerVisualSize)) ||
                 (!preview && (volumeLastStage != stage || t + .001f < volumeLastStageT));
@@ -182,7 +182,7 @@ namespace Massive.Player
             activeVolume.activationEnd = stage.ActivationEndNormalized * stage.Duration;
             activeVolume.stageDuration = stage.Duration;
             float elapsed = preview ? clock : clock - activeVolume.born;
-            Vector3 emissionOrigin = transform.position + Vector3.up * (surfaceHeight * activeVolume.sizeScale);
+            Vector3 emissionOrigin = transform.position + Vector3.up * (Effective_surfaceHeight * activeVolume.sizeScale);
             RecordVolumePath(activeVolume, elapsed, emissionOrigin, VolumeEmitterHeading(preview, direction));
             activeVolume.anchored |= t >= stage.ActivationStartNormalized;
             volumeLastStage = stage; volumeLastStageT = t;
@@ -208,7 +208,7 @@ namespace Massive.Player
             { e.committed = -1; e.previousElapsed = 0; e.previousCentre = centre; e.previousHeading = heading; }
             if (e.previousElapsed >= e.stageDuration)
             { centre = e.previousCentre; heading = e.previousHeading; }
-            float duration = Mathf.Max(.12f, volumeTravelDuration);
+            float duration = Mathf.Max(.12f, Effective_volumeTravelDuration);
             float progress = Mathf.Clamp01((elapsed - e.activationStart) / duration);
             int reached = elapsed < e.activationStart ? -1 : Mathf.FloorToInt(progress * 31);
             for (int i = e.committed + 1; i < 32; i++)
@@ -227,46 +227,52 @@ namespace Massive.Player
             // A cancelled windup has emitted nothing and must never wake up later.
             if (activeVolume != null && !activeVolume.anchored)
             { activeVolume.alive = false; if (activeVolume.renderer) activeVolume.renderer.enabled = false; }
+            else if (activeVolume != null && Application.isPlaying)
+            {
+                // An early combo handoff starts dissipation at the last emitted point.
+                activeVolume.activationEnd = Mathf.Min(activeVolume.activationEnd,
+                    Mathf.Max(activeVolume.activationStart, Time.time - activeVolume.born));
+            }
             activeVolume = null; volumeLastStage = null; volumeLastStageT = -1;
         }
         void TickVolumeAftermath(float clock)
         {
-            if (!UsesVolumeSweep || !volumetricArcMaterial) { HideVolumeArc(); return; }
+            if (!UsesVolumeSweep || !Effective_volumetricArcMaterial) { HideVolumeArc(); return; }
             foreach (var e in volumeEmissions)
                 if (e != null && e.alive) UpdateVolumeEmission(e, clock - e.born);
         }
         void UpdateVolumeEmission(VolumeEmission e, float elapsed)
         {
-            float linger = Mathf.Max(0, volumeLingerSeconds);
+            float linger = Mathf.Max(0, Effective_volumeLingerSeconds);
             float aftermath = elapsed <= e.activationEnd ? 0 : Mathf.Clamp01((elapsed - e.activationEnd) / Mathf.Max(.0001f, linger));
             float forming = Mathf.Clamp01(elapsed / Mathf.Max(.001f, e.activationStart));
-            float opacity = elapsed < e.activationStart ? windupOpacity * Mathf.SmoothStep(0, 1, forming) :
-                1 - Mathf.SmoothStep(0, 1, Mathf.Pow(aftermath, Mathf.Max(.5f, volumeDissolve)));
-            if (elapsed >= e.activationEnd + linger || !volumetricArcMaterial)
+            float opacity = elapsed < e.activationStart ? Effective_windupOpacity * Mathf.SmoothStep(0, 1, forming) :
+                1 - Mathf.SmoothStep(0, 1, Mathf.Pow(aftermath, Mathf.Max(.5f, Effective_volumeDissolve)));
+            if (elapsed >= e.activationEnd + linger || !Effective_volumetricArcMaterial)
             {
                 e.renderer.enabled = false; e.alive = false; return;
             }
             // Scrubbing back after the visual end revives this same emission without moving it.
             e.alive = true;
-            bool layers = volumeBlackBody || volumeWhiteEdge || volumeFilaments || volumeSatelliteWisp ||
-                (volumeSheath && volumeSheathIntensity > 0) || (volumeCounterflow && volumeCounterflowIntensity > 0) || (volumeWake && volumeWakeIntensity > 0);
+            bool layers = Effective_volumeBlackBody || Effective_volumeWhiteEdge || Effective_volumeFilaments || Effective_volumeSatelliteWisp ||
+                (Effective_volumeSheath && Effective_volumeSheathIntensity > 0) || (Effective_volumeCounterflow && Effective_volumeCounterflowIntensity > 0) || (Effective_volumeWake && Effective_volumeWakeIntensity > 0);
             e.renderer.enabled = layers && opacity > .001f;
             if (!e.renderer.enabled) return;
 
             float playerSize = Mathf.Max(.001f, e.sizeScale);
             // Reach is already measured through the scaled collider. Only extra world
             // distances need the size factor; retain it for this emission's aftermath.
-            float radius = Mathf.Max(.2f * playerSize, e.reach * volumeReachScale);
-            float width = Mathf.Clamp(volumeRadialWidth * playerSize, .05f * playerSize, radius * .75f);
-            float thickness = Mathf.Max(.03f, volumeThickness) * playerSize;
-            float turbulence = Mathf.Clamp(volumeTurbulence, 0, .3f) * playerSize;
+            float radius = Mathf.Max(.2f * playerSize, e.reach * Effective_volumeReachScale);
+            float width = Mathf.Clamp(Effective_volumeRadialWidth * playerSize, .05f * playerSize, radius * .75f);
+            float thickness = Mathf.Max(.03f, Effective_volumeThickness) * playerSize;
+            float turbulence = Mathf.Clamp(Effective_volumeTurbulence, 0, .3f) * playerSize;
             var frame = Matrix4x4.TRS(e.origin, e.facing, Vector3.one);
             var inverseFrame = frame.inverse;
             Vector3 min = new Vector3(float.PositiveInfinity,float.PositiveInfinity,float.PositiveInfinity), max = -min;
             for (int i = 0; i < 32; i++)
             {
                 float along = i / 31f;
-                float angle = (along - .5f) * Mathf.Clamp(volumeArcDegrees, 60, 300) * Mathf.Deg2Rad * e.handedness;
+                float angle = (along - .5f) * Mathf.Clamp(Effective_volumeArcDegrees, 60, 300) * Mathf.Deg2Rad * e.handedness;
                 Vector3 radial = new Vector3(Mathf.Sin(angle), 0, Mathf.Cos(angle));
                 Vector3 point = inverseFrame.MultiplyPoint3x4(e.centres[i] + e.headings[i] * radial * radius);
                 e.path[i] = new Vector4(point.x, point.y, point.z, along);
@@ -284,23 +290,23 @@ namespace Massive.Player
             p.SetVector(VolumeBoundsCenterId, boundsCentre);
             p.SetVectorArray(ArcPathId, e.path);
             p.SetFloat(ArcPathCountId, 32);
-            p.SetVector(ArcWeightId, new Vector4(volumeSheath ? volumeSheathIntensity : 0,
-                volumeCounterflow ? volumeCounterflowIntensity : 0, volumeWake ? volumeWakeIntensity : 0, 0));
-            p.SetVector(ArcOrganicId, new Vector4(volumeOrganicGlow ? Mathf.Clamp01(volumeGlowBreakup) : 0,
-                volumeOrganicGlow ? Mathf.Clamp01(volumeGlowDepth) : 0, elapsed * Mathf.Clamp(volumeGlowFlow, 0, 4), e.noiseSeed));
-            p.SetVector(ArcCrackleId, new Vector4(volumeCrackle ? Mathf.Clamp01(volumeCrackleAmount) : 0,
-                Mathf.Clamp(volumeCrackleScale, 2, 30), elapsed * Mathf.Clamp(volumeCrackleRate, 0, 25), 0));
-            p.SetVector(ArcShapeId, new Vector4(radius, width, thickness, Mathf.Clamp(volumeArcDegrees, 60, 300) * Mathf.Deg2Rad * .5f));
-            p.SetVector(ArcMotionId, new Vector4(turbulence, Mathf.Max(1, volumeNoiseScale), elapsed * volumeFlowSpeed, e.handedness));
-            p.SetVector(ArcLayersId, new Vector4(volumeBlackBody ? 1 : 0, volumeWhiteEdge ? 1 : 0, volumeFilaments ? 1 : 0, volumeSatelliteWisp ? 1 : 0));
+            p.SetVector(ArcWeightId, new Vector4(Effective_volumeSheath ? Effective_volumeSheathIntensity : 0,
+                Effective_volumeCounterflow ? Effective_volumeCounterflowIntensity : 0, Effective_volumeWake ? Effective_volumeWakeIntensity : 0, 0));
+            p.SetVector(ArcOrganicId, new Vector4(Effective_volumeOrganicGlow ? Mathf.Clamp01(Effective_volumeGlowBreakup) : 0,
+                Effective_volumeOrganicGlow ? Mathf.Clamp01(Effective_volumeGlowDepth) : 0, elapsed * Mathf.Clamp(Effective_volumeGlowFlow, 0, 4), e.noiseSeed));
+            p.SetVector(ArcCrackleId, new Vector4(Effective_volumeCrackle ? Mathf.Clamp01(Effective_volumeCrackleAmount) : 0,
+                Mathf.Clamp(Effective_volumeCrackleScale, 2, 30), elapsed * Mathf.Clamp(Effective_volumeCrackleRate, 0, 25), 0));
+            p.SetVector(ArcShapeId, new Vector4(radius, width, thickness, Mathf.Clamp(Effective_volumeArcDegrees, 60, 300) * Mathf.Deg2Rad * .5f));
+            p.SetVector(ArcMotionId, new Vector4(turbulence, Mathf.Max(1, Effective_volumeNoiseScale), elapsed * Effective_volumeFlowSpeed, e.handedness));
+            p.SetVector(ArcLayersId, new Vector4(Effective_volumeBlackBody ? 1 : 0, Effective_volumeWhiteEdge ? 1 : 0, Effective_volumeFilaments ? 1 : 0, Effective_volumeSatelliteWisp ? 1 : 0));
             // The ray marcher integrates density over metres: smaller copies need the
             // reciprocal density to preserve the same optical weight and layer controls.
-            p.SetVector(ArcLightId, new Vector4(Mathf.Max(.1f, volumeDensity) / playerSize, volumeEdgeIntensity, volumeFilamentIntensity, Mathf.Max(.3f, volumeTaper)));
+            p.SetVector(ArcLightId, new Vector4(Mathf.Max(.1f, Effective_volumeDensity) / playerSize, Effective_volumeEdgeIntensity, Effective_volumeFilamentIntensity, Mathf.Max(.3f, Effective_volumeTaper)));
             p.SetVector(ArcPhaseId, new Vector4(opacity, forming, aftermath, 0));
-            p.SetVector(ArcTransportId, new Vector4(elapsed, e.activationStart, Mathf.Max(.12f, volumeTravelDuration), Mathf.Max(0, volumeEmissionSpacing)));
-            int tendrils = Mathf.Min(12, Mathf.Clamp(volumeTendrilCount, 2, 10) + Mathf.Clamp(volumeExtraTendrils, 0, 6));
-            p.SetVector(ArcTendrilsId, new Vector4(tendrils, Mathf.Clamp(volumeTailLength, .08f, .8f), Mathf.Max(0, volumeBranching), Mathf.Max(.25f, volumeConvergenceRate)));
-            e.renderer.sharedMaterial = volumetricArcMaterial;
+            p.SetVector(ArcTransportId, new Vector4(elapsed, e.activationStart, Mathf.Max(.12f, Effective_volumeTravelDuration), Mathf.Max(0, Effective_volumeEmissionSpacing)));
+            int tendrils = Mathf.Min(12, Mathf.Clamp(Effective_volumeTendrilCount, 2, 10) + Mathf.Clamp(Effective_volumeExtraTendrils, 0, 6));
+            p.SetVector(ArcTendrilsId, new Vector4(tendrils, Mathf.Clamp(Effective_volumeTailLength, .08f, .8f), Mathf.Max(0, Effective_volumeBranching), Mathf.Max(.25f, Effective_volumeConvergenceRate)));
+            e.renderer.sharedMaterial = Effective_volumetricArcMaterial;
             e.renderer.SetPropertyBlock(p);
         }
 

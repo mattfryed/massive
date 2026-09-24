@@ -20,6 +20,11 @@ MonoBehaviour:
     activationFrameEnd: 36
     animationFrameRate: 60
     allowComboCancel: 1
+    customComboWindow: 1
+    comboWindowStartSeconds: 0.15
+    comboWindowEndSeconds: 0.3
+    earlyComboHandoff: 1
+    comboHandoffSeconds: 0.3
     travelDistance: 2
     distanceCurve:
       serializedVersion: 2
@@ -48,6 +53,8 @@ MonoBehaviour:
     rotationArc: 0
     animationStateName: Thrust
     animationTransitionDuration: 0
+    repulsorScale: 1
+    repulsorEnemyDamage: 1
     repulsorMaxRadius: 3
     repulsorRadiusCurve:
       serializedVersion: 2
@@ -80,6 +87,11 @@ MonoBehaviour:
     activationFrameEnd: 10
     animationFrameRate: 60
     allowComboCancel: 1
+    customComboWindow: 0
+    comboWindowStartSeconds: 0.15
+    comboWindowEndSeconds: 0.3
+    earlyComboHandoff: 0
+    comboHandoffSeconds: 0.3
     travelDistance: 1
     distanceCurve:
       serializedVersion: 2
@@ -108,6 +120,8 @@ MonoBehaviour:
     rotationArc: 120
     animationStateName: 
     animationTransitionDuration: 0.1
+    repulsorScale: 1
+    repulsorEnemyDamage: 1
     repulsorMaxRadius: 3
     repulsorRadiusCurve:
       serializedVersion: 2
@@ -140,6 +154,11 @@ MonoBehaviour:
     activationFrameEnd: 25
     animationFrameRate: 60
     allowComboCancel: 0
+    customComboWindow: 0
+    comboWindowStartSeconds: 0.15
+    comboWindowEndSeconds: 0.3
+    earlyComboHandoff: 0
+    comboHandoffSeconds: 0.3
     travelDistance: 0
     distanceCurve:
       serializedVersion: 2
@@ -168,6 +187,8 @@ MonoBehaviour:
     rotationArc: 180
     animationStateName: 
     animationTransitionDuration: 0
+    repulsorScale: 1
+    repulsorEnemyDamage: 1
     repulsorMaxRadius: 3
     repulsorRadiusCurve:
       serializedVersion: 2

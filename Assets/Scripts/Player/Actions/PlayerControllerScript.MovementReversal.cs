@@ -30,7 +30,7 @@ public partial class PlayerControllerScript
         bool ordinaryMovement = IsPlainJoystickMovement();
         // Brief recovery also protects the first released frame after an action/stun.
         if (!ordinaryMovement) movementReversal.BlockFor(.2f);
-        if (!movementReversal.TryApply(velocity, movement, moveDeadzone, ordinaryMovement, Time.time, out var adjusted)) return;
+        if (!movementReversal.TryApply(velocity, movement, Effective_moveDeadzone, ordinaryMovement, Time.time, out var adjusted)) return;
         rb.linearVelocity = velocity = adjusted;
         planarVelocity = new Vector3(adjusted.x, 0f, adjusted.z);
     }

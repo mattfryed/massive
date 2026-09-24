@@ -5,7 +5,7 @@ namespace Massive.Multiplier
 {
     // One scene-owned workbench. Preview state never writes to MatchScoreService.
     [ExecuteAlways, DisallowMultipleComponent, DefaultExecutionOrder(-100)]
-    public sealed class AmplifierGoalTreatments : MonoBehaviour
+    public sealed class AmplifierGoalTreatments : MonoBehaviour, Massive.Settings.ISharedSettingsConsumer
     {
         [SerializeField] private VectorGridGPU grid;
         [SerializeField] private AmplifierGoalCapture[] goals;
@@ -34,7 +34,17 @@ namespace Massive.Multiplier
         private float clock;
         [SerializeField, HideInInspector] private int preset;
         public int PresetIndex => preset;
-        public AmplifierTreatmentSettings Settings => treatment;
+        [SerializeField] private bool useSharedSettings = true;
+        public bool UseSharedSettings { get => useSharedSettings; set => useSharedSettings = value; }
+        public Massive.Settings.SharedSettingsProfile SharedSettingsAsset => Massive.Settings.SharedSettingsRuntime.Load<Massive.Settings.AmplifierSharedProfile>();
+        public string SharedSettingsGroup => "treatment";
+        private Massive.Settings.AmplifierSharedProfile SharedProfile => Massive.Settings.SharedSettingsRuntime.Resolve<Massive.Settings.AmplifierSharedProfile>(this, useSharedSettings);
+        public AmplifierTreatmentSettings Settings => SharedProfile != null ? SharedProfile.treatment : treatment;
+        private void ReplaceSettings(AmplifierTreatmentSettings value)
+        {
+            if (SharedProfile != null) SharedProfile.treatment = value;
+            else treatment = value;
+        }
         public bool Preview { get => preview; set { if(value) preview=true; else StopPreview(); } }
         public bool PreviewPaused { get => previewPaused; set => previewPaused = value; }
         public int PreviewTeam { get => previewTeam; set => previewTeam = Mathf.Clamp(value, 1, 2); }
@@ -51,8 +61,8 @@ namespace Massive.Multiplier
             foreach (var g in goals) if (g != null) g.SetTreatments(this);
             surfacesResolved = false; ResolveSurfaces();
         }
-        public void ApplyPreset(int index) { preset = (index + 4) % 4; treatment = AmplifierTreatmentSettings.Preset(preset); }
-        public void RestoreSettings(string json) { treatment = JsonUtility.FromJson<AmplifierTreatmentSettings>(json); }
+        public void ApplyPreset(int index) { preset = (index + 4) % 4; ReplaceSettings(AmplifierTreatmentSettings.Preset(preset)); }
+        public void RestoreSettings(string json) { ReplaceSettings(JsonUtility.FromJson<AmplifierTreatmentSettings>(json)); }
         public void Capture(int team) { captures[Mathf.Clamp(team - 1, 0, 1)] = clock; }
         public void StartPreview() { preview=true; previewPaused=false; RenderTreatment(); }
         public void StopPreview()
@@ -119,8 +129,8 @@ namespace Massive.Multiplier
         }
         private float Burst(int team)
         {
-            float age = clock - captures[team - 1] - treatment.absorptionSeconds;
-            return treatment.captureBurst && age >= 0 ? treatment.burstIntensity * Mathf.Sin(Mathf.PI * Mathf.Clamp01(age / Mathf.Max(0.1f, treatment.burstDuration))) : 0;
+            float age = clock - captures[team - 1] - Settings.absorptionSeconds;
+            return Settings.captureBurst && age >= 0 ? Settings.burstIntensity * Mathf.Sin(Mathf.PI * Mathf.Clamp01(age / Mathf.Max(0.1f, Settings.burstDuration))) : 0;
         }
         private void ResolveSurfaces()
         {
@@ -144,7 +154,7 @@ namespace Massive.Multiplier
                 var goal=Goal(team); var surface=massSurfaces[team-1];
                 if(goal==null || surface==null || surface.TargetRenderer==null) continue;
                 int level=Level(team); float burst=Burst(team);
-                float energy=(treatment.heldCharge?treatment.heldIntensity*level:0)+burst;
+                float energy=(Settings.heldCharge?Settings.heldIntensity*level:0)+burst;
                 var r=surface.TargetRenderer; var block=surfaceBlocks[team-1] ?? (surfaceBlocks[team-1]=new MaterialPropertyBlock());
                 r.GetPropertyBlock(block);
                 Vector3 origin=goal.CapturePoint.position;
@@ -158,32 +168,32 @@ namespace Massive.Multiplier
                 block.SetFloat("_AmpGoalEnabled",1);
                 block.SetFloat("_AmpGoalTime",clock);
                 float gridEdge=grid!=null?grid.size.x*0.5f*(team==1?-1:1):0;
-                block.SetVector("_AmpGridEffectGate",new Vector4(treatment.allowEffectsOverGrid?1:0,gridEdge,team==1?1:-1,0));
-                float seamAge=clock-captures[team-1]-treatment.absorptionSeconds;
-                float seamBurst=treatment.seamCapture && seamAge>=0 ? treatment.seamCaptureIntensity*Mathf.Sin(Mathf.PI*Mathf.Clamp01(seamAge/Mathf.Max(0.1f,treatment.burstDuration))) : 0;
-                float seamEnergy=treatment.seamMode==AmplifierSeamMode.Off?0:seamBurst+(treatment.seamHeld?treatment.seamHeldIntensity*level:0);
-                block.SetVector("_AmpSeam",new Vector4((int)treatment.seamMode,seamEnergy,treatment.seamWidth,treatment.seamReach));
-                block.SetVector("_AmpSeamModes",new Vector4(treatment.seamModeCount,treatment.seamModeMix,treatment.seamBeatFrequency,treatment.seamDrift));
-                block.SetFloat("_AmpSeamSplit",treatment.seamSpectralSplit);
-                block.SetVector("_AmpInterferenceShimmer",treatment.interferenceShimmer.ShaderValues);
-                block.SetVector("_AmpGoalOriginWS",new Vector4(origin.x,origin.y,origin.z,treatment.heldCharge?treatment.goalHeldMotion*level:0));
-                block.SetVector("_AmpGoalPulse",new Vector4(clock-captures[team-1]-treatment.absorptionSeconds,treatment.wholeGoalPulse?treatment.goalPulseAmplitude:0,treatment.envelopeWidth,treatment.propagationSpeed));
-                block.SetVector("_AmpGoalShape",new Vector4(treatment.wavelength,treatment.carrierFrequency,treatment.dispersion,treatment.alongAcrossRatio));
-                block.SetVector("_AmpGoalTrain",new Vector4(Mathf.Clamp(treatment.emissions,1,5),treatment.packetSpacing,treatment.quadraturePhase*Mathf.Deg2Rad,0));
-                block.SetVector("_AmpGoalCorona",new Vector4(treatment.radialExtent,(treatment.corona||treatment.branching)?energy*treatment.intensity:0,treatment.density,treatment.nodalClustering));
-                block.SetVector("_AmpGoalStyle",new Vector4(treatment.grainSize,treatment.falloff,treatment.chromaticSeparation,treatment.tangleDensity));
-                block.SetVector("_AmpCloud",new Vector4(treatment.corona&&treatment.particleCloud?treatment.cloudIntensity:0,treatment.cloudExtent,treatment.cloudDensity,0));
-                block.SetVector("_AmpFlare",new Vector4(treatment.corona&&treatment.flareCorona?treatment.flareIntensity:0,treatment.flareExtent,treatment.corona&&treatment.atmosphereWisps?treatment.atmosphereIntensity:0,treatment.atmosphereExtent));
-                block.SetVector("_AmpCloudShimmer",treatment.cloudShimmer.ShaderValues);
-                block.SetVector("_AmpFlareShimmer",treatment.flareShimmer.ShaderValues);
-                block.SetVector("_AmpWispShimmer",treatment.wispShimmer.ShaderValues);
-                block.SetColor("_AmpPaletteA",treatment.coronaColorA);block.SetColor("_AmpPaletteB",treatment.coronaColorB);block.SetColor("_AmpPaletteC",treatment.coronaColorC);
-                block.SetVector("_AmpGoalWaveA",treatment.waveA); block.SetVector("_AmpGoalWaveB",treatment.waveB); block.SetVector("_AmpGoalWaveC",treatment.waveC);
-                int poles=Mathf.Clamp(treatment.poleCount+(treatment.addPolesWithMultiplier?level*2:0),2,14);
-                block.SetVector("_AmpGoalPoles",new Vector4(treatment.polar?poles:0,treatment.poleSeparation*2/poles*Mathf.Deg2Rad,treatment.polePhase*Mathf.Deg2Rad,treatment.poleWidth));
-                float reach=treatment.solarWispReach+(treatment.branching?treatment.branchReach*(1+level*treatment.multiplierReach):0);
-                block.SetVector("_AmpGoalBranch",new Vector4(reach,treatment.branching?treatment.branchDensity*(1+level*treatment.multiplierDensity):0,treatment.branchLifetime*(1+level*treatment.multiplierPersistence),treatment.reconnect));
-                block.SetVector("_AmpGoalMode",new Vector4(treatment.particleCloud?1:0,treatment.alternatePoles?1:0,treatment.corona?1:0,treatment.branching?1:0));
+                block.SetVector("_AmpGridEffectGate",new Vector4(Settings.allowEffectsOverGrid?1:0,gridEdge,team==1?1:-1,0));
+                float seamAge=clock-captures[team-1]-Settings.absorptionSeconds;
+                float seamBurst=Settings.seamCapture && seamAge>=0 ? Settings.seamCaptureIntensity*Mathf.Sin(Mathf.PI*Mathf.Clamp01(seamAge/Mathf.Max(0.1f,Settings.burstDuration))) : 0;
+                float seamEnergy=Settings.seamMode==AmplifierSeamMode.Off?0:seamBurst+(Settings.seamHeld?Settings.seamHeldIntensity*level:0);
+                block.SetVector("_AmpSeam",new Vector4((int)Settings.seamMode,seamEnergy,Settings.seamWidth,Settings.seamReach));
+                block.SetVector("_AmpSeamModes",new Vector4(Settings.seamModeCount,Settings.seamModeMix,Settings.seamBeatFrequency,Settings.seamDrift));
+                block.SetFloat("_AmpSeamSplit",Settings.seamSpectralSplit);
+                block.SetVector("_AmpInterferenceShimmer",Settings.interferenceShimmer.ShaderValues);
+                block.SetVector("_AmpGoalOriginWS",new Vector4(origin.x,origin.y,origin.z,Settings.heldCharge?Settings.goalHeldMotion*level:0));
+                block.SetVector("_AmpGoalPulse",new Vector4(clock-captures[team-1]-Settings.absorptionSeconds,Settings.wholeGoalPulse?Settings.goalPulseAmplitude:0,Settings.envelopeWidth,Settings.propagationSpeed));
+                block.SetVector("_AmpGoalShape",new Vector4(Settings.wavelength,Settings.carrierFrequency,Settings.dispersion,Settings.alongAcrossRatio));
+                block.SetVector("_AmpGoalTrain",new Vector4(Mathf.Clamp(Settings.emissions,1,5),Settings.packetSpacing,Settings.quadraturePhase*Mathf.Deg2Rad,0));
+                block.SetVector("_AmpGoalCorona",new Vector4(Settings.radialExtent,(Settings.corona||Settings.branching)?energy*Settings.intensity:0,Settings.density,Settings.nodalClustering));
+                block.SetVector("_AmpGoalStyle",new Vector4(Settings.grainSize,Settings.falloff,Settings.chromaticSeparation,Settings.tangleDensity));
+                block.SetVector("_AmpCloud",new Vector4(Settings.corona&&Settings.particleCloud?Settings.cloudIntensity:0,Settings.cloudExtent,Settings.cloudDensity,0));
+                block.SetVector("_AmpFlare",new Vector4(Settings.corona&&Settings.flareCorona?Settings.flareIntensity:0,Settings.flareExtent,Settings.corona&&Settings.atmosphereWisps?Settings.atmosphereIntensity:0,Settings.atmosphereExtent));
+                block.SetVector("_AmpCloudShimmer",Settings.cloudShimmer.ShaderValues);
+                block.SetVector("_AmpFlareShimmer",Settings.flareShimmer.ShaderValues);
+                block.SetVector("_AmpWispShimmer",Settings.wispShimmer.ShaderValues);
+                block.SetColor("_AmpPaletteA",Settings.coronaColorA);block.SetColor("_AmpPaletteB",Settings.coronaColorB);block.SetColor("_AmpPaletteC",Settings.coronaColorC);
+                block.SetVector("_AmpGoalWaveA",Settings.waveA); block.SetVector("_AmpGoalWaveB",Settings.waveB); block.SetVector("_AmpGoalWaveC",Settings.waveC);
+                int poles=Mathf.Clamp(Settings.poleCount+(Settings.addPolesWithMultiplier?level*2:0),2,14);
+                block.SetVector("_AmpGoalPoles",new Vector4(Settings.polar?poles:0,Settings.poleSeparation*2/poles*Mathf.Deg2Rad,Settings.polePhase*Mathf.Deg2Rad,Settings.poleWidth));
+                float reach=Settings.solarWispReach+(Settings.branching?Settings.branchReach*(1+level*Settings.multiplierReach):0);
+                block.SetVector("_AmpGoalBranch",new Vector4(reach,Settings.branching?Settings.branchDensity*(1+level*Settings.multiplierDensity):0,Settings.branchLifetime*(1+level*Settings.multiplierPersistence),Settings.reconnect));
+                block.SetVector("_AmpGoalMode",new Vector4(Settings.particleCloud?1:0,Settings.alternatePoles?1:0,Settings.corona?1:0,Settings.branching?1:0));
                 r.SetPropertyBlock(block);
             }
             UpdatePreviewCore();
@@ -191,38 +201,38 @@ namespace Massive.Multiplier
         public Vector2 BoundaryOffset(float y, int team, int level, out float strength)
         {
             Vector2 offset = Vector2.zero; strength = 0;
-            float age = clock - captures[team - 1] - treatment.absorptionSeconds;
-            if (treatment.capturePackets)
-                for (int i = 0; i < Mathf.Clamp(treatment.emissions, 1, 5); i++)
-                    offset += PacketPair(y, age - i * treatment.packetSpacing, treatment.carrierAmplitude, team, ref strength);
-            if (treatment.heldCharge && level > 0)
+            float age = clock - captures[team - 1] - Settings.absorptionSeconds;
+            if (Settings.capturePackets)
+                for (int i = 0; i < Mathf.Clamp(Settings.emissions, 1, 5); i++)
+                    offset += PacketPair(y, age - i * Settings.packetSpacing, Settings.carrierAmplitude, team, ref strength);
+            if (Settings.heldCharge && level > 0)
             {
-                if (treatment.travellingWave)
-                    offset.x += treatment.heldAmplitude * level * Mathf.Sin(y * 2 * Mathf.PI / Mathf.Max(0.25f, treatment.wavelength) - clock * treatment.carrierFrequency * 2 * Mathf.PI);
-                if (treatment.occasionalPackets)
+                if (Settings.travellingWave)
+                    offset.x += Settings.heldAmplitude * level * Mathf.Sin(y * 2 * Mathf.PI / Mathf.Max(0.25f, Settings.wavelength) - clock * Settings.carrierFrequency * 2 * Mathf.PI);
+                if (Settings.occasionalPackets)
                 {
-                    float period = Mathf.Max(0.5f, treatment.heldPacketInterval);
+                    float period = Mathf.Max(0.5f, Settings.heldPacketInterval);
                     float recent = Mathf.Repeat(clock, period);
-                    for (int i = 0; i < 3; i++) offset += PacketPair(y, recent + i * period, treatment.heldAmplitude * level * 2, team, ref strength);
+                    for (int i = 0; i < 3; i++) offset += PacketPair(y, recent + i * period, Settings.heldAmplitude * level * 2, team, ref strength);
                 }
             }
             float edge = grid != null ? Mathf.SmoothStep(0, 1, (grid.size.y * 0.5f - Mathf.Abs(y)) / 0.5f) : 1;
-            strength *= edge; return offset * edge * treatment.gridCoupling;
+            strength *= edge; return offset * edge * Settings.gridCoupling;
         }
         private Vector2 PacketPair(float y, float age, float amplitude, int team, ref float strength)
         {
             if (age < 0 || age > 8) return Vector2.zero;
-            float w = Mathf.Max(0.1f, treatment.envelopeWidth);
-            float width = Mathf.Sqrt(w * w + Mathf.Pow(treatment.dispersion * age, 2));
+            float w = Mathf.Max(0.1f, Settings.envelopeWidth);
+            float width = Mathf.Sqrt(w * w + Mathf.Pow(Settings.dispersion * age, 2));
             float gain = Mathf.Sqrt(w / width) * Mathf.SmoothStep(0, 1, age / 0.12f) * Mathf.Exp(-age * 0.65f);
             Vector2 result = Vector2.zero;
             for (int d = -1; d <= 1; d += 2)
             {
-                float s = y * d - treatment.propagationSpeed * age;
+                float s = y * d - Settings.propagationSpeed * age;
                 float envelope = Mathf.Exp(-s * s / (2 * width * width)) * gain;
-                float phase = s * 2 * Mathf.PI / Mathf.Max(0.25f, treatment.wavelength) - age * treatment.carrierFrequency * 2 * Mathf.PI + treatment.dispersion * age * s * s / (width * width);
+                float phase = s * 2 * Mathf.PI / Mathf.Max(0.25f, Settings.wavelength) - age * Settings.carrierFrequency * 2 * Mathf.PI + Settings.dispersion * age * s * s / (width * width);
                 result.x += Mathf.Cos(phase) * amplitude * envelope * (team == 1 ? 1 : -1);
-                result.y += Mathf.Cos(phase - treatment.quadraturePhase * Mathf.Deg2Rad) * amplitude * envelope * treatment.alongAcrossRatio * d;
+                result.y += Mathf.Cos(phase - Settings.quadraturePhase * Mathf.Deg2Rad) * amplitude * envelope * Settings.alongAcrossRatio * d;
                 strength += envelope * amplitude;
             }
             return result;
@@ -234,22 +244,22 @@ namespace Massive.Multiplier
                 var goal = Goal(team);
                 Vector3 p = goal != null && grid != null ? grid.transform.InverseTransformPoint(goal.CapturePoint.position) : Vector3.zero;
                 if (grid != null) p.x = (team == 1 ? -1 : 1) * grid.size.x * 0.5f;
-                origins[team - 1] = new Vector4(p.x, p.y, clock - captures[team - 1] - treatment.absorptionSeconds, Level(team));
-                states[team - 1] = new Vector4(treatment.capturePackets ? treatment.carrierAmplitude : 0, treatment.heldCharge && treatment.travellingWave ? treatment.heldAmplitude : 0, treatment.heldCharge && treatment.occasionalPackets ? treatment.heldAmplitude * 2 : 0, treatment.gridDischarge && treatment.allowEffectsOverGrid ? treatment.gridAmplitude : 0);
+                origins[team - 1] = new Vector4(p.x, p.y, clock - captures[team - 1] - Settings.absorptionSeconds, Level(team));
+                states[team - 1] = new Vector4(Settings.capturePackets ? Settings.carrierAmplitude : 0, Settings.heldCharge && Settings.travellingWave ? Settings.heldAmplitude : 0, Settings.heldCharge && Settings.occasionalPackets ? Settings.heldAmplitude * 2 : 0, Settings.gridDischarge && Settings.allowEffectsOverGrid ? Settings.gridAmplitude : 0);
             }
-            for (int i=0;i<states.Length;i++) states[i] *= treatment.gridCoupling;
+            for (int i=0;i<states.Length;i++) states[i] *= Settings.gridCoupling;
             block.SetVectorArray("_AmpOrigins", origins); block.SetVectorArray("_AmpStates", states);
-            block.SetVector("_AmpPacket", new Vector4(treatment.wavelength, treatment.envelopeWidth, treatment.propagationSpeed, treatment.dispersion));
-            block.SetVector("_AmpPhase", new Vector4(treatment.carrierFrequency, treatment.alongAcrossRatio, treatment.quadraturePhase * Mathf.Deg2Rad, clock));
-            block.SetVector("_AmpTiming", new Vector4(treatment.emissions, treatment.packetSpacing, treatment.heldPacketInterval, isActiveAndEnabled ? 1 : 0));
-            block.SetVector("_AmpField", new Vector4(treatment.gridSpeed, treatment.gridWidth, treatment.gridWavelength, treatment.gridCurl));
-            block.SetFloat("_AmpHeldTint", treatment.heldCharge && treatment.coloredBoundary ? treatment.heldIntensity : 0);
+            block.SetVector("_AmpPacket", new Vector4(Settings.wavelength, Settings.envelopeWidth, Settings.propagationSpeed, Settings.dispersion));
+            block.SetVector("_AmpPhase", new Vector4(Settings.carrierFrequency, Settings.alongAcrossRatio, Settings.quadraturePhase * Mathf.Deg2Rad, clock));
+            block.SetVector("_AmpTiming", new Vector4(Settings.emissions, Settings.packetSpacing, Settings.heldPacketInterval, isActiveAndEnabled ? 1 : 0));
+            block.SetVector("_AmpField", new Vector4(Settings.gridSpeed, Settings.gridWidth, Settings.gridWavelength, Settings.gridCurl));
+            block.SetFloat("_AmpHeldTint", Settings.heldCharge && Settings.coloredBoundary ? Settings.heldIntensity : 0);
         }
         private void UpdatePreviewCore()
         {
             if(!preview) { ReleasePreviewCore(); return; }
             float age = clock - captures[previewTeam - 1];
-            bool visible = preview && age >= 0 && age < treatment.absorptionSeconds;
+            bool visible = preview && age >= 0 && age < Settings.absorptionSeconds;
             if (visible && previewCore == null && previewCorePrefab != null)
             {
                 // Instantiate beneath an inactive root so the clone can be made presentation-only before OnEnable.
@@ -262,7 +272,7 @@ namespace Massive.Multiplier
             if (previewCore == null) return;
             previewCore.gameObject.SetActive(visible);
             var goal = Goal(previewTeam); if (!visible || goal == null) return;
-            float t = Mathf.Clamp01(age / Mathf.Max(0.01f, treatment.absorptionSeconds));
+            float t = Mathf.Clamp01(age / Mathf.Max(0.01f, Settings.absorptionSeconds));
             Vector3 p = goal.CapturePoint.position;
             previewCore.transform.position = p + Vector3.right * (previewTeam == 1 ? 1 : -1) * 2.6f * (1 - Mathf.SmoothStep(0, 1, t));
             previewCore.transform.localScale = Vector3.one * Mathf.Lerp(0.6f, 0.02f, t * t);
@@ -289,14 +299,14 @@ namespace Massive.Multiplier
             bool loop=GUILayout.Toggle(LoopCapture,"Loop Capture");
             if(loop!=LoopCapture){LoopCapture=loop;if(loop)StartPreview();}
             GUILayout.Label("Playback " + playbackSpeed.ToString("0.00") + "×"); playbackSpeed = GUILayout.HorizontalSlider(playbackSpeed, 0, 4);
-            GUILayout.Label("COLOR INTERFERENCE / " + AmplifierTreatmentSettings.SeamNames[(int)treatment.seamMode]);
-            treatment.seamMode=(AmplifierSeamMode)GUILayout.Toolbar((int)treatment.seamMode,AmplifierTreatmentSettings.SeamNames);
-            treatment.seamCapture=GUILayout.Toggle(treatment.seamCapture,"Interference on capture");
-            treatment.seamHeld=GUILayout.Toggle(treatment.seamHeld,"Interference while held");
-            treatment.wholeGoalPulse = GUILayout.Toggle(treatment.wholeGoalPulse, "Whole goal pulse");
-            treatment.allowEffectsOverGrid=GUILayout.Toggle(treatment.allowEffectsOverGrid,"Allow Effects Over Grid");
-            treatment.corona = GUILayout.Toggle(treatment.corona, "Corona"); treatment.capturePackets = GUILayout.Toggle(treatment.capturePackets, "Boundary packets");
-            treatment.branching = GUILayout.Toggle(treatment.branching, "Branching"); treatment.gridDischarge = GUILayout.Toggle(treatment.gridDischarge, "Grid discharge");
+            GUILayout.Label("COLOR INTERFERENCE / " + AmplifierTreatmentSettings.SeamNames[(int)Settings.seamMode]);
+            Settings.seamMode=(AmplifierSeamMode)GUILayout.Toolbar((int)Settings.seamMode,AmplifierTreatmentSettings.SeamNames);
+            Settings.seamCapture=GUILayout.Toggle(Settings.seamCapture,"Interference on capture");
+            Settings.seamHeld=GUILayout.Toggle(Settings.seamHeld,"Interference while held");
+            Settings.wholeGoalPulse = GUILayout.Toggle(Settings.wholeGoalPulse, "Whole goal pulse");
+            Settings.allowEffectsOverGrid=GUILayout.Toggle(Settings.allowEffectsOverGrid,"Allow Effects Over Grid");
+            Settings.corona = GUILayout.Toggle(Settings.corona, "Corona"); Settings.capturePackets = GUILayout.Toggle(Settings.capturePackets, "Boundary packets");
+            Settings.branching = GUILayout.Toggle(Settings.branching, "Branching"); Settings.gridDischarge = GUILayout.Toggle(Settings.gridDischarge, "Grid discharge");
             GUILayout.Label("Full controls: MASSIVE > Amplifier Treatments"); GUILayout.EndArea();
         }
     }

@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using Massive.Enemies;
 
 namespace Massive.Player
 {
@@ -10,7 +11,7 @@ namespace Massive.Player
     /// - Enables a SphereCollider trigger during the stage activation window.
     /// - Grows the radius over time (matches RepulsorRadiusCurve).
     /// - Optionally drives a ParticleSystem's Shape.radius to match.
-    /// - Applies a configurable knockback (and optional stun/mass loss) on first contact per victim.
+    /// - Applies player knockback and profile-controlled NPC damage once per victim.
     ///
     /// Recommended hierarchy:
     /// PlayerRoot
@@ -20,7 +21,7 @@ namespace Massive.Player
     /// </summary>
     [DisallowMultipleComponent]
     [RequireComponent(typeof(SphereCollider))]
-    public class PlayerRepulsorAOE : MonoBehaviour
+    public partial class PlayerRepulsorAOE : MonoBehaviour
     {
         [Header("References")]
         [SerializeField] private PlayerAttackController attackController;
@@ -37,6 +38,10 @@ namespace Massive.Player
         [SerializeField] private bool ignoreTeamMates = true;
         [Tooltip("Tag used for player colliders.")]
         [SerializeField] private string playerTag = "Player";
+
+        [Header("Scene View")]
+        [Tooltip("Shows the final hit area when this player or hitbox is selected. The live sphere is shown while the pulse is active.")]
+        [SerializeField] private bool showHitArea = true;
 
         [Header("Knockback")]
         [SerializeField] private bool applyKnockback = true;
@@ -59,6 +64,8 @@ namespace Massive.Player
 
         private Coroutine _routine;
         private readonly HashSet<PlayerControllerScript> _hitVictims = new HashSet<PlayerControllerScript>();
+        private readonly HashSet<EnemyBase> _hitEnemies = new HashSet<EnemyBase>();
+        private float _enemyDamage;
         private readonly Collider[] _finalOverlap = new Collider[64];
         private PlayerVisualController _visuals;
         private Vector3 _authoredColliderCenter;
@@ -67,6 +74,7 @@ namespace Massive.Player
         public float ActiveProgress01 { get; private set; }
         public float StartRadiusWorld { get; private set; }
         public float EndRadiusWorld { get; private set; }
+        public float PulseScale { get; private set; } = 1f;
         public Vector3 OriginWorld { get; private set; }
         public float RadiusWorld => hitbox && hitbox.enabled
             ? hitbox.radius * LargestAxis(hitbox.transform.lossyScale) : 0f;
@@ -174,6 +182,8 @@ namespace Massive.Player
                 hitbox.center = _authoredColliderCenter;
             }
             _hitVictims.Clear();
+            _hitEnemies.Clear();
+            _enemyDamage = 0f;
             if (repulsorFX)
                 repulsorFX.Stop(true, ParticleSystemStopBehavior.StopEmitting);
             if (wasActive) PulseEnded?.Invoke(this);
@@ -225,6 +235,57 @@ namespace Massive.Player
             return PlayerScaleAdjuster.BodyRadiusOf(owner);
         }
 
+        public static AttackStage FindRepulsorStage(PlayerAttackProfile profile)
+        {
+            if (profile != null)
+                foreach (var stage in profile.Stages)
+                    if (stage != null && stage.StageType == AttackStageType.FinisherRepulsor) return stage;
+            return null;
+        }
+
+        /// <summary>The expected release outline and scaled reach used by edit preview and its hit-area guide.</summary>
+        public float PreviewEndRadiusWorld(AttackStage stage)
+        {
+            if (!owner) owner = GetComponentInParent<PlayerControllerScript>();
+            var visuals = owner ? owner.visualsController : null;
+            if (!visuals && owner) visuals = owner.GetComponentInChildren<PlayerVisualController>(true);
+            float outline = PlayerScaleAdjuster.BodyRadiusOf(owner);
+            if (visuals)
+            {
+                Transform frame = visuals.visuals ? visuals.visuals : visuals.transform;
+                outline = Mathf.Max(0f, visuals.baseRadius + visuals.outlineHalf) * LargestAxis(frame.lossyScale);
+            }
+            var feedback = owner ? owner.GetComponent<PlayerRepulsorFeedback>() : null;
+            if (feedback && feedback.isActiveAndEnabled && feedback.bodyPulseEnabled && EffectiveActivationStart(stage) > 0f)
+                outline *= 1f - feedback.contraction;
+            return stage != null ? stage.GetRepulsorRadius(PlayerScaleAdjuster.SizeOf(owner), outline) : outline;
+        }
+
+#if UNITY_EDITOR
+        private void OnDrawGizmos()
+        {
+            if (!showHitArea) return;
+            var player = owner ? owner : GetComponentInParent<PlayerControllerScript>();
+            if (!UnityEditor.Selection.Contains(gameObject) && (!player || !UnityEditor.Selection.Contains(player.gameObject))) return;
+            var attack = attackController ? attackController : GetComponentInParent<PlayerAttackController>();
+            var stage = FindRepulsorStage(attack ? attack.Profile : null);
+            if (stage == null) return;
+            Vector3 center = IsPulseActive ? OriginWorld : player ? player.transform.position : transform.position;
+            float radius = IsPulseActive ? EndRadiusWorld : PreviewEndRadiusWorld(stage);
+            var previousColor = UnityEditor.Handles.color;
+            UnityEditor.Handles.color = new Color(.2f, .85f, 1f, .85f);
+            UnityEditor.Handles.DrawWireDisc(center, Vector3.up, radius);
+            UnityEditor.Handles.Label(center + Vector3.right * radius,
+                "Repulsor hit radius " + radius.ToString("0.##") + " | enemy damage " + stage.RepulsorEnemyDamage.ToString("0.##"));
+            if (IsPulseActive)
+            {
+                UnityEditor.Handles.color = new Color(1f, .75f, .15f, 1f);
+                UnityEditor.Handles.DrawWireDisc(center, Vector3.up, RadiusWorld);
+            }
+            UnityEditor.Handles.color = previousColor;
+        }
+#endif
+
         private void SetWorldRadius(float radius)
         {
             hitbox.radius = radius / Mathf.Max(.0001f, LargestAxis(hitbox.transform.lossyScale));
@@ -255,11 +316,14 @@ namespace Massive.Player
                 yield break;
 
             _hitVictims.Clear();
+            _hitEnemies.Clear();
+            _enemyDamage = stage.RepulsorEnemyDamage;
+            PulseScale = stage.RepulsorScale;
             ActiveProgress01 = 0f;
             OriginWorld = _visuals && _visuals.visuals ? _visuals.visuals.position : owner.transform.position;
             if (_visuals) OriginWorld += _visuals.RepulsorVisualOffsetWS;
             StartRadiusWorld = GetOutlineRadiusWorld();
-            EndRadiusWorld = Mathf.Max(StartRadiusWorld, stage.RepulsorMaxRadius * PlayerScaleAdjuster.SizeOf(owner));
+            EndRadiusWorld = stage.GetRepulsorRadius(PlayerScaleAdjuster.SizeOf(owner), StartRadiusWorld);
             SetWorldRadius(StartRadiusWorld);
             hitbox.enabled = true;
             IsPulseActive = true;
@@ -315,7 +379,7 @@ namespace Massive.Player
                 _finalOverlap, Physics.AllLayers, QueryTriggerInteraction.Collide);
             if (count == _finalOverlap.Length)
             {
-                // Rare crowded scenes must not silently omit one of the players.
+                // Rare crowded scenes must not silently omit players or enemies.
                 Collider[] all = Physics.OverlapSphere(OriginWorld, EndRadiusWorld,
                     Physics.AllLayers, QueryTriggerInteraction.Collide);
                 foreach (Collider other in all) TryHit(other);
@@ -346,8 +410,19 @@ namespace Massive.Player
             if (!owner)
                 return;
 
-            if (!other || !other.CompareTag(playerTag))
+            if (!other) return;
+
+            var enemyHurtbox = other.GetComponent<EnemyHurtbox>();
+            var enemy = enemyHurtbox && enemyHurtbox.isActiveAndEnabled ? enemyHurtbox.Enemy : null;
+            if (enemy)
+            {
+                if (_enemyDamage <= 0f || !enemy.isActiveAndEnabled || enemy.IsDead || enemy.IsPaused || !enemy.Definition ||
+                    (ignoreTeamMates && enemy.OwnerTeamId == owner.teamID) || !_hitEnemies.Add(enemy)) return;
+                enemy.TakeDamage(_enemyDamage, EnemyDamageSource.Repulsor, owner);
                 return;
+            }
+
+            if (!other.CompareTag(playerTag)) return;
 
             var victim = other.GetComponentInParent<PlayerControllerScript>();
             if (!victim)
@@ -378,12 +453,12 @@ namespace Massive.Player
             float maxR = Mathf.Max(0.001f, EndRadiusWorld);
             float strength01 = Mathf.Clamp01(1f - (dist / maxR));
 
-            if (applyKnockback)
+            if (Effective_applyKnockback)
             {
                 var rb = victim.GetComponent<Rigidbody>();
                 if (rb != null)
                 {
-                    float kick = knockbackVelocity * Mathf.Clamp01(strength01);
+                    float kick = Effective_knockbackVelocity * Mathf.Clamp01(strength01);
                     victim.ProtectActionMomentum(.25f);
                     rb.AddForce(dir * kick, ForceMode.VelocityChange);
 
@@ -391,25 +466,25 @@ namespace Massive.Player
                     Vector3 v = rb.linearVelocity;
                     Vector2 planar = new Vector2(v.x, v.z);
                     float spd = planar.magnitude;
-                    if (spd > maxPlanarSpeedAfterHit)
+                    if (spd > Effective_maxPlanarSpeedAfterHit)
                     {
-                        planar = planar.normalized * maxPlanarSpeedAfterHit;
+                        planar = planar.normalized * Effective_maxPlanarSpeedAfterHit;
                         rb.linearVelocity = new Vector3(planar.x, v.y, planar.y);
                     }
                 }
             }
 
-            if (applyStun)
+            if (Effective_applyStun)
             {
-                float s = Mathf.Clamp01(stunStrength01 * strength01);
+                float s = Mathf.Clamp01(Effective_stunStrength01 * strength01);
                 victim.Stun(OriginWorld, Mathf.Lerp(0.1f, 1f, s));
             }
 
-            if (applyMassLoss)
+            if (Effective_applyMassLoss)
             {
-                float s = Mathf.Clamp01(massLossScale01 * strength01);
+                float s = Mathf.Clamp01(Effective_massLossScale01 * strength01);
                 victim.ShrinkScaled(owner.gameObject, s);
-                if (giveAttackerMass)
+                if (Effective_giveAttackerMass)
                     owner.GrowScaled(s);
             }
         }

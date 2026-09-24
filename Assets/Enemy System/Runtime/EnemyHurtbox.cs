@@ -17,6 +17,9 @@ namespace Massive.Enemies
     {
         [SerializeField] private EnemyBase enemy;
 
+        /// <summary>Shared by area attacks so weapon/sensor colliders are not mistaken for an enemy body.</summary>
+        public EnemyBase Enemy => enemy ? enemy : GetComponentInParent<EnemyBase>();
+
         [Tooltip("Optional override. If <= 0, uses EnemyDefinition.damageTakenPerSwordHit.")]
         [SerializeField] private float damageTakenPerSwordHitOverride = -1f;
 

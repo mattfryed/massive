@@ -65,8 +65,8 @@ namespace Massive.Player
 
         void RenderThrustTrail(AttackStage stage, float t, Vector3 direction, float clock, bool preview)
         {
-            var settings = thrustPrefabEffect;
-            if (visualStyle != MeleeVisualStyle.SwordSlashes || stage == null || settings == null || !settings.prefab)
+            var settings = Effective_thrustPrefabEffect;
+            if (Effective_visualStyle != MeleeVisualStyle.SwordSlashes || stage == null || settings == null || !settings.prefab)
             { HideThrustTrails(); return; }
             bool beginning = activeThrust == null || activeThrust.stage != stage ||
                 activeThrust.instance == null || activeThrust.instance.source != settings.prefab ||
@@ -121,7 +121,7 @@ namespace Massive.Player
             direction = direction.sqrMagnitude > .0001f ? direction.normalized : Vector3.right;
             Quaternion facing = Quaternion.LookRotation(direction, Vector3.up);
             Vector3 origin = playerVisuals && playerVisuals.visuals ? playerVisuals.visuals.position : transform.position;
-            origin.y += surfaceHeight * trail.sizeScale;
+            origin.y += Effective_surfaceHeight * trail.sizeScale;
             var instance = trail.instance;
             trail.emitterPose = new ThrustPose
             {
@@ -132,11 +132,11 @@ namespace Massive.Player
             // Keep the renderer basis fixed as well as particle centers. Rotating a
             // nonuniformly scaled PS would otherwise shear already-emitted mesh particles.
             // The virtual emitter still moves and supplies the birth pose for new particles.
-            if (!thrustWorldEmission || !trail.rendererPoseCaptured)
+            if (!Effective_thrustWorldEmission || !trail.rendererPoseCaptured)
             {
                 instance.anchor.transform.SetPositionAndRotation(trail.emitterPose.position, trail.emitterPose.rotation);
                 instance.anchor.transform.localScale = trail.emitterPose.scale;
-                trail.rendererPoseCaptured = thrustWorldEmission;
+                trail.rendererPoseCaptured = Effective_thrustWorldEmission;
             }
             float reach = trail.physicalReach;
             instance.effect.transform.localPosition = Vector3.zero;
@@ -163,7 +163,7 @@ namespace Massive.Player
                     float elapsed = trail.preview ? Mathf.Max(0, trail.lastElapsed) : Mathf.Max(0, Time.time - trail.born);
                     if (elapsed < trail.stage.Duration - .0001f)
                     {
-                        float source = ThrustSourceAt(trail, elapsed, thrustPrefabEffect);
+                        float source = ThrustSourceAt(trail, elapsed, Effective_thrustPrefabEffect);
                         trail.recoveryStart = elapsed;
                         trail.recoverySource = source;
                         // An interrupted attack may fade its existing particles, but must
@@ -180,14 +180,14 @@ namespace Massive.Player
 
         void TickThrustAftermath(float clock)
         {
-            if (visualStyle != MeleeVisualStyle.SwordSlashes || thrustPrefabEffect == null || !thrustPrefabEffect.prefab)
+            if (Effective_visualStyle != MeleeVisualStyle.SwordSlashes || Effective_thrustPrefabEffect == null || !Effective_thrustPrefabEffect.prefab)
             { HideThrustTrails(); return; }
             foreach (var trail in thrustTrails)
             {
                 // The current attack samples after its live emitter pose is updated. Sampling
                 // it here first would incorrectly anchor this frame's births to the last pose.
                 if (trail == null || !trail.alive || trail.tracking) continue;
-                UpdateThrustTrail(trail, Mathf.Max(0, clock - trail.born), thrustPrefabEffect);
+                UpdateThrustTrail(trail, Mathf.Max(0, clock - trail.born), Effective_thrustPrefabEffect);
             }
         }
 
@@ -207,12 +207,12 @@ namespace Massive.Player
             if (settings == null) return 0;
             if (!float.IsPositiveInfinity(trail.recoveryStart) && elapsed > trail.recoveryStart)
                 return Mathf.Lerp(trail.recoverySource, Mathf.Max(trail.recoverySource, settings.sourceRecoveryEndTime),
-                    Mathf.Clamp01((elapsed - trail.recoveryStart) / Mathf.Max(.0001f, thrustLingerSeconds)));
+                    Mathf.Clamp01((elapsed - trail.recoveryStart) / Mathf.Max(.0001f, Effective_thrustLingerSeconds)));
             if (elapsed <= trail.activationEnd) return ThrustSourceDuringAttack(trail, elapsed, settings);
             float from = ThrustSourceDuringAttack(trail, trail.activationEnd, settings);
             // Keep source onset and active-window timing. Stretch authored recovery over
             // the remaining stage plus aftermath, instead of exhausting it before the fade.
-            float duration = Mathf.Max(.0001f, trail.stage.Duration - trail.activationEnd + Mathf.Max(0, thrustLingerSeconds));
+            float duration = Mathf.Max(.0001f, trail.stage.Duration - trail.activationEnd + Mathf.Max(0, Effective_thrustLingerSeconds));
             return Mathf.Lerp(from, Mathf.Max(from, settings.sourceRecoveryEndTime),
                 Mathf.Clamp01((elapsed - trail.activationEnd) / duration));
         }
@@ -222,15 +222,15 @@ namespace Massive.Player
             var instance = trail.instance;
             if (instance == null || !instance.anchor || settings == null) { HideThrustEnergy(trail); return; }
             float recoveryStart = Mathf.Min(trail.stage.Duration, trail.recoveryStart);
-            float linger = Mathf.Max(0, thrustLingerSeconds);
+            float linger = Mathf.Max(0, Effective_thrustLingerSeconds);
             if (elapsed >= recoveryStart + linger)
             { trail.alive = false; HidePrefabEffect(instance); HideThrustEnergy(trail); return; }
             trail.alive = true;
             float recovery = Mathf.Clamp01((elapsed - recoveryStart) / Mathf.Max(.0001f, linger));
             float sourceTime = ThrustSourceAt(trail, elapsed, settings);
-            float opacity = elapsed < trail.activationStart ? windupOpacity * Mathf.SmoothStep(0, 1,
+            float opacity = elapsed < trail.activationStart ? Effective_windupOpacity * Mathf.SmoothStep(0, 1,
                 elapsed / Mathf.Max(.001f, trail.activationStart)) :
-                1 - Mathf.SmoothStep(0, 1, Mathf.Pow(recovery, Mathf.Max(.5f, thrustFadeCurve)));
+                1 - Mathf.SmoothStep(0, 1, Mathf.Pow(recovery, Mathf.Max(.5f, Effective_thrustFadeCurve)));
             RecordThrustPose(trail, sourceTime);
             instance.anchor.SetActive(true);
             instance.visible = false;
@@ -249,7 +249,7 @@ namespace Massive.Player
                 // Glow is available only through the explicit comparison toggle.
                 bool sourceGlow = ps.name == "Glow";
                 bool sourceFlash = ps.transform == instance.effect.transform && instance.source.name == "Prick 5";
-                renderer.enabled = layer && !(thrustOrganicGlow && sourceGlow) && tint.a * brightness > .001f;
+                renderer.enabled = layer && !(Effective_thrustOrganicGlow && sourceGlow) && tint.a * brightness > .001f;
                 var block = instance.properties[s];
                 var material = renderer.sharedMaterial;
                 block.Clear();
@@ -285,7 +285,7 @@ namespace Massive.Player
                     if (birth.sourceTime > trail.birthCutoff + .002f) continue;
                     float passOpacity = trail.repeatedBodySystems[s] && birth.sourceTime > trail.firstBurstTimes[s] + .025f ? .65f : 1f;
                     if (layer && trail.repeatedBodySystems[s]) AddThrustEnergy(trail, ps, renderer, particle, birth, passOpacity);
-                    if (thrustWorldEmission)
+                    if (Effective_thrustWorldEmission)
                     {
                         particle.position = inverse.MultiplyPoint3x4(birth.matrix.MultiplyPoint3x4(particle.position));
                         particle.velocity = inverse.MultiplyVector(birth.matrix.MultiplyVector(particle.velocity));
@@ -300,7 +300,7 @@ namespace Massive.Player
                     color.a *= passOpacity;
                     // Prick's root is another large flat flash. In organic mode it only
                     // punctuates the onset; the energy volume carries the continuing light.
-                    if (thrustOrganicGlow && sourceFlash)
+                    if (Effective_thrustOrganicGlow && sourceFlash)
                     {
                         float age = Mathf.Max(0, particle.startLifetime - particle.remainingLifetime);
                         color.a *= .18f * (1 - Mathf.SmoothStep(0, 1, Mathf.InverseLerp(.015f, .045f, age)));
@@ -395,7 +395,7 @@ namespace Massive.Player
                     trail.firstBurstTimes[s] = ps.main.startDelay.constant + first;
                 }
             }
-            int passes = Mathf.Clamp(thrustEmissionPasses, 1, 5);
+            int passes = Mathf.Clamp(Effective_thrustEmissionPasses, 1, 5);
             float onset = Mathf.Max(0, settings.sourceStartTime);
             float activeEnd = Mathf.Max(onset + .021f, settings.sourceActiveEndTime);
             float interval = Mathf.Max(.02f, (activeEnd - (onset + .02f)) / passes);

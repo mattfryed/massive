@@ -1,0 +1,107 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &8377353251732393465
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 6944510530152399484}
+  - component: {fileID: 9126015165623419545}
+  - component: {fileID: 2257106825799539015}
+  - component: {fileID: 5043991846596575984}
+  m_Layer: 0
+  m_Name: ORBITAL Cloud
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &6944510530152399484
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8377353251732393465}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &9126015165623419545
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8377353251732393465}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0bbbd1aa8fa5957478a61fef5c7477a1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  radius: 4.9
+  outerTailExtension: 0.25
+  particleCount: 23000
+  particleMaterial: {fileID: 2100000, guid: eeea357b414b84c4aa98281bcb36e0e7, type: 2}
+  fullVolume: 0
+  volumeTilt: {x: 24, y: 18, z: -14}
+  volumeTurnDegreesPerSecond: 12
+  hemisphereFraction: 0.12
+  lifetime: {x: 0.09, y: 0.32}
+  pointSize: {x: 0.035, y: 0.07}
+  opacity: 0.78
+  useUnscaledTime: 0
+  sceneIntroSeconds: 1.4
+  initialFormation: 0
+  cycleFormations: 1
+  formationIntervalSeconds: 15
+  formationTransitionSeconds: 2
+--- !u!114 &2257106825799539015
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8377353251732393465}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8231e3fa7ae6c4d41a394c90313bbf0d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  lineMaterial: {fileID: 2100000, guid: 84328b3811eccce409da0dc5f5a5f7ac, type: 2}
+  capacity: 24
+  flashSeconds: 0.34
+--- !u!114 &5043991846596575984
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8377353251732393465}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d3c3efa4e6d992f4db4166c734776d21, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  cloud: {fileID: 9126015165623419545}
+  impacts: {fileID: 2257106825799539015}
+  nuggetPrefab: {fileID: 7525906451072600638, guid: 1018c5973353f8d44ba27b035f53c907,
+    type: 3}
+  scoreService: {fileID: 0}
+  anomalyManager: {fileID: 0}
+  peakStrikesPerSecond: 2.4
+  kickSpeed: {x: 2.8, y: 4.6}
+  maxPlanarSpeed: 10
+  nuggetCapacity: 64
+  nuggetSpeed: {x: 2, y: 4}
+  nuggetLifetime: 18
+  waitForMatch: 1
+  fixedRandomSeed: 0
+  randomSeed: 6109

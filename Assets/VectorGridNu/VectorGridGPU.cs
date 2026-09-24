@@ -195,6 +195,7 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
     ComputeBuffer _forceBuf;
 
     readonly List<Force> _forces = new();
+    readonly GridResponsiveAttraction _responsiveAttraction = new GridResponsiveAttraction();
     int _forceCapacity;
 
     Mesh _mesh;
@@ -299,6 +300,7 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
 
     void OnDisable()
     {
+        _responsiveAttraction.Clear();
         if (Instance == this)
             Instance = null;
 
@@ -448,6 +450,32 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
         }
 
         _forces.Clear();
+    }
+
+    // Actor collection runs at LateUpdate order -10. Bind this render-only field
+    // afterward so it sees this frame's player positions, not last frame's force queue.
+    // Legacy spring simulation and all existing external-force timing stay unchanged.
+    void LateUpdate()
+    {
+        _responsiveAttraction.Advance(Application.isPlaying ? Time.deltaTime : 1f / 60f);
+        if (_mr == null || _mpb == null || _posBuf == null) return;
+        WriteResponsiveAttraction(_mpb);
+        _mr.SetPropertyBlock(_mpb);
+    }
+
+    public void AddResponsiveAttractor(int ownerId, int moduleIndex, Vector2 localCenter,
+        float worldRadius, float pull, float responseSeconds, float releaseSeconds)
+    {
+        if (!isActiveAndEnabled) return;
+        _responsiveAttraction.Submit(ownerId, moduleIndex, localCenter, worldRadius,
+            pull, responseSeconds, releaseSeconds);
+    }
+
+    void WriteResponsiveAttraction(MaterialPropertyBlock block)
+    {
+        Vector2 metric = new Vector2(transform.TransformVector(Vector3.right).magnitude,
+            transform.TransformVector(Vector3.up).magnitude);
+        _responsiveAttraction.WriteProperties(block, metric);
     }
 
     void ResolveDerivedLayout()
@@ -653,6 +681,7 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
 
     void ApplyCurveUniforms(MaterialPropertyBlock block)
     {
+        WriteResponsiveAttraction(block);
         Massive.Player.PlayerRepulsorGridPulse.WriteGridProperties(this, block);
         // Optional scene-local visual experiment; no simulation or collider changes.
         if (TryGetComponent<Massive.Multiplier.AmplifierGoalTreatments>(out var amplifier))

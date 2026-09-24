@@ -6,6 +6,24 @@ namespace Massive.Player
     [DisallowMultipleComponent, AddComponentMenu("MASSIVE/Player/Joystick Reversal Assist")]
     public sealed class PlayerMovementReversal : MonoBehaviour
     {
+        [SerializeField] private bool useGlobalModifiers = true;
+        private PlayerControllerScript player;
+        private bool resolvedPlayer;
+        private PlayerGlobalModifiers.Slot GlobalSlot
+        {
+            get
+            {
+                if (!useGlobalModifiers) return null;
+                if (!resolvedPlayer) { player = GetComponent<PlayerControllerScript>(); resolvedPlayer = true; }
+                var profile = PlayerGlobalModifiers.For(player);
+                return profile && profile.GlobalReversalEnabled ? profile.ForPlayer(player.playerID) : null;
+            }
+        }
+        public bool UsesGlobalModifiers => GlobalSlot != null;
+        public bool UseGlobalModifiers { get => useGlobalModifiers; set { useGlobalModifiers = value; ResetHistory(); } }
+        public bool AssistEnabled => GlobalSlot?.reversalEnabled ?? assistEnabled;
+        public float BackwardConeDegrees => GlobalSlot?.backwardConeDegrees ?? backwardConeDegrees;
+        public float RetainedMomentum => GlobalSlot?.retainedMomentum ?? retainedMomentum;
         [Tooltip("Only ordinary stick movement can trigger the assist. Attacks, shields, recoil and protected external motion are excluded.")]
         public bool assistEnabled = true;
         [Tooltip("Full width of the cone behind current horizontal velocity. 100 means 50 degrees either side of directly backward. 0 requires an exact reversal; 180 includes the rear half-plane.")]
@@ -22,6 +40,7 @@ namespace Massive.Player
 
         private void OnEnable()
         {
+            resolvedPlayer = false;
             // Also safe when entering Play with domain/scene reload disabled.
             protectedUntil = float.NegativeInfinity;
             ResetHistory();
@@ -49,7 +68,7 @@ namespace Massive.Player
         public bool TryApply(Vector3 velocity, Vector3 input, float deadzone, bool joystickOnly, float now, out Vector3 result)
         {
             result = velocity;
-            if (!isActiveAndEnabled || !assistEnabled || !joystickOnly || now < protectedUntil)
+            if (!isActiveAndEnabled || !AssistEnabled || !joystickOnly || now < protectedUntil)
             {
                 ResetHistory();
                 return false;
@@ -64,17 +83,18 @@ namespace Massive.Player
 
             Vector3 direction = input.normalized;
             Vector3 planar = new Vector3(velocity.x, 0f, velocity.z);
-            float limit = -Mathf.Cos(Mathf.Clamp(backwardConeDegrees, 0f, 180f) * .5f * Mathf.Deg2Rad);
+            float limit = -Mathf.Cos(Mathf.Clamp(BackwardConeDegrees, 0f, 180f) * .5f * Mathf.Deg2Rad);
             bool inside = planar.sqrMagnitude > .0001f && Vector3.Dot(planar.normalized, direction) <= limit + .00001f;
             // A collision changing velocity under an unchanged stick is not a joystick reversal.
             bool freshInput = !hadInput || Vector3.Dot(lastInputDirection, direction) < .99999f;
-            bool apply = hasHistory && freshInput && inside && !wasInCone && retainedMomentum < 1f;
+            float retention = RetainedMomentum;
+            bool apply = hasHistory && freshInput && inside && !wasInCone && retention < 1f;
             hasHistory = hadInput = true;
             wasInCone = inside;
             lastInputDirection = direction;
             if (!apply) return false;
 
-            planar *= Mathf.Clamp01(retainedMomentum);
+            planar *= Mathf.Clamp01(retention);
             result = new Vector3(planar.x, velocity.y, planar.z);
             LastVelocityBefore = velocity;
             LastVelocityAfter = result;

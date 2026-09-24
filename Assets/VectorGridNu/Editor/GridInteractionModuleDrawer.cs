@@ -13,6 +13,9 @@ public class GridInteractionModuleDrawer : PropertyDrawer
         int lines = 0;
         var type = (GridModuleType)p.FindPropertyRelative("type").enumValueIndex;
 
+        if (type == GridModuleType.ResponsiveRadial)
+            return (7 + (p.FindPropertyRelative("scaleBySpeed").boolValue ? 2 : 0)) * (LH + SP) + 6;
+
         // Tag + Type
         lines += 2;
 
@@ -100,6 +103,26 @@ public class GridInteractionModuleDrawer : PropertyDrawer
         // Tag + Type
         EditorGUI.PropertyField(new Rect(x, y, w, LH), pTag);  y += LH + SP;
         EditorGUI.PropertyField(new Rect(x, y, w, LH), pType); y += LH + SP;
+
+        if (type == GridModuleType.ResponsiveRadial)
+        {
+            EditorGUI.PropertyField(new Rect(x, y, w, LH), pRad,
+                new GUIContent("Radius", "World-space reach at player size 1. Fades smoothly to zero, with no hard cutoff.")); y += LH + SP;
+            EditorGUI.Slider(new Rect(x, y, w, LH), pStr, 0f, .85f,
+                new GUIContent("Pull", "Visual compression, independent of Rigidbody mass and grid spring/damping. Overlaps blend with a smooth cap.")); y += LH + SP;
+            EditorGUI.PropertyField(new Rect(x, y, w, LH), p.FindPropertyRelative("responseSeconds"),
+                new GUIContent("Response Time (s)", "95% settling time for a stationary position or strength change. Zero is immediate.")); y += LH + SP;
+            EditorGUI.PropertyField(new Rect(x, y, w, LH), p.FindPropertyRelative("releaseSeconds"),
+                new GUIContent("Release Time (s)", "95% fade time when the source is disabled or despawns.")); y += LH + SP;
+            EditorGUI.PropertyField(new Rect(x, y, w, LH), pScale, new GUIContent("Scale By Speed")); y += LH + SP;
+            if (pScale.boolValue)
+            {
+                EditorGUI.PropertyField(new Rect(x, y, w, LH), pRadOv, new GUIContent("Radius Over Speed")); y += LH + SP;
+                EditorGUI.PropertyField(new Rect(x, y, w, LH), pStrOv, new GUIContent("Pull Over Speed"));
+            }
+            EditorGUIUtility.labelWidth = oldLabel;
+            return;
+        }
 
         // Common
         EditorGUI.PropertyField(new Rect(x, y, w, LH), pRad,   new GUIContent("Radius"));   y += LH + SP;

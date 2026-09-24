@@ -60,6 +60,11 @@ public sealed class TextAnimationPlayModePreviewWindow : EditorWindow
 
     private void OnGUI()
     {
+        if (GUILayout.Button("Shared Text Animation Settings"))
+        {
+            Massive.EditorTools.SharedSettingsEditing.EnsureProfiles();
+            Massive.EditorTools.SharedSettingsWindow.Open(Massive.Settings.SharedSettingsRuntime.Load<Massive.Settings.TextAnimationSharedProfile>());
+        }
         _scrollPosition = EditorGUILayout.BeginScrollView(_scrollPosition);
 
         EditorGUILayout.LabelField("Play Mode Preset Preview", EditorStyles.boldLabel);

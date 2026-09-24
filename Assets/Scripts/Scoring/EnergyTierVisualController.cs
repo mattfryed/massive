@@ -17,7 +17,7 @@ namespace Massive.Scoring
     /// tier-state text. This component is deliberately presentation-only.
     /// </summary>
     [DisallowMultipleComponent]
-    public sealed class EnergyTierVisualController : MonoBehaviour
+    public sealed class EnergyTierVisualController : MonoBehaviour, Massive.Settings.ISharedSettingsConsumer
     {
         [Serializable]
         public sealed class TierSceneBinding
@@ -155,7 +155,12 @@ namespace Massive.Scoring
         private EnergyUnit _activeLoopUnit;
         private bool _hasActiveLoopUnit;
 
-        public EnergyTierVisualProfile Profile => profile;
+        [SerializeField] private bool useSharedSettings = true;
+        public bool UseSharedSettings { get => useSharedSettings; set => useSharedSettings = value; }
+        public Massive.Settings.SharedSettingsProfile SharedSettingsAsset => Massive.Settings.SharedSettingsRuntime.Load<Massive.Settings.TextAnimationSharedProfile>();
+        public string SharedSettingsGroup => "";
+        private Massive.Settings.TextAnimationSharedProfile SharedText => Massive.Settings.SharedSettingsRuntime.Resolve<Massive.Settings.TextAnimationSharedProfile>(this, useSharedSettings);
+        public EnergyTierVisualProfile Profile => SharedText != null && SharedText.energyTierProfile != null ? SharedText.energyTierProfile : profile;
         public EnergyUnit ActiveUnit => _activeUnit;
         public bool HasActiveUnit => _hasActiveUnit;
 
@@ -272,8 +277,8 @@ namespace Massive.Scoring
             _activeUnit = unit;
             _hasActiveUnit = true;
 
-            EnergyTierVisualProfile.TierStyle style = profile != null
-                ? profile.GetStyle(unit)
+            EnergyTierVisualProfile.TierStyle style = Profile != null
+                ? Profile.GetStyle(unit)
                 : null;
 
             ResetTierLabelMaterials();
@@ -363,8 +368,8 @@ namespace Massive.Scoring
                 EnergyUnit destination = _promotionQueue.Dequeue();
                 ApplyTier(destination, immediate: false);
 
-                EnergyTierVisualProfile.TierStyle style = profile != null
-                    ? profile.GetStyle(destination)
+                EnergyTierVisualProfile.TierStyle style = Profile != null
+                    ? Profile.GetStyle(destination)
                     : null;
 
                 TriggerPromotionOutputs(destination, style);
@@ -467,8 +472,8 @@ namespace Massive.Scoring
                 EnergyUnit unit = (EnergyUnit)i;
                 ApplyTier(unit, immediate: false);
 
-                EnergyTierVisualProfile.TierStyle style = profile != null
-                    ? profile.GetStyle(unit)
+                EnergyTierVisualProfile.TierStyle style = Profile != null
+                    ? Profile.GetStyle(unit)
                     : null;
 
                 bool started = TryStartTierTextAnimation(
@@ -921,8 +926,8 @@ namespace Massive.Scoring
             if (tierLabels == null)
                 return;
 
-            Color inactiveColor = profile != null
-                ? profile.InactiveTierIndicatorColor
+            Color inactiveColor = Profile != null
+                ? Profile.InactiveTierIndicatorColor
                 : new Color(0.30f, 0.32f, 0.36f, 1f);
 
             for (int i = 0; i < tierLabels.Length; i++)

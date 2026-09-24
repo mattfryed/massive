@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace Massive.Multiplier
 {
-    public enum AmplifierEncounterPhase { Stopped, WaitingForMatch, Delay, FormingPattern, FindingPlacement, Active, Dissolving, Finished }
+    public enum AmplifierEncounterPhase { Stopped, WaitingForMatch, Delay, FormingPattern, FindingPlacement, Active, Dissolving, Finished, WaitingForAmplifierCapacity }
 
     [Serializable]
     public sealed class ResonanceSpawnEntry
@@ -18,7 +18,7 @@ namespace Massive.Multiplier
 
     /// <summary>Owns one Core/pattern pair. Capture/scoring remain owned by the existing Core and goal.</summary>
     [DisallowMultipleComponent, RequireComponent(typeof(AmplifierSpawnRegion))]
-    public sealed class AmplifierResonanceSpawner : MonoBehaviour
+    public sealed partial class AmplifierResonanceSpawner : MonoBehaviour
     {
         [Header("Pair configuration")]
         public AmplifierCoreGameplay corePrefab;
@@ -38,8 +38,10 @@ namespace Massive.Multiplier
         [Tooltip("Uniform additive variation: (-2,2) with delay 8 produces waits between 6 and 10 seconds. Final delay is never negative.")]
         public Vector2 respawnDelayVariation = new Vector2(-2f, 2f);
         [Min(.05f)] public float placementRetryDelay = .5f;
-        [Tooltip("Zero keeps the pair until captured. Positive values optionally retire an unclaimed pair without awarding score.")]
-        [Min(0f)] public float maximumActiveSeconds;
+        [Tooltip("Time available after the Core has fully appeared. At expiry the Core and pattern dissolve without scoring. Zero disables the time-out.")]
+        [InspectorName("Sequence Time-out (seconds)"), Min(0f)] public float maximumActiveSeconds = 30f;
+        [Tooltip("During the final seconds the Core's surface becomes increasingly unstable. Zero disables this warning; it never changes physical motion.")]
+        [Min(0f)] public float timeoutWarningSeconds = 5f;
 
         [Header("Placement")]
         [Tooltip("Lower bound for clearance radius. The prefab's actual collider footprint can only increase it.")]
@@ -63,12 +65,16 @@ namespace Massive.Multiplier
         public float SecondsRemaining => Mathf.Max(0f, timer);
         public float CorePlacementRadius => Mathf.Max(minimumCoreRadius, EstimateCoreRadius(corePrefab));
         public float LastRespawnDelay { get; private set; }
+        public float ActiveSecondsRemaining => Effective_maximumActiveSeconds > 0f ? Mathf.Max(0f, Effective_maximumActiveSeconds - activeAge) : float.PositiveInfinity;
+        public float TimeoutWarning01 => coreVisual != null ? coreVisual.TimeoutWarning01 : 0f;
 
         private System.Random random;
         private GameObject ownedRoot;
         private float timer, activeAge;
         private int nextIndex;
-        private bool running, observedOpenScoring, examplesSuppressed, comparisonWasEnabled;
+        private bool running, cycleRequested, observedOpenScoring, examplesSuppressed, comparisonWasEnabled;
+        private MatchScoreService subscribedScores;
+        private AmplifierCoreVisual coreVisual;
         private readonly List<GameObject> suspended = new List<GameObject>();
         private readonly List<bool> suspendedStates = new List<bool>();
 
@@ -78,14 +84,18 @@ namespace Massive.Multiplier
         }
         private void OnDisable()
         {
-            running = false;
+            running = cycleRequested = false;
+            if (subscribedScores != null) subscribedScores.ScoresReset -= OnScoresReset;
+            subscribedScores = null;
             ClearPair();
             RestoreExamples();
             Phase = AmplifierEncounterPhase.Stopped;
         }
         private void Update()
         {
-            if (!Application.isPlaying || !running) return;
+            if (!Application.isPlaying) return;
+            RefreshScoreSubscription();
+            if (!running) return;
             bool open = !waitForScoring || (scoreService != null ? scoreService : MatchScoreService.Instance)?.IsScoringOpen == true;
             if (!open)
             {
@@ -96,9 +106,45 @@ namespace Massive.Multiplier
             if (!observedOpenScoring)
             {
                 observedOpenScoring = true;
-                SetDelay(initialSpawnDelay, "Initial spawn delay");
+                SetDelay(Effective_initialSpawnDelay, "Initial spawn delay");
             }
+            if (WaitForAmplifierCapacity()) return;
             TickCycle(Time.deltaTime);
+        }
+
+        private MatchScoreService Scores => scoreService != null ? scoreService : MatchScoreService.Instance;
+        private void RefreshScoreSubscription()
+        {
+            var scores = Scores;
+            if (scores == subscribedScores) return;
+            if (subscribedScores != null) subscribedScores.ScoresReset -= OnScoresReset;
+            subscribedScores = scores;
+            if (subscribedScores != null) subscribedScores.ScoresReset += OnScoresReset;
+        }
+        private void OnScoresReset()
+        {
+            // A match reset starts a fresh ordered cycle, but never overrides an explicit Stop Cycle.
+            if (Application.isPlaying && isActiveAndEnabled && cycleRequested) StartCycle();
+        }
+        private bool WaitForAmplifierCapacity()
+        {
+            bool capped = Scores != null && Scores.AreAllTeamsAmplifierMaxed;
+            if (!capped)
+            {
+                if (Phase == AmplifierEncounterPhase.WaitingForAmplifierCapacity)
+                    SetDelay(timer, "Amplification available; resuming spawn wait");
+                return false;
+            }
+            if (Phase == AmplifierEncounterPhase.Dissolving) return false;
+            if (ActivePattern != null)
+            {
+                RetireCurrentPair();
+                Status = "All teams at maximum amplification; dissolving the unused pair";
+                return false;
+            }
+            Phase = AmplifierEncounterPhase.WaitingForAmplifierCapacity;
+            Status = "All teams at maximum amplification; no Resonance sequence will spawn";
+            return true;
         }
 
         public bool StartCycle()
@@ -111,14 +157,14 @@ namespace Massive.Multiplier
             random = new System.Random(fixedRandomSeed ? randomSeed : Guid.NewGuid().GetHashCode());
             nextIndex = Mathf.Clamp(startingPattern, 0, patternOrder.Count - 1);
             CurrentPatternIndex = -1; PairsSpawned = CapturesObserved = 0; observedOpenScoring = false;
-            running = true; SuppressExamples();
+            running = cycleRequested = true; RefreshScoreSubscription(); SuppressExamples();
             Phase = AmplifierEncounterPhase.WaitingForMatch;
             Status = "Waiting for match";
             return true;
         }
         public void StopCycle()
         {
-            running = false; ClearPair(); RestoreExamples();
+            running = cycleRequested = false; ClearPair(); RestoreExamples();
             Phase = AmplifierEncounterPhase.Stopped; Status = "Stopped; standalone examples restored";
         }
         public void SpawnNow()
@@ -130,8 +176,10 @@ namespace Massive.Multiplier
         {
             if (!running || ActivePattern == null || Phase == AmplifierEncounterPhase.Dissolving) return;
             // This is a preview/timeout retirement, never a synthetic score or goal capture.
-            if (ActiveCore != null && !ActiveCore.HasBeenCaptured) ActiveCore.gameObject.SetActive(false);
+            if (coreVisual != null) coreVisual.SetTimeoutWarning(0f);
+            if (ActiveCore != null && !ActiveCore.HasBeenCaptured) ActiveCore.BeginTimeoutDespawn();
             BeginRetirement();
+            Status = "Unclaimed pair dissolving; no score awarded";
         }
         private void TickCycle(float dt)
         {
@@ -150,17 +198,23 @@ namespace Massive.Multiplier
                     if (timer <= 0f) TrySpawnCore();
                     break;
                 case AmplifierEncounterPhase.Active:
-                    activeAge += dt;
                     if (ActivePattern == null || !ActivePattern.isActiveAndEnabled) { RetryLostPair(); break; }
                     if (ActiveCore == null || !ActiveCore.gameObject.activeInHierarchy) BeginRetirement();
-                    else if (maximumActiveSeconds > 0f && activeAge >= maximumActiveSeconds) RetireCurrentPair();
+                    else if (!ActiveCore.IsSpawning && !ActiveCore.HasBeenCaptured)
+                    {
+                        activeAge += Mathf.Max(0f, dt);
+                        float warning = EvaluateTimeoutWarning(activeAge, Effective_maximumActiveSeconds, Effective_timeoutWarningSeconds);
+                        if (coreVisual != null) coreVisual.SetTimeoutWarning(warning);
+                        if (Effective_maximumActiveSeconds > 0f && activeAge >= Effective_maximumActiveSeconds) RetireCurrentPair();
+                        else Status = warning > 0f ? "Core unstable — sequence nearing time-out" : "Pair active — capture the Core to advance";
+                    }
                     break;
                 case AmplifierEncounterPhase.Dissolving:
                     bool coreFinished = ActiveCore == null || !ActiveCore.gameObject.activeInHierarchy;
                     if ((ActiveManifestation == null || ActiveManifestation.IsHidden) && coreFinished)
                     {
                         ClearPair();
-                        LastRespawnDelay = SampleDelay(respawnDelay, respawnDelayVariation, random.NextDouble());
+                        LastRespawnDelay = SampleDelay(Effective_respawnDelay, Effective_respawnDelayVariation, random.NextDouble());
                         SetDelay(LastRespawnDelay, "Waiting for the next pair");
                     }
                     break;
@@ -192,6 +246,7 @@ namespace Massive.Multiplier
         }
         private void SpawnPattern()
         {
+            if (WaitForAmplifierCapacity()) return;
             if (!SelectNextPattern(out var prefab)) { Finish("Pattern order complete (or no valid entries)"); return; }
             if (prefab.gameObject.scene.IsValid()) { Finish("Pattern Order requires prefab assets, not live scene instances"); return; }
             ClearPair();
@@ -214,10 +269,11 @@ namespace Massive.Multiplier
         }
         private void TrySpawnCore()
         {
+            if (WaitForAmplifierCapacity() || Phase == AmplifierEncounterPhase.Dissolving) return;
             if (ActivePattern == null || ownedRoot == null) { RetryLostPair(); return; }
             if (!spawnRegion.TryFindSpawn(random, CorePlacementRadius, ActivePattern, out var point, out var reason))
             {
-                timer = Mathf.Max(.05f, placementRetryDelay);
+                timer = Mathf.Max(.05f, Effective_placementRetryDelay);
                 Status = "No safe Core position; retrying. " + reason;
                 return;
             }
@@ -226,6 +282,8 @@ namespace Massive.Multiplier
             ActiveCore.enabled = true;
             ActiveCore.SetExternalRespawnManaged(true);
             ActiveCore.Captured += OnCoreCaptured;
+            coreVisual = ActiveCore.GetComponentInChildren<AmplifierCoreVisual>(true);
+            if (coreVisual != null) coreVisual.SetTimeoutWarning(0f);
             if (!ActiveCore.gameObject.activeSelf) ActiveCore.gameObject.SetActive(true);
             activeAge = 0f; PairsSpawned++;
             Phase = AmplifierEncounterPhase.Active; Status = "Pair active — capture the Core to advance";
@@ -239,13 +297,14 @@ namespace Massive.Multiplier
         private void BeginRetirement()
         {
             if (Phase == AmplifierEncounterPhase.Dissolving) return;
+            if (coreVisual != null) coreVisual.SetTimeoutWarning(0f);
             ActiveManifestation?.BeginDespawn();
             Phase = AmplifierEncounterPhase.Dissolving;
             Status = "Dissolving pattern; allowing Core absorption to finish";
         }
         private void RetryLostPair()
         {
-            ClearPair(); SetDelay(Mathf.Max(.05f, placementRetryDelay), "Pair interrupted; retrying next pattern");
+            ClearPair(); SetDelay(Mathf.Max(.05f, Effective_placementRetryDelay), "Pair interrupted; retrying next pattern");
         }
         private void SetDelay(float seconds, string message)
         { timer = Mathf.Max(0f, seconds); Phase = AmplifierEncounterPhase.Delay; Status = message; }
@@ -257,6 +316,8 @@ namespace Massive.Multiplier
         private void ClearPair()
         {
             if (ActiveCore != null) ActiveCore.Captured -= OnCoreCaptured;
+            if (coreVisual != null) coreVisual.SetTimeoutWarning(0f);
+            coreVisual = null; activeAge = 0f;
             ActiveCore = null; ActiveManifestation = null; ActivePattern = null;
             if (ownedRoot != null)
             {
@@ -298,6 +359,12 @@ namespace Massive.Multiplier
             float low = Mathf.Min(variation.x, variation.y), high = Mathf.Max(variation.x, variation.y);
             return Mathf.Max(0f, baseline + Mathf.Lerp(low, high, Mathf.Clamp01((float)unitRandom)));
         }
+        public static float EvaluateTimeoutWarning(float activeSeconds, float timeoutSeconds, float warningSeconds)
+        {
+            if (timeoutSeconds <= 0f || warningSeconds <= 0f) return 0f;
+            float window = Mathf.Min(timeoutSeconds, warningSeconds);
+            return Mathf.Clamp01((activeSeconds - (timeoutSeconds - window)) / window);
+        }
         public static float EstimateCoreRadius(AmplifierCoreGameplay prefab)
         {
             if (prefab == null) return 0f;
@@ -337,7 +404,7 @@ namespace Massive.Multiplier
                     result = Mathf.Max(result, new Vector2(offset.x, offset.z).magnitude);
                 }
             }
-            return result;
+            return result * prefab.PendingScaleRatio;
         }
     }
 }

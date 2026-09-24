@@ -12,6 +12,20 @@ namespace Massive.EditorTools
         public override void OnInspectorGUI()
         {
             serializedObject.Update();
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("useGlobalModifiers"), new GUIContent("Use Global Player Size"));
+            serializedObject.ApplyModifiedProperties();
+            if (targets.All(item => ((PlayerScaleAdjuster)item).UsesGlobalModifiers))
+            {
+                EditorGUILayout.HelpBox("Size is supplied by MASSIVE → Player → Player Size Controls for this player slot in every scene. Disable Use Global Player Size for a local exception.", MessageType.Info);
+                foreach (PlayerScaleAdjuster s in targets) EditorGUILayout.LabelField(s.name + " effective size", (s.Size * 100f).ToString("0.#") + "%");
+                if (GUILayout.Button("Open Global Player Size Controls")) PlayerScaleWindow.Open();
+                return;
+            }
+            if (targets.Any(item => ((PlayerScaleAdjuster)item).UsesGlobalModifiers))
+            {
+                EditorGUILayout.HelpBox("Selection mixes global and local players. Select a single scope before editing local values.", MessageType.Info);
+                return;
+            }
             EditorGUILayout.HelpBox("Change Player Size here. The root transform, body, hitboxes and connected effects follow it. Leave their local dimensions at the original 100% values.", MessageType.Info);
             EditorGUI.BeginChangeCheck();
             var size = serializedObject.FindProperty("size");
@@ -37,7 +51,7 @@ namespace Massive.EditorTools
                 var p = s.GetComponent<PlayerControllerScript>();
                 if (p) EditorGUILayout.LabelField(s.name + " body diameter", (2f * PlayerScaleAdjuster.BodyRadiusOf(p)).ToString("0.###") + " world units");
             }
-            if (GUILayout.Button("Open All Players Size Controls")) PlayerScaleWindow.Open();
+            if (GUILayout.Button("Open Global Player Size Controls")) PlayerScaleWindow.Open();
         }
 
         internal static void ApplyWithUndo(PlayerScaleAdjuster s)
@@ -58,49 +72,20 @@ namespace Massive.EditorTools
     {
         private Vector2 scroll;
         [MenuItem("MASSIVE/Player/Player Size Controls")]
-        public static void Open() => GetWindow<PlayerScaleWindow>("Player Size");
+        public static void Open()
+        {
+            var window = GetWindow<PlayerScaleWindow>("Global Player Size");
+            window.minSize = new Vector2(430f, 540f);
+            window.Show(); window.Focus();
+        }
 
         private void OnGUI()
         {
-            EditorGUILayout.LabelField("Player Size", EditorStyles.boldLabel);
-            EditorGUILayout.HelpBox("Size changes apply in Edit mode and Play mode. Select a player for the optional movement, attack travel and projectile settings. Save the scene to retain Edit-mode changes.", MessageType.Info);
             using (var view = new EditorGUILayout.ScrollViewScope(scroll))
             {
                 scroll = view.scrollPosition;
-                var players = FindObjectsByType<PlayerControllerScript>(FindObjectsInactive.Include, FindObjectsSortMode.None)
-                    .Where(p => p.gameObject.scene.IsValid() && p.transform.parent && p.transform.parent.name == "Players")
-                    .OrderBy(p => p.playerID).ToArray();
-                if (players.Length == 0) EditorGUILayout.HelpBox("No Players roster found in the open scene. You can also add Player Scale Adjuster directly to any player root.", MessageType.Info);
-                foreach (var p in players)
-                {
-                    using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
-                    {
-                        if (GUILayout.Button(p.name + (p.gameObject.activeInHierarchy ? "" : " (inactive)"))) Selection.activeGameObject = p.gameObject;
-                        var s = p.GetComponent<PlayerScaleAdjuster>();
-                        if (!s)
-                        {
-                            if (GUILayout.Button("Add Size Control")) Undo.AddComponent<PlayerScaleAdjuster>(p.gameObject);
-                            continue;
-                        }
-                        EditorGUI.BeginChangeCheck();
-                        float percent = EditorGUILayout.Slider("Size (%)", s.Size * 100f, 10f, 300f);
-                        if (EditorGUI.EndChangeCheck()) SetSize(s, percent / 100f);
-                        using (new EditorGUILayout.HorizontalScope())
-                            foreach (float v in new[] { .5f, .75f, 1f, 1.25f, 1.5f })
-                                if (GUILayout.Button($"{v * 100f:0}%")) SetSize(s, v);
-                        EditorGUILayout.LabelField("Body diameter", (2f * PlayerScaleAdjuster.BodyRadiusOf(p)).ToString("0.###") + " world units");
-                    }
-                }
+                PlayerGlobalModifiersEditing.Draw(true);
             }
-        }
-
-        private static void SetSize(PlayerScaleAdjuster s, float value)
-        {
-            Undo.RecordObject(s, "Change Player Size");
-            Undo.RecordObject(s.transform, "Change Player Size");
-            foreach (var ps in s.GetComponentsInChildren<ParticleSystem>(true)) Undo.RecordObject(ps, "Scale Player Particles");
-            s.Size = value;
-            PlayerScaleAdjusterEditor.ApplyWithUndo(s);
         }
     }
 }

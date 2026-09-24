@@ -25,6 +25,7 @@ public sealed class PlayerRepulsorPlayValidationRunner : MonoBehaviour
     Vector3 oldPosition, oldVelocity, oldAngularVelocity;
     Quaternion oldRotation;
     float oldSize, oldTimeScale, beganAt;
+    bool oldUseGlobalSize;
     int oldCaptureRate, emitted;
     bool saved, cleaned;
 
@@ -88,7 +89,8 @@ public sealed class PlayerRepulsorPlayValidationRunner : MonoBehaviour
         Require(attack.Profile && attack.Profile.GetStage(2) != null, "P1 needs a three-stage attack profile.");
         oldPosition = player.transform.position; oldRotation = player.transform.rotation;
         oldVelocity = playerBody.linearVelocity; oldAngularVelocity = playerBody.angularVelocity;
-        oldSize = scale.Size; oldTimeScale = Time.timeScale; oldCaptureRate = Time.captureFramerate;
+        oldSize = scale.LocalSize; oldUseGlobalSize = scale.UseGlobalModifiers;
+        oldTimeScale = Time.timeScale; oldCaptureRate = Time.captureFramerate;
         saved = true; beganAt = Time.time;
         foreach (var candidate in FindObjectsByType<PlayerControllerScript>(FindObjectsSortMode.None))
         {
@@ -136,6 +138,7 @@ public sealed class PlayerRepulsorPlayValidationRunner : MonoBehaviour
 
         Status = "Isolated half-size contact and cancellation";
         // Only this section enters stage 3 directly. It tests contact/lifecycle separately from the real input chain above.
+        scale.UseGlobalModifiers = false;
         scale.Size = .5f;
         player.transform.position = new Vector3(-3f, oldPosition.y, 0f);
         playerBody.position = player.transform.position; playerBody.linearVelocity = Vector3.zero;
@@ -161,7 +164,7 @@ public sealed class PlayerRepulsorPlayValidationRunner : MonoBehaviour
         while (!pulse.IsPulseActive && Time.time < deadline) yield return null;
         Require(pulse.IsPulseActive, "Isolated stage did not activate.");
         Vector3 releasePoint = pulse.OriginWorld;
-        float expectedEnd = Mathf.Max(pulse.StartRadiusWorld, attack.Profile.GetStage(2).RepulsorMaxRadius * PlayerScaleAdjuster.SizeOf(player));
+        float expectedEnd = attack.Profile.GetStage(2).GetRepulsorRadius(PlayerScaleAdjuster.SizeOf(player), pulse.StartRadiusWorld);
         Check(Mathf.Abs(pulse.EndRadiusWorld - expectedEnd) < .001f && PlayerScaleAdjuster.SizeOf(player) > 0f,
             "Half-size Repulsor starts at the body outline and uses scaled final reach " + pulse.EndRadiusWorld.ToString("F3") + ".");
         var victims = Get<HashSet<PlayerControllerScript>>(pulse, "_hitVictims");
@@ -205,7 +208,7 @@ public sealed class PlayerRepulsorPlayValidationRunner : MonoBehaviour
         if (victimObject) { victimObject.SetActive(false); Destroy(victimObject); }
         if (!saved) return;
         Time.timeScale = oldTimeScale; Time.captureFramerate = oldCaptureRate;
-        if (scale) scale.Size = oldSize;
+        if (scale) { scale.Size = oldSize; scale.UseGlobalModifiers = oldUseGlobalSize; }
         if (player)
         {
             player.transform.SetPositionAndRotation(oldPosition, oldRotation);

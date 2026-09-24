@@ -12,6 +12,10 @@ public class LevelSelectUIController : MonoBehaviour
     [SerializeField] private TMP_Text levelNumberText;
     [SerializeField] private TMP_Text levelTitleText;
 
+    [Header("Scale")]
+    [SerializeField] private TMP_Text levelScaleText;
+    [SerializeField] private LevelScaleRuler scaleRuler;
+
     [Header("Anomaly Type")]
     [Tooltip("Optional: set this text to a constant label (ex: ANOMALY TYPE).")]
     [SerializeField] private TMP_Text anomalyTypeLabelText;
@@ -167,6 +171,9 @@ public class LevelSelectUIController : MonoBehaviour
 
     private IEnumerator ChangeRoutine(LevelDefinition def, Vector2 direction, int token)
     {
+        if (scaleRuler != null)
+            scaleRuler.PlayOut();
+
         if (UsesPresetSystem())
         {
             TextAnimationContext context = BuildContext(direction);
@@ -279,6 +286,12 @@ public class LevelSelectUIController : MonoBehaviour
 
         if (levelTitleText != null)
             levelTitleText.text = def.levelTitle;
+
+        if (levelScaleText != null)
+            levelScaleText.text = $"10<sup>{def.scaleExponent}</sup>";
+
+        if (scaleRuler != null)
+            scaleRuler.SetSelection(def);
 
         if (anomalyTypeLabelText != null)
             anomalyTypeLabelText.text = anomalyTypeLabel;

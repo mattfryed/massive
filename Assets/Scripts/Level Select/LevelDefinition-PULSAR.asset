@@ -14,10 +14,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   levelNumber: 4
   levelTitle: PULSAR
+  scaleExponent: 4
   gameplayScene:
     sceneName: S-5_PULSAR
     sceneAsset: {fileID: 102900000, guid: bb7730e7f14d8434e9290237f30c9a70, type: 3}
-  iconPrefab: {fileID: 7826837974850644721, guid: e72257220b16f8b4aa77f7a501ffa2e4,
+  iconPrefab: {fileID: 3877489369627614843, guid: 6eb3b027e025a334d90db5c8415e06bb,
     type: 3}
   instructionsPanelPrefab: {fileID: 7889573251582337184, guid: 70c27a905e9a042c3b467e27b2d79460,
     type: 3}

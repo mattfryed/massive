@@ -48,6 +48,15 @@ namespace Massive.Player
         [SerializeField]
         private bool allowComboCancel = true;
 
+        [Header("Next stage engagement")]
+        [Tooltip("Use a per-stage input window. Off preserves the controller's existing combo window.")]
+        [SerializeField] private bool customComboWindow;
+        [Min(0), SerializeField] private float comboWindowStartSeconds = .15f;
+        [Min(0), SerializeField] private float comboWindowEndSeconds = .3f;
+        [Tooltip("Allow a queued next stage to replace this stage before its normal end. Existing visual trails may linger; damage windows never overlap.")]
+        [SerializeField] private bool earlyComboHandoff;
+        [Min(0), SerializeField] private float comboHandoffSeconds = .3f;
+
         [Header("Motion")]
         [SerializeField]
         private float travelDistance = 3f;
@@ -66,6 +75,12 @@ namespace Massive.Player
         private float animationTransitionDuration = 0.05f;
 
         [Header("Repulsor (Finisher)")]
+        [Tooltip("Overall Repulsor scale: hit radius, energy volume, detail and grid pulse. Multiplies player size; does not change the player, damage or attack timing.")]
+        [Min(.1f), SerializeField] private float repulsorScale = 1f;
+
+        [Tooltip("Flat damage to each NPC enemy once per pulse, in enemy health units. Zero disables NPC damage. Player knockback/mass loss are configured on RepulsorAOE separately.")]
+        [Min(0f), SerializeField] private float repulsorEnemyDamage = 1f;
+
         [Tooltip("Final Repulsor radius in world units at player size 1. Starts at the live body outline and scales with the player.")]
         [SerializeField]
         private float repulsorMaxRadius = 3.0f;
@@ -92,11 +107,33 @@ namespace Massive.Player
 
         public bool AllowComboCancel => allowComboCancel;
 
+        public bool CustomComboWindow => customComboWindow;
+        public float ComboWindowStartSeconds => Mathf.Clamp(comboWindowStartSeconds, 0, Duration);
+        public float ComboWindowEndSeconds => Mathf.Clamp(comboWindowEndSeconds, ComboWindowStartSeconds, Duration);
+        public bool EarlyComboHandoff => customComboWindow && earlyComboHandoff && allowComboCancel;
+        public float ComboHandoffSeconds => EarlyComboHandoff ? Mathf.Clamp(comboHandoffSeconds, .01f, Duration) : Duration;
+
+        public Vector2 GetComboWindow(float fallbackSeconds, bool sharedWindow, bool afterActivation, float legacyEnd)
+        {
+            if (customComboWindow) return new Vector2(ComboWindowStartSeconds, ComboWindowEndSeconds);
+            if (sharedWindow) return new Vector2(Mathf.Max(0, Duration - Mathf.Max(0, fallbackSeconds)), Duration);
+            float start = (afterActivation ? ActivationEndNormalized : ActivationStartNormalized) * Duration;
+            float end = (afterActivation ? Mathf.Clamp01(legacyEnd) : ActivationEndNormalized) * Duration;
+            return new Vector2(start, end < start ? Duration : end);
+        }
+
         public string AnimationStateName => animationStateName;
 
         public float AnimationTransitionDuration => animationTransitionDuration;
 
         public float RepulsorMaxRadius => Mathf.Max(0f, repulsorMaxRadius);
+
+        public float RepulsorScale => Mathf.Max(.1f, repulsorScale);
+
+        public float RepulsorEnemyDamage => Mathf.Max(0f, repulsorEnemyDamage);
+
+        public float GetRepulsorRadius(float playerSize, float outlineRadius = 0f) =>
+            Mathf.Max(outlineRadius, RepulsorMaxRadius * RepulsorScale * Mathf.Max(.01f, playerSize));
 
         public AnimationCurve RepulsorRadiusCurve => repulsorRadiusCurve;
 

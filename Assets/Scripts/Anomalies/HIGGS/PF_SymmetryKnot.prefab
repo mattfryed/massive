@@ -248,6 +248,8 @@ MonoBehaviour:
   litColor: {r: 1, g: 1, b: 1, a: 1}
   unlitColor: {r: 1, g: 1, b: 1, a: 1}
   outlineColor: {r: 0, g: 0, b: 0, a: 1}
+  containerClipEnabledProperty: _ContainerClipEnabled
+  containerCenterRadiusProperty: _ContainerCenterRadius
 --- !u!1 &5779289540348393202
 GameObject:
   m_ObjectHideFlags: 0
@@ -568,6 +570,8 @@ MonoBehaviour:
   litColor: {r: 1, g: 1, b: 1, a: 1}
   unlitColor: {r: 1, g: 1, b: 1, a: 1}
   outlineColor: {r: 0, g: 0, b: 0, a: 1}
+  containerClipEnabledProperty: _ContainerClipEnabled
+  containerCenterRadiusProperty: _ContainerCenterRadius
 --- !u!1 &8810286031987830104
 GameObject:
   m_ObjectHideFlags: 0

@@ -27,6 +27,7 @@ Shader "MASSIVE/GridUnlitLines"
           #include "GridCurveSampling.hlsl"
           #include "AmplifierGridTreatment.hlsl"
           #include "RepulsorGridPulse.hlsl"
+          #include "ResponsiveGridAttraction.hlsl"
           float4 _LineColor;
           float _LinePixelWidth;   // kept for future AA work
           float _DispBrightness;
@@ -60,6 +61,7 @@ Shader "MASSIVE/GridUnlitLines"
 
               float3 displaced = SampleSimPosExtended(presentedUV);
               float3 flat = FlatPositionFromUV(presentedUV);
+              displaced = ResponsiveAttractionDisplace(displaced, flat.xy);
               displaced = AmpDisplace(displaced, flat.xy);
               displaced = RepulsorDisplace(displaced, flat.xy);
 
@@ -118,6 +120,7 @@ Shader "MASSIVE/GridUnlitLines"
             #include "GridCurveSampling.hlsl"
             #include "AmplifierGridTreatment.hlsl"
             #include "RepulsorGridPulse.hlsl"
+            #include "ResponsiveGridAttraction.hlsl"
             int _BorderOnly;
             float4 _BorderColor;
             float  _BorderHalfWidth;
@@ -148,6 +151,9 @@ Shader "MASSIVE/GridUnlitLines"
                 float3 pPrev = SampleSimPosClamped(v.uv - h);
                 float3 pCurr = SampleSimPosClamped(v.uv);
                 float3 pNext = SampleSimPosClamped(v.uv + h);
+                pPrev = ResponsiveAttractionDisplace(pPrev, FlatPositionFromUV(v.uv - h).xy);
+                pCurr = ResponsiveAttractionDisplace(pCurr, FlatPositionFromUV(v.uv).xy);
+                pNext = ResponsiveAttractionDisplace(pNext, FlatPositionFromUV(v.uv + h).xy);
                 pPrev = AmpDisplace(pPrev, FlatPositionFromUV(v.uv - h).xy);
                 pCurr = AmpDisplace(pCurr, FlatPositionFromUV(v.uv).xy);
                 pNext = AmpDisplace(pNext, FlatPositionFromUV(v.uv + h).xy);

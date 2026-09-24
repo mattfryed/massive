@@ -58,7 +58,7 @@ Transform:
   m_GameObject: {fileID: 379134812911398564}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -0.009999275, y: -0.15, z: 0}
+  m_LocalPosition: {x: -0.010000229, y: -0.15, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -764,7 +764,7 @@ MonoBehaviour:
   stencilReadMask: 255
   stencilWriteMask: 255
   pivot: 0
-  width: 2.5549994
+  width: 2.5550003
   height: 0.25
   type: 0
   cornerRadiusMode: 0
@@ -7229,7 +7229,7 @@ MonoBehaviour:
   stencilReadMask: 255
   stencilWriteMask: 255
   pivot: 0
-  width: 2.5549994
+  width: 2.5550003
   height: 0.25
   type: 2
   cornerRadiusMode: 0
@@ -8704,11 +8704,16 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
+  repelWhenMaxed: 1
+  repulsionAcceleration: 32
+  repulsionMinimumSpeed: 3
+  arenaBounds: {fileID: 0}
   captureParticles: {fileID: 7959569561508385139}
   auroraBlast: {fileID: 888587125043592893}
   captureWave: {fileID: 5027248628257365557}
   captureWaveTag: Wave
   treatments: {fileID: 0}
+  useSharedSettings: 1
 --- !u!114 &888587125043592893
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -9013,7 +9018,7 @@ MonoBehaviour:
   stencilReadMask: 255
   stencilWriteMask: 255
   pivot: 0
-  width: 2.5549994
+  width: 2.5550003
   height: 0.25
   type: 0
   cornerRadiusMode: 0
@@ -11132,7 +11137,7 @@ MonoBehaviour:
   stencilReadMask: 255
   stencilWriteMask: 255
   pivot: 0
-  width: 1.2774997
+  width: 1.2775002
   height: 0.25
   type: 0
   cornerRadiusMode: 0
@@ -13414,7 +13419,7 @@ Transform:
   m_GameObject: {fileID: 7154693339234679549}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -0.009999275, y: -0.5, z: 0}
+  m_LocalPosition: {x: -0.010000229, y: -0.5, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -13517,7 +13522,7 @@ MonoBehaviour:
   stencilReadMask: 255
   stencilWriteMask: 255
   pivot: 0
-  width: 2.5549994
+  width: 2.5550003
   height: 0.25
   type: 2
   cornerRadiusMode: 0
@@ -15893,11 +15898,16 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
+  repelWhenMaxed: 1
+  repulsionAcceleration: 32
+  repulsionMinimumSpeed: 3
+  arenaBounds: {fileID: 0}
   captureParticles: {fileID: 5817534517825992376}
   auroraBlast: {fileID: 4654624239997232921}
   captureWave: {fileID: 7755764956266102869}
   captureWaveTag: Wave
   treatments: {fileID: 0}
+  useSharedSettings: 1
 --- !u!114 &4654624239997232921
 MonoBehaviour:
   m_ObjectHideFlags: 0

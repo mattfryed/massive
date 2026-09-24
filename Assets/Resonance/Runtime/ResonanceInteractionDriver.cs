@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Massive.Multiplier;
 using Massive.Enemies;
+using Massive.PowerUps;
 using UnityEngine;
 
 namespace Massive.Resonance
@@ -15,19 +16,22 @@ namespace Massive.Resonance
             public PlayerControllerScript player;
             public AmplifierCoreGameplay core;
             public EnemyBase enemy;
+            public PowerUpPickup pickup;
+            public int pickupHierarchyVersion;
             public Collider[] colliders;
             public bool[] colliderEnabled;
             public bool filtersReady, seen, magnetic;
             public ResonancePlayerResponse playerMode;
             public ResonanceCoreResponse coreMode;
             public bool enemySludge;
+            public bool interactionsEnabled;
             public Vector3 incoming, normal;
             public Vector3 previousPosition;
             public Vector3 surfaceNormal;
             public ResonanceSegment surface;
             public float age, brake, radius, cooldown;
         }
-        private struct IgnoredPair { public Collider actor, wall; public bool previous; }
+        private struct IgnoredPair { public Actor owner; public Collider actor, wall; public bool previous; }
         private readonly List<Actor> actors = new List<Actor>(8);
         private readonly List<IgnoredPair> ignored = new List<IgnoredPair>();
         private ResonancePatternController pattern;
@@ -44,10 +48,30 @@ namespace Massive.Resonance
             actors.Add(actor); return actor;
         }
 
+        private Actor GetPickupActor(PowerUpPickup pickup)
+        {
+            Actor actor = null;
+            foreach (var candidate in actors) if (candidate.pickup == pickup) { actor = candidate; break; }
+            if (actor == null) { actor = new Actor { pickup = pickup, pickupHierarchyVersion = -1 }; actors.Add(actor); }
+            actor.seen = true;
+            if (actor.pickupHierarchyVersion != pickup.ColliderHierarchyVersion)
+            {
+                RestorePairs(actor);
+                actor.colliders = pickup.GetComponentsInChildren<Collider>(true);
+                actor.colliderEnabled = new bool[actor.colliders.Length];
+                actor.pickupHierarchyVersion = pickup.ColliderHierarchyVersion;
+                actor.filtersReady = false;
+            }
+            return actor;
+        }
+
         private void FixedUpdate()
         {
             if (pattern == null || !pattern.isActiveAndEnabled) return;
             foreach (var actor in actors) actor.seen = false;
+            foreach (var pickup in PowerUpPickup.ActivePickups)
+                if (pickup != null && pickup.gameObject.scene == gameObject.scene)
+                    ConfigureFilters(GetPickupActor(pickup));
             foreach (var core in AmplifierCoreGameplay.ActiveCores)
                 if (core != null && core.Body != null && core.gameObject.scene == gameObject.scene)
                     Tick(GetActor(core.Body, null, core));
@@ -64,20 +88,21 @@ namespace Massive.Resonance
                     if (body != null) Tick(GetActor(body, null, null, enemy));
                 }
             for (int i = actors.Count - 1; i >= 0; i--)
-                if (!actors[i].seen || actors[i].body == null)
+                if (!actors[i].seen || (actors[i].body == null && actors[i].pickup == null))
                 { Release(actors[i]); actors.RemoveAt(i); }
         }
 
         private void ConfigureFilters(Actor actor)
         {
             bool dirty = !actor.filtersReady || actor.playerMode != pattern.playerResponse || actor.coreMode != pattern.coreResponse
-                || actor.enemySludge != pattern.enemiesUseSludge;
+                || actor.enemySludge != pattern.enemiesUseSludge || actor.interactionsEnabled != pattern.InteractionEnabled;
             actor.radius = 0f;
             for (int i = 0; i < actor.colliders.Length; i++)
             {
                 var c = actor.colliders[i];
                 // Drones have a trigger-only body. It still needs a contact radius for sludge.
-                bool enabled = c != null && c.enabled && c.gameObject.activeInHierarchy && (!c.isTrigger || actor.enemy != null) && c.attachedRigidbody == actor.body;
+                bool enabled = c != null && c.enabled && c.gameObject.activeInHierarchy && (!c.isTrigger || actor.enemy != null)
+                    && (actor.pickup != null || c.attachedRigidbody == actor.body);
                 if (actor.colliderEnabled[i] != enabled) dirty = true;
                 actor.colliderEnabled[i] = enabled;
                 if (enabled) actor.radius = Mathf.Max(actor.radius, Mathf.Max(c.bounds.extents.x, c.bounds.extents.z));
@@ -86,12 +111,13 @@ namespace Massive.Resonance
             RestorePairs(actor);
             actor.filtersReady = true; actor.playerMode = pattern.playerResponse; actor.coreMode = pattern.coreResponse;
             actor.enemySludge = pattern.enemiesUseSludge;
+            actor.interactionsEnabled = pattern.InteractionEnabled;
             foreach (var segment in pattern.InteractiveSegments)
             {
-                bool ignore = actor.enemy != null ? pattern.enemiesUseSludge : actor.core != null
+                bool ignore = actor.pickup != null || (actor.enemy != null ? pattern.enemiesUseSludge : actor.core != null
                     ? pattern.coreResponse != ResonanceCoreResponse.PatternDefault || segment.Settings.behavior != ResonanceBehavior.HardWall
                     : pattern.playerResponse == ResonancePlayerResponse.PassThrough || pattern.playerResponse == ResonancePlayerResponse.Sludge
-                        || (pattern.playerResponse == ResonancePlayerResponse.PatternDefault && segment.Settings.behavior != ResonanceBehavior.HardWall);
+                        || (pattern.playerResponse == ResonancePlayerResponse.PatternDefault && segment.Settings.behavior != ResonanceBehavior.HardWall));
                 if (!ignore) continue;
                 for (int i = 0; i < actor.colliders.Length; i++)
                 {
@@ -99,7 +125,7 @@ namespace Massive.Resonance
                     foreach (var wall in segment.HardColliders)
                     {
                         if (wall == null || !wall.enabled) continue;
-                        var pair = new IgnoredPair { actor = actor.colliders[i], wall = wall, previous = Physics.GetIgnoreCollision(actor.colliders[i], wall) };
+                        var pair = new IgnoredPair { owner = actor, actor = actor.colliders[i], wall = wall, previous = Physics.GetIgnoreCollision(actor.colliders[i], wall) };
                         ignored.Add(pair); Physics.IgnoreCollision(pair.actor, pair.wall, true);
                     }
                 }
@@ -244,7 +270,7 @@ namespace Massive.Resonance
             for (int i = ignored.Count - 1; i >= 0; i--)
             {
                 var pair = ignored[i];
-                if (pair.actor != null && pair.actor.attachedRigidbody != actor.body) continue;
+                if (pair.owner != actor) continue;
                 if (pair.actor != null && pair.wall != null) Physics.IgnoreCollision(pair.actor, pair.wall, pair.previous);
                 ignored.RemoveAt(i);
             }

@@ -7,10 +7,11 @@ namespace Massive.Multiplier
     /// Gameplay ownership and multiplier state remain in the scoring system.
     /// </summary>
     [DisallowMultipleComponent]
-    public sealed class AmplifierCoreVisual : MonoBehaviour
+    public sealed partial class AmplifierCoreVisual : MonoBehaviour
     {
         private static readonly int CellScaleId = Shader.PropertyToID("_CellScale");
         private static readonly int BandWidthId = Shader.PropertyToID("_BandWidth");
+        private static readonly int TimeoutWarningId = Shader.PropertyToID("_TimeoutWarning");
 
         [Header("Visual Parts")]
         [SerializeField] private Transform energyCore;
@@ -29,12 +30,17 @@ namespace Massive.Multiplier
         [Header("Lifecycle Reveal")]
         [SerializeField, Min(1.5f)] private float spawnOrganicRibbonScale = 1.5f;
 
+        [Header("Time-out Warning")]
+        [Tooltip("Erratic surface deformation during the encounter's final warning seconds. This affects the shell pattern only, not the Core's position or collision.")]
+        [SerializeField, Range(0f, 2f)] private float timeoutInstability = 1f;
+
         private Vector3 _energyBaseScale;
         private Vector3 _shellBaseScale;
         private float _restingRibbonScale = 5.75f;
         private float _restingShellCoverage = 0.93f;
         private float _phase;
         private float _excitement01;
+        private float _timeoutWarning01;
         private float _coreReveal01 = 1f;
         private float _shellReveal01 = 1f;
         private bool _energyRendererWasEnabled = true;
@@ -43,6 +49,7 @@ namespace Massive.Multiplier
         private MaterialPropertyBlock _shellProperties;
 
         public float Excitement01 => _excitement01;
+        public float TimeoutWarning01 => _timeoutWarning01;
         public float CoreReveal01 => _coreReveal01;
         public float ShellReveal01 => _shellReveal01;
         public float RestingRibbonScale => _restingRibbonScale;
@@ -71,6 +78,7 @@ namespace Massive.Multiplier
             breatheAmplitude = Mathf.Clamp(breatheAmplitude, 0f, 0.1f);
             breatheFrequency = Mathf.Max(0f, breatheFrequency);
             spawnOrganicRibbonScale = Mathf.Max(1.5f, spawnOrganicRibbonScale);
+            timeoutInstability = Mathf.Clamp(timeoutInstability, 0f, 2f);
             ResolveRenderers();
         }
 
@@ -85,22 +93,22 @@ namespace Massive.Multiplier
             if (energyCore != null)
             {
                 energyCore.Rotate(
-                    energyRotationAxis.normalized,
-                    energyRotationSpeed * speedScale * deltaTime,
+                    Effective_energyRotationAxis.normalized,
+                    Effective_energyRotationSpeed * speedScale * deltaTime,
                     Space.Self);
             }
 
             if (neutralShell != null)
             {
                 neutralShell.Rotate(
-                    shellRotationAxis.normalized,
-                    shellRotationSpeed * speedScale * deltaTime,
+                    Effective_shellRotationAxis.normalized,
+                    Effective_shellRotationSpeed * speedScale * deltaTime,
                     Space.Self);
             }
 
-            float pulseAmount = breatheAmplitude * Mathf.Lerp(1f, 2f, _excitement01);
+            float pulseAmount = Effective_breatheAmplitude * Mathf.Lerp(1f, 2f, _excitement01);
             float pulse = 1f + Mathf.Sin(
-                (Time.time * breatheFrequency * Mathf.PI * 2f) + _phase) * pulseAmount;
+                (Time.time * Effective_breatheFrequency * Mathf.PI * 2f) + _phase) * pulseAmount;
 
             if (energyCore != null)
                 energyCore.localScale = _energyBaseScale * (pulse * _coreReveal01);
@@ -115,6 +123,14 @@ namespace Massive.Multiplier
         public void SetExcitement(float normalizedExcitement)
         {
             _excitement01 = Mathf.Clamp01(normalizedExcitement);
+        }
+
+        /// <summary>Independent of attraction excitement, so goal proximity cannot erase the time-out cue.</summary>
+        public void SetTimeoutWarning(float normalizedWarning)
+        {
+            if (!_hasBaseline) CaptureBaseline();
+            _timeoutWarning01 = Mathf.Clamp01(normalizedWarning);
+            ApplyShellRevealProperties();
         }
 
         /// <summary>
@@ -151,6 +167,7 @@ namespace Massive.Multiplier
             _shellReveal01 = 1f;
             _coreReveal01 = 1f;
             _excitement01 = 0f;
+            _timeoutWarning01 = 0f;
 
             if (energyCore != null)
                 energyCore.localScale = _energyBaseScale;
@@ -209,7 +226,7 @@ namespace Massive.Multiplier
             {
                 _shellProperties.SetFloat(
                     CellScaleId,
-                    Mathf.Lerp(spawnOrganicRibbonScale, _restingRibbonScale, eased));
+                    Mathf.Lerp(Effective_spawnOrganicRibbonScale, _restingRibbonScale, eased));
             }
 
             if (material != null && material.HasProperty(BandWidthId))
@@ -218,6 +235,9 @@ namespace Massive.Multiplier
                     BandWidthId,
                     Mathf.Lerp(0f, _restingShellCoverage, eased));
             }
+
+            if (material != null && material.HasProperty(TimeoutWarningId))
+                _shellProperties.SetFloat(TimeoutWarningId, _timeoutWarning01 * Effective_timeoutInstability);
 
             shellRenderer.SetPropertyBlock(_shellProperties);
         }

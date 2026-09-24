@@ -9,7 +9,8 @@ public enum GridModuleType {
     Jiggle,              // noise jitter
     BurstRadial,         // one-shot burst on trigger
     Pulse,               // repeating envelope while active
-    TravelingWave        // expanding ring
+    TravelingWave,       // expanding ring
+    ResponsiveRadial     // presentation-only, smooth attraction without spring inertia
 }
 
 [Serializable]
@@ -22,6 +23,13 @@ public struct GridInteractionModule
     public float radius;
     public float strength;
     [Range(0, 0.9f)] public float innerFrac;
+
+    // ResponsiveRadial only. Radius is world-space at player size 1; strength
+    // is a dimensionless pull. Neither depends on Rigidbody mass or grid spring tuning.
+    [Tooltip("Time to cover 95% of a stationary position/strength change. Zero follows immediately.")]
+    [Min(0f)] public float responseSeconds;
+    [Tooltip("Time to fade 95% after this source turns off or despawns. Zero removes it immediately.")]
+    [Min(0f)] public float releaseSeconds;
 
     // Directional (DirectionalWake)
     public bool directional;

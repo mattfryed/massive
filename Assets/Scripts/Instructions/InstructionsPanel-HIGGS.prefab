@@ -296,6 +296,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   visuals: {fileID: 2420133512403156953}
   nuggets: {fileID: 7468892202100859201}
+  useUnscaledTime: 1
   ease:
     serializedVersion: 2
     m_Curve:
@@ -5384,6 +5385,7 @@ MonoBehaviour:
   inDelay: 0
   inDuration: 1
   outDuration: 0.25
+  maximumAnimationStep: 0
   inTargetStagger: 0
   outTargetStagger: 0
   inEasing: 2
@@ -6692,6 +6694,7 @@ MonoBehaviour:
   inDelay: 0
   inDuration: 0.35
   outDuration: 0.25
+  maximumAnimationStep: 0
   inTargetStagger: 0
   outTargetStagger: 0
   inEasing: 2
@@ -6930,6 +6933,7 @@ MonoBehaviour:
   inDelay: 0
   inDuration: 1
   outDuration: 0.25
+  maximumAnimationStep: 0
   inTargetStagger: 0
   outTargetStagger: 0
   inEasing: 2
@@ -7633,6 +7637,9 @@ MonoBehaviour:
   decoHoldJitterAmp: 0.03
   decoHoldJitterFreq: 26
   decoGhostOpacity: 0.8
+  enemyDamagePulseSeconds: 0.35
+  enemyDamageDentStrength: 1
+  enemyDamageOutlineBoost: 1.5
 --- !u!1 &9046460300305127794
 GameObject:
   m_ObjectHideFlags: 0
@@ -8411,10 +8418,6 @@ MonoBehaviour:
   minNuggets: 5
   midNuggets: 50
   maxNuggets: 300
-  overflowScoresToTeam: 1
-  overflowScorePerMass: 0.25
-  spawnOverflowScoreVFX: 1
-  overflowVfxMaxBlobsPerEvent: 3
   legacyGoalShrink01: 0.0045
   lifeFx: {fileID: 6459681074161316363}
   respawnPointOverride: {fileID: 0}
@@ -8449,6 +8452,12 @@ MonoBehaviour:
   didPlayerTapActionThisFrame: 0
   shieldOn: 0
   temporarilyEliminated: 0
+  enemyHitVisualFeedback: 1
+  enemyHitKnockback: 1
+  enemyHitFullStrengthDamage: 0.08
+  enemyHitRecoilSpeed: {x: 0.9, y: 2}
+  enemyHitRecoilSeconds: 0.16
+  enemyHitRecoilLockout: 0.12
 --- !u!114 &5531170421188797415
 MonoBehaviour:
   m_ObjectHideFlags: 0

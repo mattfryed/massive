@@ -7,7 +7,7 @@ namespace Massive.Resonance
     /// take over an existing prototype. BeginSpawn/BeginDespawn or SetImmediate opt in.</summary>
     [ExecuteAlways, DisallowMultipleComponent, RequireComponent(typeof(ResonancePatternController))]
     [DefaultExecutionOrder(-200)]
-    public sealed class ResonanceManifestation : MonoBehaviour
+    public sealed partial class ResonanceManifestation : MonoBehaviour
     {
         [Header("Sand-pattern formation")]
         [Min(0f)] public float spawnSeconds = 2.4f;
@@ -138,7 +138,7 @@ namespace Massive.Resonance
 #endif
             if (!controlled) { controlled = true; progress = 0f; vibrationClock = 0f; }
             held = false; direction = progress < 1f ? 1 : 0;
-            if (spawnSeconds <= 0f) { progress = 1f; direction = 0; }
+            if (Effective_spawnSeconds <= 0f) { progress = 1f; direction = 0; }
             Apply();
             RepaintEditorPreview();
         }
@@ -148,7 +148,7 @@ namespace Massive.Resonance
             editorClock = UnityEditor.EditorApplication.timeSinceStartup;
 #endif
             controlled = true; held = false; direction = progress > 0f ? -1 : 0;
-            if (despawnSeconds <= 0f) { progress = 0f; direction = 0; }
+            if (Effective_despawnSeconds <= 0f) { progress = 0f; direction = 0; }
             Apply();
             RepaintEditorPreview();
         }
@@ -178,7 +178,7 @@ namespace Massive.Resonance
                 if (direction != 0)
                 {
                     vibrationClock += scaledDeltaTime;
-                    float duration = direction > 0 ? spawnSeconds : despawnSeconds;
+                    float duration = direction > 0 ? Effective_spawnSeconds : Effective_despawnSeconds;
                     progress = duration <= 0f ? (direction > 0 ? 1f : 0f)
                         : Mathf.Clamp01(progress + direction * scaledDeltaTime / duration);
                     if (progress <= 0f || progress >= 1f) direction = 0;
@@ -197,18 +197,18 @@ namespace Massive.Resonance
         {
             EnsurePattern();
             if (pattern == null) return;
-            float condensation = EasedProgress(progress, condensationPower);
-            float size = EasedProgress(progress, sizeGrowthPower);
+            float condensation = EasedProgress(progress, Effective_condensationPower);
+            float size = EasedProgress(progress, Effective_sizeGrowthPower);
             pattern.SetInteractionEnabled(IsIdle);
-            pattern.SetManifestation(new Vector4(condensation, size, Mathf.Max(0f, vibrationStrength) * (1f - condensation),
-                    vibrationClock * Mathf.Max(0f, vibrationFrequency)),
+            pattern.SetManifestation(new Vector4(condensation, size, Mathf.Max(0f, Effective_vibrationStrength) * (1f - condensation),
+                    vibrationClock * Mathf.Max(0f, Effective_vibrationFrequency)),
                 new Vector4(dispersalCenter.x, dispersalCenter.y, Mathf.Max(.01f, dispersalHalfExtents.x), Mathf.Max(.01f, dispersalHalfExtents.y)),
-                new Vector4((float)birthDistribution, Mathf.Max(0f, localSpawnSpread), Mathf.Clamp01(alongArcSpread), Mathf.Clamp01(fieldCoherence)),
-                new Vector4(Mathf.Max(.05f, fieldWavelength), Mathf.Clamp01(birthPulse), 0f, 0f));
+                new Vector4((float)Effective_birthDistribution, Mathf.Max(0f, Effective_localSpawnSpread), Mathf.Clamp01(Effective_alongArcSpread), Mathf.Clamp01(Effective_fieldCoherence)),
+                new Vector4(Mathf.Max(.05f, Effective_fieldWavelength), Mathf.Clamp01(Effective_birthPulse), 0f, 0f));
         }
         private void OnDrawGizmosSelected()
         {
-            if (!showDispersalArea || birthDistribution != ResonanceBirthDistribution.FullField) return;
+            if (!showDispersalArea || Effective_birthDistribution != ResonanceBirthDistribution.FullField) return;
             Matrix4x4 previous = Gizmos.matrix; Gizmos.matrix = transform.localToWorldMatrix;
             Gizmos.color = new Color(.4f, .85f, 1f, .7f);
             Gizmos.DrawWireCube(new Vector3(dispersalCenter.x, .04f, dispersalCenter.y),

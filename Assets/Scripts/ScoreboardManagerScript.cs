@@ -10,7 +10,7 @@ using UnityEngine;
 /// highlights the active unit in the meV -> TeV ladder.
 /// </summary>
 [DisallowMultipleComponent]
-public class ScoreboardManagerScript : MonoBehaviour
+public class ScoreboardManagerScript : MonoBehaviour, Massive.Settings.ISharedSettingsConsumer
 {
     [Header("Identity")]
     [SerializeField] private int teamID = 1;
@@ -65,7 +65,13 @@ public class ScoreboardManagerScript : MonoBehaviour
     public long ScoreMilliElectronVolts { get; private set; }
     public int TeamID => teamID;
     public TMPTextAnimator ScoreValueAnimator => scoreValueAnimator;
-    public TextAnimationPreset ScoreDigitMorphPreset => scoreDigitMorphPreset;
+    [SerializeField] private bool useSharedSettings = true;
+    public bool UseSharedSettings { get => useSharedSettings; set => useSharedSettings = value; }
+    public Massive.Settings.SharedSettingsProfile SharedSettingsAsset => Massive.Settings.SharedSettingsRuntime.Load<Massive.Settings.TextAnimationSharedProfile>();
+    public string SharedSettingsGroup => "";
+    private Massive.Settings.TextAnimationSharedProfile SharedText => Massive.Settings.SharedSettingsRuntime.Resolve<Massive.Settings.TextAnimationSharedProfile>(this, useSharedSettings);
+    public TextAnimationPreset ScoreDigitMorphPreset => SharedText != null && SharedText.scoreDigitMorphPreset != null ? SharedText.scoreDigitMorphPreset : scoreDigitMorphPreset;
+    public float ScoreDigitMorphIntensity => SharedText != null ? SharedText.scoreDigitMorphIntensity : scoreDigitMorphIntensity;
     public bool IsScorePresentationPreviewActive => _scorePresentationPreviewActive;
 
     [Obsolete("Legacy display-only field. Use ScoreMilliElectronVolts for authoritative score data.")]
@@ -270,8 +276,8 @@ public class ScoreboardManagerScript : MonoBehaviour
             immediate: true);
         yield return null;
 
-        float animationSeconds = scoreDigitMorphPreset != null
-            ? scoreDigitMorphPreset.EstimateTotalSeconds(6)
+        float animationSeconds = ScoreDigitMorphPreset != null
+            ? ScoreDigitMorphPreset.EstimateTotalSeconds(6)
             : 0f;
 
         for (int i = 1; i < samples.Length; i++)
@@ -319,7 +325,7 @@ public class ScoreboardManagerScript : MonoBehaviour
             return;
 
         if (immediate ||
-            scoreDigitMorphPreset == null ||
+            ScoreDigitMorphPreset == null ||
             scoreValueAnimator == null)
         {
             scoreValueAnimator?.StopAll(
@@ -331,9 +337,9 @@ public class ScoreboardManagerScript : MonoBehaviour
         }
 
         TextAnimationContext context = TextAnimationContext.Default
-            .WithIntensity(scoreDigitMorphIntensity)
+            .WithIntensity(ScoreDigitMorphIntensity)
             .WithDirection(Vector2.up);
-        scoreValueAnimator.SetTextAndPlay(next, scoreDigitMorphPreset, context);
+        scoreValueAnimator.SetTextAndPlay(next, ScoreDigitMorphPreset, context);
     }
 
     private void ResolveScoreValueAnimator()

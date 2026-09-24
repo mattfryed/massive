@@ -65,21 +65,21 @@ namespace Massive.Player
         void RenderPrefabStage(AttackStage stage, float t, Vector3 direction, int swipeSign)
         {
             bool swipe = stage.StageType == AttackStageType.ComboSwipe;
-            var settings = swipe ? swipePrefabEffect : thrustPrefabEffect;
+            var settings = swipe ? Effective_swipePrefabEffect : Effective_thrustPrefabEffect;
             if (settings == null || !settings.prefab || t >= 1f) { HidePrefabEffects(); return; }
             direction.y = 0;
             direction = direction.sqrMagnitude > .0001f ? direction.normalized : Vector3.right;
             float start = stage.ActivationStartNormalized, end = stage.ActivationEndNormalized;
             float forming = start > .0001f ? Mathf.Clamp01(t / start) : 1;
             float recovering = Mathf.Clamp01((t - end) / Mathf.Max(.001f, 1 - end));
-            float opacity = t < start ? windupOpacity * forming : t <= end ? 1f : recoveryOpacity * (1 - recovering);
+            float opacity = t < start ? Effective_windupOpacity * forming : t <= end ? 1f : Effective_recoveryOpacity * (1 - recovering);
             if (opacity * settings.intensity * settings.tint.a <= .001f) { HidePrefabEffects(); return; }
             var instance = swipe ? EnsurePrefabEffect(settings.prefab, ref swipeInstance) : EnsurePrefabEffect(settings.prefab, ref thrustInstance);
             HidePrefabEffect(swipe ? thrustInstance : swipeInstance);
 
             Vector3 origin = playerVisuals && playerVisuals.visuals ? playerVisuals.visuals.position : transform.position;
             float playerSize = PlayerVisualSize;
-            origin.y += surfaceHeight * playerSize;
+            origin.y += Effective_surfaceHeight * playerSize;
             float reach = 1.725f * playerSize;
             if (meleeExtent)
             {

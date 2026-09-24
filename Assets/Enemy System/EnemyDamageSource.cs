@@ -8,5 +8,6 @@ namespace Massive.Enemies
         ShieldReflect = 3,
         Environmental = 4,
         LifetimeExpired = 5,
+        Repulsor = 6,
     }
 }

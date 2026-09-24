@@ -1,0 +1,17 @@
+#pragma kernel ValidateAttraction
+
+float2 _GridSize;
+#include "../ResponsiveGridAttraction.hlsl"
+
+struct Query { float3 position; float2 flat; };
+StructuredBuffer<Query> _Queries;
+RWStructuredBuffer<float3> _Results;
+int _QueryCount;
+
+[numthreads(64, 1, 1)]
+void ValidateAttraction(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint)_QueryCount) return;
+    Query q = _Queries[id.x];
+    _Results[id.x] = ResponsiveAttractionDisplace(q.position, q.flat);
+}

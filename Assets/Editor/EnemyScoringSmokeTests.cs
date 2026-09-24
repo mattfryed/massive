@@ -139,6 +139,15 @@ public static class EnemyScoringSmokeTests
             check(!service.TryAwardToPlayer(rule.key, p2, first.SourceLifeToken, Vector3.zero, out var duplicate) &&
                 duplicate.rejection == ScoreAwardRejection.Duplicate, "Source life token deduplicated centrally");
             reset();
+            var repulsorVictim = enemy();
+            EnemyDefeatContext repulsorDefeat = default;
+            repulsorVictim.Defeated += context => repulsorDefeat = context;
+            repulsorVictim.TakeDamage(100f, EnemyDamageSource.Repulsor, p1);
+            repulsorVictim.TakeDamage(100f, EnemyDamageSource.Repulsor, p1);
+            check(service.GetTeamScore(1) == 1000 && service.GetTeamScore(2) == 0 &&
+                repulsorDefeat.creditedPlayer == p1 && repulsorDefeat.source == EnemyDamageSource.Repulsor,
+                "Repulsor defeat awards once to its attacker through the normal scoring adapter");
+            reset();
             for (int i = 0; i < 4; i++) defeat(enemy(), p1);
             check(service.GetTeamScore(1) == 5500 &&
                   p1.GetComponent<PlayerScoreChain>().CurrentMultiplier == 2,

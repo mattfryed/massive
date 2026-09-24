@@ -83,6 +83,9 @@ namespace Massive.Resonance
         public void Contact(Collider other)
         {
             if (!Application.isPlaying || !isActiveAndEnabled || settings == null || !settings.IsVisible) return;
+            // Pickups are tethered to their spawn anchor: neither physical walls
+            // nor membrane/deflector forces should fight that tether.
+            if (other.GetComponentInParent<Massive.PowerUps.PowerUpPickup>() != null) return;
             Rigidbody body = other.attachedRigidbody;
             if (body == null || body.isKinematic || (affectedLayers.value & (1 << body.gameObject.layer)) == 0) return;
             var core = body.GetComponent<Massive.Multiplier.AmplifierCoreGameplay>();

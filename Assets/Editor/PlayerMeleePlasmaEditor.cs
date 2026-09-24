@@ -1,3 +1,4 @@
+using Massive.EditorTools;
 using Massive.Player;
 using UnityEditor;
 using UnityEngine;
@@ -6,6 +7,10 @@ using UnityEngine;
 public sealed class PlayerMeleePlasmaEditor : Editor
 {
     private int selectedStage;
+    private readonly PlayerMeleePlasmaPreviewGUI.GameplayBindings gameplayBindings =
+        new PlayerMeleePlasmaPreviewGUI.GameplayBindings();
+
+    private void OnDisable() { gameplayBindings.Dispose(); }
 
     public override bool RequiresConstantRepaint()
     {
@@ -19,18 +24,33 @@ public sealed class PlayerMeleePlasmaEditor : Editor
         if (GUILayout.Button("Open Melee Visual Preview", GUILayout.Height(28)))
             PlayerMeleePlasmaPreviewWindow.Open(plasma);
 
-        serializedObject.Update();
-        PlayerMeleePlasmaPreviewGUI.DrawStyle(serializedObject);
-        serializedObject.ApplyModifiedProperties();
+        SharedSettingsEditing.Banner(serializedObject);
+        using (var tuning = SharedSettingsEditing.Tuning(plasma))
+        {
+            tuning.Update();
+            PlayerMeleePlasmaPreviewGUI.DrawStyle(tuning);
+            SharedSettingsEditing.Apply(tuning);
+        }
         PlayerMeleePlasmaPreviewGUI.DrawTransport(plasma, ref selectedStage);
 
         serializedObject.Update();
         PlayerMeleePlasmaPreviewGUI.DrawPreviewTiming(serializedObject);
         EditorGUILayout.Space(8);
-        PlayerMeleePlasmaPreviewGUI.DrawTuning(serializedObject);
         serializedObject.ApplyModifiedProperties();
+        using (var tuning = SharedSettingsEditing.Tuning(plasma))
+        {
+            tuning.Update();
+            PlayerMeleePlasmaPreviewGUI.DrawTuning(tuning, gameplayBindings, selectedStage, plasma);
+            SharedSettingsEditing.Apply(tuning);
+        }
 
         EditorGUILayout.Space(8);
+        if (SharedSettingsEditing.IsShared(plasma))
+        {
+            serializedObject.Update();
+            PlayerMeleePlasmaPreviewGUI.DrawReferences(serializedObject);
+            serializedObject.ApplyModifiedProperties();
+        }
         PlayerMeleePlasmaPreviewGUI.DrawButtons(plasma, selectedStage);
     }
 }
@@ -41,6 +61,8 @@ public sealed class PlayerMeleePlasmaPreviewWindow : EditorWindow
     [SerializeField] private int selectedStage;
     private Vector2 scroll;
     private SerializedObject targetSerialized;
+    private readonly PlayerMeleePlasmaPreviewGUI.GameplayBindings gameplayBindings =
+        new PlayerMeleePlasmaPreviewGUI.GameplayBindings();
     private PlayerMeleePlasma[] scenePlayers = new PlayerMeleePlasma[0];
 
     [MenuItem("MASSIVE/Player/Melee Visual Preview")]
@@ -78,6 +100,7 @@ public sealed class PlayerMeleePlasmaPreviewWindow : EditorWindow
             previewTarget.StopPreview();
         if (targetSerialized != null) targetSerialized.Dispose();
         targetSerialized = null;
+        gameplayBindings.Dispose();
     }
 
     private void OnInspectorUpdate()
@@ -128,6 +151,11 @@ public sealed class PlayerMeleePlasmaPreviewWindow : EditorWindow
 
         if (previewTarget == null)
         {
+            if (GUILayout.Button("Edit Shared Melee Settings"))
+            {
+                SharedSettingsEditing.EnsureProfiles();
+                SharedSettingsWindow.Open(Massive.Settings.SharedSettingsRuntime.Load<Massive.Settings.MeleeVisualProfile>());
+            }
             EditorGUILayout.HelpBox("Choose a scene player with a Player Melee Plasma component. " +
                 "Find lists the configured players in the open scenes.", MessageType.Info);
             return;
@@ -135,9 +163,13 @@ public sealed class PlayerMeleePlasmaPreviewWindow : EditorWindow
 
         if (targetSerialized == null || targetSerialized.targetObject != previewTarget)
             SetTarget(previewTarget);
-        targetSerialized.Update();
-        PlayerMeleePlasmaPreviewGUI.DrawStyle(targetSerialized);
-        targetSerialized.ApplyModifiedProperties();
+        SharedSettingsEditing.Banner(targetSerialized);
+        using (var tuning = SharedSettingsEditing.Tuning(previewTarget))
+        {
+            tuning.Update();
+            PlayerMeleePlasmaPreviewGUI.DrawStyle(tuning);
+            SharedSettingsEditing.Apply(tuning);
+        }
 
         // Transport stays visible while the effect controls scroll.
         PlayerMeleePlasmaPreviewGUI.DrawTransport(previewTarget, ref selectedStage);
@@ -147,9 +179,12 @@ public sealed class PlayerMeleePlasmaPreviewWindow : EditorWindow
 
         EditorGUILayout.Space(6);
         scroll = EditorGUILayout.BeginScrollView(scroll);
-        targetSerialized.Update();
-        PlayerMeleePlasmaPreviewGUI.DrawTuning(targetSerialized);
-        targetSerialized.ApplyModifiedProperties();
+        using (var tuning = SharedSettingsEditing.Tuning(previewTarget))
+        {
+            tuning.Update();
+            PlayerMeleePlasmaPreviewGUI.DrawTuning(tuning, gameplayBindings, selectedStage, previewTarget);
+            SharedSettingsEditing.Apply(tuning);
+        }
         EditorGUILayout.EndScrollView();
 
         PlayerMeleePlasmaPreviewGUI.DrawButtons(previewTarget, selectedStage);
@@ -187,6 +222,31 @@ public sealed class PlayerMeleePlasmaPreviewWindow : EditorWindow
 
 internal static class PlayerMeleePlasmaPreviewGUI
 {
+    // Each inspector/window owns its bindings, avoiding SerializedObject allocation on every repaint.
+    public sealed class GameplayBindings : System.IDisposable
+    {
+        private SerializedObject profile;
+        private SerializedObject hitArea;
+
+        public SerializedObject Profile(PlayerAttackProfile target) { return Bind(ref profile, target); }
+        public SerializedObject HitArea(PlayerRepulsorAOE target) { return Bind(ref hitArea, target); }
+
+        private static SerializedObject Bind(ref SerializedObject binding, Object target)
+        {
+            if (binding != null && binding.targetObject == target) return binding;
+            if (binding != null) binding.Dispose();
+            binding = target != null ? new SerializedObject(target) : null;
+            return binding;
+        }
+
+        public void Dispose()
+        {
+            if (profile != null) profile.Dispose();
+            if (hitArea != null) hitArea.Dispose();
+            profile = hitArea = null;
+        }
+    }
+
     private static readonly GUIContent[] StyleNames =
     {
         new GUIContent("Original particles"), new GUIContent("Plasma"),
@@ -202,10 +262,10 @@ internal static class PlayerMeleePlasmaPreviewGUI
     private static readonly int[] SweepValues = { 0, 1 };
     private static readonly GUIContent[] RepulsorNames =
     {
-        new GUIContent("Volumetric outward pulse"), new GUIContent("Plasma ring comparison"),
+        new GUIContent("Seismic detonation"), new GUIContent("Previous filament burst"), new GUIContent("Plasma ring comparison"),
         new GUIContent("Off")
     };
-    private static readonly int[] RepulsorValues = { 0, 1, 2 };
+    private static readonly int[] RepulsorValues = { 3, 0, 1, 2 };
     private static readonly string[] StageNames = { "1 — Thrust", "2 — Sweep", "3 — Repulsor" };
 
     public static void DrawStyle(SerializedObject serialized)
@@ -257,23 +317,23 @@ internal static class PlayerMeleePlasmaPreviewGUI
             MessageType.None);
 
         bool canPreview = CanPreview(plasma);
+        if (plasma.PreviewActive && canPreview) selectedStage = Mathf.Clamp(plasma.PreviewStage, 0, 2);
+        int nextStage = EditorGUILayout.Popup("Attack stage", selectedStage, StageNames);
+        if (nextStage != selectedStage)
+        {
+            selectedStage = nextStage;
+            if (plasma.PreviewActive && canPreview)
+            {
+                bool wasAnimating = plasma.PreviewAnimating;
+                bool wasLooping = plasma.PreviewLoop;
+                if (wasAnimating) plasma.StartPreview(selectedStage, wasLooping);
+                else plasma.ScrubPreview(selectedStage, plasma.PreviewNormalizedTime);
+                RefreshViews();
+            }
+        }
+
         using (new EditorGUI.DisabledScope(!canPreview))
         {
-            if (plasma.PreviewActive) selectedStage = Mathf.Clamp(plasma.PreviewStage, 0, 2);
-            int nextStage = EditorGUILayout.Popup("Attack stage", selectedStage, StageNames);
-            if (nextStage != selectedStage)
-            {
-                selectedStage = nextStage;
-                if (plasma.PreviewActive)
-                {
-                    bool wasAnimating = plasma.PreviewAnimating;
-                    bool wasLooping = plasma.PreviewLoop;
-                    if (wasAnimating) plasma.StartPreview(selectedStage, wasLooping);
-                    else plasma.ScrubPreview(selectedStage, plasma.PreviewNormalizedTime);
-                    RefreshViews();
-                }
-            }
-
             EditorGUI.BeginChangeCheck();
             float frame = EditorGUILayout.Slider("Scrub attack", plasma.PreviewNormalizedTime, 0f, 1f);
             if (EditorGUI.EndChangeCheck())
@@ -282,10 +342,10 @@ internal static class PlayerMeleePlasmaPreviewGUI
                 RefreshViews();
             }
             bool repulsorAftermath = selectedStage == 2 &&
-                ((int)plasma.visualStyle == 1 || (int)plasma.visualStyle == 3) &&
-                plasma.repulsorTreatment == RepulsorVisualTreatment.VolumetricPulse;
-            if (repulsorAftermath || ((int)plasma.visualStyle == 3 && (selectedStage == 0 ||
-                (selectedStage == 1 && (int)plasma.arcSweepTreatment == 1))))
+                ((int)plasma.Effective_visualStyle == 1 || (int)plasma.Effective_visualStyle == 3) &&
+                (plasma.Effective_repulsorTreatment == RepulsorVisualTreatment.VolumetricPulse || plasma.Effective_repulsorTreatment == RepulsorVisualTreatment.SeismicDetonation);
+            if (repulsorAftermath || ((int)plasma.Effective_visualStyle == 3 && (selectedStage == 0 ||
+                (selectedStage == 1 && (int)plasma.Effective_arcSweepTreatment == 1))))
             {
                 string tooltip = selectedStage == 0
                     ? "Inspect the thrust's visual tail after the attack stage ends: 0 is the stage end, 1 is the end of Thrust Linger. This tail deals no damage."
@@ -357,18 +417,28 @@ internal static class PlayerMeleePlasmaPreviewGUI
 
     public static void DrawPreviewTiming(SerializedObject serialized)
     {
-        var style = serialized.FindProperty("visualStyle");
-        if (style != null && style.intValue != 1 && style.intValue != 3) return;
         var speed = serialized.FindProperty("previewPlaybackSpeed");
         var delay = serialized.FindProperty("previewRepeatDelay");
         if (speed != null) EditorGUILayout.PropertyField(speed, new GUIContent("Preview playback speed", "Changes only edit-preview time, including effect motion. Gameplay timing is unchanged."));
         if (delay != null) EditorGUILayout.PropertyField(delay, new GUIContent("Loop rest (seconds)", "Pause between repeated stage previews."));
     }
 
-    public static void DrawTuning(SerializedObject serialized)
+    public static void DrawTuning(SerializedObject serialized, GameplayBindings gameplayBindings, int selectedStage = -1, PlayerMeleePlasma context = null)
     {
+        if (selectedStage == 2)
+        {
+            DrawRepulsorGameplay(serialized, gameplayBindings, context);
+            EditorGUILayout.Space(8);
+        }
         var style = serialized.FindProperty("visualStyle");
         int value = style != null ? style.intValue : 0;
+        if (selectedStage == 2 && (value == 1 || value == 3))
+        {
+            DrawRepulsor(serialized);
+            EditorGUILayout.Space(8);
+            DrawField(serialized, "surfaceHeight", "Surface Height", "Shared height of the attack visuals above the playing field.");
+            return;
+        }
         if (value == 3)
         {
             EditorGUILayout.HelpBox("Thrust, Sweep and Repulsor have separate treatments. The Repulsor expands from the player outline during its physical activation window, then briefly fades in world space.", MessageType.None);
@@ -431,11 +501,146 @@ internal static class PlayerMeleePlasmaPreviewGUI
         }
     }
 
+    private static void DrawRepulsorGameplay(SerializedObject serialized, GameplayBindings bindings, PlayerMeleePlasma context)
+    {
+        var plasma = context != null ? context : serialized.targetObject as PlayerMeleePlasma;
+        if (plasma == null) return;
+        EditorGUILayout.LabelField("Repulsor — size & damage (shared profile)", EditorStyles.boldLabel);
+        var controller = plasma.attackController;
+        if (controller == null) controller = plasma.GetComponent<PlayerAttackController>();
+        var profile = controller != null && controller.Profile != null ? controller.Profile : plasma.previewProfile;
+
+        EditorGUILayout.BeginHorizontal();
+        using (new EditorGUI.DisabledScope(true))
+            EditorGUILayout.ObjectField("Shared attack profile", profile, typeof(PlayerAttackProfile), false);
+        using (new EditorGUI.DisabledScope(profile == null))
+            if (GUILayout.Button("Select", GUILayout.Width(52)))
+            {
+                Selection.activeObject = profile;
+                EditorGUIUtility.PingObject(profile);
+            }
+        EditorGUILayout.EndHorizontal();
+
+        var profileSerialized = bindings.Profile(profile);
+        if (profileSerialized == null)
+        {
+            EditorGUILayout.HelpBox("Assign an attack profile to the player's Attack Controller, or a Preview Profile for a visual-only study.", MessageType.Warning);
+            return;
+        }
+        profileSerialized.Update();
+        var stages = profileSerialized.FindProperty("stages");
+        SerializedProperty stageProperty = null;
+        int stageIndex = -1;
+        if (stages != null)
+            for (int index = 0; index < stages.arraySize; index++)
+            {
+                var candidate = stages.GetArrayElementAtIndex(index);
+                var type = candidate.FindPropertyRelative("stageType");
+                if (type == null || type.intValue != (int)AttackStageType.FinisherRepulsor) continue;
+                stageProperty = candidate;
+                stageIndex = index;
+                break;
+            }
+        if (stageProperty == null)
+        {
+            EditorGUILayout.HelpBox("This profile has no Finisher Repulsor stage.", MessageType.Warning);
+            return;
+        }
+
+        EditorGUILayout.HelpBox("These settings affect every player using this profile. Overall scale changes the energy effect, hit area and grid pulse together; player size, timing and damage stay separate. Edit preview is visual only and never deals damage.", MessageType.None);
+        DrawClampedFloat(stageProperty, "repulsorScale", "Overall scale", .1f,
+            "Multiplies the Repulsor's visual dimensions, maximum hit radius and grid response. Also inherits Player Size. Does not resize the player or change timing or damage.");
+        DrawClampedFloat(stageProperty, "repulsorMaxRadius", "Base hit radius", 0f,
+            "Maximum radius in world units at Player Size 1 and Overall Scale 1. The pulse begins at the body outline and cannot end inside it.");
+        DrawClampedFloat(stageProperty, "repulsorEnemyDamage", "Enemy damage", 0f,
+            "Flat health damage, once per enemy NPC per pulse. Zero disables NPC damage; it does not change opponent-player knockback or mass-loss settings.");
+        bool profileChanged = profileSerialized.ApplyModifiedProperties();
+
+        var repulsor = plasma.GetComponentInChildren<PlayerRepulsorAOE>(true);
+        var stage = profile.GetStage(stageIndex);
+        float maximumRadius = repulsor != null ? repulsor.PreviewEndRadiusWorld(stage) :
+            stage.GetRepulsorRadius(PlayerScaleAdjuster.SizeOf(plasma),
+                PlayerScaleAdjuster.BodyRadiusOf(plasma.GetComponent<PlayerControllerScript>()));
+        EditorGUILayout.LabelField("This player's max hit radius", maximumRadius.ToString("0.###") + " world units");
+        var hitAreaSerialized = bindings.HitArea(repulsor);
+        if (hitAreaSerialized != null)
+        {
+            hitAreaSerialized.Update();
+            DrawField(hitAreaSerialized, "showHitArea", "Show hit area", "Show the maximum hit radius in the Scene view when the player or Repulsor hitbox is selected. Enable Scene-view Gizmos to see it.");
+            if (hitAreaSerialized.ApplyModifiedProperties()) RefreshViews();
+            if (GUILayout.Button("Select Repulsor hitbox"))
+            {
+                Selection.activeGameObject = repulsor.gameObject;
+                EditorGUIUtility.PingObject(repulsor.gameObject);
+            }
+            if (!repulsor.enabled)
+                EditorGUILayout.HelpBox("This player's Repulsor AOE component is disabled. It must be enabled for gameplay hits.", MessageType.Warning);
+        }
+        else
+            EditorGUILayout.HelpBox("No Repulsor AOE component is present on this player. The preview can show the effect, but this player cannot produce Repulsor hits.", MessageType.Warning);
+        if (controller == null || controller.Profile == null)
+            EditorGUILayout.HelpBox("Using the fallback Preview Profile. Assign it to the Attack Controller to use these settings in gameplay.", MessageType.Warning);
+
+        if (profileChanged)
+        {
+            if (plasma.PreviewActive && !EditorApplication.isPlayingOrWillChangePlaymode)
+            {
+                bool animating = plasma.PreviewAnimating;
+                bool looping = plasma.PreviewLoop;
+                float frame = plasma.PreviewNormalizedTime;
+                // Rebuild captured pulse dimensions immediately, including paused previews.
+                plasma.StopPreview();
+                if (animating) plasma.StartPreview(stageIndex, looping);
+                else plasma.ScrubPreview(stageIndex, frame);
+            }
+            RefreshViews();
+        }
+    }
+
+    private static void DrawClampedFloat(SerializedProperty parent, string name, string label, float minimum, string tooltip)
+    {
+        var property = parent.FindPropertyRelative(name);
+        if (property == null) return;
+        EditorGUI.BeginChangeCheck();
+        EditorGUILayout.PropertyField(property, new GUIContent(label, tooltip));
+        if (EditorGUI.EndChangeCheck()) property.floatValue = Mathf.Max(minimum, property.floatValue);
+    }
+
     private static void DrawRepulsor(SerializedObject serialized)
     {
-        EditorGUILayout.LabelField("Repulsor — outward energy pulse", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField("Repulsor — energy treatment", EditorStyles.boldLabel);
         var treatment = serialized.FindProperty("repulsorTreatment");
         if (treatment == null) return;
+        if (treatment.intValue == 3)
+        {
+            EditorGUILayout.HelpBox("Compression → source discharge → pressure front → broken residue. The pressure front follows the hit radius; all lingering light and ejecta are visual only.", MessageType.None);
+            DrawField(serialized, "repulsorPulseMaterial", "Material Override", "Leave empty to use the new seismic detonation shader. A legacy material override may not support these controls.");
+            EditorGUILayout.LabelField("Charge and release", EditorStyles.miniBoldLabel);
+            DrawField(serialized, "repulsorImplosion", "Inward Charge", "An atmospheric envelope compresses around the player before release.");
+            DrawSlider(serialized, "repulsorChargeIntensity", "Charge Envelope Intensity", 0f, 2f, "Strength of the gathering gas envelope. Fine filaments use Ejecta Intensity below.");
+            DrawField(serialized, "repulsorReleaseFlash", "Source Flash", "Brief discharge at the player outline, separate from the travelling pressure front.");
+            DrawField(serialized, "repulsorSeismicStreak", "Seismic Light Streak", "Short planar radiance across the release point.");
+            DrawSlider(serialized, "repulsorRadiance", "Energy Radiance", 0f, 3f, "Emitted light, independent of gas opacity.");
+            EditorGUILayout.LabelField("Travelling shock and volume", EditorStyles.miniBoldLabel);
+            DrawField(serialized, "repulsorPulseWhiteEdge", "Pressure Front", "Fine luminous front following the attack's physical radius.");
+            DrawSlider(serialized, "repulsorPulseEdgeIntensity", "Front Intensity", 0f, 2f, "Brightness of the leading shock.");
+            DrawField(serialized, "repulsorBlastVolume", "Blast Shell", "A three-dimensional expanding and thinning shell behind the pressure front.");
+            DrawSlider(serialized, "repulsorBlastDepth", "Blast Depth", .1f, 1f, "Height and curvature of the volume.");
+            DrawSlider(serialized, "repulsorBlastOpacity", "Gas Opacity", 0f, 1f, "Gas attenuation, separate from Energy Radiance.");
+            DrawField(serialized, "repulsorPulseFilaments", "Internal Discharges", "Hot irregular channels within the volume.");
+            DrawField(serialized, "repulsorPulseWisps", "Vapor Wake", "Faint turbulent material trailing the release.");
+            DrawSlider(serialized, "repulsorPulseTurbulence", "Turbulence", 0f, .4f, "Large-scale distortion of the blast.");
+            DrawSlider(serialized, "repulsorPulseFlow", "Internal Motion", 0f, 5f, "Motion through the gas, independent of playback and physical travel.");
+            EditorGUILayout.LabelField("Ejecta and aftermath", EditorStyles.miniBoldLabel);
+            DrawField(serialized, "repulsorSparkEjecta", "Fine Ejecta", "Fast, unevenly distributed outward streaks.");
+            DrawField(serialized, "repulsorArcDischarge", "Branching Discharges", "Brief fine electrical paths radiating from the player.");
+            DrawSlider(serialized, "repulsorEjectaDensity", "Ejecta Density", 0f, 1f, "Number of fine streaks. Branching Discharges is controlled separately.");
+            DrawSlider(serialized, "repulsorBurstIntensity", "Ejecta Intensity", 0f, 2f, "Brightness of the fine streaks and branching discharges.");
+            DrawSlider(serialized, "repulsorBurstSpread", "Ejecta Length", .25f, 1.5f, "Length of each trailing streak; does not change attack reach.");
+            DrawSlider(serialized, "repulsorPulseLinger", "Aftermath (s)", 0f, 1f, "Harmless dissipation after the damage window.");
+            DrawSlider(serialized, "repulsorDissolveBreakup", "Dissolve Breakup", 0f, 1f, "Uneven breakup and thinning of residual gas.");
+            return;
+        }
         if (treatment.intValue == 2)
         {
             EditorGUILayout.HelpBox("Repulsor energy is off. Body pulse and grid response remain independently adjustable on Player Repulsor Feedback and Player Repulsor Grid Pulse.", MessageType.None);
@@ -443,12 +648,12 @@ internal static class PlayerMeleePlasmaPreviewGUI
         }
         if (treatment.intValue == 1)
         {
-            EditorGUILayout.HelpBox("Flat plasma ring comparison. Select Volumetric outward pulse above for the new three-dimensional energy treatment.", MessageType.None);
+            EditorGUILayout.HelpBox("Flat plasma ring comparison. Select Pulse-burst shockwave above for the layered three-dimensional energy treatment.", MessageType.None);
             DrawField(serialized, "plasmaMaterial", "Ring Material", "Material used by the comparison ring.");
             DrawField(serialized, "repulsorBandWidth", "Ring Width", "Thickness of the comparison ring; visual only.");
             return;
         }
-        EditorGUILayout.HelpBox("A full-circle volume begins at the player outline when the Repulsor activates, follows the physical pulse radius and briefly lingers at its release position. Radius and expansion timing come from the attack profile. The lingering effect deals no damage.", MessageType.None);
+        EditorGUILayout.HelpBox("A sharp release, turbulent pressure front, trailing launch tears and fragmented wake. The leading edge follows the hit radius; only dissipating residue drifts slightly beyond it. Radius and timing come from the attack profile. The aftermath deals no damage.", MessageType.None);
         DrawField(serialized, "repulsorPulseMaterial", "Pulse Material Override", "Optional. The bundled MeleeRepulsor shader supplies the default material automatically.");
         DrawSlider(serialized, "repulsorPulseWidth", "Pulse Width", .035f, .5f, "Radial width of the energy around the physical pulse. Scales with Player Size.");
         DrawSlider(serialized, "repulsorPulseThickness", "Pulse Depth", .025f, .6f, "Three-dimensional thickness above and below the playing plane. Scales with Player Size.");
@@ -458,6 +663,14 @@ internal static class PlayerMeleePlasmaPreviewGUI
         DrawSlider(serialized, "repulsorPulseFlow", "Internal Flow", 0f, 5f, "Motion inside the pulse, independent of physical expansion and preview playback speed.");
         DrawSlider(serialized, "repulsorPulseLinger", "Pulse Linger (s)", 0f, 1f, "Visual lifetime after the active window closes. The pulse remains anchored at its release position.");
         DrawSlider(serialized, "repulsorPulseFade", "Pulse Fade Curve", .5f, 4f, "Shapes the fade of the lingering pulse.");
+        EditorGUILayout.LabelField("Burst and dissipation", EditorStyles.miniBoldLabel);
+        DrawField(serialized, "repulsorReleaseFlash", "Release Flash", "Briefly intensifies the pressure crest at launch.");
+        DrawField(serialized, "repulsorTurbulentWake", "Turbulent Wake", "Broader, folded energy behind the sharp leading edge.");
+        DrawSlider(serialized, "repulsorDissolveBreakup", "Dissolve Breakup", 0f, 1f, "Erodes different parts of the energy front at different times.");
+        DrawField(serialized, "repulsorBurstRays", "Launch Tears", "Irregular clusters of curved outward pressure streaks.");
+        DrawField(serialized, "repulsorBurstCrescents", "Broken Crest Fragments", "Short arcs that detach and decay behind the pressure front.");
+        DrawSlider(serialized, "repulsorBurstIntensity", "Burst Detail Intensity", 0f, 2f, "Strength of the optional tears and fragments.");
+        DrawSlider(serialized, "repulsorBurstSpread", "Burst Detail Length", .25f, 1.5f, "Length of the trailing details, independent of attack reach.");
         EditorGUILayout.LabelField("Black and white layers", EditorStyles.miniBoldLabel);
         DrawField(serialized, "repulsorPulseBlackBody", "Black Body", "Dark three-dimensional matter between the hot channels.");
         DrawField(serialized, "repulsorPulseWhiteEdge", "White Edge", "Fine bright strands near the outer edge.");
@@ -534,8 +747,9 @@ internal static class PlayerMeleePlasmaPreviewGUI
         if (property != null) EditorGUILayout.Slider(property, min, max, new GUIContent(label, tooltip));
     }
 
-    private static void DrawReferences(SerializedObject serialized)
+    public static void DrawReferences(SerializedObject serialized)
     {
+        if (!(serialized.targetObject is PlayerMeleePlasma)) return;
         EditorGUILayout.Space(8);
         EditorGUILayout.LabelField("Player references", EditorStyles.boldLabel);
         DrawField(serialized, "attackController", "Attack Controller", "Reads the existing combo timing and attack direction. This visual component does not start attacks.");
@@ -608,7 +822,7 @@ internal static class PlayerMeleePlasmaPreviewGUI
     {
         return plasma != null && !EditorApplication.isPlayingOrWillChangePlaymode &&
             plasma.isActiveAndEnabled && plasma.gameObject.scene.IsValid() &&
-            !EditorUtility.IsPersistent(plasma) && ((int)plasma.visualStyle == 1 || (int)plasma.visualStyle == 3);
+            !EditorUtility.IsPersistent(plasma) && ((int)plasma.Effective_visualStyle == 1 || (int)plasma.Effective_visualStyle == 3);
     }
 
     private static void RefreshViews()

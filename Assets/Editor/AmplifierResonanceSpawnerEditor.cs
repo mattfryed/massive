@@ -28,12 +28,29 @@ namespace Massive.Multiplier.Editor
         }
         public override void OnInspectorGUI()
         {
+            Massive.EditorTools.SharedSettingsEditing.DrawComponent(serializedObject, "patternOrder");
             serializedObject.Update();
-            DrawPropertiesExcluding(serializedObject, "m_Script", "patternOrder");
             order.DoLayoutList();
             serializedObject.ApplyModifiedProperties();
             var s = (AmplifierResonanceSpawner)target;
-            EditorGUILayout.HelpBox("Formation → safe neutral Core spawn → capture → dissolution → respawn wait → next pattern. Scoring and goal effects remain unchanged. Expand Spawn Region for placement/zone controls; open each pattern prefab for formation settings.", MessageType.Info);
+            using (new EditorGUI.DisabledScope(s.corePrefab == null))
+                if (GUILayout.Button("Edit Core Size / Physics (spawn prefab)"))
+                {
+                    Selection.activeGameObject = s.corePrefab.gameObject;
+                    EditorGUIUtility.PingObject(s.corePrefab.gameObject);
+                }
+            EditorGUILayout.BeginHorizontal();
+            for (int team = 1; team <= 2; team++)
+                if (GUILayout.Button(team == 1 ? "Light Goal Forces" : "Dark Goal Forces"))
+                    foreach (var goal in Object.FindObjectsByType<AmplifierGoalCapture>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+                        if (goal.TeamID == team && goal.gameObject.scene == s.gameObject.scene)
+                        { Selection.activeGameObject = goal.gameObject; break; }
+            if (GUILayout.Button("Capture Toast"))
+                foreach (var toast in Object.FindObjectsByType<Massive.Scoring.TeamAmplifierToastPresenter>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+                    if (toast.gameObject.scene == s.gameObject.scene)
+                    { Selection.activeGameObject = toast.gameObject; break; }
+            EditorGUILayout.EndHorizontal();
+            EditorGUILayout.HelpBox("Formation → safe neutral Core spawn → capture or time-out → dissolution → respawn wait → next pattern. The time-out starts after the Core fully appears; its surface becomes unstable during the warning window. No sequence spawns while both teams are at maximum amplification. Expand Spawn Region for placement/zone controls; open each pattern prefab for formation settings.", MessageType.Info);
             if (!Application.isPlaying)
             {
                 if (GUILayout.Button("Edit / Preview Scene Option B Animation")) AmplifierResonanceSpawnSetup.SelectSceneAnimationPreview(s);
@@ -42,6 +59,11 @@ namespace Massive.Multiplier.Editor
             EditorGUILayout.LabelField("Phase", s.Phase.ToString());
             EditorGUILayout.HelpBox(s.Status, MessageType.None);
             EditorGUILayout.LabelField("Wait / pairs / captures", s.SecondsRemaining.ToString("0.0") + "s / " + s.PairsSpawned + " / " + s.CapturesObserved);
+            if (s.Phase == AmplifierEncounterPhase.Active)
+            {
+                EditorGUILayout.LabelField("Time until sequence expires", s.Effective_maximumActiveSeconds > 0f ? s.ActiveSecondsRemaining.ToString("0.0") + "s" : "No time-out");
+                EditorGUILayout.LabelField("Surface instability", s.TimeoutWarning01.ToString("P0"));
+            }
             if (GUILayout.Button("Restart Cycle")) s.StartCycle();
             using (new EditorGUI.DisabledScope(s.Phase != AmplifierEncounterPhase.Delay))
                 if (GUILayout.Button("Skip Respawn Wait")) s.SpawnNow();

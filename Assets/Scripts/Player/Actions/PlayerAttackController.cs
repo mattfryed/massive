@@ -6,7 +6,7 @@ using UnityEngine.Events;
 namespace Massive.Player
 {
     [DisallowMultipleComponent]
-    public class PlayerAttackController : MonoBehaviour
+    public partial class PlayerAttackController : MonoBehaviour
     {
         private Rigidbody rb;
         // Public read-only events for listeners (melee, VFX, etc.)
@@ -124,6 +124,7 @@ namespace Massive.Player
         private float previousNormalizedTime;
         private bool isAttacking;
         private bool comboQueued;
+        private float comboQueuedAtSeconds;
         private float lastAttackPressTime = float.NegativeInfinity;
         private int swipeDirection = 1;
         private Vector3 stageAttackDirectionWS = Vector3.right;
@@ -132,7 +133,7 @@ namespace Massive.Player
         private float currentWeaponYawOffsetDeg = 0f;
 
         public bool IsAttacking => isAttacking;
-        public PlayerAttackProfile Profile => attackProfile;
+        public PlayerAttackProfile Profile => SharedPlayerTuning && SharedPlayerTuning.attackProfile ? SharedPlayerTuning.attackProfile : attackProfile;
         public AttackStage CurrentStage => currentStage;
         public int CurrentStageIndex => currentStageIndex;
         public float StageNormalizedTime => currentStage != null ? Mathf.Clamp01(stageTimer / currentStage.Duration) : 0f;
@@ -173,7 +174,7 @@ namespace Massive.Player
 
         private void Update()
         {
-            if (attackProfile == null || attackProfile.Stages.Count == 0)
+            if (Profile == null || Profile.Stages.Count == 0)
                 return;
 
             // Starting attacks is done externally via BeginAttack / RegisterAttackPress.
@@ -202,6 +203,7 @@ namespace Massive.Player
                 if (IsWithinComboWindow(normalized))
                 {
                     comboQueued = true; // immediate if we're already in the window
+                    comboQueuedAtSeconds = stageTimer;
                 }
             }
         }
@@ -212,11 +214,11 @@ namespace Massive.Player
         /// </summary>
         public void BeginAttack()
         {
-            if (isAttacking || attackProfile == null || attackProfile.Stages.Count == 0)
+            if (isAttacking || Profile == null || Profile.Stages.Count == 0)
                 return;
 
             // cooldown gate
-            if (Time.time < lastAttackEndTime + attackCooldown)
+            if (Time.time < lastAttackEndTime + Effective_attackCooldown)
                 return;
 
             StartStage(0);
@@ -230,21 +232,24 @@ namespace Massive.Player
                 return;
             }
 
-            // BUGFIX from your current file: this must accumulate, not overwrite
-            stageTimer += deltaTime;
+            float previousTime = stageTimer;
+            float frameEndTime = stageTimer + Mathf.Max(0, deltaTime);
+            float nextTime = Mathf.Min(currentStage.Duration, frameEndTime);
+            UpdateComboQueue(previousTime, nextTime, frameEndTime);
+            float handoffTime = Mathf.Max(currentStage.ComboHandoffSeconds, comboQueuedAtSeconds);
 
-            float duration = currentStage.Duration;
-            float normalized = Mathf.Clamp01(stageTimer / duration);
+            bool handoff = comboQueued && currentStage.AllowComboCancel &&
+                Profile.GetStage(currentStageIndex + 1) != null &&
+                nextTime >= handoffTime;
+            // A queued early transition stops the old motion exactly at its handoff.
+            // Late presses transition at the current point, never rewinding movement.
+            stageTimer = handoff ? Mathf.Min(nextTime, Mathf.Max(previousTime, handoffTime)) : nextTime;
+            float normalized = Mathf.Clamp01(stageTimer / currentStage.Duration);
             float deltaNormalized = Mathf.Clamp01(normalized - previousNormalizedTime);
             previousNormalizedTime = normalized;
-
             ApplyStageMotion(normalized, deltaNormalized);
-            UpdateComboQueue(normalized);
 
-            if (stageTimer >= duration)
-            {
-                CompleteStage();
-            }
+            if (handoff || stageTimer >= currentStage.Duration) CompleteStage();
         }
 
         private Vector3 ComputeAttackDirectionFromInput()
@@ -305,7 +310,7 @@ private Vector3 GetAttackDirection()
         {
             get
             {
-                Vector3 baseDir = visualDirectionFollowsCombatFacing
+                Vector3 baseDir = Effective_visualDirectionFollowsCombatFacing
                     ? GetCombatFacingDirectionWS()
                     : GetAttackDirection();
 
@@ -398,58 +403,40 @@ private Vector3 GetAttackDirection()
             float arcHalf = currentStage.RotationArc * 0.5f;
             float t = Mathf.Clamp01(stageNormalized);
 
-            float eased = swipeArcCurve != null ? swipeArcCurve.Evaluate(t) : t;
+            float eased = Effective_swipeArcCurve != null ? Effective_swipeArcCurve.Evaluate(t) : t;
             float baseOffset = Mathf.Lerp(-arcHalf, +arcHalf, eased);
 
             // swipeDirection = +1 means left->right; -1 flips it.
             currentWeaponYawOffsetDeg = baseOffset * swipeDirection;
         }
 
-        private void UpdateComboQueue(float normalized)
+        public Vector2 ComboWindowSeconds(AttackStage stage)
         {
-            if (!currentStage.AllowComboCancel || comboQueued)
-                return;
+            return stage == null ? Vector2.zero : stage.GetComboWindow(Effective_sharedComboWindowSeconds,
+                Effective_useSharedComboWindow, Effective_comboWindowAfterActivationWindow, Effective_comboWindowEndNormalized);
+        }
 
-            if (!IsWithinComboWindow(normalized))
-                return;
-
-            if (Time.time - lastAttackPressTime <= comboInputBuffer)
+        private void UpdateComboQueue(float previousTime, float nextTime, float frameEndTime)
+        {
+            if (!currentStage.AllowComboCancel || comboQueued || float.IsNegativeInfinity(lastAttackPressTime)) return;
+            Vector2 window = ComboWindowSeconds(currentStage);
+            // Include crossed windows so low frame rates do not lose a buffered press.
+            float pressAt = frameEndTime - (Time.time - lastAttackPressTime);
+            float sample = Mathf.Max(Mathf.Max(previousTime, window.x), pressAt);
+            if (sample > nextTime || sample > window.y) return;
+            if (sample - pressAt <= Effective_comboInputBuffer)
             {
                 comboQueued = true;
+                comboQueuedAtSeconds = sample;
             }
         }
 
         private bool IsWithinComboWindow(float normalized)
         {
-            if (currentStage == null)
-                return false;
-
-            float start;
-            float end;
-
-            if (useSharedComboWindow)
-            {
-                start = Mathf.Clamp01(1f - sharedComboWindowSeconds / currentStage.Duration);
-                end = 1f;
-            }
-            else if (comboWindowAfterActivationWindow)
-            {
-                // "After-window" combos: let the player chain during recovery.
-                start = currentStage.ActivationEndNormalized;
-                end = Mathf.Clamp01(comboWindowEndNormalized);
-
-                // Safety: ensure end is never before start.
-                if (end < start)
-                    end = 1f;
-            }
-            else
-            {
-                // Legacy behavior: combos only within the activation window.
-                start = currentStage.ActivationStartNormalized;
-                end = currentStage.ActivationEndNormalized;
-            }
-
-            return normalized >= start && normalized <= end;
+            if (currentStage == null) return false;
+            Vector2 window = ComboWindowSeconds(currentStage);
+            float seconds = normalized * currentStage.Duration;
+            return seconds >= window.x && seconds <= window.y;
         }
 
         private void CompleteStage()
@@ -461,9 +448,9 @@ private Vector3 GetAttackDirection()
                 return;
 
             int nextStageIndex = currentStageIndex + 1;
-            bool hasNextStage = attackProfile.GetStage(nextStageIndex) != null;
+            bool hasNextStage = Profile.GetStage(nextStageIndex) != null;
 
-            if (comboQueued && hasNextStage)
+            if (comboQueued && hasNextStage && finishedStage.AllowComboCancel)
             {
                 StartStage(nextStageIndex);
             }
@@ -475,7 +462,7 @@ private Vector3 GetAttackDirection()
 
         private void StartStage(int stageIndex)
         {
-            AttackStage stage = attackProfile.GetStage(stageIndex);
+            AttackStage stage = Profile.GetStage(stageIndex);
             if (stage == null)
             {
                 EndAttackSequence();
@@ -488,6 +475,7 @@ private Vector3 GetAttackDirection()
             currentDistanceProgress = 0f;
             previousNormalizedTime = 0f;
             comboQueued = false;
+            comboQueuedAtSeconds = 0f;
             isAttacking = true;
 
             // Clear any buffered press that was used to ENTER this stage,
@@ -511,7 +499,7 @@ private Vector3 GetAttackDirection()
             lockedTarget = null;
 
             // Only apply lock-on to the primary lunge (stage 0)
-            if (lockOnEnabled && stageIndex == 0)
+            if (Effective_lockOnEnabled && stageIndex == 0)
             {
                 TryApplyLungeLockOn();
             }
@@ -577,6 +565,7 @@ private Vector3 GetAttackDirection()
             previousNormalizedTime = 0f;
             comboQueued = false;
             isAttacking = false;
+            comboQueuedAtSeconds = 0f;
             currentWeaponYawOffsetDeg = 0f;
             lastAttackEndTime = Time.time;
         }
@@ -638,12 +627,12 @@ private Vector3 GetAttackDirection()
     if (aimDir.sqrMagnitude < 0.0001f) return;
     aimDir.Normalize();
 
-    float maxDist = (lockOnMaxDistanceOverride > 0f)
-        ? lockOnMaxDistanceOverride * PlayerScaleAdjuster.ActionReachOf(this)
+    float maxDist = (Effective_lockOnMaxDistanceOverride > 0f)
+        ? Effective_lockOnMaxDistanceOverride * PlayerScaleAdjuster.ActionReachOf(this)
         : stageTravelDistanceWS;
     if (maxDist <= 0.0001f) return;
 
-    float cosLimit = Mathf.Cos(lockOnConeHalfAngleDeg * Mathf.Deg2Rad);
+    float cosLimit = Mathf.Cos(Effective_lockOnConeHalfAngleDeg * Mathf.Deg2Rad);
 
     int count = Physics.OverlapSphereNonAlloc(
         origin,
@@ -712,7 +701,7 @@ private Vector3 GetAttackDirection()
     lockedTarget = best;
 
     // Blend for feel (avoid “magnet snap”)
-    Vector3 blendedDir = Vector3.Slerp(aimDir, bestDir, Mathf.Clamp01(lockOnDirectionBlend));
+    Vector3 blendedDir = Vector3.Slerp(aimDir, bestDir, Mathf.Clamp01(Effective_lockOnDirectionBlend));
     blendedDir.y = 0f;
     if (blendedDir.sqrMagnitude > 0.0001f)
         stageAttackDirectionWS = blendedDir.normalized;

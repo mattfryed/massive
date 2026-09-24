@@ -8,28 +8,7 @@ namespace Massive.Resonance.Editor
     {
         public override void OnInspectorGUI()
         {
-            serializedObject.Update();
-            var distribution = serializedObject.FindProperty("birthDistribution");
-            DrawPropertiesExcluding(serializedObject, "m_Script", "localSpawnSpread", "alongArcSpread", "fieldCoherence", "fieldWavelength", "birthPulse",
-                "dispersalCenter", "dispersalHalfExtents", "showDispersalArea", "spawnPrefabTuningTarget");
-            if (distribution.hasMultipleDifferentValues || distribution.enumValueIndex == (int)ResonanceBirthDistribution.LocalBand)
-            {
-                EditorGUILayout.LabelField("Local birth / field vibration", EditorStyles.boldLabel);
-                var spread = serializedObject.FindProperty("localSpawnSpread");
-                EditorGUILayout.PropertyField(spread, new GUIContent("Spawn Spread", spread.tooltip));
-                EditorGUILayout.PropertyField(serializedObject.FindProperty("alongArcSpread"));
-                EditorGUILayout.PropertyField(serializedObject.FindProperty("fieldCoherence"));
-                EditorGUILayout.PropertyField(serializedObject.FindProperty("fieldWavelength"));
-                EditorGUILayout.PropertyField(serializedObject.FindProperty("birthPulse"));
-            }
-            if (distribution.hasMultipleDifferentValues || distribution.enumValueIndex == (int)ResonanceBirthDistribution.FullField)
-            {
-                EditorGUILayout.PropertyField(serializedObject.FindProperty("dispersalCenter"));
-                EditorGUILayout.PropertyField(serializedObject.FindProperty("dispersalHalfExtents"));
-                EditorGUILayout.PropertyField(serializedObject.FindProperty("showDispersalArea"));
-            }
-            EditorGUILayout.PropertyField(serializedObject.FindProperty("spawnPrefabTuningTarget"));
-            if (serializedObject.ApplyModifiedProperties()) foreach (ResonanceManifestation item in targets) item.RefreshPreview();
+            Massive.EditorTools.SharedSettingsEditing.DrawComponent(serializedObject);
             EditorGUILayout.Space();
             var manifestation = (ResonanceManifestation)target;
             bool sceneObject = !EditorUtility.IsPersistent(manifestation) && manifestation.gameObject.scene.IsValid();
@@ -56,7 +35,7 @@ namespace Massive.Resonance.Editor
             var destination = manifestation.spawnPrefabTuningTarget;
             bool validDestination = destination != null && EditorUtility.IsPersistent(destination)
                 && PrefabUtility.IsPartOfPrefabAsset(destination);
-            if (sceneObject)
+            if (sceneObject && !Massive.EditorTools.SharedSettingsEditing.IsShared(manifestation))
             {
                 EditorGUILayout.HelpBox("Scene changes are retained when you save the scene. To use the same animation for future spawns, save only its animation tuning to the linked spawn prefab below. Pattern shape, particles, materials and physics are not copied.", MessageType.Info);
                 using (new EditorGUI.DisabledScope(Application.isPlaying || !validDestination))
