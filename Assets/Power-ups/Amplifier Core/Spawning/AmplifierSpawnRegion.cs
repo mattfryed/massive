@@ -11,6 +11,11 @@ namespace Massive.Multiplier
     public sealed class AmplifierSpawnRegion : MonoBehaviour
     {
         public ArenaBoundsFromVectorGrid arenaBounds;
+        [Header("Optional explicit placement plane")]
+        [Tooltip("When assigned, this frame replaces Arena Bounds for placement only. Its local XY plane must lie horizontally in world XZ; local X defines the neutral stripe. This does not create or render a grid.")]
+        public Transform explicitPlane;
+        [Tooltip("Full local XY dimensions of Explicit Plane, before its transform scale. Unused when no Explicit Plane is assigned.")]
+        public Vector2 explicitPlaneSize = new Vector2(28f, 12f);
         [Header("Neutral territory")]
         [Tooltip("Central fraction of the arena width along the grid's local X axis. The entire Core must fit inside.")]
         [Range(.01f, 1f)] public float neutralWidthFraction = .3f;
@@ -119,20 +124,13 @@ namespace Massive.Multiplier
         public bool TryGetNeutralRect(float objectRadius, out Rect rect, out string reason)
         {
             rect = default;
-            if (arenaBounds == null || !arenaBounds.IsValid)
-            { reason = "Assign valid Arena Bounds / Vector Grid."; return false; }
+            Transform plane; Vector2 half;
+            if (!TryGetPlacementDomain(out plane, out half, out reason)) return false;
             if (!Finite(objectRadius) || !Finite(spawnHeightWorld) || !Finite(clearanceWorld)
                 || !Finite(borderMarginWorld) || !Finite(neutralWidthFraction))
             { reason = "Placement settings must be finite numbers."; return false; }
-            Transform t = arenaBounds.Grid.transform;
-            // Gameplay is XZ. A decorative tilt cannot define a physical spawn plane.
-            if (Mathf.Abs(Vector3.Dot(t.forward.normalized, Vector3.up)) < .999f)
-            { reason = "The grid plane must be horizontal for XZ gameplay placement."; return false; }
-            Vector3 scale = t.lossyScale;
+            Vector3 scale = plane.lossyScale;
             float sx = Mathf.Abs(scale.x), sy = Mathf.Abs(scale.y);
-            if (sx < .00001f || sy < .00001f)
-            { reason = "Grid scale cannot be zero."; return false; }
-            Vector2 half = arenaBounds.GetHalfSizeLocalInset();
             float radius = Mathf.Max(0f, objectRadius) + Mathf.Max(0f, clearanceWorld);
             float x = Mathf.Min(half.x - (Mathf.Max(0f, borderMarginWorld) + radius) / sx,
                 half.x * Mathf.Clamp(neutralWidthFraction, .01f, 1f) - radius / sx);
@@ -143,10 +141,36 @@ namespace Massive.Multiplier
             reason = string.Empty; return true;
         }
 
+        /// <summary>The single placement/preview domain. An assigned explicit plane
+        /// takes priority, including failing closed when its settings are invalid.</summary>
+        public bool TryGetPlacementDomain(out Transform plane, out Vector2 halfSizeLocal, out string reason)
+        {
+            plane = explicitPlane != null ? explicitPlane
+                : arenaBounds != null && arenaBounds.IsValid ? arenaBounds.Grid.transform : null;
+            halfSizeLocal = Vector2.zero;
+            if (plane == null)
+            { reason = "Assign valid Arena Bounds / Vector Grid or an Explicit Plane."; return false; }
+            halfSizeLocal = explicitPlane != null ? explicitPlaneSize * .5f : arenaBounds.GetHalfSizeLocalInset();
+            if (!Finite(halfSizeLocal.x) || !Finite(halfSizeLocal.y) || halfSizeLocal.x <= 0f || halfSizeLocal.y <= 0f)
+            { reason = "Placement plane dimensions must be finite and positive."; return false; }
+            Vector3 position = plane.position, scale = plane.lossyScale;
+            if (!Finite(position.x) || !Finite(position.y) || !Finite(position.z)
+                || !Finite(scale.x) || !Finite(scale.y) || !Finite(scale.z))
+            { reason = "Placement plane transform must be finite."; return false; }
+            if (Mathf.Abs(scale.x) < .00001f || Mathf.Abs(scale.y) < .00001f || Mathf.Abs(scale.z) < .00001f)
+            { reason = "Placement plane scale cannot be zero."; return false; }
+            // Gameplay is XZ. A decorative tilt cannot define a physical spawn plane.
+            float alignment = Vector3.Dot(plane.forward.normalized, Vector3.up);
+            if (!Finite(alignment) || Mathf.Abs(alignment) < .999f)
+            { reason = "The placement plane must be horizontal for XZ gameplay placement."; return false; }
+            reason = string.Empty; return true;
+        }
+
         public Vector3 GridPointToWorld(Vector2 local)
         {
-            if (arenaBounds == null || !arenaBounds.IsValid) return new Vector3(0f, spawnHeightWorld, 0f);
-            Vector3 p = arenaBounds.Grid.transform.TransformPoint(new Vector3(local.x, local.y, 0f));
+            Transform plane; Vector2 half; string reason;
+            if (!TryGetPlacementDomain(out plane, out half, out reason)) return new Vector3(0f, spawnHeightWorld, 0f);
+            Vector3 p = plane.TransformPoint(new Vector3(local.x, local.y, 0f));
             p.y = spawnHeightWorld; return p;
         }
 
@@ -156,7 +180,8 @@ namespace Massive.Multiplier
             if (!TryGetNeutralRect(objectRadius, out rect, out reason)) return false;
             if (!Finite(point.x) || !Finite(point.y) || !Finite(point.z))
             { reason = "Spawn position is not finite."; return false; }
-            Vector3 local = arenaBounds.Grid.transform.InverseTransformPoint(point);
+            Transform plane = explicitPlane != null ? explicitPlane : arenaBounds.Grid.transform;
+            Vector3 local = plane.InverseTransformPoint(point);
             if (local.x < rect.xMin || local.x > rect.xMax || local.y < rect.yMin || local.y > rect.yMax
                 || Mathf.Abs(point.y - spawnHeightWorld) > .01f)
             { reason = "Outside the safe neutral territory."; return false; }
@@ -215,7 +240,7 @@ namespace Massive.Multiplier
             if (ignoredColliders != null) foreach (Collider ignored in ignoredColliders) if (c == ignored) return true;
             if (noGo) return false;
             if (cachedPattern != null && c.transform.IsChildOf(cachedPattern.transform)) return true;
-            return arenaBounds != null && arenaBounds.IsValid && c.transform == arenaBounds.Grid.transform;
+            return explicitPlane == null && arenaBounds != null && arenaBounds.IsValid && c.transform == arenaBounds.Grid.transform;
         }
 
         private static bool ShapeIntersects(Collider c, Vector3 p, float radius)

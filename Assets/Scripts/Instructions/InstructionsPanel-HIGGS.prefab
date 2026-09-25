@@ -8458,6 +8458,7 @@ MonoBehaviour:
   enemyHitRecoilSpeed: {x: 0.9, y: 2}
   enemyHitRecoilSeconds: 0.16
   enemyHitRecoilLockout: 0.12
+  useSharedSettings: 1
 --- !u!114 &5531170421188797415
 MonoBehaviour:
   m_ObjectHideFlags: 0

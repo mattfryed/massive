@@ -6,6 +6,8 @@ using Massive.Player; // for PlayerAttackController / AttackStage
 public class AttackTrailGPU : MonoBehaviour
 {
     MaterialPropertyBlock _mpb;
+    Massive.Singularity.SingularityPlayerAdapter singularityPresentation;
+    static readonly int SingularityEnabledId = Shader.PropertyToID("_SingularityEnabled");
 
     [Header("References")]
     [SerializeField] PlayerAttackController attackController;
@@ -133,6 +135,7 @@ public class AttackTrailGPU : MonoBehaviour
 
     void OnEnable()
     {
+        singularityPresentation = GetComponentInParent<Massive.Singularity.SingularityPlayerAdapter>();
         if (_mpb == null)
             _mpb = new MaterialPropertyBlock();
 
@@ -453,6 +456,14 @@ public class AttackTrailGPU : MonoBehaviour
     void HandlePreCull(Camera cam)
     {
         if (sim == null || trailMat == null || quadMesh == null || _args == null || _particles == null) return;
+        _mpb.SetFloat(SingularityEnabledId, 0f);
+        Bounds renderBounds = _drawBounds;
+        if (singularityPresentation != null && singularityPresentation.IsRenderingOnSurface)
+        {
+            singularityPresentation.ApplyRenderProperties(_mpb, Matrix4x4.identity,
+                GL.GetGPUProjectionMatrix(cam.projectionMatrix, true) * cam.worldToCameraMatrix, .018f);
+            renderBounds.center = singularityPresentation.MapChartPoint(_drawBounds.center, .018f);
+        }
 
         if (!trailMat.enableInstancing) trailMat.enableInstancing = true;
 
@@ -470,7 +481,7 @@ public class AttackTrailGPU : MonoBehaviour
             _mpb.SetFloat("_SizeScale", 1.0f);
 
             Graphics.DrawMeshInstancedIndirect(
-                quadMesh, 0, trailMat, _drawBounds, _args,
+                quadMesh, 0, trailMat, renderBounds, _args,
                 0, _mpb,
                 ShadowCastingMode.Off, false, gameObject.layer, cam,
                 LightProbeUsage.Off
@@ -484,7 +495,7 @@ public class AttackTrailGPU : MonoBehaviour
             _mpb.SetFloat("_IsTeam2", 0f);          // use Team1Color as outline color (white)
             _mpb.SetFloat("_SizeScale", 1.5f);     // inflate radius ~8% (tune this)
             Graphics.DrawMeshInstancedIndirect(
-                quadMesh, 0, trailMat, _drawBounds, _args,
+                quadMesh, 0, trailMat, renderBounds, _args,
                 0, _mpb,
                 ShadowCastingMode.Off, false, gameObject.layer, cam,
                 LightProbeUsage.Off
@@ -495,7 +506,7 @@ public class AttackTrailGPU : MonoBehaviour
             _mpb.SetFloat("_SizeScale", 1.0f);      // normal size
 
             Graphics.DrawMeshInstancedIndirect(
-                quadMesh, 0, trailMat, _drawBounds, _args,
+                quadMesh, 0, trailMat, renderBounds, _args,
                 0, _mpb,
                 ShadowCastingMode.Off, false, gameObject.layer, cam,
                 LightProbeUsage.Off

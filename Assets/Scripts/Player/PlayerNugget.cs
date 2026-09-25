@@ -78,6 +78,8 @@ public int maxDots = 300;
     int _kUpdate = -1;
     ComputeBuffer _pos, _prev, _vel, _seed, _args;
     Bounds _drawBounds;
+    Massive.Singularity.SingularityPlayerAdapter singularityPresentation;
+    static readonly int SingularityEnabledId = Shader.PropertyToID("_SingularityEnabled");
     Vector2[] _seedsCPU; // keep for initialization
 
 Vector2[] BuildSeeds(int count, float baseR, float density)
@@ -110,6 +112,15 @@ void OnDisable() { Camera.onPreCull -= HandlePreCull; }
 void HandlePreCull(Camera cam)
 {
     if (sim == null || nuggetMat == null || quadMesh == null || _args == null || _pos == null) return;
+    _mpb.SetFloat(SingularityEnabledId, 0f);
+    Bounds renderBounds = _drawBounds;
+    renderBounds.center = GetBlobCenterWS();
+    if (singularityPresentation != null && singularityPresentation.IsRenderingOnSurface)
+    {
+        singularityPresentation.ApplyRenderProperties(_mpb, Matrix4x4.identity,
+            GL.GetGPUProjectionMatrix(cam.projectionMatrix, true) * cam.worldToCameraMatrix, .012f);
+        renderBounds.center = singularityPresentation.MapChartPoint(renderBounds.center, .012f);
+    }
 
     // Billboard vectors per camera
     _mpb.SetVector("_CamRightWS", cam.transform.right);
@@ -165,7 +176,7 @@ void HandlePreCull(Camera cam)
         _mpb.SetVector("_CenterWS", baseCenter);
 
         Graphics.DrawMeshInstancedIndirect(
-            quadMesh, 0, nuggetMat, _drawBounds, _args,
+            quadMesh, 0, nuggetMat, renderBounds, _args,
             0, _mpb,
             ShadowCastingMode.Off, false, 0, cam,
             LightProbeUsage.Off
@@ -181,7 +192,7 @@ void HandlePreCull(Camera cam)
     // Ghost A
     _mpb.SetVector("_CenterWS", baseCenter + off + controller.DecoGhostJitterA_WS);
     Graphics.DrawMeshInstancedIndirect(
-        quadMesh, 0, nuggetMat, _drawBounds, _args,
+        quadMesh, 0, nuggetMat, renderBounds, _args,
         0, _mpb,
         ShadowCastingMode.Off, false, 0, cam,
         LightProbeUsage.Off
@@ -190,7 +201,7 @@ void HandlePreCull(Camera cam)
     // Ghost B
     _mpb.SetVector("_CenterWS", baseCenter - off + controller.DecoGhostJitterB_WS);
     Graphics.DrawMeshInstancedIndirect(
-        quadMesh, 0, nuggetMat, _drawBounds, _args,
+        quadMesh, 0, nuggetMat, renderBounds, _args,
         0, _mpb,
         ShadowCastingMode.Off, false, 0, cam,
         LightProbeUsage.Off
@@ -219,6 +230,7 @@ void HandlePreCull(Camera cam)
     void Awake()
     {    
         _mpb = new MaterialPropertyBlock();
+        singularityPresentation = GetComponentInParent<Massive.Singularity.SingularityPlayerAdapter>();
         if (!controller)       controller       = GetComponentInParent<PlayerVisualController>();
         if (!playerController) playerController = GetComponentInParent<PlayerControllerScript>();
 

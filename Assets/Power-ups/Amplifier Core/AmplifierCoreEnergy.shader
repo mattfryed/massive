@@ -11,6 +11,7 @@ Shader "MASSIVE/Amplifier Core/Energy"
         _FlowSpeed ("Flow Speed", Range(0.0, 4.0)) = 0.62
         _FresnelPower ("Fresnel Power", Range(0.5, 8.0)) = 2.6
         _Emission ("Neon Emission", Range(0.5, 5.0)) = 1.2
+        [HideInInspector] _SingularityBrightness ("Surface Brightness", Float) = 1
     }
 
     SubShader
@@ -39,6 +40,7 @@ Shader "MASSIVE/Amplifier Core/Energy"
             float _FlowSpeed;
             float _FresnelPower;
             float _Emission;
+            float _SingularityBrightness;
 
             struct appdata
             {
@@ -103,7 +105,7 @@ Shader "MASSIVE/Amplifier Core/Energy"
                 float brightness = lerp(baseBrightness, 1.0, emission01);
                 float hdrPeak = lerp(1.0, 1.65, emission01);
 
-                return fixed4(chroma * brightness * hdrPeak, 1.0);
+                return fixed4(chroma * brightness * hdrPeak * saturate(_SingularityBrightness), 1.0);
             }
             ENDCG
         }

@@ -1,6 +1,7 @@
 Shader "MASSIVE/NuggetInstanced"
 {
     Properties{
+        [HideInInspector] _SingularityBackBrightness ("Folded Rear Brightness", Float) = 1
         _Color ("Color", Color) = (1,1,1,1)
         _DotRadius ("Dot Radius", Float) = 0.03
         _PlayerSize ("Player size", Float) = 1
@@ -26,6 +27,7 @@ Shader "MASSIVE/NuggetInstanced"
             #pragma fragment frag
             #pragma multi_compile_instancing
             #include "UnityCG.cginc"
+            #include "../Anomalies/SINGULARITY/SingularitySurfaceMapping.cginc"
 
             // ---- Buffers used by the DRAW (read-only here) ----
             // Rename to avoid collisions with any includes or other passes.
@@ -45,7 +47,7 @@ Shader "MASSIVE/NuggetInstanced"
             float3 _CenterWS;
 
             struct appdata { uint vid : SV_VertexID; uint iid : SV_InstanceID; };
-            struct v2f     { float4 pos : SV_POSITION; float2 uv : TEXCOORD0; };
+            struct v2f     { float4 pos : SV_POSITION; float2 uv : TEXCOORD0; float brightness : TEXCOORD1; };
 
             v2f vert(appdata v)
             {
@@ -61,7 +63,10 @@ Shader "MASSIVE/NuggetInstanced"
 
                 // Billboard in world space
                 float s = _DotRadius * _PlayerSize;
+                o.brightness = 1;
                 float3 world = Pw + _CamRightWS * (corner.x * s) + _CamUpWS * (corner.y * s);
+                if (_SingularityEnabled > .5)
+                    world = SingularityMapWorld(Pw + float3(corner.x * s, 0, corner.y * s), o.brightness);
 
                 o.pos = UnityWorldToClipPos(world);
                 o.uv  = uv;
@@ -82,7 +87,7 @@ fixed4 frag(v2f i) : SV_Target
     float  a  = saturate(m / aa);
     float opacity = saturate(_Color.a);
 float fa = a * opacity;
-return float4(_Color.rgb * fa, fa); // premultiplied, with opacity
+return float4(_Color.rgb * fa * i.brightness, fa); // premultiplied, with opacity
 }
             ENDHLSL
         }
@@ -105,6 +110,7 @@ return float4(_Color.rgb * fa, fa); // premultiplied, with opacity
             #pragma fragment frag
             #pragma multi_compile_instancing
             #include "UnityCG.cginc"
+            #include "../Anomalies/SINGULARITY/SingularitySurfaceMapping.cginc"
 
             StructuredBuffer<float3> _NuggetPos;
             float4 _OutlineColor;
@@ -115,11 +121,12 @@ return float4(_Color.rgb * fa, fa); // premultiplied, with opacity
             float3 _CamRightWS, _CamUpWS, _CenterWS;
 
             struct appdata { uint vid : SV_VertexID; uint iid : SV_InstanceID; };
-            struct v2f { float4 pos:SV_POSITION; float2 uv:TEXCOORD0; };
+            struct v2f { float4 pos:SV_POSITION; float2 uv:TEXCOORD0; float brightness:TEXCOORD1; };
 
             v2f vert(appdata v)
             {
                 v2f o;
+                o.brightness = 1;
                 if (_DrawOutline < 0.5) { o.pos = float4(0,0,0,0); o.uv=0; return o; }
 
                 float2 uv = float2((v.vid & 1)?1:0, (v.vid & 2)?1:0);
@@ -130,6 +137,8 @@ return float4(_Color.rgb * fa, fa); // premultiplied, with opacity
 
                 float s = (_DotRadius + _OutlineWidth) * _PlayerSize;
                 float3 world = Pw + _CamRightWS*(corner.x*s) + _CamUpWS*(corner.y*s);
+                if (_SingularityEnabled > .5)
+                    world = SingularityMapWorld(Pw + float3(corner.x * s, 0, corner.y * s), o.brightness);
 
                 o.pos = UnityWorldToClipPos(world);
                 o.uv  = uv;
@@ -145,7 +154,7 @@ return float4(_Color.rgb * fa, fa); // premultiplied, with opacity
                 float  a  = saturate((1.0 - r2)/aa);
                 float opacity = saturate(_OutlineColor.a);
                 float fa = a * opacity;
-                return float4(_OutlineColor.rgb * fa, fa); // premultiplied, with opacity
+                return float4(_OutlineColor.rgb * fa * i.brightness, fa); // premultiplied, with opacity
             }
             ENDHLSL
         }

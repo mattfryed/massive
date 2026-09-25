@@ -8,6 +8,11 @@ namespace Massive.Multiplier
     public sealed class AmplifierGoalTreatments : MonoBehaviour, Massive.Settings.ISharedSettingsConsumer
     {
         [SerializeField] private VectorGridGPU grid;
+        // Optional presentation-only frame for non-planar grids. The scoring owner
+        // and wave clock remain this same component; ordinary levels keep using grid.
+        [SerializeField, HideInInspector] private Transform presentationGridFrame;
+        [SerializeField, HideInInspector] private Vector2 presentationGridSize;
+        [SerializeField, HideInInspector] private bool presentationGridUsesXZ;
         [SerializeField] private AmplifierGoalCapture[] goals;
         [SerializeField] private Shader treatmentShader;
         [SerializeField] private AmplifierCoreGameplay previewCorePrefab;
@@ -61,6 +66,18 @@ namespace Massive.Multiplier
             foreach (var g in goals) if (g != null) g.SetTreatments(this);
             surfacesResolved = false; ResolveSurfaces();
         }
+        public void ConfigurePresentationGrid(Transform frame, Vector2 size, bool usesXZ)
+        {
+            presentationGridFrame = frame;
+            presentationGridSize = size;
+            presentationGridUsesXZ = usesXZ;
+        }
+
+        private Transform GridFrame => grid != null ? grid.transform : presentationGridFrame;
+        private Vector2 GridSize => grid != null ? grid.size : presentationGridSize;
+        private Matrix4x4 GridLocalToWorld => GridFrame == null ? Matrix4x4.identity :
+            GridFrame.localToWorldMatrix * (grid == null && presentationGridUsesXZ
+                ? Matrix4x4.Rotate(Quaternion.Euler(90f, 0f, 0f)) : Matrix4x4.identity);
         public void ApplyPreset(int index) { preset = (index + 4) % 4; ReplaceSettings(AmplifierTreatmentSettings.Preset(preset)); }
         public void RestoreSettings(string json) { ReplaceSettings(JsonUtility.FromJson<AmplifierTreatmentSettings>(json)); }
         public void Capture(int team) { captures[Mathf.Clamp(team - 1, 0, 1)] = clock; }
@@ -159,15 +176,16 @@ namespace Massive.Multiplier
                 r.GetPropertyBlock(block);
                 Vector3 origin=goal.CapturePoint.position;
                 WriteGridProperties(block);
-                if(grid!=null)
+                if(GridFrame!=null)
                 {
-                    block.SetVector("_GridSize",grid.size);
-                    block.SetMatrix("_AmpGridWorldToLocal",grid.transform.worldToLocalMatrix);
-                    block.SetMatrix("_AmpGridLocalToWorld",grid.transform.localToWorldMatrix);
+                    Matrix4x4 gridToWorld = GridLocalToWorld;
+                    block.SetVector("_GridSize",GridSize);
+                    block.SetMatrix("_AmpGridWorldToLocal",gridToWorld.inverse);
+                    block.SetMatrix("_AmpGridLocalToWorld",gridToWorld);
                 }
                 block.SetFloat("_AmpGoalEnabled",1);
                 block.SetFloat("_AmpGoalTime",clock);
-                float gridEdge=grid!=null?grid.size.x*0.5f*(team==1?-1:1):0;
+                float gridEdge=GridFrame!=null?GridSize.x*0.5f*(team==1?-1:1):0;
                 block.SetVector("_AmpGridEffectGate",new Vector4(Settings.allowEffectsOverGrid?1:0,gridEdge,team==1?1:-1,0));
                 float seamAge=clock-captures[team-1]-Settings.absorptionSeconds;
                 float seamBurst=Settings.seamCapture && seamAge>=0 ? Settings.seamCaptureIntensity*Mathf.Sin(Mathf.PI*Mathf.Clamp01(seamAge/Mathf.Max(0.1f,Settings.burstDuration))) : 0;
@@ -239,12 +257,25 @@ namespace Massive.Multiplier
         }
         public void WriteGridProperties(MaterialPropertyBlock block)
         {
+            Matrix4x4 worldToGrid = GridLocalToWorld.inverse;
+            Vector2 left = Vector2.zero, right = Vector2.zero;
             for (int team = 1; team <= 2; team++)
             {
                 var goal = Goal(team);
-                Vector3 p = goal != null && grid != null ? grid.transform.InverseTransformPoint(goal.CapturePoint.position) : Vector3.zero;
-                if (grid != null) p.x = (team == 1 ? -1 : 1) * grid.size.x * 0.5f;
-                origins[team - 1] = new Vector4(p.x, p.y, clock - captures[team - 1] - Settings.absorptionSeconds, Level(team));
+                Vector3 p = goal != null && GridFrame != null ? worldToGrid.MultiplyPoint3x4(goal.CapturePoint.position) : Vector3.zero;
+                if (GridFrame != null) p.x = (team == 1 ? -1 : 1) * GridSize.x * 0.5f;
+                if (team == 1) left = new Vector2(p.x, p.y); else right = new Vector2(p.x, p.y);
+            }
+            WriteGridProperties(block, left, right);
+        }
+
+        /// <summary>Same capture ages, held levels and treatment parameters, in a
+        /// renderer-owned coordinate chart. No duplicate capture listeners or timers.</summary>
+        public void WriteGridProperties(MaterialPropertyBlock block, Vector2 leftOrigin, Vector2 rightOrigin)
+        {
+            for (int team = 1; team <= 2; team++)
+            {
+                origins[team - 1] = GetGridOrigin(team, team == 1 ? leftOrigin : rightOrigin);
                 states[team - 1] = new Vector4(Settings.capturePackets ? Settings.carrierAmplitude : 0, Settings.heldCharge && Settings.travellingWave ? Settings.heldAmplitude : 0, Settings.heldCharge && Settings.occasionalPackets ? Settings.heldAmplitude * 2 : 0, Settings.gridDischarge && Settings.allowEffectsOverGrid ? Settings.gridAmplitude : 0);
             }
             for (int i=0;i<states.Length;i++) states[i] *= Settings.gridCoupling;
@@ -254,6 +285,12 @@ namespace Massive.Multiplier
             block.SetVector("_AmpTiming", new Vector4(Settings.emissions, Settings.packetSpacing, Settings.heldPacketInterval, isActiveAndEnabled ? 1 : 0));
             block.SetVector("_AmpField", new Vector4(Settings.gridSpeed, Settings.gridWidth, Settings.gridWavelength, Settings.gridCurl));
             block.SetFloat("_AmpHeldTint", Settings.heldCharge && Settings.coloredBoundary ? Settings.heldIntensity : 0);
+        }
+
+        public Vector4 GetGridOrigin(int team, Vector2 position)
+        {
+            team = Mathf.Clamp(team, 1, 2);
+            return new Vector4(position.x, position.y, clock - captures[team - 1] - Settings.absorptionSeconds, Level(team));
         }
         private void UpdatePreviewCore()
         {

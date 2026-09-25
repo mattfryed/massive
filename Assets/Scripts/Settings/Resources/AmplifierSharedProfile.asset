@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   sharedEnabled: 1
   treatment:
-    allowEffectsOverGrid: 0
+    allowEffectsOverGrid: 1
     seamMode: 2
     seamCapture: 1
     seamHeld: 1

@@ -58,6 +58,11 @@ namespace Massive.Multiplier
         public AmplifierCoreGameplay ActiveCore { get; private set; }
         public ResonancePatternController ActivePattern { get; private set; }
         public ResonanceManifestation ActiveManifestation { get; private set; }
+        /// <summary>Scene-specific presentation/placement adapters can configure the inactive
+        /// pattern before its first rebuild. The spawner retains ownership of its lifetime.</summary>
+        public event Action<ResonancePatternController> PatternPreparing;
+        /// <summary>Configure optional scene adapters before the Core's first physics step.</summary>
+        public event Action<AmplifierCoreGameplay> CoreSpawned;
         public string Status { get; private set; } = "Not running";
         public int CurrentPatternIndex { get; private set; } = -1;
         public int PairsSpawned { get; private set; }
@@ -259,6 +264,7 @@ namespace Massive.Multiplier
             ActivePattern.gameObject.SetActive(true); ActivePattern.enabled = true;
             ActivePattern.arenaBounds = spawnRegion.arenaBounds;
             if (spawnRegion.arenaBounds != null) ActivePattern.grid = spawnRegion.arenaBounds.Grid;
+            PatternPreparing?.Invoke(ActivePattern);
             ActiveManifestation = ActivePattern.GetComponent<ResonanceManifestation>();
             if (ActiveManifestation == null) ActiveManifestation = ActivePattern.gameObject.AddComponent<ResonanceManifestation>();
             ActiveManifestation.enabled = true;
@@ -285,6 +291,7 @@ namespace Massive.Multiplier
             coreVisual = ActiveCore.GetComponentInChildren<AmplifierCoreVisual>(true);
             if (coreVisual != null) coreVisual.SetTimeoutWarning(0f);
             if (!ActiveCore.gameObject.activeSelf) ActiveCore.gameObject.SetActive(true);
+            CoreSpawned?.Invoke(ActiveCore);
             activeAge = 0f; PairsSpawned++;
             Phase = AmplifierEncounterPhase.Active; Status = "Pair active — capture the Core to advance";
         }

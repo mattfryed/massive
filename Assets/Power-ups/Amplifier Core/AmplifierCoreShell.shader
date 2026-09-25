@@ -15,6 +15,7 @@ Shader "MASSIVE/Amplifier Core/Neutral Shell"
         _ShadeThreshold ("Black Ribbon Shading", Range(0.0, 1.0)) = 0.60
         _RimLight ("Black Edge Definition", Range(0.0, 1.0)) = 0.32
         [HideInInspector] _TimeoutWarning ("Sequence Time-out Instability", Float) = 0
+        [HideInInspector] _SingularityBrightness ("Surface Brightness", Float) = 1
 
         [Header(Layered Thickness)]
         _ShellThickness ("Shell Thickness", Range(0.0, 0.12)) = 0.075
@@ -54,6 +55,7 @@ Shader "MASSIVE/Amplifier Core/Neutral Shell"
         float _ShadeThreshold;
         float _RimLight;
         float _TimeoutWarning;
+        float _SingularityBrightness;
         float _ShellThickness;
         float _DepthSteps;
 
@@ -146,7 +148,9 @@ Shader "MASSIVE/Amplifier Core/Neutral Shell"
             float blackUnderside = step(shadowStart, signedAcrossRibbon);
             float blackRegion = max(blackOutline, blackUnderside);
 
-            return lerp(_WhiteColor, _BlackColor, blackRegion);
+            fixed4 color = lerp(_WhiteColor, _BlackColor, blackRegion);
+            color.rgb *= saturate(_SingularityBrightness);
+            return color;
         }
 
         fixed4 RenderDepth(v2f input, float requiredStep) : SV_Target
@@ -161,7 +165,7 @@ Shader "MASSIVE/Amplifier Core/Neutral Shell"
             clip(localThreshold - abs(signedShellField));
 
             // Recessed slices are the exact neutral-black interior wall.
-            return _BlackColor;
+            return fixed4(_BlackColor.rgb * saturate(_SingularityBrightness), _BlackColor.a);
         }
 
         fixed4 FragDepth1(v2f input) : SV_Target { return RenderDepth(input, 1.0); }

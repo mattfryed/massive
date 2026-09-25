@@ -94,7 +94,7 @@ namespace Massive.Multiplier
             for (int i = cores.Count - 1; i >= 0; i--)
             {
                 AmplifierCoreGameplay core = cores[i];
-                if (core == null || core.gameObject.scene != gameObject.scene || core.IsCaptured || core.Body == null)
+                if (core == null || core.gameObject.scene != gameObject.scene || core.IsCaptured || core.IsInExternalTransit || core.Body == null)
                     continue;
 
                 Vector3 delta = CapturePoint.position - core.Body.worldCenterOfMass;
@@ -144,7 +144,7 @@ namespace Massive.Multiplier
 
         private void NotifyRejection(AmplifierCoreGameplay core, MatchScoreService service)
         {
-            if (core.IsCaptured || core.Body == null || !core.isActiveAndEnabled ||
+            if (core.IsCaptured || core.IsInExternalTransit || core.Body == null || !core.isActiveAndEnabled ||
                 core.gameObject.scene != gameObject.scene || _rejectedCores.Contains(core)) return;
             _rejectedCores.Add(core);
             service.NotifyAmplifierCaptureRejected(teamID);

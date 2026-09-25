@@ -750,6 +750,7 @@ public void SetMoveInput(Vector2 stick)
             Matrix4x4 Mg = Matrix4x4.TRS(ghost.position, ghost.rotation, visuals.lossyScale);
             Matrix4x4 MVPg = P * V * Mg;
             _ghostProps.SetMatrix("_MVP", MVPg);
+            ApplySingularityProjection(_ghostProps, Mg, P * V);
 
             cb.DrawProcedural(
                 Matrix4x4.identity,
@@ -791,6 +792,8 @@ public void SetMoveInput(Vector2 stick)
 
             _mainProps.Clear();
             _mainProps.SetMatrix("_MVP", MVP);
+            ApplySingularityProjection(_mainProps, M, P * V);
+            DrawFoldedOutlineDepth(cb, _mainProps);
 
             cb.DrawProcedural(
                 Matrix4x4.identity,
@@ -859,9 +862,12 @@ public void SetMoveInput(Vector2 stick)
 
                 _mainProps.Clear();
                 _mainProps.SetMatrix("_MVP", MVPA);
+                ApplySingularityProjection(_mainProps, MA, P * V);
 
                 _mainProps.SetColor(_OutlineColor, outline);
                 _mainProps.SetColor(_FillColor, fill);
+
+                DrawFoldedOutlineDepth(cb, _mainProps);
 
                 cb.DrawProcedural(
                     Matrix4x4.identity,
@@ -892,9 +898,12 @@ public void SetMoveInput(Vector2 stick)
 
                 _mainProps.Clear();
                 _mainProps.SetMatrix("_MVP", MVPB);
+                ApplySingularityProjection(_mainProps, MB, P * V);
 
                 _mainProps.SetColor(_OutlineColor, outline);
                 _mainProps.SetColor(_FillColor, fill);
+
+                DrawFoldedOutlineDepth(cb, _mainProps);
 
                 cb.DrawProcedural(
                     Matrix4x4.identity,
@@ -923,6 +932,14 @@ public void SetMoveInput(Vector2 stick)
     void HandlePostRender(Camera cam)
     {
         // No-op; keeping hook for debugging if needed.
+    }
+
+    private void DrawFoldedOutlineDepth(CommandBuffer cb, MaterialPropertyBlock properties)
+    {
+        if (properties.GetFloat(SingularityEnabledId) < .5f) return;
+        // Pass 2 clips transparent outlines; ghost trails only draw pass 1.
+        // This protects the full front silhouette from later rear body draws.
+        cb.DrawProcedural(Matrix4x4.identity, blobMat, 2, MeshTopology.Triangles, 128 * 3, 1, properties);
     }
 
     public void OnHit(float strength, Vector3 worldHitPos)
@@ -979,8 +996,11 @@ private void DrawBlob(
 
     _tmpProps.Clear();
     _tmpProps.SetMatrix("_MVP", MVP);
+    ApplySingularityProjection(_tmpProps, M, P * V);
     _tmpProps.SetColor("_FillColor", fill);
     _tmpProps.SetColor("_OutlineColor", outline);
+
+    DrawFoldedOutlineDepth(cb, _tmpProps);
 
     cb.DrawProcedural(Matrix4x4.identity, blobMat, 0, MeshTopology.Triangles, SEG * 3, 1, _tmpProps);
     cb.DrawProcedural(Matrix4x4.identity, blobMat, 1, MeshTopology.Triangles, SEG * 3, 1, _tmpProps);

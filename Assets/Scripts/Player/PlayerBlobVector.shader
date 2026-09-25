@@ -2,6 +2,7 @@ Shader "MASSIVE/PlayerBlobVector"
 {
     Properties
     {
+        [HideInInspector] _SingularityBackBrightness ("Folded Rear Brightness", Float) = 1
         _OutlineColor    ("Outline Color", Color)             = (1,1,1,1)
         _FillColor       ("Fill Color", Color)                = (0,0,0,1)
 
@@ -44,6 +45,7 @@ Shader "MASSIVE/PlayerBlobVector"
         HLSLINCLUDE
         #pragma target 4.5
         #include "UnityCG.cginc"
+        #include "../Anomalies/SINGULARITY/SingularitySurfaceMapping.cginc"
 
         static const uint SEG = 128u;
 
@@ -189,12 +191,14 @@ Shader "MASSIVE/PlayerBlobVector"
         struct v2f_fill
         {
             float4 pos : SV_POSITION;
+            float brightness : TEXCOORD0;
         };
 
         struct v2f_ring
         {
             float4 pos : SV_POSITION;
             float2 lp  : TEXCOORD0;
+            float brightness : TEXCOORD1;
         };
 
         // Area-preserving fan geometry with vertical squash
@@ -235,6 +239,30 @@ Shader "MASSIVE/PlayerBlobVector"
             return max(r, 0.02);
         }
 
+        v2f_ring ringVertex(uint vid)
+        {
+            v2f_ring o;
+            uint tri = vid / 3u;
+            uint corner = vid % 3u;
+            uint idx = (corner == 1u) ? tri : (tri + 1u);
+            float ang = ((idx % SEG) / (float)SEG) * 6.2831853;
+            float2 p = fanPos(tri, corner, ang, expectedRadius(ang));
+            o.lp = p;
+            o.pos = SingularityClipLocal(float3(p.x, 0, p.y), _MVP, o.brightness);
+            return o;
+        }
+
+        float ringCoverage(v2f_ring i)
+        {
+            float stretchSafe = max(_Stretch, 1e-5);
+            float2 lpUn = float2(i.lp.x, i.lp.y / stretchSafe);
+            float ang = atan2(lpUn.y, lpUn.x);
+            float rExpIso = expectedRadius(ang) * rsqrt(stretchSafe);
+            float delta = abs(length(lpUn) - rExpIso);
+            float w = max(_OutlineHalf, 1e-4);
+            return 1.0 - smoothstep(w * 0.6, w, delta);
+        }
+
         ENDHLSL
 
         Pass
@@ -261,13 +289,13 @@ Shader "MASSIVE/PlayerBlobVector"
                 float rIn = max(0, expectedRadius(ang) - _OutlineHalf);
                 float2 p  = fanPos(tri, corner, ang, rIn);
 
-                o.pos = mul(_MVP, float4(p.x, 0, p.y, 1));
+                o.pos = SingularityClipLocal(float3(p.x, 0, p.y), _MVP, o.brightness);
                 return o;
             }
 
             fixed4 frag_fill(v2f_fill i) : SV_Target
             {
-                return _FillColor;
+                return float4(_FillColor.rgb * i.brightness, _FillColor.a);
             }
             ENDHLSL
         }
@@ -285,34 +313,45 @@ Shader "MASSIVE/PlayerBlobVector"
 
             v2f_ring vert_ring(uint vid : SV_VertexID)
             {
-                v2f_ring o;
-                uint tri    = vid / 3u;
-                uint corner = vid % 3u;
-
-                uint idx = (corner == 1u) ? tri : (tri + 1u);
-                float t   = (idx % SEG) / (float)SEG;
-                float ang = t * 6.2831853;
-
-                float r    = expectedRadius(ang);
-                float2 p   = fanPos(tri, corner, ang, r);
-                o.lp       = p;
-                o.pos      = mul(_MVP, float4(p.x, 0, p.y, 1));
-                return o;
+                return ringVertex(vid);
             }
 
             fixed4 frag_ring(v2f_ring i) : SV_Target
             {
-                float stretchSafe = max(_Stretch, 1e-5);
-                float2 lpUn = float2(i.lp.x, i.lp.y / stretchSafe);
-                float ang   = atan2(lpUn.y, lpUn.x);
+                float4 color = _OutlineColor * ringCoverage(i);
+                color.rgb *= i.brightness;
+                return color;
+            }
+            ENDHLSL
+        }
 
-                float rExpIso  = expectedRadius(ang) * rsqrt(stretchSafe);
-                float rNowIso  = length(lpUn);
-                float delta    = abs(rNowIso - rExpIso);
+        // Opaque folded bodies need depth over their outline, not only their fill.
+        // Separate from RING so translucent ghost trails retain their original
+        // non-occluding behavior, and ordinary planar draws need no extra pass.
+        Pass
+        {
+            Name "FOLDED_RING_DEPTH"
+            ZWrite On
+            ZTest LEqual
+            ColorMask 0
+            Blend Off
 
-                float w = max(_OutlineHalf, 1e-4);
-                float alpha = 1.0 - smoothstep(w * 0.6, w, delta);
-                return _OutlineColor * alpha;
+            HLSLPROGRAM
+            #pragma vertex vert_ring_depth
+            #pragma fragment frag_ring_depth
+
+            v2f_ring vert_ring_depth(uint vid : SV_VertexID)
+            {
+                return ringVertex(vid);
+            }
+
+            fixed4 frag_ring_depth(v2f_ring i) : SV_Target
+            {
+                clip(_SingularityEnabled - .5);
+                clip(_OutlineColor.a - .999);
+                // The procedural ring is a fan: discard its empty interior.
+                clip(ringCoverage(i) - .001);
+                return 0;
             }
             ENDHLSL
         }

@@ -140,6 +140,7 @@ namespace Massive.Multiplier
 
         private void OnDisable()
         {
+            RevokeExternalTransit();
             ActiveCoresInternal.Remove(this);
             if (_lifecycleRoutine != null)
             {
@@ -180,7 +181,7 @@ namespace Massive.Multiplier
 
         private void FixedUpdate()
         {
-            if (presentationOnly || IsCaptured)
+            if (presentationOnly || IsCaptured || IsInExternalTransit)
                 return;
 
             if (body != null && !body.isKinematic)
@@ -286,7 +287,7 @@ namespace Massive.Multiplier
 
         public void SetAttractionExcitement(float excitement01)
         {
-            if (!presentationOnly && !IsCaptured)
+            if (!presentationOnly && !IsCaptured && !IsInExternalTransit)
             {
                 _attractionExcitement = Mathf.Max(
                     _attractionExcitement,
@@ -296,7 +297,7 @@ namespace Massive.Multiplier
 
         public bool TryCapture(AmplifierGoalCapture goal)
         {
-            if (presentationOnly || IsCaptured || goal == null)
+            if (presentationOnly || IsCaptured || IsInExternalTransit || goal == null)
                 return false;
 
             if (!goal.TryAdvanceTeamAmplifier())
@@ -313,6 +314,9 @@ namespace Massive.Multiplier
         public bool BeginTimeoutDespawn()
         {
             if (!Application.isPlaying || presentationOnly || _captured || _isDespawning || !isActiveAndEnabled) return false;
+            // A timeout owns the lifecycle even during a portal sequence. Release
+            // its deformation before CaptureRoutine snapshots the visual scale.
+            RevokeExternalTransit();
             _isDespawning = true;
             _isSpawning = false;
             StartLifecycle(CaptureRoutine(null, true));
@@ -321,6 +325,7 @@ namespace Massive.Multiplier
 
         public void CompleteSpawnImmediately()
         {
+            RevokeExternalTransit();
             if (_lifecycleRoutine != null)
             {
                 StopCoroutine(_lifecycleRoutine);
@@ -347,6 +352,7 @@ namespace Massive.Multiplier
 
         private IEnumerator SpawnRoutine()
         {
+            RevokeExternalTransit();
             _captured = false;
             _isDespawning = false;
             _isSpawning = true;
@@ -454,7 +460,7 @@ namespace Massive.Multiplier
 
         public bool TryApplyAttackImpact(PlayerAttackController attack)
         {
-            if (presentationOnly || IsCaptured || body == null ||
+            if (presentationOnly || IsCaptured || IsInExternalTransit || body == null || body.isKinematic ||
                 Time.time < _nextAttackImpactTime)
                 return false;
             if (attack == null || !attack.IsAttacking)

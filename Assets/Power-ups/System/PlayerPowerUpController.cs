@@ -94,6 +94,9 @@ private static IEnumerator IgnoreCollisionsCo(PlayerControllerScript a, PlayerCo
 
         private void Update()
         {
+            // A folded-surface portal owns movement temporarily; do not let an
+            // independently ticking ability move/fire the player mid-transfer.
+            if (_player != null && _player.IsSingularityTransitControlled) return;
             if (!HasActive) return;
 
             remaining -= Time.deltaTime;

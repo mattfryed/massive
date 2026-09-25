@@ -497,6 +497,9 @@ if (showPlayerIdToastOnMatchStart)
     if (!gameObject.activeInHierarchy) return;
     if (_matchSpawning) return;
 
+    // Match spawning is a new movement owner. Release a portal lease before
+    // spawn code freezes physics and installs its own lifecycle state.
+    ReleaseSingularityTransitOnDisable();
     EnsureLifeFxCached();
     ForceHiddenForSpawn();
     StartCoroutine(MatchSpawnRoutine());
@@ -515,7 +518,7 @@ if (showPlayerIdToastOnMatchStart)
             return;
         }
 
-        if (_matchInputLocked)
+        if (_matchInputLocked || IsSingularityTransitControlled)
         {
             moveHorizontal = 0f;
             moveVertical = 0f;
@@ -733,7 +736,7 @@ if (showPlayerIdToastOnMatchStart)
 
     private void FixedUpdate()
     {
-        if (_worldGameplaySuppressed || _matchInputLocked)
+        if (_worldGameplaySuppressed || _matchInputLocked || IsSingularityTransitControlled)
         {
             ProtectActionMomentum(.2f);
             return;
@@ -1176,8 +1179,11 @@ if (showPlayerIdToastOnMatchStart)
         // Freeze RB
         if (rb != null)
         {
-            rb.linearVelocity = Vector3.zero;
-            rb.angularVelocity = Vector3.zero;
+            if (!rb.isKinematic)
+            {
+                rb.linearVelocity = Vector3.zero;
+                rb.angularVelocity = Vector3.zero;
+            }
             rb.isKinematic = true;
             rb.Sleep();
         }
@@ -1530,7 +1536,7 @@ public void SetMatchInputLocked(bool locked)
     if (shield != null) shield.SetActive(false);
     if (attackController != null) attackController.CancelAttack(signalComplete: false);
 
-    if (rb != null)
+    if (rb != null && !rb.isKinematic)
     {
 #if UNITY_6000_0_OR_NEWER
         rb.linearVelocity = Vector3.zero;
@@ -1576,7 +1582,7 @@ public void SetWorldGameplaySuppressed(bool suppressed)
     SetCollidersEnabled(!suppressed);
 
     // Stop drift when suppressing
-    if (suppressed && rb != null)
+    if (suppressed && rb != null && !rb.isKinematic)
     {
 #if UNITY_6000_0_OR_NEWER
         rb.linearVelocity = Vector3.zero;
@@ -1597,6 +1603,7 @@ public void SetWorldGameplaySuppressed(bool suppressed)
 
 private void OnDisable()
 {
+    ReleaseSingularityTransitOnDisable();
     ResetEnemyHitFeedback();
     activePlayers.Remove(this);
     movementInfluences.Clear();

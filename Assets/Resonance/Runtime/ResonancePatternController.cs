@@ -170,6 +170,38 @@ namespace Massive.Resonance
         public int CoreImpactCount { get; private set; }
         public GameObject GeneratedRoot => generatedRoot;
         public int GridSampleCount => gridSamples.Count;
+        /// <summary>A read-only world-space sample for alternate grid presentations.
+        /// The controller remains the owner of arc sampling, taper, strength and pulse.</summary>
+        public readonly struct GridAttractionSample
+        {
+            public readonly Vector3 Position;
+            public readonly float Radius, Strength;
+            public GridAttractionSample(Vector3 position, float radius, float strength)
+            { Position = position; Radius = radius; Strength = strength; }
+        }
+
+        /// <summary>Copy the live exposed-arc field into caller-owned storage, without
+        /// allocating or submitting forces to a grid. Disabled/forming/dissolving
+        /// patterns return zero. Time is explicit for deterministic preview/tests.</summary>
+        public int CopyGridAttractionSamples(GridAttractionSample[] destination, float timeSeconds)
+        {
+            if (destination == null || !isActiveAndEnabled || !interactionEnabled || !attractGrid
+                || gridAttractionStrength <= 0f) return 0;
+            float patternScaleWS = Mathf.Max(.001f, (Mathf.Abs(transform.lossyScale.x) + Mathf.Abs(transform.lossyScale.z)) * .5f);
+            Vector3 origin = energyOrigin != null ? energyOrigin.position : transform.position;
+            int count = Mathf.Min(destination.Length, gridSamples.Count);
+            for (int i = 0; i < count; i++)
+            {
+                GridSample sample = gridSamples[i];
+                Vector3 position = transform.TransformPoint(sample.point);
+                float radius = gridAttractionRadius * sample.radius;
+                float pulse = 1f + gridEnergyPulse * Mathf.Sin((Vector3.Distance(position, origin) / Mathf.Max(.01f, energyWavelength)
+                    - timeSeconds * energyFlowSpeed) * Mathf.PI * 2f);
+                float strength = gridAttractionStrength * sample.weight * patternScaleWS / Mathf.Max(.01f, radius * 2f) * pulse;
+                destination[i] = new GridAttractionSample(position, radius, strength);
+            }
+            return count;
+        }
         public int ParticleCount { get; private set; }
         public bool InteractionEnabled => interactionEnabled;
         public IReadOnlyList<ResonanceSegment> InteractiveSegments => interactiveSegments;

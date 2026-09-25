@@ -12,6 +12,7 @@ namespace Massive.Multiplier.Editor
             DrawDefaultInspector();
             EditorGUILayout.HelpBox("Scene view dots show candidate Core centers: green = clear, red = excluded. " +
                 "The teal outline includes the Core radius and safety margins. Physics is checked again at the actual spawn time. " +
+                "Explicit Plane optionally supplies a horizontal XY placement frame without a Vector Grid. " +
                 "For NOVA, add the star's entry collider to No Go Colliders, or add a Power Up No Spawn Zone marker to an authored volume. " +
                 "Ordinary triggers are deliberately not all treated as obstacles.", MessageType.Info);
             foreach (UnityEngine.Object obj in targets)
@@ -26,10 +27,12 @@ namespace Massive.Multiplier.Editor
         [DrawGizmo(GizmoType.Selected | GizmoType.NonSelected)]
         private static void DrawRegion(AmplifierSpawnRegion region, GizmoType type)
         {
-            if (!region.drawZones || !region.gameObject.activeInHierarchy || region.arenaBounds == null || !region.arenaBounds.IsValid) return;
+            if (!region.drawZones || !region.gameObject.activeInHierarchy) return;
+            Transform plane; Vector2 half; string reason;
+            if (!region.TryGetPlacementDomain(out plane, out half, out reason)) return;
             Color previous = Handles.color;
             region.RefreshPlacementCache(region.previewPattern);
-            Rect rect; string reason;
+            Rect rect;
             bool hasRoom = region.TryGetNeutralRect(region.previewObjectRadius, out rect, out reason);
             float lift = .08f;
             if (hasRoom)
@@ -47,9 +50,10 @@ namespace Massive.Multiplier.Editor
             else Handles.Label(region.transform.position, reason);
 
             // Preview uses the same shape, goal, player and authored-pattern checks as spawning.
-            Vector2 half = region.arenaBounds.GetHalfSizeLocalInset();
             int columns = Mathf.Clamp(region.previewColumns, 5, 41), rows = Mathf.Clamp(region.previewRows, 5, 25);
-            float pointSize = Mathf.Min(half.x * 2f / columns, half.y * 2f / rows) * .09f;
+            Vector3 planeScale = plane.lossyScale;
+            float pointSize = Mathf.Min(half.x * Mathf.Abs(planeScale.x) * 2f / columns,
+                half.y * Mathf.Abs(planeScale.y) * 2f / rows) * .09f;
             for (int y = 0; y < rows; y++)
                 for (int x = 0; x < columns; x++)
                 {

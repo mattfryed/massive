@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5fbe94a6bd03940b9a5a78c567bc6665, type: 3}
+  m_Name: LevelDefinition-SINGULARITY
+  m_EditorClassIdentifier: 
+  levelNumber: 6
+  levelTitle: SINGULARITY
+  scaleExponent: 14
+  gameplayScene:
+    sceneName: S-7_SINGULARITY
+    sceneAsset: {fileID: 102900000, guid: 4bef542724edb0244a300cf42cb8ff61, type: 3}
+  iconPrefab: {fileID: 6340624273316516380, guid: af2cd38a9d6ef7e46aed17cd4998dfa9,
+    type: 3}
+  instructionsPanelPrefab: {fileID: 860895396465743754, guid: 313e3ddc4978ad54685cae2fe875568c,
+    type: 3}
+  anomalyTypeName: FOLDED SPACETIME
+  audioProfile: {fileID: 11400000, guid: 7acbe58a564814946ab33dbd32f1afe0, type: 2}

@@ -66,6 +66,8 @@ namespace Massive.Multiplier.Editor
                     "no-space request has no unsafe fallback", ref passed);
                 region.neutralWidthFraction = .3f;
 
+                ValidateExplicitPlane(root, region, ref passed);
+
                 var zoneObject = Child(root, "Explicit trigger zone", Vector3.zero);
                 var zone = zoneObject.AddComponent<SphereCollider>(); zone.isTrigger = true; zone.radius = 1f;
                 region.noGoColliders = new Collider[] { zone };
@@ -148,6 +150,85 @@ namespace Massive.Multiplier.Editor
                 EditorSceneManager.ClosePreviewScene(scene);
                 if (definition != null) UnityEngine.Object.DestroyImmediate(definition);
             }
+        }
+
+        private static void ValidateExplicitPlane(GameObject root, AmplifierSpawnRegion region, ref int passed)
+        {
+            var oldBounds = region.arenaBounds;
+            var frameObject = Child(root, "Explicit front-face domain", Vector3.zero);
+            var frame = frameObject.transform;
+            frame.rotation = Quaternion.Euler(90f, 0f, 0f);
+            region.explicitPlane = frame;
+            region.explicitPlaneSize = new Vector2(28f, 9.375426f);
+            Transform resolved; Vector2 half; Rect rect; Vector3 point, repeat; string reason;
+            Check(region.TryGetPlacementDomain(out resolved, out half, out reason) && resolved == frame
+                && (half - region.explicitPlaneSize * .5f).sqrMagnitude < .000001f,
+                "explicit frame takes priority over assigned Vector Grid", ref passed);
+            Check(region.TryGetNeutralRect(.75f, out rect, out reason)
+                && Mathf.Abs(rect.xMax - 2.95f) < .001f && Mathf.Abs(rect.yMax - 2.687713f) < .001f,
+                "explicit front-face dimensions include radius and margins", ref passed);
+            region.arenaBounds = null;
+            Check(region.IsValidSpawnPoint(Vector3.zero, .75f, null, out reason),
+                "explicit domain works without a Vector Grid component", ref passed);
+            Check(!region.IsValidSpawnPoint(new Vector3(0, 0, 2.7f), .75f, null, out reason),
+                "fold-side margin cannot spawn beyond front-face bounds", ref passed);
+            Check(region.TryFindSpawn(new System.Random(345), .75f, null, out point, out reason),
+                "explicit domain supports bounded random placement", ref passed);
+            Check(region.TryFindSpawn(new System.Random(345), .75f, null, out repeat, out reason) && point == repeat,
+                "explicit domain seeded placement stays deterministic", ref passed);
+
+            frame.position = new Vector3(11f, -.09f, -7f);
+            frame.rotation = Quaternion.Euler(0f, 37f, 0f) * Quaternion.Euler(90f, 0f, 0f);
+            frame.localScale = new Vector3(2f, 3f, 1f);
+            Check(region.TryGetNeutralRect(.75f, out rect, out reason)
+                && Mathf.Abs(rect.xMax - 3.575f) < .001f && Mathf.Abs(rect.yMax - (4.687713f - 2f / 3f)) < .001f,
+                "explicit scale converts world clearance independently per plane axis", ref passed);
+            point = region.GridPointToWorld(new Vector2(1f, 2f));
+            Vector3 expected = frame.TransformPoint(new Vector3(1f, 2f, 0f)); expected.y = region.spawnHeightWorld;
+            Check((point - expected).sqrMagnitude < .000001f && region.IsValidSpawnPoint(point, .75f, null, out reason),
+                "explicit translated rotated frame conversion matches validation", ref passed);
+            Check(!region.IsValidSpawnPoint(point + Vector3.up, .75f, null, out reason),
+                "explicit frame retains independent gameplay-height guard", ref passed);
+            frame.localScale = new Vector3(-2f, 3f, 1f);
+            point = region.GridPointToWorld(new Vector2(1f, 2f));
+            Check(region.IsValidSpawnPoint(point, .75f, null, out reason),
+                "explicit mirrored frame retains coordinate agreement", ref passed);
+
+            var zoneObject = Child(root, "Explicit-domain no-go", point);
+            var zone = zoneObject.AddComponent<SphereCollider>(); zone.radius = .5f; zone.isTrigger = true;
+            region.noGoColliders = new Collider[] { zone }; Physics.SyncTransforms();
+            Check(!region.IsValidSpawnPoint(point, .75f, null, out reason) && reason.Contains("No-go"),
+                "explicit domain retains authored no-go shapes", ref passed);
+            zone.enabled = false;
+            Check(region.IsValidSpawnPoint(point, .75f, null, out reason),
+                "explicit domain ignores disabled no-go shapes", ref passed);
+            region.noGoColliders = new Collider[0]; zoneObject.SetActive(false);
+
+            region.arenaBounds = oldBounds;
+            frame.rotation = Quaternion.identity;
+            Check(!region.TryGetNeutralRect(.75f, out rect, out reason) && reason.Contains("horizontal"),
+                "tilted explicit frame fails closed instead of using valid fallback grid", ref passed);
+            frame.rotation = Quaternion.Euler(90f, 0f, 0f);
+            frame.localScale = new Vector3(0f, 1f, 1f);
+            Check(!region.TryGetPlacementDomain(out resolved, out half, out reason),
+                "zero explicit plane axis rejected", ref passed);
+            frame.localScale = new Vector3(1f, 1f, 0f);
+            Check(!region.TryGetPlacementDomain(out resolved, out half, out reason),
+                "singular explicit transform rejected before inverse conversion", ref passed);
+            frame.localScale = Vector3.one;
+            region.explicitPlaneSize = new Vector2(float.NaN, 12f);
+            Check(!region.TryGetPlacementDomain(out resolved, out half, out reason),
+                "non-finite explicit dimensions rejected", ref passed);
+            region.explicitPlaneSize = new Vector2(-28f, 12f);
+            Check(!region.TryGetPlacementDomain(out resolved, out half, out reason),
+                "negative explicit dimensions rejected", ref passed);
+            region.explicitPlane = null;
+            Check(region.TryGetPlacementDomain(out resolved, out half, out reason) && resolved == oldBounds.Grid.transform,
+                "clearing explicit frame restores existing arena domain even with unused invalid dimensions", ref passed);
+            Check(region.TryGetNeutralRect(.75f, out rect, out reason)
+                && Mathf.Abs(rect.xMax - 1.75f) < .001f && Mathf.Abs(rect.yMax - 4f) < .001f,
+                "existing arena placement unchanged after explicit override is cleared", ref passed);
+            frameObject.SetActive(false);
         }
 
         private static GameObject Child(GameObject parent, string name, Vector3 position)

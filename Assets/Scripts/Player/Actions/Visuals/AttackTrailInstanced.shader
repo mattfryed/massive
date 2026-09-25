@@ -2,6 +2,7 @@ Shader "MASSIVE/AttackTrailInstanced"
 {
     Properties
     {
+        [HideInInspector] _SingularityBackBrightness ("Folded Rear Brightness", Float) = 1
         _Team1Color   ("Team 1 Color", Color) = (1,1,1,1)
         _Team2Color   ("Team 2 Core",  Color) = (0,0,0,1)
         _SizeScale ("Size Scale", Float) = 1.0
@@ -18,6 +19,7 @@ Shader "MASSIVE/AttackTrailInstanced"
         HLSLINCLUDE
         #pragma target 4.5
         #include "UnityCG.cginc"
+        #include "../../../Anomalies/SINGULARITY/SingularitySurfaceMapping.cginc"
 
         struct AttackParticle
         {
@@ -50,11 +52,13 @@ Shader "MASSIVE/AttackTrailInstanced"
         {
             float4 pos   : SV_POSITION;
             float2 local : TEXCOORD0; // local quad coords in [-1,1]
+            float brightness : TEXCOORD1;
         };
 
         v2f vert(appdata v)
         {
             v2f o;
+            o.brightness = 1;
 
             AttackParticle p = _Particles[v.instanceID];
 
@@ -75,6 +79,8 @@ Shader "MASSIVE/AttackTrailInstanced"
             float3 up    = normalize(_CamUpWS);
 
             float3 worldPos = center + (right * quad.x + up * quad.y) * radius;
+            if (_SingularityEnabled > .5)
+                worldPos = SingularityMapWorld(center + float3(quad.x, 0, quad.y) * radius, o.brightness);
 
             o.pos   = UnityWorldToClipPos(worldPos);
             o.local = quad;
@@ -91,6 +97,7 @@ Shader "MASSIVE/AttackTrailInstanced"
 
             float4 coreColor = (_IsTeam2 > 0.5) ? _Team2Color : _Team1Color;
             coreColor.a = 1.0;
+            coreColor.rgb *= i.brightness;
             return coreColor;
         }
         ENDHLSL

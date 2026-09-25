@@ -74,6 +74,7 @@ namespace Massive.Player
         private float strength01;
         private float startRadius;
         private float effectSize = 1f;
+        private Massive.Singularity.SingularityPlayerAdapter singularityPresentation;
 
         public bool IsPlaying => playing;
 
@@ -87,6 +88,7 @@ namespace Massive.Player
 
         private void Awake()
         {
+            singularityPresentation = GetComponentInParent<Massive.Singularity.SingularityPlayerAdapter>();
             // if (!followTarget) followTarget = transform;
             // if (!visuals) visuals = GetComponentInParent<PlayerVisualController>();
              var owner = GetComponentInParent<PlayerControllerScript>();
@@ -300,9 +302,38 @@ namespace Massive.Player
                         continue;
 
                     Draw.Color = new Color(color.r, color.g, color.b, alpha * env);
-                    Draw.Ring(new Vector3(totalOffset.x, totalOffset.y, 0f), radius, thickness: thickness);
+                    if (singularityPresentation != null && singularityPresentation.IsRenderingOnSurface)
+                    {
+                        // Sample the whole ring onto the sleeve. Mapping the
+                        // center alone would leave a rigid shield floating across
+                        // a bend while the body itself wraps underneath it.
+                        Draw.Matrix = Matrix4x4.identity;
+                        Draw.LineGeometry = LineGeometry.Volumetric3D;
+                        const int samples = 64;
+                        Vector3 center = posWS + new Vector3(totalOffset.x, 0f, totalOffset.y);
+                        Vector3 previousChart = center + Vector3.right * radius;
+                        Vector3 previous = singularityPresentation.MapChartPoint(previousChart, .015f);
+                        Color previousColor = SurfaceColor(previousChart, env);
+                        for (int step = 1; step <= samples; step++)
+                        {
+                            float angle = step * (Mathf.PI * 2f / samples);
+                            Vector3 nextChart = center + new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)) * radius;
+                            Vector3 next = singularityPresentation.MapChartPoint(nextChart, .015f);
+                            Color nextColor = SurfaceColor(nextChart, env);
+                            Draw.Line(previous, next, thickness, previousColor, nextColor);
+                            previous = next;
+                            previousColor = nextColor;
+                        }
+                    }
+                    else Draw.Ring(new Vector3(totalOffset.x, totalOffset.y, 0f), radius, thickness: thickness);
                 }
             }
+        }
+
+        private Color SurfaceColor(Vector3 chartPoint, float envelope)
+        {
+            float brightness = singularityPresentation.EvaluateChartBrightness(chartPoint);
+            return new Color(color.r * brightness, color.g * brightness, color.b * brightness, alpha * envelope);
         }
     }
 }
