@@ -79,10 +79,10 @@ namespace Massive.Multiplier
             return false;
         }
 
-        public bool IsValidSpawnPoint(Vector3 point, float objectRadius, ResonancePatternController pattern, out string reason)
+        public bool IsValidSpawnPoint(Vector3 point, float objectRadius, ResonancePatternController pattern, out string reason, bool excludePlayers = true)
         {
             RefreshPlacementCache(pattern);
-            return IsValidCached(point, objectRadius, out reason);
+            return IsValidCached(point, objectRadius, out reason, excludePlayers);
         }
 
         /// <summary>Refresh once per spawn attempt batch or Scene view draw, never once per candidate.</summary>
@@ -174,7 +174,7 @@ namespace Massive.Multiplier
             p.y = spawnHeightWorld; return p;
         }
 
-        public bool IsValidCached(Vector3 point, float objectRadius, out string reason)
+        public bool IsValidCached(Vector3 point, float objectRadius, out string reason, bool excludePlayers = true)
         {
             Rect rect;
             if (!TryGetNeutralRect(objectRadius, out rect, out reason)) return false;
@@ -196,7 +196,7 @@ namespace Massive.Multiplier
                 if (PlanarDistanceSquared(point, goal.CapturePoint.position) <= distance * distance)
                 { reason = "Inside a goal's attraction exclusion."; return false; }
             }
-            foreach (PlayerControllerScript player in players)
+            if (excludePlayers) foreach (PlayerControllerScript player in players)
             {
                 if (player == null || !player.isActiveAndEnabled) continue;
                 float distance = Mathf.Max(radius, Mathf.Max(0f, minDistanceFromPlayers));
@@ -213,11 +213,11 @@ namespace Massive.Multiplier
                 { reason = "Inside the next Resonance pattern's interaction footprint."; return false; }
             }
             if (!CheckPhysics(point, radius, noSpawnMask, QueryTriggerInteraction.Collide, true, out reason)) return false;
-            if (!CheckPhysics(point, radius, blockingMask, QueryTriggerInteraction.Ignore, false, out reason)) return false;
+            if (!CheckPhysics(point, radius, blockingMask, QueryTriggerInteraction.Ignore, false, out reason, !excludePlayers)) return false;
             reason = string.Empty; return true;
         }
 
-        private bool CheckPhysics(Vector3 p, float radius, int mask, QueryTriggerInteraction triggers, bool noGo, out string reason)
+        private bool CheckPhysics(Vector3 p, float radius, int mask, QueryTriggerInteraction triggers, bool noGo, out string reason, bool ignorePlayers = false)
         {
             reason = string.Empty;
             if (mask == 0) return true;
@@ -230,6 +230,7 @@ namespace Massive.Multiplier
             {
                 Collider c = overlaps[i];
                 if (c == null || c.gameObject.scene != gameObject.scene || IsIgnored(c, noGo)) continue;
+                if (ignorePlayers && c.GetComponentInParent<PlayerControllerScript>() != null) continue;
                 reason = (noGo ? "No-spawn layer: " : "Blocking object: ") + c.name; return false;
             }
             return true;

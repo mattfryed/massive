@@ -1,0 +1,140 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &1551874825247390008
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 7518816524724288506}
+  m_Layer: 0
+  m_Name: Pattern anchor
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &7518816524724288506
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1551874825247390008}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 6363605577687904160}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &7721873985080311176
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 6363605577687904160}
+  - component: {fileID: 4259707095316138270}
+  - component: {fileID: 2270707023201678718}
+  m_Layer: 0
+  m_Name: AmplifierResonanceEncounter
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &6363605577687904160
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7721873985080311176}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 7518816524724288506}
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &4259707095316138270
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7721873985080311176}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 88d78da729f167d419bd4a3e258c1bc7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  arenaBounds: {fileID: 0}
+  explicitPlane: {fileID: 0}
+  explicitPlaneSize: {x: 28, y: 12}
+  neutralWidthFraction: 0.3
+  borderMarginWorld: 0.75
+  spawnHeightWorld: 0
+  clearanceWorld: 0.25
+  minDistanceFromPlayers: 1.75
+  goalExclusionPadding: 0.5
+  noSpawnMask:
+    serializedVersion: 2
+    m_Bits: 512
+  blockingMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  noGoColliders:
+  - {fileID: 0}
+  ignoredColliders: []
+  attemptsPerSpawn: 48
+  drawZones: 1
+  previewObjectRadius: 0.6
+  previewPattern: {fileID: 0}
+  previewColumns: 21
+  previewRows: 13
+--- !u!114 &2270707023201678718
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7721873985080311176}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6b70cc8d2973b55499800129494dd435, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  corePrefab: {fileID: 23031506026793272, guid: ce10feb46b430d641a0256ce6eb2ff42,
+    type: 3}
+  spawnRegion: {fileID: 4259707095316138270}
+  patternAnchor: {fileID: 7518816524724288506}
+  patternOrder:
+  - label: "345 Hz \u2014 Chladni grains"
+    patternPrefab: {fileID: 126214827319581504, guid: 38e27362945b79d479701e315f3312cf,
+      type: 3}
+  startingPattern: 0
+  loopPatternOrder: 1
+  startAutomatically: 1
+  waitForScoring: 1
+  scoreService: {fileID: 0}
+  initialSpawnDelay: 6
+  respawnDelay: 8
+  respawnDelayVariation: {x: -2, y: 2}
+  placementRetryDelay: 0.5
+  maximumActiveSeconds: 0
+  timeoutWarningSeconds: 5
+  minimumCoreRadius: 0.6
+  fixedRandomSeed: 0
+  randomSeed: 345
+  comparison: {fileID: 0}
+  standaloneExamples: []
+  useSharedSettings: 1

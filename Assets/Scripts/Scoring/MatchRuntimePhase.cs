@@ -7,6 +7,7 @@ namespace Massive.Scoring
         Regulation = 2,
         Bonus = 3,
         Resolving = 4,
-        Complete = 5
+        Complete = 5,
+        FinaleEntry = 6
     }
 }

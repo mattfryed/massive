@@ -18,6 +18,12 @@ public class GameManagerScript : MonoBehaviour
     [SerializeField] private bool useUnscaledTimeForMatchClock = true;
     [SerializeField] private bool waitForRosterSpawnCompletion = true;
 
+    [Tooltip("Optional level component implementing IMatchFinale. No provider keeps the normal timed-match ending.")]
+    [SerializeField] private MonoBehaviour regulationFinale;
+    private bool _finaleStarted;
+    private long _regulationLightScore, _regulationDarkScore;
+    public bool IsTerminalBonus => _finaleStarted;
+
     [Header("Post Game Transition")]
     [Tooltip("Delay before loading PostGame so end VFX can play. Uses realtime.")]
     [SerializeField, Min(0f)] private float postGameLoadDelaySeconds = 1f;
@@ -147,13 +153,14 @@ public class GameManagerScript : MonoBehaviour
     /// </summary>
     public bool BeginBonusRound(bool pauseRegulationClock = true, bool chainClockRuns = false)
     {
-        if (_ending || Phase != MatchRuntimePhase.Regulation)
+        if (_ending || (Phase != MatchRuntimePhase.Regulation && Phase != MatchRuntimePhase.FinaleEntry))
             return false;
 
         _regulationClockRunsDuringBonus = !pauseRegulationClock;
         _regulationExpiredDuringBonus = false;
         SetPhase(MatchRuntimePhase.Bonus);
         scoreService.SetScoringState(scoringOpen: true, chainClockRunning: chainClockRuns);
+        scoreService.SetBonusScoringOnly(true);
         return true;
     }
 
@@ -164,13 +171,14 @@ public class GameManagerScript : MonoBehaviour
 
         _regulationClockRunsDuringBonus = false;
 
-        if (_regulationExpiredDuringBonus || _regulationRemainingSeconds <= 0f)
+        if (_finaleStarted || _regulationExpiredDuringBonus || _regulationRemainingSeconds <= 0f)
         {
             EndMatchToPostGame();
             return;
         }
 
         SetPhase(MatchRuntimePhase.Regulation);
+        scoreService.SetBonusScoringOnly(false);
         scoreService.SetScoringState(scoringOpen: true, chainClockRunning: true);
     }
 
@@ -238,7 +246,7 @@ public class GameManagerScript : MonoBehaviour
             if (deferEndUntilBonusCompletes)
                 _regulationExpiredDuringBonus = true;
             else
-                EndMatchToPostGame();
+                FinishRegulation();
             return;
         }
 
@@ -251,7 +259,22 @@ public class GameManagerScript : MonoBehaviour
         if (deferEndUntilBonusCompletes)
             _regulationExpiredDuringBonus = true;
         else
-            EndMatchToPostGame();
+            FinishRegulation();
+    }
+
+    private void FinishRegulation()
+    {
+        if (_ending || _finaleStarted) return;
+        scoreService.CloseScoring();
+        _regulationLightScore = scoreService.LightScoreMilliElectronVolts;
+        _regulationDarkScore = scoreService.DarkScoreMilliElectronVolts;
+        if (regulationFinale && regulationFinale.isActiveAndEnabled && regulationFinale is IMatchFinale finale)
+        {
+            _finaleStarted = true;
+            SetPhase(MatchRuntimePhase.FinaleEntry);
+            finale.BeginMatchFinale();
+        }
+        else EndMatchToPostGame();
     }
 
     private float MatchDeltaTime()
@@ -393,6 +416,11 @@ public class GameManagerScript : MonoBehaviour
 
         finalLightMilliElectronVolts = scoreService.LightScoreMilliElectronVolts;
         finalDarkMilliElectronVolts = scoreService.DarkScoreMilliElectronVolts;
+        if (!_finaleStarted)
+        {
+            _regulationLightScore = finalLightMilliElectronVolts;
+            _regulationDarkScore = finalDarkMilliElectronVolts;
+        }
 
         StopGameMusic();
 
@@ -451,6 +479,11 @@ public class GameManagerScript : MonoBehaviour
             winner = winner,
             lightMilliElectronVolts = finalLightMilliElectronVolts,
             darkMilliElectronVolts = finalDarkMilliElectronVolts,
+            hasBonusBreakdown = _finaleStarted,
+            regulationLightMilliElectronVolts = _regulationLightScore,
+            regulationDarkMilliElectronVolts = _regulationDarkScore,
+            bonusLightMilliElectronVolts = Math.Max(0L, finalLightMilliElectronVolts - _regulationLightScore),
+            bonusDarkMilliElectronVolts = Math.Max(0L, finalDarkMilliElectronVolts - _regulationDarkScore),
             mode = context.Mode,
 
             stageNumber = def != null ? def.levelNumber : 0,

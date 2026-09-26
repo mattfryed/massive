@@ -48,6 +48,9 @@ namespace Massive.Scoring
         private int _lightAmplifierTierIndex;
         private int _darkAmplifierTierIndex;
         private bool _scoringOpen;
+        private bool _bonusScoringOnly;
+        public bool IsBonusScoringOnly => _bonusScoringOnly;
+        public void SetBonusScoringOnly(bool value) => _bonusScoringOnly = value;
         private bool _chainClockRunning;
 
         public event Action<TeamScoreSnapshot> TeamScoreChanged;
@@ -169,6 +172,7 @@ namespace Massive.Scoring
             _contributions.Clear();
             _warnedMissingChainPlayerIds.Clear();
             _scoringOpen = openScoring;
+            _bonusScoringOnly = false;
             _chainClockRunning = openScoring;
 
             foreach (PlayerControllerScript player in _registeredPlayers)
@@ -271,7 +275,7 @@ namespace Massive.Scoring
         /// </summary>
         public bool AdvanceTeamAmplifier(int teamID)
         {
-            if (!_scoringOpen || (teamID != 1 && teamID != 2))
+            if (!_scoringOpen || _bonusScoringOnly || (teamID != 1 && teamID != 2))
                 return false;
 
             TeamAmplifierSettings settings = profile.TeamAmplifierSettings;
@@ -378,6 +382,9 @@ namespace Massive.Scoring
 
             result.rewardKey = rule.key;
 
+            if (rule.bonusOnly != _bonusScoringOnly)
+                return Reject(ref result, ScoreAwardRejection.ScoringClosed);
+
             if (!rule.enabled)
                 return Reject(ref result, ScoreAwardRejection.RewardDisabled);
 
@@ -415,7 +422,7 @@ namespace Massive.Scoring
                 chain = earner.GetComponent<PlayerScoreChain>();
                 if (chain != null)
                 {
-                    if (rule.multiplierEligible)
+                    if (rule.multiplierEligible && !rule.ignoreAllMultipliers)
                         personalMultiplier = Math.Max(1d, chain.CurrentMultiplier);
                 }
                 else if (_warnedMissingChainPlayerIds.Add(earner.playerID))
@@ -426,7 +433,7 @@ namespace Massive.Scoring
                 }
             }
 
-            int teamAmplifierMultiplier = GetTeamAmplifierMultiplier(teamID);
+            int teamAmplifierMultiplier = rule.ignoreAllMultipliers ? 1 : GetTeamAmplifierMultiplier(teamID);
             double combinedMultiplier = personalMultiplier * teamAmplifierMultiplier;
             long finalScore = EnergyScoreMath.SaturatingScale(baseScore, combinedMultiplier);
             long previousTotal = GetTeamScore(teamID);

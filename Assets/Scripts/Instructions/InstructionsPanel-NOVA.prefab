@@ -456,15 +456,16 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 'The NOVA star is on the verge of collapse, likely leading to a highly
-    destructive SUPERNOVA.
+  m_text: 'The star grows more unstable during regulation, ejecting matter at each
+    stage.
 
 
-    Enter the core and target incoming high energy particles.
+    At time-out, enter the core circle before it closes to avoid a firing
+    delay.
 
 
-    The
-    team that destroys the most particles gains extra mass.'
+    Capture particles for flat bonus energy. Multipliers do not apply.
+    Regulation + bonus determines the winner.'
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 62b4d49010a4d2f4ca6eff16be8b2bb6, type: 2}
   m_sharedMaterial: {fileID: -2944422761457701561, guid: 62b4d49010a4d2f4ca6eff16be8b2bb6,

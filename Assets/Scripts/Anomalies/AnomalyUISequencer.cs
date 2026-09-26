@@ -18,7 +18,7 @@ public class AnomalyUISequencer : MonoBehaviour
             for (int i = 0; i < lowerBoxes.Length; i++)
             {
                 if (lowerBoxes[i] != null) StartCoroutine(lowerBoxes[i].PlayIn());
-                yield return new WaitForSeconds(stagger);
+                yield return new WaitForSecondsRealtime(stagger);
             }
         }
     }
@@ -30,7 +30,7 @@ public class AnomalyUISequencer : MonoBehaviour
             for (int i = lowerBoxes.Length - 1; i >= 0; i--)
             {
                 if (lowerBoxes[i] != null) StartCoroutine(lowerBoxes[i].PlayOut());
-                yield return new WaitForSeconds(stagger);
+                yield return new WaitForSecondsRealtime(stagger);
             }
         }
         if (topBannerBox != null) yield return topBannerBox.PlayOut();

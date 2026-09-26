@@ -15,6 +15,14 @@ public class NovaCoreTeamResultView : MonoBehaviour
     [SerializeField] private string particlesFormat = "{0}";
     [SerializeField] private string scoreFormat = "+{0:0}";
 
+    public void SetEnergy(string teamName, int particlesScored, long awardedMilliElectronVolts)
+    {
+        if (teamNameLabel) teamNameLabel.text = teamName;
+        if (particlesLabel) particlesLabel.text = string.Format(particlesFormat, particlesScored);
+        if (scoreAwardedLabel)
+            scoreAwardedLabel.text = "+" + Massive.Scoring.EnergyScoreFormatter.FormatWithUnit(awardedMilliElectronVolts);
+    }
+
     public void Set(string teamName, int particlesScored, float scoreAwarded01)
     {
         if (teamNameLabel != null) teamNameLabel.text = teamName;

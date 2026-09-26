@@ -69,6 +69,9 @@ public partial class NovaCoreMinigame
             darkParticles  = _darkTeamParticlesCaptured,
             lightMass = lightMass,
             darkMass  = darkMass,
+            lightAwardedMilliElectronVolts = scoreIntegration ? scoreIntegration.AwardedToTeam(lightTeamIndex) : 0,
+            darkAwardedMilliElectronVolts = scoreIntegration ? scoreIntegration.AwardedToTeam(darkTeamIndex) : 0,
+            universalScoringApplied = scoreIntegration && scoreIntegration.IsSessionBound,
         };
 
         _lastWrapUp = wrap;

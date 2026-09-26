@@ -63,6 +63,8 @@ namespace Massive.Multiplier
         public event Action<ResonancePatternController> PatternPreparing;
         /// <summary>Configure optional scene adapters before the Core's first physics step.</summary>
         public event Action<AmplifierCoreGameplay> CoreSpawned;
+        /// <summary>Optional stage-owned gate; delays introductions without changing an active pair.</summary>
+        public Func<bool> CanIntroduceEncounter { get; set; }
         public string Status { get; private set; } = "Not running";
         public int CurrentPatternIndex { get; private set; } = -1;
         public int PairsSpawned { get; private set; }
@@ -192,7 +194,7 @@ namespace Massive.Multiplier
             {
                 case AmplifierEncounterPhase.Delay:
                     timer -= dt;
-                    if (timer <= 0f) SpawnPattern();
+                    if (timer <= 0f && (CanIntroduceEncounter == null || CanIntroduceEncounter())) SpawnPattern();
                     break;
                 case AmplifierEncounterPhase.FormingPattern:
                     if (ActivePattern == null || ActiveManifestation == null) { RetryLostPair(); break; }

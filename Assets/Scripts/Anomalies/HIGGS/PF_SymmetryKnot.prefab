@@ -363,26 +363,17 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 977b9f172e88ddc4d9368dccafee51d1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  lifetimeSeconds: 9
-  despawnFadeSeconds: 1
-  useExcitationDrivenLifetime: 1
-  unclaimedSeconds: 4
+  unclaimedSeconds: 6
   claimedSeconds: 10
-  excitationTailSeconds: 0.15
+  despawnFadeSeconds: 1
+  captureRampSeconds: 2
   captureRadius: 1.15
   playerLayerMask:
     serializedVersion: 2
     m_Bits: 4294967295
-  triggerInteraction: 2
-  fallbackToTriggerCollide: 1
-  ignoreEliminatedPlayers: 1
-  ignoreInactivePlayers: 0
-  massPerSecond: 0.005
-  captureRampSeconds: 2
-  contestedPausesFlow: 1
+  rewardKey: HIGGS_CONTROL_TICK
+  tickIntervalSeconds: 0.25
   goalMouths: []
-  autoFindGoalMouthsIfEmpty: 1
-  goalMouthMessage: OnSymmetryKnotMass
 --- !u!114 &206864617395595538
 MonoBehaviour:
   m_ObjectHideFlags: 0

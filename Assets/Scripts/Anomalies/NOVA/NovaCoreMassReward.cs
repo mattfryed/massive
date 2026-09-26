@@ -20,19 +20,11 @@ public class NovaCoreMassReward : AnomalyRewardBase
         if (!result.success && !awardOnFailure) return;
         if (result.payload is not NovaCoreWrapUpPayload wrap) return;
 
-        // 1) Register shielding to the star
-        if (registerStarShield)
-        {
-            var star = FindStar();
-            if (star != null)
-            {
-                star.RegisterCoreCapture(wrap.lightTeamIndex, wrap.lightMass * shieldMultiplier);
-                star.RegisterCoreCapture(wrap.darkTeamIndex,  wrap.darkMass  * shieldMultiplier);
-            }
-        }
+        // Terminal Core Collapse already banked energy; no arena shield or mass payout follows it.
+        if (manager && manager.match && manager.match.IsTerminalBonus) return;
 
         // 2) Forward to your mass/score system
-        if (awardMassToTeams)
+        if (awardMassToTeams && !wrap.universalScoringApplied)
         {
             var sink = FindSink(manager);
             if (sink != null)

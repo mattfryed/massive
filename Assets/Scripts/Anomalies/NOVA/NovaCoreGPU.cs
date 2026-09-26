@@ -50,6 +50,7 @@ public class NovaCoreGPU : MonoBehaviour
     ComputeBuffer _positionsBuffer;
     ComputeBuffer _velocitiesBuffer;
     ComputeBuffer _argsBuffer;
+    MaterialPropertyBlock _renderProperties;
     bool _initialized;
 
     // cached base values (from inspector)
@@ -122,8 +123,9 @@ public class NovaCoreGPU : MonoBehaviour
         simCompute.SetBuffer(_kernel, ID_Positions, _positionsBuffer);
         simCompute.SetBuffer(_kernel, ID_Velocities, _velocitiesBuffer);
 
-        // Bind to material
-        instanceMaterial.SetBuffer(ID_Positions, _positionsBuffer);
+        // Keep per-instance simulation and reveal state out of the shared asset.
+        if (_renderProperties == null) _renderProperties = new MaterialPropertyBlock();
+        _renderProperties.SetBuffer(ID_Positions, _positionsBuffer);
 
         // Setup indirect args buffer (instance count updated per-frame)
         _args[0] = quadMesh.GetIndexCount(0);
@@ -163,6 +165,7 @@ public class NovaCoreGPU : MonoBehaviour
         if (_velocitiesBuffer != null) { _velocitiesBuffer.Release(); _velocitiesBuffer = null; }
         if (_argsBuffer != null) { _argsBuffer.Release(); _argsBuffer = null; }
         _initialized = false;
+        _renderProperties?.Clear();
         _activeCountCached = -1;
     }
 
@@ -174,7 +177,7 @@ public class NovaCoreGPU : MonoBehaviour
             if (!_initialized) return;
         }
 
-        float dt = Application.isPlaying ? Time.deltaTime : 0.016f;
+        float dt = Application.isPlaying ? Time.unscaledDeltaTime : 0.016f;
 
         float reveal = Mathf.Clamp01(reveal01);
 
@@ -204,9 +207,11 @@ public class NovaCoreGPU : MonoBehaviour
         float simRadius = Mathf.Max(0.0001f, _baseRadius * reveal);
 
         // Set sim parameters
+        simCompute.SetBuffer(_kernel, ID_Positions, _positionsBuffer);
+        simCompute.SetBuffer(_kernel, ID_Velocities, _velocitiesBuffer);
         simCompute.SetInt(ID_ParticleCount, activeCount);
         simCompute.SetFloat(ID_Dt, dt);
-        simCompute.SetFloat(ID_Time, Time.time);
+        simCompute.SetFloat(ID_Time, Time.unscaledTime);
         simCompute.SetFloat(ID_CenterSpring, centerSpring * reveal);
         simCompute.SetFloat(ID_Drag, drag * reveal);
         simCompute.SetFloat(ID_GlueRadius, glueRadius * reveal);
@@ -223,13 +228,13 @@ public class NovaCoreGPU : MonoBehaviour
         // Render params (optional fade/size with reveal)
         Color c = _baseColor;
         if (fadeWithReveal) c.a *= reveal;
-        instanceMaterial.SetColor("_Color", c);
+        _renderProperties.SetColor("_Color", c);
 
         float size = _baseSize;
         if (sizeWithReveal) size *= Mathf.Lerp(0.25f, 1f, reveal);
-        instanceMaterial.SetFloat("_ParticleSize", size);
+        _renderProperties.SetFloat("_ParticleSize", size);
 
-        instanceMaterial.SetFloat("_Softness", softness);
+        _renderProperties.SetFloat("_Softness", softness);
 
         Bounds worldBounds = new Bounds(transform.position + drawBounds.center, drawBounds.size);
 
@@ -240,7 +245,7 @@ public class NovaCoreGPU : MonoBehaviour
             worldBounds,
             _argsBuffer,
             0,
-            null,
+            _renderProperties,
             UnityEngine.Rendering.ShadowCastingMode.Off,
             false,
             gameObject.layer

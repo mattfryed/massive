@@ -16,6 +16,8 @@ public class NovaMinigameTransition : MonoBehaviour
     [Header("Timing")]
     public float introDuration = 0.45f;
     public float outroDuration = 0.35f;
+    [Min(0f)] public float finalContractionSeconds = 1.15f;
+    [Min(0f)] public float finalSilenceSeconds = .35f;
 
     [Header("Step Fractions")]
     [Range(0.05f, 0.9f)] public float introWipeFrac  = 0.45f;
@@ -199,7 +201,7 @@ if (worldCoreEffect != null && worldCoreEffect != coreGPU)
             _minigame.SetGameplayEnabled(true);
     }
 
-    public IEnumerator PlayOutro()
+    public IEnumerator PlayOutro(bool terminal = false)
     {
 
         if (uiSequencer != null)
@@ -269,7 +271,7 @@ if (worldCoreEffect != null && worldCoreEffect != coreGPU)
             {
                 if (lowerBoxes[i] != null)
                     StartCoroutine(lowerBoxes[i].PlayOut());
-                yield return new WaitForSeconds(boxStagger);
+                yield return new WaitForSecondsRealtime(boxStagger);
             }
         }
 
@@ -282,12 +284,14 @@ if (worldCoreEffect != null && worldCoreEffect != coreGPU)
         if (wipeCircleRect && playAreaRect)
         {
             float target = ComputeWipeTargetScale(playAreaRect, wipeCircleRect, wipeCoverPadding);
-            yield return Tween01(wipeTime, t =>
+            yield return Tween01(terminal ? finalContractionSeconds : wipeTime, t =>
             {
-                float s = Mathf.Lerp(target, 0f, ease.Evaluate(t));
+                float s = Mathf.Lerp(target, terminal ? .001f : 0f, ease.Evaluate(t));
                 wipeCircleRect.localScale = Vector3.one * s;
             });
 
+            if (terminal && finalSilenceSeconds > 0f)
+                yield return new WaitForSecondsRealtime(finalSilenceSeconds);
             wipeCircleRect.gameObject.SetActive(false);
         }
     }
@@ -298,7 +302,7 @@ if (worldCoreEffect != null && worldCoreEffect != coreGPU)
         float t = 0f;
         while (t < seconds)
         {
-            t += Time.deltaTime;
+            t += Time.unscaledDeltaTime;
             float u = Mathf.Clamp01(t / seconds);
             apply(u);
             yield return null;

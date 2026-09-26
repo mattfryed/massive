@@ -345,7 +345,7 @@ public class AnomalyUIController : MonoBehaviour
 
         while (t < flashTime)
         {
-            t += Time.deltaTime;
+            t += Time.unscaledDeltaTime;
             bool on = Mathf.FloorToInt(t * indicatorFlashHz) % 2 == 0;
             string s = on ? "!" : "";
             if (leftIndicatorText != null)  leftIndicatorText.text  = s;
@@ -360,7 +360,7 @@ public class AnomalyUIController : MonoBehaviour
             string s = seconds.ToString();
             if (leftIndicatorText != null)  leftIndicatorText.text  = s;
             if (rightIndicatorText != null) rightIndicatorText.text = s;
-            remaining -= Time.deltaTime;
+            remaining -= Time.unscaledDeltaTime;
             yield return null;
         }
 

@@ -45,6 +45,23 @@ public class NovaCorePostResultsPanel : MonoBehaviour
         }
     }
 
+    public void ShowEnergy(int lightParticles, long lightEnergy, int darkParticles, long darkEnergy)
+    {
+        if (root != null) root.SetActive(true);
+        ClearInstances();
+        Transform parent = contentParent != null ? contentParent : transform;
+        if (lightTeamPrefab)
+        {
+            _lightInstance = Instantiate(lightTeamPrefab, parent);
+            _lightInstance.SetEnergy(lightTeamName, lightParticles, lightEnergy);
+        }
+        if (darkTeamPrefab)
+        {
+            _darkInstance = Instantiate(darkTeamPrefab, parent);
+            _darkInstance.SetEnergy(darkTeamName, darkParticles, darkEnergy);
+        }
+    }
+
     public void Hide()
     {
         ClearInstances();

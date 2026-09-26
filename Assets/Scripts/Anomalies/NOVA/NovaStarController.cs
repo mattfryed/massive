@@ -1,452 +1,171 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using Massive.Scoring;
 using UnityEngine;
 
-/// <summary>
-/// Controls the central star in the NOVA stage.
-/// - Runs repeated "bounce" explosions.
-/// - Opens a pre-bounce entry window where players can enter the star.
-/// - Tracks which players are inside for that window.
-/// - Holds per-team "shield" contributions from the core minigame
-///   (registered via NovaCoreMassReward).
-///
-/// This script does not know about the anomaly system directly;
-/// NovaAnomalyAdapter bridges star events to AnomalyManager.
-/// </summary>
+/// <summary>Four regulation stages and one terminal Core Collapse, driven by the shared match clock.</summary>
 [RequireComponent(typeof(Collider))]
-public class NovaStarController : MonoBehaviour
+public class NovaStarController : MonoBehaviour, IMatchFinale
 {
-    [Header("Timing")]
-    [Tooltip("Minimum seconds between bounce explosions.")]
-    public float minTimeBetweenBounces = 12f;
-
-    [Tooltip("Maximum seconds between bounce explosions.")]
-    public float maxTimeBetweenBounces = 18f;
-
-    [Tooltip("How long the entry window stays open before each bounce.")]
-    public float entryWindowDuration = 3f;
-
-    [Tooltip("How many bounces before the final supernova. <= 0 means infinite loop.")]
-    public int maxBounces = 3;
-
-    [Header("Entry Window")]
-    [Tooltip("Trigger collider defining the radius in which players can enter the star. If null, the star's own collider is used.")]
+    public GameManagerScript match;
+    public NovaStarRumble rumble;
+    [Header("Final entry")]
+    [Min(0f)] public float entryWindowDuration = 6f;
     public Collider entryCollider;
-
-    [Tooltip("Which layers count as player bodies.")]
-    public LayerMask playerLayer;
-
-    [Header("Visuals")]
-    [Tooltip("Visual ring object that appears during the entry window.")]
     public GameObject entryRingVisual;
+    public PlayerRosterController roster;
+    [Header("Mini nova matter")]
+    public MatterNuggetScript nuggetPrefab;
+    public MatterNuggetScript nuggletPrefab;
+    public Transform matterRoot;
+    [Min(0f)] public float ejectionRadius = 2.1f;
+    [Min(0.1f)] public float pickupLifetime = 14f;
+    public Vector2 ejectionSpeed = new Vector2(2.5f, 6f);
+    [Min(0f)] public float transitionSeconds = 1.2f;
 
-    [Header("Eject Settings")]
-    [Tooltip("How far from the star center players are pushed when ejected after the minigame.")]
-    public float ejectDistance = 5f;
-
-    [Tooltip("Impulse applied outward when players are ejected.")]
-    public float ejectImpulse = 8f;
-
-
-    [Header("Bounce Damage Model")]
-    [Tooltip("Baseline damage/intensity of each bounce (arbitrary units).")]
-    public float baseBounceIntensity = 1f;
-
-    [Tooltip("Distance falloff curve. x = normalized distance (0 = center, 1 = outer arena radius), y = multiplier.")]
-    public AnimationCurve distanceFalloff = AnimationCurve.Linear(0f, 1f, 1f, 0.5f);
-
-    [Header("Core Shield Influence")]
-    [Tooltip("How strongly core 'shield' reduces bounce intensity for a team. EffectiveIntensity = base / (1 + shield * thisFactor).")]
-    public float shieldIntensityFactor = 0.25f;
-
-    [Header("Final Supernova")]
-    [Tooltip("If true, trigger a final, larger event after the last bounce.")]
-    public bool triggerFinalSupernova = true;
-
-    // --- Public events to hook into ---
-
-    /// <summary>
-    /// Fired when the entry window opens for this upcoming bounce.
-    /// </summary>
+    public const int StageCount = 5;
+    public int CurrentStage { get; private set; } = 1;
+    public int BurstsReleased { get; private set; }
+    public bool IsEntryWindowOpen { get; private set; }
+    public bool FinaleStarted { get; private set; }
+    public event Action<int> OnStageChanged;
     public event Action OnEntryWindowOpened;
-
-    /// <summary>
-    /// Fired when the entry window closes; provides the fixed list of players
-    /// who entered the star for this bounce.
-    /// </summary>
     public event Action<List<PlayerControllerScript>> OnEntryWindowClosed;
-
-    /// <summary>
-    /// Fired when the bounce explosion actually happens.
-    /// </summary>
     public event Action OnBounceTriggered;
-
-    /// <summary>
-    /// Fired once per bounce per player, passing the player and their
-    /// effective intensity multiplier (after shields, distance, etc.).
-    /// Use this to apply damage / mass loss / knockback elsewhere.
-    /// </summary>
-    public event Action<PlayerControllerScript, float> OnPlayerBounceHit;
-
-    /// <summary>
-    /// Fired after the last bounce if maxBounces > 0 and triggerFinalSupernova is true.
-    /// </summary>
     public event Action OnFinalSupernova;
-
-
-    private readonly HashSet<PlayerControllerScript> _insideSet = new();
-
-    // Generic "is this player's position inside the entry collider right now?"
-    private bool IsInsideEntry(PlayerControllerScript pcs)
-    {
-        if (pcs == null || entryCollider == null) return false;
-
-        Vector3 p = pcs.transform.position;
-        Vector3 closest = entryCollider.ClosestPoint(p);
-
-        // If inside, ClosestPoint returns the point itself.
-        return (closest - p).sqrMagnitude < 0.0001f;
-    }
-
-    private List<PlayerControllerScript> GetPlayersInsideNow()
-    {
-        var result = new List<PlayerControllerScript>();
-
-        var players = FindObjectsOfType<PlayerControllerScript>();
-        foreach (var p in players)
-        {
-            if (p == null) continue;
-
-            // Optional: if you have eliminated/inactive flags, filter here.
-            if (IsInsideEntry(p))
-                result.Add(p);
-        }
-
-        return result;
-    }
-
-
-    // --- Internal state ---
-
-    private readonly List<PlayerControllerScript> _currentEntrants = new();
-    private readonly Dictionary<int, float> _teamShieldPool = new();
-
-    private bool _entryWindowOpen;
-    private bool _waitingForMinigame;
-    private int _bounceCount;
-    private Coroutine _loopRoutine;
+    private int pendingStage = 1;
+    private Coroutine progression;
+    private bool supernovaSent;
+    private readonly List<MatterNuggetScript> pickups = new();
 
     private void Awake()
     {
-        if (entryCollider == null)
+        if (!rumble) rumble = GetComponent<NovaStarRumble>();
+        SetEntryOpen(false);
+    }
+    private void OnEnable() { if (match) match.RegulationTimeChanged += OnRegulationTime; }
+    private void Start() { if (rumble) rumble.SetStage(1); }
+
+    public static int StageAt(float remaining, float duration) =>
+        Mathf.Clamp(1 + Mathf.FloorToInt((1f - Mathf.Clamp01(remaining / Mathf.Max(1f, duration))) * 4f), 1, 4);
+
+    private void OnRegulationTime(float remaining)
+    {
+        if (!match || match.Phase != MatchRuntimePhase.Regulation || FinaleStarted || remaining <= 0f) return;
+        pendingStage = StageAt(remaining, match.RegulationDurationSeconds);
+        if (pendingStage > CurrentStage && progression == null)
+            progression = StartCoroutine(AdvanceStages());
+    }
+    private IEnumerator AdvanceStages()
+    {
+        while (CurrentStage < pendingStage && !FinaleStarted)
         {
-            entryCollider = GetComponent<Collider>();
+            int next = CurrentStage + 1;
+            float seconds = Mathf.Min(transitionSeconds, match.RegulationDurationSeconds / 12f);
+            if (rumble) yield return rumble.WindUp(next, seconds * .5f);
+            if (FinaleStarted) yield break;
+            CurrentStage = next;
+            OnStageChanged?.Invoke(CurrentStage);
+            ReleaseMatter(next);
+            OnBounceTriggered?.Invoke();
+            if (rumble) yield return rumble.GrowTo(next, seconds * .5f);
         }
-
-        if (entryCollider != null)
+        progression = null;
+    }
+    private void ReleaseMatter(int stage)
+    {
+        BurstsReleased++;
+        EmitPairs(nuggetPrefab, 6 + (stage - 2) * 4, stage);
+        EmitPairs(nuggletPrefab, 10 + (stage - 2) * 6, stage);
+    }
+    private void EmitPairs(MatterNuggetScript prefab, int count, int stage)
+    {
+        if (!prefab) return;
+        int pairs = count / 2;
+        float offset = UnityEngine.Random.Range(0f, Mathf.PI * 2f);
+        // Opposite pairs with angular jitter maintain broad coverage.
+        for (int i = 0; i < pairs; i++)
         {
-            entryCollider.isTrigger = true;
-            entryCollider.enabled = false;
-        }
-
-        if (entryRingVisual != null)
-            entryRingVisual.SetActive(false);
-    }
-
-    private void OnEnable()
-    {
-        if (_loopRoutine == null)
-        {
-            _loopRoutine = StartCoroutine(BounceLoop());
-        }
-    }
-
-    private void OnDisable()
-    {
-        if (_loopRoutine != null)
-        {
-            StopCoroutine(_loopRoutine);
-            _loopRoutine = null;
-        }
-    }
-
-    // ------------------------------------------------------
-    // Core loop
-    // ------------------------------------------------------
-
-    private IEnumerator BounceLoop()
-    {
-        while (maxBounces <= 0 || _bounceCount < maxBounces)
-        {
-            // Wait for the next bounce interval
-            float wait = UnityEngine.Random.Range(minTimeBetweenBounces, maxTimeBetweenBounces);
-            yield return new WaitForSeconds(wait);
-
-            // Handle entry window + either immediate bounce (no entrants)
-            // or wait for minigame completion (entrants present).
-            yield return EntryWindowRoutine();
-        }
-
-        if (triggerFinalSupernova)
-        {
-            TriggerFinalSupernova();
-        }
-    }
-
-private IEnumerator EntryWindowRoutine()
-{
-    // --- OPEN WINDOW ---
-    _currentEntrants.Clear();
-    _entryWindowOpen = true;
-    _waitingForMinigame = false;
-
-    if (entryCollider != null)
-        entryCollider.enabled = true;
-
-    if (entryRingVisual != null)
-        entryRingVisual.SetActive(true);
-
-    OnEntryWindowOpened?.Invoke();
-
-    // --- WAIT ---
-    if (entryWindowDuration > 0f)
-        yield return new WaitForSeconds(entryWindowDuration);
-    else
-        yield return null;
-
-    // --- CLOSE WINDOW ---
-    _entryWindowOpen = false;
-
-    // Authoritative snapshot at the exact close moment
-    SnapshotEntrantsAtClose();
-
-    if (entryCollider != null)
-        entryCollider.enabled = false;
-
-    // Always hide ring when the entry window ends
-    if (entryRingVisual != null)
-        entryRingVisual.SetActive(false);
-
-    // Notify listeners with the fixed list of on-time players
-    OnEntryWindowClosed?.Invoke(new List<PlayerControllerScript>(_currentEntrants));
-
-    bool hasEntrants = _currentEntrants.Count > 0;
-
-    // --- BRANCH ---
-    if (!hasEntrants)
-    {
-        TriggerBounce();
-        _bounceCount++;
-        _currentEntrants.Clear();
-        yield break;
-    }
-
-    // Entrants exist → wait for minigame completion
-    _waitingForMinigame = true;
-    while (_waitingForMinigame)
-        yield return null;
-}
-
-
-    // ------------------------------------------------------
-    // Entry detection
-    // ------------------------------------------------------
-
-    // private void OnTriggerEnter(Collider other)
-    // {
-    //     if (!_entryWindowOpen || entryCollider == null || other == null)
-    //         return;
-
-    //     if (playerLayer.value != 0)
-    //     {
-    //         if ((playerLayer.value & (1 << other.gameObject.layer)) == 0)
-    //             return;
-    //     }
-
-    //     var pcs = other.GetComponentInParent<PlayerControllerScript>();
-    //     if (pcs == null) return;
-
-    //     _insideSet.Add(pcs);
-    // }
-
-    private bool IsPlayerInsideEntryCollider(PlayerControllerScript pcs)
-{
-    if (pcs == null || entryCollider == null) return false;
-
-    Vector3 p = pcs.transform.position;
-    Vector3 closest = entryCollider.ClosestPoint(p);
-
-    // If the point is inside the collider, ClosestPoint returns the point itself (within tolerance).
-    return (closest - p).sqrMagnitude <= 0.0001f;
-}
-
-private void SnapshotEntrantsAtClose()
-{
-    _currentEntrants.Clear();
-
-#if UNITY_6000_0_OR_NEWER
-    var players = FindObjectsByType<PlayerControllerScript>(FindObjectsSortMode.None);
-#else
-    var players = FindObjectsOfType<PlayerControllerScript>();
-#endif
-
-    foreach (var pcs in players)
-    {
-        if (pcs == null) continue;
-        if (!pcs.gameObject.activeInHierarchy) continue;
-
-        if (IsPlayerInsideEntryCollider(pcs))
-            _currentEntrants.Add(pcs);
-    }
-}
-
-
-
-    private void OnTriggerExit(Collider other)
-    {
-        if (!_entryWindowOpen || entryCollider == null || other == null)
-            return;
-
-        if (playerLayer.value != 0)
-        {
-            if ((playerLayer.value & (1 << other.gameObject.layer)) == 0)
-                return;
-        }
-
-        var pcs = other.GetComponentInParent<PlayerControllerScript>();
-        if (pcs == null) return;
-
-        // Handle multi-collider rigs: only remove if player is actually outside now.
-        if (!IsInsideEntry(pcs))
-            _insideSet.Remove(pcs);
-    }
-
-    // ------------------------------------------------------
-    // Shield registration (from NOVA core minigame)
-    // ------------------------------------------------------
-
-    /// <summary>
-    /// Called by NovaCoreMassReward when a team captures core mass in
-    /// the NOVA anomaly. The star accumulates this per team to reduce
-    /// bounce intensity.
-    /// </summary>
-    public void RegisterCoreCapture(int teamIndex, float shieldAmount)
-    {
-        if (teamIndex < 0 || shieldAmount <= 0f)
-            return;
-
-        if (!_teamShieldPool.TryGetValue(teamIndex, out float current))
-            current = 0f;
-
-        _teamShieldPool[teamIndex] = current + shieldAmount;
-    }
-
-    // ------------------------------------------------------
-    // Bounce + final supernova
-    // ------------------------------------------------------
-
-    /// <summary>
-    /// Called by NovaAnomalyAdapter once the NOVA core anomaly has
-    /// completed and rewards/shields have been applied.
-    /// </summary>
-    public void TriggerBounceAfterMinigame()
-    {
-        if (!_waitingForMinigame)
-            return;
-        // Hide the entry ring now that the minigame is done.
-        if (entryRingVisual != null)
-            entryRingVisual.SetActive(false);
-
-        // Eject entrants outward from the star so they don't immediately re-enter
-        // on the next entry window.
-        if (_currentEntrants != null && _currentEntrants.Count > 0)
-        {
-            foreach (var pcs in _currentEntrants)
+            float angle = offset + (i + UnityEngine.Random.Range(-.3f, .3f)) * Mathf.PI / pairs;
+            var direction = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle));
+            float speed = UnityEngine.Random.Range(ejectionSpeed.x, ejectionSpeed.y) * (1f + (stage - 2) * .2f);
+            for (int side = -1; side <= 1; side += 2)
             {
-                if (pcs == null) continue;
-
-                var rb = pcs.GetComponent<Rigidbody>();
-                if (rb == null) continue;
-
-                Vector3 starPos = transform.position;
-                Vector3 playerPos = rb.position;
-
-                // Direction from star to player in XZ plane
-                Vector3 dir = playerPos - starPos;
-                dir.y = 0f;
-                if (dir.sqrMagnitude < 0.0001f)
-                {
-                    // If they're exactly at the center, pick a random direction
-                    dir = UnityEngine.Random.onUnitSphere;
-                    dir.y = 0f;
-                }
-                dir.Normalize();
-
-                // Reposition and push
-                pcs.ProtectActionMomentum(.25f);
-                rb.position = starPos + dir * ejectDistance;
-    #if UNITY_6000_0_OR_NEWER
-                rb.linearVelocity = dir * ejectImpulse;
-    #else
-                rb.velocity = dir * ejectImpulse;
-    #endif
+                var pickup = Instantiate(prefab, matterRoot);
+                pickups.Add(pickup);
+                pickup.Eject(transform.position + direction * (side * ejectionRadius), direction * (side * speed), pickupLifetime);
             }
         }
-
-        // Now do the bounce
-        TriggerBounce();
-        _bounceCount++;
-        _currentEntrants.Clear();
-        _waitingForMinigame = false;
-
-        if (maxBounces > 0 && _bounceCount >= maxBounces)
-{
-    OnFinalSupernova?.Invoke();
-    // optionally: disable this component or stop the bounce loop
-    enabled = false;
-}
-
     }
-
-
-    private void TriggerBounce()
+    public void BeginMatchFinale()
     {
-        OnBounceTriggered?.Invoke();
-
-        // For each player in the scene, compute an effective "intensity multiplier"
-        // based on distance and shield. Let listeners decide what to do with it.
-        var players = FindObjectsOfType<PlayerControllerScript>();
-        foreach (var p in players)
+        if (FinaleStarted) return;
+        FinaleStarted = true;
+        StopAllCoroutines();
+        progression = null;
+        CurrentStage = StageCount;
+        if (rumble) rumble.SetStage(4);
+        OnStageChanged?.Invoke(CurrentStage);
+        foreach (var pickup in pickups) if (pickup) Destroy(pickup.gameObject);
+        pickups.Clear();
+        StartCoroutine(FinalEntry());
+    }
+    private IEnumerator FinalEntry()
+    {
+        SetEntryOpen(true);
+        OnEntryWindowOpened?.Invoke();
+        if (rumble) yield return rumble.WindUp(5, Mathf.Max(0f, entryWindowDuration));
+        else yield return new WaitForSecondsRealtime(Mathf.Max(0f, entryWindowDuration));
+        if (rumble) rumble.SetStage(4);
+        var entrants = new List<PlayerControllerScript>();
+        foreach (var player in GetRosteredPlayers())
+            if (player.gameObject.activeInHierarchy && entryCollider &&
+                (entryCollider.ClosestPoint(player.transform.position) - player.transform.position).sqrMagnitude < .0001f)
+                entrants.Add(player);
+        SetEntryOpen(false);
+        // Empty is meaningful: everyone still participates and receives the late penalty.
+        OnEntryWindowClosed?.Invoke(entrants);
+    }
+    public List<PlayerControllerScript> GetRosteredPlayers()
+    {
+        var result = new List<PlayerControllerScript>();
+        if (roster)
         {
-            if (p == null) continue;
-
-            // Distance falloff
-            Vector3 starPos = transform.position;
-            Vector3 playerPos = p.transform.position;
-            float distance = Vector3.Distance(starPos, playerPos);
-
-            // TODO: replace this with your actual arena radius.
-            float arenaRadius = 10f;
-            float normalized = Mathf.Clamp01(distance / arenaRadius);
-            float falloff = distanceFalloff.Evaluate(normalized);
-
-            // Shield factor
-            float shield = 0f;
-            _teamShieldPool.TryGetValue(p.teamID, out shield);
-            float shieldFactor = 1f / (1f + Mathf.Max(0f, shield) * shieldIntensityFactor);
-
-            float effectiveIntensity = baseBounceIntensity * falloff * shieldFactor;
-
-            OnPlayerBounceHit?.Invoke(p, effectiveIntensity);
+            foreach (var root in new[] {roster.P1, roster.P2, roster.P3, roster.P4})
+                if (roster.IsRostered(root)) AddRosterPlayer(root, result);
         }
+        else
+            foreach (var player in FindObjectsByType<PlayerControllerScript>(FindObjectsSortMode.None))
+                if (!player.IsPseudoPlayer) result.Add(player);
+        result.Sort((a,b) => a.playerID.CompareTo(b.playerID));
+        return result;
     }
-
-    private void TriggerFinalSupernova()
+    private static void AddRosterPlayer(GameObject root, List<PlayerControllerScript> result)
     {
+        if (!root) return;
+        var player = root.GetComponent<PlayerControllerScript>();
+        if (player && !player.IsPseudoPlayer) result.Add(player);
+    }
+    public void CompleteFinale()
+    {
+        if (supernovaSent) return;
+        supernovaSent = true;
         OnFinalSupernova?.Invoke();
-
-        // TODO: play final supernova VFX, end the match, etc.
-        // This could call into GameManagerScript.EndGame() or similar.
+    }
+    private void SetEntryOpen(bool value)
+    {
+        IsEntryWindowOpen = value;
+        if (entryCollider) { entryCollider.isTrigger = true; entryCollider.enabled = value; }
+        if (entryRingVisual) entryRingVisual.SetActive(value);
+    }
+    private void OnDisable()
+    {
+        if (match) match.RegulationTimeChanged -= OnRegulationTime;
+        StopAllCoroutines();
+        progression = null;
+        SetEntryOpen(false);
+        foreach (var pickup in pickups) if (pickup) Destroy(pickup.gameObject);
+        pickups.Clear();
     }
 }

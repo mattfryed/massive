@@ -52,9 +52,11 @@ public class SymmetryKnotMetaballFlow : MonoBehaviour
     private bool _active;
     private float _flowMul; // 0..1
     private float _logTimer;
+    private SymmetryKnotController controller;
 
     private void Awake()
     {
+        controller = GetComponent<SymmetryKnotController>();
         // Auto-find SDF instances if not assigned
         if (!sourceSDF) sourceSDF = GetComponentInChildren<MetaballSDFInstance>(true);
         // endSDF might not be found by the above if there are two; user can assign explicitly.
@@ -78,7 +80,7 @@ public class SymmetryKnotMetaballFlow : MonoBehaviour
         if (_endRoot != null)
             CollectDirectSlices(_endRoot, _endSlices);
 
-        bool wantsActive = (_endRoot != null) && (_srcSlices.Count >= 2) && (_endSlices.Count >= 2);
+        bool wantsActive = controller != null && controller.IsFlowing && (_endRoot != null) && (_srcSlices.Count >= 2) && (_endSlices.Count >= 2);
         _active = wantsActive;
 
         // Tween flowMul
@@ -309,4 +311,4 @@ public class SymmetryKnotMetaballFlow : MonoBehaviour
         return null;
     }
 }
- 
+

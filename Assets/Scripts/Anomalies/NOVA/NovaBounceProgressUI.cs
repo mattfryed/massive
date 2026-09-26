@@ -25,7 +25,7 @@ public class NovaBounceProgressUI : MonoBehaviour
     // Track what we built so we only rebuild when maxBounces changes.
     private int _builtForMaxBounces = -1;
 
-    private int MaxBounces => (star != null) ? star.maxBounces : 0;
+    private int MaxBounces => NovaStarController.StageCount;
 
     private void OnEnable()
     {
@@ -35,10 +35,11 @@ public class NovaBounceProgressUI : MonoBehaviour
             return;
         }
 
-        star.OnBounceTriggered += HandleBounceTriggered;
+        star.OnStageChanged += HandleStageChanged;
         star.OnFinalSupernova  += HandleFinalSupernova;
 
         EnsureBuilt();
+        _bouncesCompleted = star.CurrentStage - 1;
         Refresh();
     }
 
@@ -46,7 +47,7 @@ public class NovaBounceProgressUI : MonoBehaviour
     {
         if (star == null) return;
 
-        star.OnBounceTriggered -= HandleBounceTriggered;
+        star.OnStageChanged -= HandleStageChanged;
         star.OnFinalSupernova  -= HandleFinalSupernova;
     }
 
@@ -101,13 +102,13 @@ public class NovaBounceProgressUI : MonoBehaviour
         _slots.Clear();
     }
 
-    private void HandleBounceTriggered()
+    private void HandleStageChanged(int stage)
     {
         // A bounce explosion just occurred → advance.
         int total = MaxBounces;
         if (total <= 0) return;
 
-        _bouncesCompleted = Mathf.Clamp(_bouncesCompleted + 1, 0, total);
+        _bouncesCompleted = Mathf.Clamp(stage - 1, 0, total);
         Refresh();
     }
 
@@ -138,7 +139,7 @@ public class NovaBounceProgressUI : MonoBehaviour
             else
             {
                 int nextBounceNumber = _bouncesCompleted + 1; // 1-based
-                progressText.text = $"SUPERNOVA PROGRESS {nextBounceNumber}/{total}";
+                progressText.text = nextBounceNumber == total ? "CORE COLLAPSE 5/5" : $"STELLAR INSTABILITY {nextBounceNumber}/{total}";
             }
         }
 

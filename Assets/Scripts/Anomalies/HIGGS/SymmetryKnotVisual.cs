@@ -160,6 +160,7 @@ private Quaternion _ringsBaseRot = Quaternion.identity;
     private int ownerTeamID = -1;
     private Transform ownerGoalMouth;
     private bool contested;
+    private float captureHold01;
 
     private float fade = 1f;
     private bool despawning;
@@ -249,6 +250,7 @@ private Quaternion _ringsBaseRot = Quaternion.identity;
         ownerTeamID = teamID;
         ownerGoalMouth = goalMouth;
         this.contested = contested;
+        captureHold01 = Mathf.Clamp01(hold01);
 
         // Persist last goal mouth so the end knot can retract instead of popping.
         if (goalMouth != null)
@@ -320,7 +322,7 @@ if (collapseEntryRingsToo && despawning)
 
         // Desired lock state
         bool wantsLock = (ownerTeamID != -1 && ownerGoalMouth != null && !contested);
-        float lockTarget = wantsLock ? 1f : 0f;
+        float lockTarget = wantsLock ? captureHold01 : 0f;
 
         // Spring lockValue toward lockTarget (overshoot-capable)
         lockValue = SpringFloat(lockValue, ref lockVel, lockTarget, lockSpringStiffness, lockSpringDamping, Time.deltaTime);

@@ -78,6 +78,14 @@ public class AnomalyManager : MonoBehaviour
 {
     [Header("Config")]
     public StageProfile stageProfile;
+    [Tooltip("Optional shared match owner. Assigned by gameplay templates; standalone demonstrations can omit it.")]
+    public GameManagerScript match;
+    public Massive.Scoring.MatchScoreService ScoreService =>
+        match ? match.ScoreService : Massive.Scoring.MatchScoreService.Instance;
+    public bool IsTerminalBonus => match && match.IsTerminalBonus;
+    private bool ownsBonusPhase;
+    private bool finalizing;
+
 
     [Header("Arena Mode (Hard Disable)")]
     [SerializeField] private bool hardDisablePlayerObjectsWhilePaused = true;
@@ -107,7 +115,7 @@ public class AnomalyManager : MonoBehaviour
     float? _forcedDuration;
 	IReadOnlyList<PlayerControllerScript> _forcedOnTimeParticipants;
 
-    public bool IsAnomalyRunning => _currentMinigame != null;
+    public bool IsAnomalyRunning => _currentDef != null;
 
     // Fired whenever any anomaly finishes, after rewards are applied.
     // Used by level-specific adapters (e.g. NovaAnomalyAdapter) to react.
@@ -237,13 +245,22 @@ private void RestoreHardDisabledPlayers()
     IEnumerator RunAnomalyRoutine(AnomalyDefinition def)
     {
         // 1. Warning / telegraph
-        float warningDelay = def.GetRandomStartDelay();
-        if (ui != null)
+        float warningDelay = IsTerminalBonus ? 0f : def.GetRandomStartDelay();
+        if (ui != null && !IsTerminalBonus)
             ui.ShowWarning(def, warningDelay);
 
         SpawnWorldTelegraph(def);
         yield return new WaitForSeconds(warningDelay);
 
+        if (match != null)
+        {
+            if (!match.BeginBonusRound(pauseRegulationClock: true, chainClockRuns: false))
+            {
+                CancelCurrentAnomaly();
+                yield break;
+            }
+            ownsBonusPhase = true;
+        }
         // 2. Activate
         // Duration for the minigame
         float duration = _forcedDuration.HasValue ? _forcedDuration.Value : def.GetRandomDuration();
@@ -386,6 +403,9 @@ transition.BindUISequencer(seq);
 
     void HandleMinigameCompleted(AnomalyResult result)
 {
+    if (finalizing || _currentDef == null) return;
+    finalizing = true;
+    if (IsTerminalBonus) ScoreService?.CloseScoring();
     var transition = _currentMinigame != null ? _currentMinigame.GetComponent<NovaMinigameTransition>() : null;
     if (transition != null)
     {
@@ -398,7 +418,7 @@ transition.BindUISequencer(seq);
 
 IEnumerator FinalizeAfterOutro(NovaMinigameTransition transition, AnomalyResult result)
 {
-    yield return StartCoroutine(transition.PlayOutro()); // circle wipe ends here【turn7file3†NovaMinigameTransition.cs†L86-L90】
+    yield return StartCoroutine(transition.PlayOutro(IsTerminalBonus));
     yield return StartCoroutine(FinalizeWithPostResults(result));
 }
 
@@ -417,82 +437,74 @@ private IEnumerator FinalizeWithPostResults(AnomalyResult result)
         ui.HideLowerThird();
     }
 
-    // Only do the custom panel if this is NovaCore
-    if (result.payload is NovaCoreWrapUpPayload wrap && novaCoreResultsPanel != null)
+    // Captures have already banked energy; completion applies stage shielding only.
+    if (!IsTerminalBonus) ApplyRewards(result);
+    if (!IsTerminalBonus && result.payload is NovaCoreWrapUpPayload wrap && novaCoreResultsPanel != null)
     {
-        // Capture "before" scores
-        var lightSphere = FindScoreSphereForTeam(wrap.lightTeamIndex);
-        var darkSphere  = FindScoreSphereForTeam(wrap.darkTeamIndex);
-
-        float lightBefore = lightSphere != null ? lightSphere.Score01 : 0f;
-        float darkBefore  = darkSphere  != null ? darkSphere.Score01  : 0f;
-
-        // Apply rewards now (this updates the score spheres)
-        ApplyRewards(result);
-
-        // Capture "after" scores
-        float lightAfter = lightSphere != null ? lightSphere.Score01 : lightBefore;
-        float darkAfter  = darkSphere  != null ? darkSphere.Score01  : darkBefore;
-
-        float lightAwarded01 = Mathf.Max(0f, lightAfter - lightBefore);
-        float darkAwarded01  = Mathf.Max(0f, darkAfter  - darkBefore);
-
-        // Destroy minigame UI/object now (optional, keeps things tidy)
-        // if (_currentMinigame != null)
-        // {
-        //     _currentMinigame.OnCompleted -= HandleMinigameCompleted;
-        //     Destroy(_currentMinigame.gameObject);
-        //     _currentMinigame = null;
-        // }
-
-        // Show results window ON TOP of gameplay (post wipe)
-        novaCoreResultsPanel.Show(
-            wrap.lightParticles, lightAwarded01,
-            wrap.darkParticles,  darkAwarded01
-        );
+        novaCoreResultsPanel.ShowEnergy(
+            wrap.lightParticles, wrap.lightAwardedMilliElectronVolts,
+            wrap.darkParticles, wrap.darkAwardedMilliElectronVolts);
 
         float hold = Mathf.Max(0f, novaCoreResultsPanel.ShowSeconds);
         if (hold > 0f)
-            yield return new WaitForSeconds(hold);
+            yield return new WaitForSecondsRealtime(hold);
 
         novaCoreResultsPanel.Hide();
     }
-    else
+    else if (ui != null && !IsTerminalBonus)
     {
-        // Fallback: existing generic result behavior
-        if (ui != null)
-            ui.ShowResult(_currentDef, result);
-
-        ApplyRewards(result);
+        ui.ShowResult(_currentDef, result);
     }
 
-    // Fire completion (star bounce, etc) while players are still paused
-OnAnomalyCompleted?.Invoke(_currentDef, result);
-
-// Unpause + restore arena mode
-ApplyArenaMode(ArenaModeDuringAnomaly.Unchanged);
-
-// NOW it is safe to destroy the minigame (its OnDestroy restore won't get "overridden" by unpause)
-if (minigameToDestroy != null)
-{
-    minigameToDestroy.OnCompleted -= HandleMinigameCompleted;
-    Destroy(minigameToDestroy.gameObject);
+    var completedDefinition = _currentDef;
+    if (!IsTerminalBonus) ApplyArenaMode(ArenaModeDuringAnomaly.Unchanged);
+    if (minigameToDestroy != null)
+    {
+        minigameToDestroy.OnCompleted -= HandleMinigameCompleted;
+        Destroy(minigameToDestroy.gameObject);
+    }
+    ClearAnomalyState();
+    bool releaseBonus = ownsBonusPhase;
+    ownsBonusPhase = false;
+    OnAnomalyCompleted?.Invoke(completedDefinition, result);
+    if (releaseBonus && match) match.EndBonusRound();
 }
-_currentMinigame = null;
 
-    // NOW fire completion (bounce, etc) and re-enable gameplay
-    OnAnomalyCompleted?.Invoke(_currentDef, result);
+    private void ClearAnomalyState()
+    {
+        _currentMinigame = null;
+        _currentDef = null;
+        _currentParticipants.Clear();
+        _forcedParticipants = null;
+        _forcedDuration = null;
+        _forcedOnTimeParticipants = null;
+        finalizing = false;
+        DespawnWorldTelegraph();
+    }
 
-    // Let players move again ONLY AFTER results window completes
-    ApplyArenaMode(ArenaModeDuringAnomaly.Unchanged);
+    public void CancelCurrentAnomaly()
+    {
+        StopAllCoroutines();
+        _scheduleRoutine = null;
+        if (_currentMinigame != null)
+        {
+            _currentMinigame.OnCompleted -= HandleMinigameCompleted;
+            Destroy(_currentMinigame.gameObject);
+        }
+        if (ui) { ui.HideTop(); ui.HideLowerThird(); }
+        if (novaCoreResultsPanel) novaCoreResultsPanel.Hide();
+        ApplyArenaMode(ArenaModeDuringAnomaly.Unchanged);
+        ClearAnomalyState();
+        bool releaseBonus = ownsBonusPhase;
+        ownsBonusPhase = false;
+        if (releaseBonus && match) match.EndBonusRound();
+    }
 
-    _currentParticipants.Clear();
-    _currentDef = null;
-    _forcedParticipants = null;
-    _forcedDuration = null;
-    _forcedOnTimeParticipants = null;
-    DespawnWorldTelegraph();
-}
+    private void OnDisable()
+    {
+        if (Application.isPlaying) CancelCurrentAnomaly();
+    }
+
 
 
         void HandleMinigameCompleted_NoOutro(AnomalyResult result)

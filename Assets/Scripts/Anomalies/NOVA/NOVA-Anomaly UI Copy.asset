@@ -15,12 +15,12 @@ MonoBehaviour:
   topWarning:
     enabled: 1
     useCountdown: 1
-    topLabelText: ANOMALY DETECTED
+    topLabelText: FINAL CORE ENTRY
     typeText: 
   topActive:
     enabled: 1
     useCountdown: 1
-    topLabelText: ANOMALY ACTIVATED
+    topLabelText: CORE COLLAPSE BONUS
     typeText: 
   topPost:
     enabled: 0
@@ -33,13 +33,13 @@ MonoBehaviour:
     bodyText: 
   lowerDuring:
     enabled: 1
-    headerText: STABILIZE THE CORE
-    bodyText: 'Align with the incoming particles
+    headerText: CAPTURE BONUS ENERGY
+    bodyText: 'Align with incoming particles.
 
-      Match attack button presses
-      to sub-particle count
+      Match attack presses to their
+      particle count.
 
-      Most particles captured gains mass and shielding'
+      Flat bonus energy. Multipliers do not apply.'
   lowerPost:
     enabled: 0
     headerText: OBJECTIVE

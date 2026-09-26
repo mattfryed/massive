@@ -43,6 +43,7 @@ StructuredBuffer<float> _ExciteHoldUntil;
 // ------------------------------------------------------------
 int    _MaxBubbles;
 int    _ActiveBubbles;
+float4 _KnotExcitation; // xy pinned UV, z reserved, w authored excitation envelope
 
 float  _DT;
 float  _Time;
@@ -201,7 +202,9 @@ void UpdateBubbles(uint3 id : SV_DispatchThreadID)
         // --------------------------------------------------------
         float2 dir = DriftDir(b.posUV, _Time, _NoiseScale);
         b.velUV = b.velUV * _VelDamping + dir * (_DriftSpeedUV * (1.0 - _VelDamping));
-        b.posUV += b.velUV * _DT;
+        bool reserved = i == 0 && _KnotExcitation.z > 0.5;
+        if (reserved) { b.posUV = _KnotExcitation.xy; b.velUV = 0; }
+        else b.posUV += b.velUV * _DT;
         b.posUV = frac(b.posUV); // wrap 0..1
 
         // --------------------------------------------------------
@@ -278,6 +281,7 @@ void UpdateBubbles(uint3 id : SV_DispatchThreadID)
         // Excitation envelope + blended amp
         // --------------------------------------------------------
         float exciteW = ExciteEnvelope(b.exciteAge, b.exciteT, _ExciteFadeTime);
+        if (reserved) { exciteW = saturate(_KnotExcitation.w); b.exciteT = 0; b.exciteAge = 0; }
 
         b.pad.x = baseAmp;   // base amplitude (no excite)
         b.pad.y = exciteW;   // excitation envelope

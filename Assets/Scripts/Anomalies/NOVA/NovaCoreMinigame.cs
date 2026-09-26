@@ -172,6 +172,7 @@ public partial class NovaCoreMinigame : AnomalyMinigameBase, IGameplayEnableRece
 public void SetGameplayEnabled(bool enabled)
     {
         _gameplayEnabled = enabled;
+        if (scoreIntegration) scoreIntegration.SetAcceptingInteractions(enabled && !_instructionsPreviewActive);
 
         // When leaving gameplay (intro/outro), remove any live projectile visuals.
         if (!enabled)
@@ -193,6 +194,9 @@ private readonly List<PlayerControllerScript> _worldPlayersCache = new();
 
     // -------------------- Runtime state --------------------
 
+    private NovaMinigameScoring scoreIntegration;
+    private NovaBonusPresentation bonusPresentation;
+    private int nextParticleId;
     private int _lightTeamParticlesCaptured;
     private int _darkTeamParticlesCaptured;
 
@@ -246,6 +250,8 @@ private readonly List<PlayerControllerScript> _worldPlayersCache = new();
         public List<float> subShrink = new List<float>(); // -1 idle, 0..1 shrinking
 
         public int originalSubCount;
+        public int scoreId;
+        public bool scoreProcessed;
         public ParticipantState lastHitBy;
 
         public Vector2 position;   // base position
@@ -301,8 +307,10 @@ void OnEnable()
     _rayDotMaterial = null;
 }
 
+private bool _hasOnTimeSnapshot;
 public void SetOnTimeParticipants(IReadOnlyList<PlayerControllerScript> onTimeParticipants)
 {
+    _hasOnTimeSnapshot = onTimeParticipants != null;
     _onTimePlayerIds.Clear();
     if (onTimeParticipants == null) return;
 
@@ -319,6 +327,18 @@ public void SetOnTimeParticipants(IReadOnlyList<PlayerControllerScript> onTimePa
     public override void Init(AnomalyContext context)
     {
     base.Init(context);
+    scoreIntegration = GetComponent<NovaMinigameScoring>();
+    if (!scoreIntegration) scoreIntegration = gameObject.AddComponent<NovaMinigameScoring>();
+    scoreIntegration.BeginSession(context.manager ? context.manager.ScoreService : null, context.participants);
+    nextParticleId = 0;
+    if (context.manager)
+    {
+        bonusPresentation = FindFirstObjectByType<NovaBonusPresentation>();
+        if (bonusPresentation && bonusPresentation.match == context.manager.match)
+            bonusPresentation.BeginSession(this, playAreaRect);
+        else
+            bonusPresentation = null;
+    }
 
     // Cache exactly who we intend to suppress/restore (participants, not allPlayers)
     _worldPlayersCache.Clear();
@@ -371,7 +391,7 @@ private void Update()
         RecomputeOrbitRadius();
 
     float dt =
-        (_instructionsPreviewActive && previewUseUnscaledTime)
+        (Context.manager != null || (_instructionsPreviewActive && previewUseUnscaledTime))
             ? Time.unscaledDeltaTime
             : Time.deltaTime;
 
@@ -425,7 +445,7 @@ private void UpdateParticlesOutro(float dt)
             // vibration + apply position
             if (p.root != null)
             {
-                float tNoise = Time.time * particleVibrationFrequency + p.noiseSeed;
+                float tNoise = Time.unscaledTime * particleVibrationFrequency + p.noiseSeed;
                 float nx = (Mathf.PerlinNoise(tNoise, 0f) - 0.5f) * 2f;
                 float ny = (Mathf.PerlinNoise(0f, tNoise) - 0.5f) * 2f;
                 Vector2 vib = new Vector2(nx, ny) * particleVibrationAmplitude;
@@ -902,7 +922,7 @@ private void CleanupProjectile(ProjectileRay pr)
             // vibration + position apply
             if (p.root != null)
             {
-                float tNoise = Time.time * particleVibrationFrequency + p.noiseSeed;
+                float tNoise = Time.unscaledTime * particleVibrationFrequency + p.noiseSeed;
                 float nx = (Mathf.PerlinNoise(tNoise, 0f) - 0.5f) * 2f;
                 float ny = (Mathf.PerlinNoise(0f, tNoise) - 0.5f) * 2f;
                 Vector2 vib = new Vector2(nx, ny) * particleVibrationAmplitude;
@@ -1025,6 +1045,7 @@ private void CleanupProjectile(ProjectileRay pr)
         var p = new CoreParticle
         {
             originalSubCount = subCount,
+            scoreId = ++nextParticleId,
             position = spawnPos,
             direction = (corePos - spawnPos).normalized,
             speed = speed,
@@ -1268,10 +1289,10 @@ private void CleanupProjectile(ProjectileRay pr)
     /// </summary>
     private void AwardParticleMass(CoreParticle p)
     {
-        if (!_scoringEnabled)
-        return;
-
-        if (p.lastHitBy == null) return;
+        if (!_scoringEnabled || p.lastHitBy == null || p.scoreProcessed) return;
+        p.scoreProcessed = true;
+        if (!scoreIntegration || !scoreIntegration.TryAwardCapture(
+                p.lastHitBy.controller, p.scoreId, p.originalSubCount, out var award)) return;
 
         float mass = massPerSubparticle * p.originalSubCount;
         p.lastHitBy.totalCapturedMass += mass;
@@ -1281,6 +1302,11 @@ private void CleanupProjectile(ProjectileRay pr)
         else if (teamId == darkTeamIndex) _darkTeamParticlesCaptured++;
 
         PushScoreToUI();
+        if (bonusPresentation)
+        {
+            Vector3 position = p.root ? p.root.position : particlesRoot.TransformPoint(p.position);
+            bonusPresentation.ShowCapture(teamId, award.finalMilliElectronVolts, position);
+        }
     }
 
     /// <summary>
@@ -1292,6 +1318,9 @@ private void CleanupProjectile(ProjectileRay pr)
         if (ui == null) return;
 
         ui.SetParticleCounts(_lightTeamParticlesCaptured, _darkTeamParticlesCaptured);
+        if (bonusPresentation)
+            bonusPresentation.SetTotals(_lightTeamParticlesCaptured, _darkTeamParticlesCaptured,
+                scoreIntegration.AwardedToTeam(lightTeamIndex), scoreIntegration.AwardedToTeam(darkTeamIndex));
     }
 
     // -------------------- Participants --------------------
@@ -1525,6 +1554,7 @@ private RectTransform CreateIcon(ParticipantState ps)
 /// </summary>
 public void BeginOutroDissolve()
 {
+    if (bonusPresentation) bonusPresentation.BeginOutro();
     _outroDissolveActive = true;
     _scoringEnabled = false;
 
@@ -1757,7 +1787,7 @@ subparticleRadius = Mathf.Clamp(r, minR, maxR);
 
 private void ApplyLateJoinSetup()
 {
-    bool hasOnTimeInfo = _onTimePlayerIds.Count > 0;
+    bool hasOnTimeInfo = _hasOnTimeSnapshot;
 
     foreach (var ps in _participants)
     {
@@ -1872,6 +1902,7 @@ private void SetWorldPlayersSuppressed(bool suppressed)
 
 private void OnDestroy()
 {
+    if (bonusPresentation) bonusPresentation.EndSession(this);
     // Ensure world players always come back even if something ends early.
     SetWorldPlayersSuppressed(false);
 }

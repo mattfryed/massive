@@ -13,5 +13,10 @@ public sealed class NovaCoreWrapUpPayload
     public float lightMass;
     public float darkMass;
 
+    // Exact receipts from accepted match-service awards; never a second score balance.
+    public long lightAwardedMilliElectronVolts;
+    public long darkAwardedMilliElectronVolts;
+    public bool universalScoringApplied;
+
     public float TotalMass => lightMass + darkMass;
 }

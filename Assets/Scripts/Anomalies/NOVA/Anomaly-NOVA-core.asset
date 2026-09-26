@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 
   displayName: 
-  shortDescription: ENTER STAR TO POSTPONE CORE COLLAPSE
+  shortDescription: ENTER THE CORE BEFORE COLLAPSE
   spaceMode: 1
   arenaMode: 1
   minStartDelay: 0

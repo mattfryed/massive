@@ -6,6 +6,8 @@ Shader "MASSIVE/HIGGS/UnderlayTopo_URP"
         _HiggsExcite ("Higgs Excite (RFloat)", 2D) = "black" {}
 
         _Opacity     ("Line Opacity", Range(0,1)) = 0.85
+        _ExcitationGlowStrength ("Selected Excitation Glow", Range(0,3)) = 1.25
+        _ExcitationGlowPower ("Higher Contour Emphasis", Range(0.5,4)) = 2
 
         _HeightRemapOffset ("Height Remap Offset", Float) = 0.0
         _HeightRemapScale  ("Height Remap Scale", Float) = 1.0
@@ -54,6 +56,8 @@ Shader "MASSIVE/HIGGS/UnderlayTopo_URP"
             TEXTURE2D(_HiggsExcite);  SAMPLER(sampler_HiggsExcite);
 
             float _Opacity;
+            float _ExcitationGlowStrength;
+            float _ExcitationGlowPower;
 
             float _HeightRemapOffset;
             float _HeightRemapScale;
@@ -153,6 +157,8 @@ Shader "MASSIVE/HIGGS/UnderlayTopo_URP"
 
                 float3 col = baseCol;
                 col = lerp(col, pierceCol, saturate(pierceGate * _PierceColorStrength));
+                // Only the selected excitation gains height-dependent energy; background contours stay quiet.
+                col *= 1.0 + _ExcitationGlowStrength * e * pow(saturate(pierceT), _ExcitationGlowPower);
 
                 // Only lines get alpha (no sheet fill)
                 float mask = saturate(max(contourMask, ringMask));

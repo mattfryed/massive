@@ -216,6 +216,23 @@ public class HiggsFieldGPU : MonoBehaviour
 
     private int kInit, kUpdate, kRaster;
     private float elapsed;
+    // Bubble zero is always active. Gameplay pins it at a validated site; all other bubbles stay decorative.
+    private Vector4 reservedExcitation;
+    public bool HasReservedExcitation => reservedExcitation.z > .5f;
+    public Vector2 ReservedExcitationUV => new Vector2(reservedExcitation.x, reservedExcitation.y);
+
+    public bool TryReserveExcitation(Vector3 worldPosition, float clearance)
+    {
+        if (bubbleBuffer == null || HasReservedExcitation || worldSizeXZ.x <= 0 || worldSizeXZ.y <= 0) return false;
+        Vector3 offset = worldPosition - transform.position;
+        float u = offset.x / worldSizeXZ.x + .5f, v = offset.z / worldSizeXZ.y + .5f;
+        float insetX = Mathf.Max(0, clearance) / worldSizeXZ.x, insetZ = Mathf.Max(0, clearance) / worldSizeXZ.y;
+        if (u < insetX || u > 1-insetX || v < insetZ || v > 1-insetZ) return false;
+        reservedExcitation = new Vector4(u, v, 1, 0);
+        return true;
+    }
+    public void SetReservedExcitationStrength(float strength) => reservedExcitation.w = Mathf.Clamp01(strength);
+    public void ReleaseReservedExcitation() => reservedExcitation = Vector4.zero;
 
     // ---- Compute property IDs (match HiggsFieldSim.compute) ----
     private static readonly int PID_Bubbles = Shader.PropertyToID("_Bubbles");
@@ -410,6 +427,7 @@ public int ActiveBubbles => _lastActiveBubbles;
         higgsCompute.SetInt(PID_ActiveBubbles, activeBubbles);
         higgsCompute.SetFloat(PID_DT, dt);
         higgsCompute.SetFloat(PID_Time, Time.time);
+        higgsCompute.SetVector("_KnotExcitation", reservedExcitation);
 
         higgsCompute.SetFloat(PID_NoiseScale, noiseScale);
         higgsCompute.SetFloat(PID_DriftSpeedUV, driftSpeedUV);

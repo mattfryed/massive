@@ -17,6 +17,8 @@ public class PostGameScreenController : MonoBehaviour
     [SerializeField] private TMP_Text scoreDarkText;
     [SerializeField] private TMP_Text scoreLightUnitText;
     [SerializeField] private TMP_Text scoreDarkUnitText;
+    [SerializeField] private TMP_Text scoreLightBreakdownText;
+    [SerializeField] private TMP_Text scoreDarkBreakdownText;
 
     [Header("Optional UI")]
     [SerializeField] private TMP_Text modeText;        // "1v1" / "2v2"
@@ -124,9 +126,20 @@ public class PostGameScreenController : MonoBehaviour
 
         ApplyEnergyScore(scoreLightText, scoreLightUnitText, r.LightScore);
         ApplyEnergyScore(scoreDarkText, scoreDarkUnitText, r.DarkScore);
+        ApplyBreakdown(scoreLightBreakdownText, r.hasBonusBreakdown, r.regulationLightMilliElectronVolts, r.bonusLightMilliElectronVolts);
+        ApplyBreakdown(scoreDarkBreakdownText, r.hasBonusBreakdown, r.regulationDarkMilliElectronVolts, r.bonusDarkMilliElectronVolts);
 
         if (modeText != null)
             modeText.text = r.mode == GameMode.TwoVTwo ? "2v2" : "1v1";
+    }
+
+    private static void ApplyBreakdown(TMP_Text text, bool show, long regulation, long bonus)
+    {
+        if (!text) return;
+        text.gameObject.SetActive(show);
+        var color = text.color; color.a = 1f; text.color = color;
+        if (show) text.text = "REGULATION  " + EnergyScoreFormatter.FormatWithUnit(regulation) +
+            "\nCORE COLLAPSE  +" + EnergyScoreFormatter.FormatWithUnit(bonus);
     }
 
 private void ApplyWinnerTheme(MatchResult r)
@@ -136,6 +149,8 @@ private void ApplyWinnerTheme(MatchResult r)
               (r.winner == TeamSide.Dark)  ? darkWinTextColor  :
               darkWinTextColor;
 
+    ApplyThemeColorToText(scoreLightBreakdownText, c);
+    ApplyThemeColorToText(scoreDarkBreakdownText, c);
     System.Collections.Generic.HashSet<TMPTextTransition> toRefresh = null;
 
     if (themedTexts != null)

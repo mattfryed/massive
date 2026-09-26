@@ -8,6 +8,9 @@ public struct MatchResult
 
     public long lightMilliElectronVolts;
     public long darkMilliElectronVolts;
+    public bool hasBonusBreakdown;
+    public long regulationLightMilliElectronVolts, regulationDarkMilliElectronVolts;
+    public long bonusLightMilliElectronVolts, bonusDarkMilliElectronVolts;
 
     public GameMode mode;
 

@@ -13,8 +13,8 @@ MonoBehaviour:
   m_Name: ScoreEconomyProfile
   m_EditorClassIdentifier: 
   rulesetId: MASSIVE_SCORE_V1
-  rulesetVersion: 1
-  regulationDurationSeconds: 1200
+  rulesetVersion: 4
+  regulationDurationSeconds: 120
   chainSettings:
     multiplierSteps: 0100000002000000040000000800000010000000
     chargeRequiredPerTier:
@@ -29,11 +29,25 @@ MonoBehaviour:
   teamAmplifierSettings:
     multiplierSteps: 01000000020000000400000008000000
   rewards:
+  - key: HIGGS_CONTROL_TICK
+    enabled: 1
+    amount: 25
+    unit: 0
+    multiplierEligible: 0
+    ignoreAllMultipliers: 0
+    bonusOnly: 0
+    chainEffect: 0
+    chainCharge: 0
+    repeatPolicy: 0
+    feedbackId: HIGGS_CONTROL
+    expectedOccurrencesPerRound: 100
   - key: PLAYER_DEFEAT
     enabled: 1
     amount: 2
     unit: 1
     multiplierEligible: 1
+    ignoreAllMultipliers: 0
+    bonusOnly: 0
     chainEffect: 2
     chainCharge: 2
     repeatPolicy: 1
@@ -44,6 +58,8 @@ MonoBehaviour:
     amount: 1
     unit: 1
     multiplierEligible: 1
+    ignoreAllMultipliers: 0
+    bonusOnly: 0
     chainEffect: 2
     chainCharge: 1
     repeatPolicy: 1
@@ -54,6 +70,8 @@ MonoBehaviour:
     amount: 500
     unit: 0
     multiplierEligible: 1
+    ignoreAllMultipliers: 0
+    bonusOnly: 0
     chainEffect: 2
     chainCharge: 1
     repeatPolicy: 1
@@ -64,6 +82,8 @@ MonoBehaviour:
     amount: 125
     unit: 0
     multiplierEligible: 1
+    ignoreAllMultipliers: 0
+    bonusOnly: 0
     chainEffect: 2
     chainCharge: 0.5
     repeatPolicy: 1
@@ -74,6 +94,8 @@ MonoBehaviour:
     amount: 25
     unit: 0
     multiplierEligible: 1
+    ignoreAllMultipliers: 0
+    bonusOnly: 0
     chainEffect: 1
     chainCharge: 0.25
     repeatPolicy: 0
@@ -84,6 +106,8 @@ MonoBehaviour:
     amount: 1
     unit: 1
     multiplierEligible: 1
+    ignoreAllMultipliers: 0
+    bonusOnly: 0
     chainEffect: 2
     chainCharge: 1
     repeatPolicy: 1
@@ -94,8 +118,22 @@ MonoBehaviour:
     amount: 100
     unit: 0
     multiplierEligible: 1
+    ignoreAllMultipliers: 0
+    bonusOnly: 0
     chainEffect: 2
     chainCharge: 0.25
     repeatPolicy: 1
     feedbackId: ENEMY_DEFEAT
     expectedOccurrencesPerRound: 60
+  - key: NOVA_CORE_CAPTURE
+    enabled: 1
+    amount: 25
+    unit: 0
+    multiplierEligible: 0
+    ignoreAllMultipliers: 1
+    bonusOnly: 1
+    chainEffect: 0
+    chainCharge: 0
+    repeatPolicy: 1
+    feedbackId: NOVA_CAPTURE
+    expectedOccurrencesPerRound: 20

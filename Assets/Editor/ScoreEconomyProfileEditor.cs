@@ -65,6 +65,7 @@ public sealed class ScoreEconomyProfileEditor : Editor
 
         long expectedBase = 0L;
         long expectedAtMaxChain = 0L;
+        long expectedAtMaxAmplifier = 0L;
         int maxMultiplier = profile.ChainSettings.GetMultiplier(profile.ChainSettings.MaxIndex);
         int maxAmplifier = profile.TeamAmplifierSettings.GetMultiplier(
             profile.TeamAmplifierSettings.MaxIndex);
@@ -79,12 +80,13 @@ public sealed class ScoreEconomyProfileEditor : Editor
 
                 long count = Mathf.Max(0, rule.expectedOccurrencesPerRound);
                 long projected = EnergyScoreMath.SaturatingMultiply(rule.BaseMilliElectronVolts, count);
-                long projectedMax = rule.multiplierEligible
+                long projectedMax = rule.multiplierEligible && !rule.ignoreAllMultipliers
                     ? EnergyScoreMath.SaturatingMultiply(projected, maxMultiplier)
                     : projected;
 
                 expectedBase = EnergyScoreMath.SaturatingAdd(expectedBase, projected);
                 expectedAtMaxChain = EnergyScoreMath.SaturatingAdd(expectedAtMaxChain, projectedMax);
+                expectedAtMaxAmplifier = EnergyScoreMath.SaturatingAdd(expectedAtMaxAmplifier, EnergyScoreMath.SaturatingMultiply(projectedMax, rule.ignoreAllMultipliers ? 1 : maxAmplifier));
 
                 using (new EditorGUILayout.HorizontalScope())
                 {
@@ -109,7 +111,7 @@ public sealed class ScoreEconomyProfileEditor : Editor
         EditorGUILayout.LabelField(
             $"Upper projection with x{maxAmplifier} Amplifier",
             EnergyScoreFormatter.FormatWithUnit(
-                EnergyScoreMath.SaturatingMultiply(expectedAtMaxChain, maxAmplifier)));
+                expectedAtMaxAmplifier));
         EditorGUILayout.LabelField(
             "Expected active class",
             EnergyScoreMath.GetLabel(EnergyScoreFormatter.GetUnit(expectedBase)));

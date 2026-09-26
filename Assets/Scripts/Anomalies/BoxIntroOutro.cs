@@ -126,7 +126,7 @@ public IEnumerator PlayIn()
 
     while (t < inDuration)
     {
-        t += Time.deltaTime;
+        t += Time.unscaledDeltaTime;
 
         float whiteT = Mathf.Clamp01(t / inDuration);
         float blackT = Mathf.Clamp01((t - blackDelay) / inDuration);
@@ -142,7 +142,7 @@ public IEnumerator PlayIn()
     if (waitForTextOnIn && textMode != TextAnimMode.None)
     {
         // wait by polling our progress (TextTween drives SetTextProgress01 internally)
-        yield return new WaitForSeconds(textDur);
+        yield return new WaitForSecondsRealtime(textDur);
     }
 }
 
@@ -156,7 +156,7 @@ IEnumerator TextTween01(float from, float to, float duration)
 
     while (t < duration)
     {
-        t += Time.deltaTime;
+        t += Time.unscaledDeltaTime;
         float u = Mathf.Clamp01(t / duration);
         float v = Mathf.Lerp(from, to, ease.Evaluate(u));
         SetTextProgress01(v);
@@ -174,7 +174,7 @@ IEnumerator TextTween01(float from, float to, float duration)
 
         while (t < outDuration)
         {
-            t += Time.deltaTime;
+            t += Time.unscaledDeltaTime;
 
             float u = Mathf.Clamp01(t / outDuration);
 

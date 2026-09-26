@@ -72,6 +72,7 @@ namespace Massive.Scoring
                     MatchRuntimePhase.Countdown => "READY",
                     MatchRuntimePhase.Regulation => "REGULATION",
                     MatchRuntimePhase.Bonus => "BONUS",
+                    MatchRuntimePhase.FinaleEntry => "ENTER THE CORE",
                     MatchRuntimePhase.Resolving => "RESULT",
                     _ => string.Empty
                 };

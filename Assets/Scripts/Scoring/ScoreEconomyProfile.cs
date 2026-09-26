@@ -126,6 +126,10 @@ namespace Massive.Scoring
 
         public EnergyUnit unit = EnergyUnit.ElectronVolt;
         public bool multiplierEligible = true;
+        [Tooltip("Bypass both personal and team Amplifier multipliers.")]
+        public bool ignoreAllMultipliers;
+        [Tooltip("This reward belongs to the bonus phase. Ordinary rewards close when a bonus starts.")]
+        public bool bonusOnly;
         public ScoreChainAwardMode chainEffect = ScoreChainAwardMode.AdvanceAndRefresh;
 
         [Tooltip("Personal multiplier-bar charge granted to the attributed player. Ignored when Chain Effect is None.")]
@@ -153,6 +157,8 @@ namespace Massive.Scoring
         public const string PowerUpClaim = "POWER_UP_CLAIM";
         public const string EnergyPickupSmall = "ENERGY_PICKUP_SMALL";
         public const string ObjectiveTick = "OBJECTIVE_TICK";
+        public const string NovaCoreCapture = "NOVA_CORE_CAPTURE";
+        public const string HiggsControlTick = "HIGGS_CONTROL_TICK";
     }
 
     [CreateAssetMenu(fileName = "ScoreEconomyProfile", menuName = "MASSIVE/Scoring/Score Economy Profile")]
@@ -160,7 +166,7 @@ namespace Massive.Scoring
     {
         [Header("Ruleset Identity")]
         [SerializeField] private string rulesetId = "MASSIVE_SCORE_V1";
-        [SerializeField, Min(1)] private int rulesetVersion = 1;
+        [SerializeField, Min(1)] private int rulesetVersion = 4;
 
         [Header("Round")]
         [SerializeField, Min(1f)] private float regulationDurationSeconds = 120f;
@@ -228,7 +234,7 @@ namespace Massive.Scoring
         public void ResetToRecommendedDefaults()
         {
             rulesetId = "MASSIVE_SCORE_V1";
-            rulesetVersion = 1;
+            rulesetVersion = 4;
             regulationDurationSeconds = 120f;
             chainSettings = ScoreChainSettings.RecommendedDefaults();
             teamAmplifierSettings = TeamAmplifierSettings.RecommendedDefaults();
@@ -326,6 +332,20 @@ namespace Massive.Scoring
                 }
             };
 
+            rewards.Add(new ScoreRewardRule
+            {
+                key = ScoreRewardKeys.HiggsControlTick, amount = 25, unit = EnergyUnit.MilliElectronVolt,
+                multiplierEligible = false, chainEffect = ScoreChainAwardMode.None, chainCharge = 0,
+                repeatPolicy = ScoreRepeatPolicy.Unlimited, feedbackId = "HIGGS_CONTROL", expectedOccurrencesPerRound = 100
+            });
+            // Initial NOVA capture value follows the existing objective-tick scale.
+            rewards.Add(new ScoreRewardRule
+            {
+                key = ScoreRewardKeys.NovaCoreCapture, amount = 25, unit = EnergyUnit.MilliElectronVolt,
+                multiplierEligible = false, ignoreAllMultipliers = true, bonusOnly = true,
+                chainEffect = ScoreChainAwardMode.None, chainCharge = 0f,
+                repeatPolicy = ScoreRepeatPolicy.OncePerSourceToken, feedbackId = "NOVA_CAPTURE", expectedOccurrencesPerRound = 20
+            });
             _lookup = null;
         }
 

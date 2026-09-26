@@ -27,6 +27,13 @@ public class PlayerRosterController : MonoBehaviour
     public GameObject P3 => player3;
     public GameObject P4 => player4;
     public bool IsRosterReady => _rosterReady;
+    public bool IsRostered(GameObject player)
+    {
+        if (!player) return false;
+        if (GameFlowContext.Instance && GameFlowContext.Instance.IsTwoVTwo)
+            return player == player1 || player == player2 || player == player3 || player == player4;
+        return player == player1 || player == (oneVOneUsesPlayers1And3 ? player3 : player2);
+    }
 
     private void Awake()
     {

@@ -1,43 +1,39 @@
+using Massive.Enemies;
+using Massive.Scoring;
 using UnityEngine;
 
-/// <summary>
-/// Marker + routing point for Symmetry Knot "end knot".
-/// Also receives mass tick events (optional).
-/// </summary>
+/// <summary>Conduit endpoint and aggregated receipt feedback. Never calculates or awards score.</summary>
 public class SymmetryKnotGoalMouth : MonoBehaviour
 {
-    [Header("Identity")]
     public int teamID = 1;
+    [SerializeField] private Transform flowAnchor;
+    [SerializeField] private EnemyScoreToast receiptToastPrefab;
+    [SerializeField, Min(.5f)] private float receiptIntervalSeconds = 1f;
+    private long pendingEnergy;
+    private float receiptAge;
+    public Transform FlowAnchor => flowAnchor != null ? flowAnchor : transform;
+    public long ReceivedMilliElectronVolts { get; private set; }
+    public int ReceiptsShown { get; private set; }
 
-    [Header("Scoring")]
-    [SerializeField] private ScoreSphereScript scoreSphere;
-    [SerializeField] private bool autoFindScoreSphere = true;
-
-
-
-    private void Awake()
+    public void ReceiveEnergy(ScoreAwardResult award)
     {
-        if (scoreSphere == null)
-            scoreSphere = GetComponentInParent<ScoreSphereScript>(true);
-
-        // Fallback: find by teamID (runs once, OK)
-        if (scoreSphere == null)
-        {
-            var all = FindObjectsByType<ScoreSphereScript>(FindObjectsSortMode.None);
-            for (int i = 0; i < all.Length; i++)
-            {
-                if (all[i] != null && all[i].teamID == teamID)
-                {
-                    scoreSphere = all[i];
-                    break;
-                }
-            }
-        }
+        if (!award.accepted || award.teamID != teamID || award.finalMilliElectronVolts <= 0) return;
+        pendingEnergy = EnergyScoreMath.SaturatingAdd(pendingEnergy, award.finalMilliElectronVolts);
+        ReceivedMilliElectronVolts = EnergyScoreMath.SaturatingAdd(ReceivedMilliElectronVolts, award.finalMilliElectronVolts);
     }
 
-    public void OnSymmetryKnotMass(float amount01)
+    private void Update()
     {
-        if (scoreSphere != null)
-            scoreSphere.AddScore01(amount01);
+        if (pendingEnergy <= 0) { receiptAge = 0; return; }
+        if (MatchScoreService.Instance != null && !MatchScoreService.Instance.IsChainClockRunning &&
+            MatchScoreService.Instance.IsScoringOpen) return;
+        receiptAge += Time.deltaTime;
+        if (receiptAge < receiptIntervalSeconds) return;
+        var receipt = new ScoreAwardResult { accepted = true, teamID = teamID,
+            finalMilliElectronVolts = pendingEnergy, worldPosition = FlowAnchor.position };
+        if (EnemyScoreToast.Show(receiptToastPrefab, receipt, gameObject.scene) != null) ReceiptsShown++;
+        pendingEnergy = 0; receiptAge = 0;
     }
+
+    private void OnDisable() { pendingEnergy = 0; receiptAge = 0; }
 }
