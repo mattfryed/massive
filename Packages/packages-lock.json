@@ -17,14 +17,11 @@
       },
       "hash": "4ce7dd3cc54e37e2ed6dc59cb5a047f3dccb3f50"
     },
-    "com.simonvs.realtimeblackhole": {
-      "version": "file:com.simonvs.realtimeblackhole",
+    "com.mibdev.fullscreen-editor": {
+      "version": "file:com.mibdev.fullscreen-editor",
       "depth": 0,
       "source": "embedded",
-      "dependencies": {
-        "com.unity.render-pipelines.universal": "14.0.8",
-        "com.unity.shadergraph": "14.0.8"
-      }
+      "dependencies": {}
     },
     "com.tayx.graphy": {
       "version": "3.0.5",

@@ -1,0 +1,2 @@
+# Unity serializes this settings file with LF on every platform.
+/ProjectSettings/EntitiesClientSettings.asset text eol=lf

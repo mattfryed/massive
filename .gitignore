@@ -10,7 +10,7 @@
 /[Ll]ogs/
 /[Mm]emoryCaptures/
 
-# Never ignore Asset meta data
+# Keep metadata for imported assets; optional archive metadata is ignored below.
 !/[Aa]ssets/**/*.meta
 
 # Uncomment this line if you wish to ignore the asset store tools plugin
@@ -57,21 +57,14 @@ sysinfo.txt
 # Builds
 *.apk
 *.unitypackage
+*.unitypackage.meta
 
 # Crashlytics generated file
 crashlytics-build.properties
 
 .DS_Store
-/Packages
-Packages/manifest.json
-Packages/packages-lock.json
-UserSettings/EditorUserSettings.asset
-UserSettings/Layouts/CurrentMaximizeLayout.dwlt
-UserSettings/Layouts/CurrentMaximizeLayout.dwlt
-UserSettings/EditorUserSettings.asset
-Packages/packages-lock.json
-Packages/manifest.json
-/UserSettings
-UserSettings/EditorUserSettings.asset
-UserSettings/EditorUserSettings.asset
-UserSettings/EditorUserSettings.asset
+
+# Packages/ contains reproducible project dependencies and must be tracked.
+
+# Per-user Unity editor state
+/[Uu]ser[Ss]ettings/
