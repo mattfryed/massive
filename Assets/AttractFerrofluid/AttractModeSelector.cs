@@ -7,23 +7,20 @@ using UnityEngine.UI;
 
 namespace Massive.AttractStudy
 {
-    /// <summary>Presentation alternate for ATTRACT. Existing buttons still own
-    /// the versus game routes; score attack is intentionally a menu preview.</summary>
+    /// <summary>Horizontal ATTRACT menu. Score attack is intentionally a preview.</summary>
     [DisallowMultipleComponent]
     public sealed class AttractModeSelector : MonoBehaviour
     {
-        [Tooltip("Switch live between the horizontal ferrofluid menu and the original vertical menu.")]
+        [InspectorName("Show Mode Select"),Tooltip("Show the horizontal ferrofluid menu, starting with the begin prompt.")]
         public bool useFerrofluidModeSelect=true;
         [Header("Existing scene bindings")]
-        public GameObject legacyModeSelect;
-        public GameObject legacyPseudoPlayers;
-        public Button legacyOneVOne;
-        public Button legacyTwoVTwo;
+        public ChooseModeScript modeFlow;
         public AttractFerrofluidStudy sphereStyle;
         public Camera menuCamera;
         public TMP_FontAsset labelFont;
         public TMP_FontAsset regularLabelFont;
         public Shader coalescenceShader;
+        public Shader playerSurfaceShader;
         [Header("Layout")]
         [Range(.08f,.3f)] public float labelsHeight=.16f;
         [Range(.22f,.4f)] public float spheresHeight=.315f;
@@ -39,6 +36,8 @@ namespace Massive.AttractStudy
         [InspectorName("Prompt Animation Prefab"),Tooltip("The begin text and its existing TMP Text Transition component. Open this prefab to edit SDF Grow, intro/outro durations and easing.")]
         public TextMeshProUGUI beginPromptPrefab;
         [Header("Player sphere surfaces")]
+        [Tooltip("Mesh detail for the small non-interactive previews. Applies on enable."),Range(16,64)] public int playerMeshResolution=32;
+        [Tooltip("Speed of the predetermined 20-second surface loop, independent of the title and joystick."),Range(0,2)] public float playerMotionSpeed=1;
         [Range(5,14)] public float playerDensity=9;
         [Range(.03f,.16f)] public float playerRelief=.1f;
         [Range(0,1)] public float playerHighlightCoverage=.86f;
@@ -76,6 +75,7 @@ namespace Massive.AttractStudy
         GameObject presentation;
         Canvas canvas;
         Mesh mesh;
+        Mesh formationProxy;
         Material material;
         Material formationMaterial;
         MaterialPropertyBlock properties;
@@ -87,17 +87,17 @@ namespace Massive.AttractStudy
         bool beginRequested,promptIntroComplete,promptOutroStarted;
         readonly Transform[] spheres=new Transform[4];
         readonly Renderer[] renderers=new Renderer[4];
+        readonly MeshFilter[] filters=new MeshFilter[4];
         readonly float[] reveal=new float[4];
         readonly Vector4[] drops=new Vector4[FerrofluidFormation.DropCount];
-        bool legacyMenuState,legacyPlayersState;
         GameObject previousSelection,previousFirstSelection;
         EventSystem input;
         float clock;
         bool submitting;
         int createdFrame,beginFrame;
         static readonly string[] Labels={"MASSIVE\nSCORE ATTACK","1 vs 1","2 vs 2"};
-        static readonly int TimeId=Shader.PropertyToID("_FluidTime"),DensityId=Shader.PropertyToID("_Density"),ReliefId=Shader.PropertyToID("_Relief"),WetnessId=Shader.PropertyToID("_Wetness"),RimWidthId=Shader.PropertyToID("_RimWidth"),RimAngleId=Shader.PropertyToID("_RimAngle"),AttractionId=Shader.PropertyToID("_Attraction"),WhiteId=Shader.PropertyToID("_WhiteDominant");
-        static readonly int DropsId=Shader.PropertyToID("_FluidDrops"),CoreId=Shader.PropertyToID("_FormationCore");
+        static readonly int TimeId=Shader.PropertyToID("_FluidTime"),DensityId=Shader.PropertyToID("_Density"),ReliefId=Shader.PropertyToID("_Relief"),WetnessId=Shader.PropertyToID("_Wetness"),RimWidthId=Shader.PropertyToID("_RimWidth"),RimAngleId=Shader.PropertyToID("_RimAngle"),WhiteId=Shader.PropertyToID("_WhiteDominant");
+        static readonly int DropsId=Shader.PropertyToID("_FluidDrops"),CoreId=Shader.PropertyToID("_FormationCore"),BoundsId=Shader.PropertyToID("_FormationBounds");
 
         void OnEnable(){if(Application.isPlaying && useFerrofluidModeSelect)CreatePresentation();}
         void Update()
@@ -105,7 +105,7 @@ namespace Massive.AttractStudy
             if(!useFerrofluidModeSelect){ReleasePresentation();return;}
             if(presentation==null)CreatePresentation();
             if(presentation==null)return;
-            clock+=FrameDelta*Mathf.Max(0,sphereStyle.motionSpeed);
+            clock=Mathf.Repeat(clock+FrameDelta*Mathf.Max(0,playerMotionSpeed),20);
             if(input==null)
             {
                 input=EventSystem.current;
@@ -137,10 +137,9 @@ namespace Massive.AttractStudy
                 if(input!=null)input.firstSelectedGameObject=buttons[SelectedOption].gameObject;
             }
             // Also recover selection after an input module's first-frame setup.
-            if(input!=null && (input.currentSelectedGameObject==null || IsLegacySelection(input.currentSelectedGameObject)))
+            if(input!=null && input.currentSelectedGameObject==null)
                 input.SetSelectedGameObject(buttons[SelectedOption].gameObject);
         }
-        bool IsLegacySelection(GameObject obj)=>obj!=null && legacyModeSelect!=null && obj.transform.IsChildOf(legacyModeSelect.transform);
         bool AnyButtonDown()
         {
 #if UNITY_EDITOR
@@ -179,28 +178,25 @@ namespace Massive.AttractStudy
         {
             if(presentation!=null)return;
             if(menuCamera==null)menuCamera=Camera.main;
-            if(menuCamera==null || sphereStyle==null || sphereStyle.surfaceShader==null || labelFont==null || regularLabelFont==null || coalescenceShader==null || legacyModeSelect==null || legacyPseudoPlayers==null || legacyOneVOne==null || legacyTwoVTwo==null)
-            {Debug.LogError("[Attract Mode Select] Assign the camera, sphere style, font and original menu references.",this);enabled=false;return;}
-            // This controller must be outside the roots it hides.
-            if(transform.IsChildOf(legacyModeSelect.transform) || transform.IsChildOf(legacyPseudoPlayers.transform))
-            {Debug.LogError("[Attract Mode Select] Place this controller outside the legacy menu and pseudo-player roots.",this);enabled=false;return;}
-            legacyMenuState=legacyModeSelect.activeSelf;legacyPlayersState=legacyPseudoPlayers.activeSelf;
+            if(playerSurfaceShader==null)playerSurfaceShader=Shader.Find("MASSIVE/Study/Attract Player Ferrofluid");
+            if(menuCamera==null || sphereStyle==null || playerSurfaceShader==null || labelFont==null || regularLabelFont==null || coalescenceShader==null || modeFlow==null)
+            {Debug.LogError("[Attract Mode Select] Assign the camera, sphere style, shaders, fonts and mode flow.",this);enabled=false;return;}
             input=EventSystem.current;
             previousSelection=input!=null?input.currentSelectedGameObject:null;
             previousFirstSelection=input!=null?input.firstSelectedGameObject:null;
-            if(input!=null && IsLegacySelection(previousSelection))input.SetSelectedGameObject(null);
-            legacyModeSelect.SetActive(false);legacyPseudoPlayers.SetActive(false);
             presentation=new GameObject("Horizontal mode select — runtime"){hideFlags=HideFlags.DontSave};
             presentation.transform.SetParent(transform,false);
-            mesh=AttractFerrofluidStudy.BuildSphere(64);
-            material=new Material(sphereStyle.surfaceShader){name="Mode preview ferrofluid — transient",hideFlags=HideFlags.DontSave};
+            mesh=AttractFerrofluidStudy.BuildSphere(Mathf.Clamp(playerMeshResolution,16,64));
+            formationProxy=FerrofluidFormation.BuildProxy();
+            clock=0;
+            material=new Material(playerSurfaceShader){name="Mode preview ferrofluid — transient",hideFlags=HideFlags.DontSave};
             formationMaterial=new Material(coalescenceShader){name="Mode preview liquid formation — transient",hideFlags=HideFlags.DontSave};
             properties=new MaterialPropertyBlock();
             for(int i=0;i<4;i++)
             {
                 var go=new GameObject("Player "+(i+1)+" ferrofluid slot"){hideFlags=HideFlags.DontSave};
                 go.transform.SetParent(presentation.transform,false);spheres[i]=go.transform;
-                go.AddComponent<MeshFilter>().sharedMesh=mesh;
+                filters[i]=go.AddComponent<MeshFilter>();filters[i].sharedMesh=mesh;
                 var renderer=go.AddComponent<MeshRenderer>();renderer.sharedMaterial=material;
                 renderer.shadowCastingMode=ShadowCastingMode.Off;renderer.receiveShadows=false;
                 renderers[i]=renderer;reveal[i]=0;go.SetActive(false);
@@ -293,9 +289,7 @@ namespace Massive.AttractStudy
             SelectOption(index);
             if(index==0)return; // Deliberately no scene load or game-mode mutation.
             submitting=true;
-            // Preserve the serialized route, including any future scene setup
-            // attached to the user's existing versus buttons.
-            (index==1?legacyOneVOne:legacyTwoVTwo).onClick.Invoke();
+            modeFlow.MoveToNextScene(index==2);
         }
         void LateUpdate()
         {
@@ -319,19 +313,24 @@ namespace Massive.AttractStudy
                 sphere.position=origin+menuCamera.transform.right*(offset*worldDiameter);
                 sphere.localScale=Vector3.one*worldDiameter;
                 bool white=i<2;
-                Material activeMaterial=reveal[i]<1?formationMaterial:material;
+                // Both settled endpoints are ordinary displaced meshes. The
+                // expensive implicit renderer exists only while filling/draining.
+                bool forming=reveal[i]>0 && reveal[i]<1;
+                Material activeMaterial=forming?formationMaterial:material;
                 if(renderers[i].sharedMaterial!=activeMaterial)renderers[i].sharedMaterial=activeMaterial;
+                Mesh activeMesh=forming?formationProxy:mesh;
+                if(filters[i].sharedMesh!=activeMesh)filters[i].sharedMesh=activeMesh;
                 properties.Clear();properties.SetFloat(WhiteId,white?1:0);
                 float patternScale=white?whiteSphereTextureScale:blackSphereTextureScale;
                 properties.SetFloat(TimeId,clock+i*2.71f);properties.SetFloat(DensityId,Mathf.Clamp(playerDensity,5,14)/Mathf.Clamp(patternScale,.5f,2.5f));properties.SetFloat(ReliefId,Mathf.Clamp(playerRelief,.03f,.16f));
                 properties.SetFloat(WetnessId,Mathf.Clamp01(playerHighlightCoverage));properties.SetFloat(RimWidthId,sphereStyle.rimWidth);properties.SetFloat(RimAngleId,sphereStyle.rimAngle);
-                Vector2 attraction=sphereStyle.SmoothedAttraction;
-                Vector3 point=(menuCamera.transform.right*attraction.x+menuCamera.transform.up*attraction.y)*sphereStyle.attractionReach;
-                properties.SetVector(AttractionId,point);
-                if(reveal[i]<1)
+                float core=FerrofluidFormation.Core(reveal[i],idleGlobSize);
+                properties.SetFloat(CoreId,core);
+                if(forming)
                 {
                     FerrofluidFormation.Evaluate(reveal[i],i,drops,idleGlobSize);
-                    properties.SetVectorArray(DropsId,drops);properties.SetFloat(CoreId,FerrofluidFormation.Core(reveal[i],idleGlobSize));
+                    properties.SetVectorArray(DropsId,drops);
+                    properties.SetFloat(BoundsId,FerrofluidFormation.BoundingRadius(core,playerRelief,drops));
                 }
                 renderers[i].SetPropertyBlock(properties);
             }
@@ -349,8 +348,6 @@ namespace Massive.AttractStudy
                 beginTransition.onOutComplete.RemoveListener(RevealMenu);
             }
             presentation.SetActive(false);
-            if(legacyModeSelect!=null)legacyModeSelect.SetActive(legacyMenuState);
-            if(legacyPseudoPlayers!=null)legacyPseudoPlayers.SetActive(legacyPlayersState);
             if(input!=null)
             {
                 input.firstSelectedGameObject=previousFirstSelection;
@@ -360,8 +357,8 @@ namespace Massive.AttractStudy
                     if(restore!=null && restore.activeInHierarchy)input.SetSelectedGameObject(restore);
                 }
             }
-            Dispose(presentation);Dispose(mesh);Dispose(material);Dispose(formationMaterial);
-            presentation=null;canvas=null;mesh=null;material=null;formationMaterial=null;properties=null;buttons=null;labels=null;hint=null;beginPrompt=null;beginTransition=null;input=null;
+            Dispose(presentation);Dispose(mesh);Dispose(formationProxy);Dispose(material);Dispose(formationMaterial);
+            presentation=null;canvas=null;mesh=null;formationProxy=null;material=null;formationMaterial=null;properties=null;buttons=null;labels=null;hint=null;beginPrompt=null;beginTransition=null;input=null;
             HasBegun=false;MenuInputReady=false;
         }
         static void Dispose(Object item){if(item==null)return;if(Application.isPlaying)Destroy(item);else DestroyImmediate(item);}

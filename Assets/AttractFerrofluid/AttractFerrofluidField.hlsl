@@ -22,6 +22,31 @@
                     lerp(gradient(i+float3(0,1,1),d-float3(0,1,1)),gradient(i+float3(1,1,1),d-float3(1,1,1)),f.x),f.y),f.z);
                 return .5+.6*field;
             }
+            float4 gradientSample(float3 cell,float3 offset)
+            {
+                uint h=(uint)(hash31(cell)*16);
+                float3 u=h<8?float3(1,0,0):float3(0,1,0);
+                float3 v=h<4?float3(0,1,0):((h==12 || h==14)?float3(1,0,0):float3(0,0,1));
+                float3 g=((h&1)==0?u:-u)+((h&2)==0?v:-v);
+                return float4(g,dot(g,offset));
+            }
+            float4 interpolateGradient(float4 a,float4 b,float f,float3 df)
+            {
+                return float4(lerp(a.xyz,b.xyz,f)+(b.w-a.w)*df,lerp(a.w,b.w,f));
+            }
+            float4 noiseGradient(float3 p)
+            {
+                // Differentiate the same quintic interpolation as noise(),
+                // including both the corner gradients and the blend weights.
+                float3 i=floor(p),d=frac(p),f=d*d*d*(d*(d*6-15)+10);
+                float3 df=30*d*d*(d-1)*(d-1);
+                float4 a=interpolateGradient(gradientSample(i,d),gradientSample(i+float3(1,0,0),d-float3(1,0,0)),f.x,float3(df.x,0,0));
+                float4 b=interpolateGradient(gradientSample(i+float3(0,1,0),d-float3(0,1,0)),gradientSample(i+float3(1,1,0),d-float3(1,1,0)),f.x,float3(df.x,0,0));
+                float4 c=interpolateGradient(gradientSample(i+float3(0,0,1),d-float3(0,0,1)),gradientSample(i+float3(1,0,1),d-float3(1,0,1)),f.x,float3(df.x,0,0));
+                float4 e=interpolateGradient(gradientSample(i+float3(0,1,1),d-float3(0,1,1)),gradientSample(i+float3(1,1,1),d-float3(1,1,1)),f.x,float3(df.x,0,0));
+                float4 value=interpolateGradient(interpolateGradient(a,b,f.y,float3(0,df.y,0)),interpolateGradient(c,e,f.y,float3(0,df.y,0)),f.z,float3(0,0,df.z));
+                return float4(.6*value.xyz,.5+.6*value.w);
+            }
             float4 roundedBlobs(float3 p)
             {
                 float3 cell=floor(p),fraction=frac(p);float sum=0;float3 slope=0;
@@ -67,5 +92,31 @@
             float fluidSurface(float3 n,out float3 moundSlope)
             {
                 return fluidSurfaceAtDensity(n,_Density,moundSlope);
+            }
+            float fluidSurfaceGradient(float3 n,float density,out float3 moundSlope,out float3 derivative)
+            {
+                float phase=_FluidTime*.314159265;
+                float3 orbit=float3(sin(phase),cos(phase),sin(phase*2+1.3));
+                float inverseLength=rsqrt(dot(n-_Attraction.xyz,n-_Attraction.xyz));
+                float3 sampleN=(n-_Attraction.xyz)*inverseLength;
+                float3 warpAngle=sampleN.zxy*3.2+orbit.yzx*1.8;
+                float3 q=sampleN+.085*sin(warpAngle);
+                float3 flow=q*density*.8+orbit*.68;
+                float4 body=noiseGradient(sampleN*2.3+orbit*.22);
+                float4 mounds=roundedBlobs(flow);
+                float gain=1+1.2*dot(n,_Attraction.xyz);
+                float lobes=mounds.w*gain;
+                float4 folds=noiseGradient(flow*.61+float3(7.2,3.7,9.1)+orbit.zxy*.23);
+                float softness=.86+.14*folds.w;
+                float attenuation=exp(-lobes*softness);
+                float weight=_Relief*.72*attenuation;
+                float3 flowDerivative=weight*(gain*softness*mounds.xyz+lobes*.14*.61*folds.xyz);
+                float3 qDerivative=flowDerivative*density*.8;
+                float3 sampleDerivative=qDerivative+(qDerivative*(.085*3.2*cos(warpAngle))).yzx+.018*2.3*body.xyz;
+                // Chain rule through the inverse attraction map and normalization.
+                derivative=(sampleDerivative-sampleN*dot(sampleN,sampleDerivative))*inverseLength;
+                derivative+=weight*mounds.w*softness*1.2*_Attraction.xyz;
+                moundSlope=mounds.xyz;
+                return .455+.018*(body.w-.5)+_Relief*.72*(1-attenuation);
             }
 #endif

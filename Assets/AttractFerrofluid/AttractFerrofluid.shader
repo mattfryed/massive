@@ -10,13 +10,13 @@ Shader "MASSIVE/Study/Attract Ferrofluid"
         _Attraction("Attraction offset",Vector)=(0,0,0,0)
         _FluidTime("Flow time",Float)=0
         _WhiteDominant("White mounds with black valleys",Float)=0
-        _LogoField("Logo signed distance",2D)="black"{}
+        _LogoSpacedField("Spaced letter distance",2D)="black"{}
         _LogoEnabled("Embedded lettering enabled",Float)=0
-        _LogoSpacing("Letter spacing",Float)=0
         _LogoReveal("Lettering arrival",Range(0,1))=1
         _LogoFlow("Letter ridge undulation",Range(0,1))=1
         _LogoTypeFlow("White type undulation",Range(0,1))=0
         _LogoMeshGuard("Letter floor geometry margin",Float)=.025
+        _LogoDetail("Letter edge tessellation",Float)=4
         _LogoSettings("Logo arc, height, elevation, recess",Vector)=(2.2,.45,.12,0)
         _LogoRight("Logo right",Vector)=(1,0,0,0)
         _LogoUp("Logo up",Vector)=(0,0,1,0)
@@ -35,12 +35,13 @@ Shader "MASSIVE/Study/Attract Ferrofluid"
             #pragma domain domain
             #pragma fragment frag
             #include "UnityCG.cginc"
-            float _Density,_Relief,_Wetness,_FluidTime,_RimWidth,_RimAngle,_LogoEnabled,_LogoFlow,_LogoTypeFlow,_LogoMeshGuard,_WhiteDominant,_LogoSpacing;
+            float _Density,_Relief,_Wetness,_FluidTime,_RimWidth,_RimAngle,_LogoEnabled,_LogoFlow,_LogoTypeFlow,_LogoMeshGuard,_WhiteDominant;
             float4 _Attraction;
-            sampler2D _LogoField;
+            sampler2D _LogoSpacedField;
+            float4 _LogoSourceSize,_LogoFieldDomain;
             float4 _LogoSettings,_LogoRight,_LogoUp,_LogoFront;
-            float4 _LogoField_TexelSize;
             float _LogoReveal;
+            float _LogoDetail;
             struct appdata{float4 vertex:POSITION;};
             struct controlPoint{float4 vertex:INTERNALTESSPOS;};
             struct tessFactors{float edge[3]:SV_TessFactor;float inside:SV_InsideTessFactor;};
@@ -56,32 +57,13 @@ Shader "MASSIVE/Study/Attract Ferrofluid"
                 if(front<=0)return -1;
                 float2 angles=float2(atan2(dot(n,_LogoRight.xyz),front),asin(clamp(dot(n,_LogoUp.xyz),-1,1)));
                 float2 uv=(angles-float2(0,_LogoSettings.z))/_LogoSettings.xy+.5;
+                uv=(uv*_LogoSourceSize.xy+_LogoFieldDomain.zw)/_LogoFieldDomain.xy;
                 float2 bounded=saturate(uv);
-                if(abs(_LogoSpacing)>.000001)
-                {
-                    // Midpoints of the six gaps in MassiveLogoDistance. Translate
-                    // each complete outline, including its recess, without widening
-                    // the glyph or changing its vertical scale.
-                    const float cuts[6]={.1962890625,.3640136719,.5021972656,.6491699219,.7077636719,.8676757813};
-                    int glyph=0;
-                    [unroll]for(int j=0;j<6;j++)
-                        glyph+=uv.x>cuts[j]+(j-2.5)*_LogoSpacing?1:0;
-                    uv.x-=(glyph-3)*_LogoSpacing;
-                    float lo=glyph==0?0:cuts[glyph-1];
-                    float hi=glyph==6?1:cuts[glyph];
-                    bounded=float2(clamp(uv.x,lo,hi),saturate(uv.y));
-                }
-                float outside=length((uv-bounded)*_LogoSettings.xy);
-                if(outside>.2)return -1;
-                // Exact distance to the source mesh outlines, packed as 16 bits
-                // in RG. Linear decoding commutes with bilinear filtering. B
-                // marks the new encoding so older study textures still work.
-                float3 encoded=tex2Dlod(_LogoField,float4(bounded,0,0)).rgb;
-                float value=encoded.b>.99?dot(encoded.rg,float2(256.0/257.0,1.0/257.0)):encoded.r;
-                float range=encoded.b>.99?256:64;
-                // Extend the negative field beyond the texture padding, so the
-                // outer M/E shoulders do not end in a sudden vertical wall.
-                return (value-.5)*range*_LogoField_TexelSize.x*_LogoSettings.x-outside;
+                float outside=length((uv-bounded)*_LogoFieldDomain.xy);
+                // Spacing is composed only when edited. This single continuous
+                // field preserves each recess without copying neighboring halos.
+                float distance=tex2Dlod(_LogoSpacedField,float4(bounded,0,0)).r-outside;
+                return distance*_LogoSettings.x/_LogoSourceSize.x;
             }
 
             #include "AttractFerrofluidField.hlsl"
@@ -119,9 +101,8 @@ Shader "MASSIVE/Study/Attract Ferrofluid"
                 // then relax into the approved ridge near the end of arrival.
                 return smoothstep(.65,1,saturate(_LogoReveal));
             }
-            float radius(float3 n,out float3 logoN,out float floorReached)
+            float recessedRadius(float3 n,float surface,float3 moundSlope,out float3 logoN,out float floorReached)
             {
-                float3 moundSlope;float surface=fluidSurface(n,moundSlope);
                 float3 tangentSlope=moundSlope-n*dot(n,moundSlope);
                 // Transport the outer shoulder only. The inner letter boundary
                 // and the recessed spherical floor keep their original mapping.
@@ -158,6 +139,11 @@ Shader "MASSIVE/Study/Attract Ferrofluid"
                 floorRadius=lerp(floorRadius,surface-_LogoSettings.w,saturate(_LogoTypeFlow));
                 return lerp(surface,floorRadius,cut);
             }
+            float radius(float3 n,out float3 logoN,out float floorReached)
+            {
+                float3 moundSlope;float surface=fluidSurface(n,moundSlope);
+                return recessedRadius(n,surface,moundSlope,logoN,floorReached);
+            }
             float radius(float3 n,out float3 logoN){float unused;return radius(n,logoN,unused);}
             float radius(float3 n){float3 unused;return radius(n,unused);}
             controlPoint tessVert(appdata input){controlPoint o;o.vertex=input.vertex;return o;}
@@ -169,7 +155,7 @@ Shader "MASSIVE/Study/Attract Ferrofluid"
                 // Only the lettering area receives extra geometry. A shared
                 // edge uses the same midpoint from both triangles, so the
                 // tessellator joins the refined collar without cracks.
-                return lerp(1,4,1-smoothstep(band*.65,band,d));
+                return lerp(1,_LogoDetail,1-smoothstep(band*.65,band,d));
             }
             tessFactors patchConstants(InputPatch<controlPoint,3> p)
             {
@@ -185,13 +171,23 @@ Shader "MASSIVE/Study/Attract Ferrofluid"
             v2f vert(appdata input)
             {
                 v2f o;float3 n=normalize(input.vertex.xyz);
-                float3 tangent=normalize(cross(abs(n.y)<.9?float3(0,1,0):float3(1,0,0),n));
-                float3 bitangent=cross(n,tangent);
-                const float e=.0015;
-                float3 nt=normalize(n+tangent*e),nb=normalize(n+bitangent*e);
-                float3 mt=normalize(n-tangent*e),mb=normalize(n-bitangent*e);
-                float3 logoN;float r=radius(n,logoN,o.floorReached);float3 p=n*r;
-                float3 normal=normalize(cross(nt*radius(nt)-mt*radius(mt),nb*radius(nb)-mb*radius(mb)));
+                float3 moundSlope,derivative;
+                float surface=fluidSurfaceGradient(n,_Density,moundSlope,derivative);
+                float3 logoN;float r=recessedRadius(n,surface,moundSlope,logoN,o.floorReached);float3 p=n*r;
+                float3 normal=normalize(n*surface-(derivative-n*dot(n,derivative)));
+                // Keep the approved shoulder/wall normal calculation where the
+                // transported letter field can affect this vertex or its probes.
+                // Broad body areas need only one evaluation of the fluid field.
+                [branch] if(_LogoEnabled>.5 && _LogoReveal>0 &&
+                    logoRestDistance(n)>-(.10*_LogoSettings.x/2.2+_LogoMeshGuard+.65*_LogoSettings.w))
+                {
+                    float3 tangent=normalize(cross(abs(n.y)<.9?float3(0,1,0):float3(1,0,0),n));
+                    float3 bitangent=cross(n,tangent);
+                    const float e=.0015;
+                    float3 nt=normalize(n+tangent*e),nb=normalize(n+bitangent*e);
+                    float3 mt=normalize(n-tangent*e),mb=normalize(n-bitangent*e);
+                    normal=normalize(cross(nt*radius(nt)-mt*radius(mt),nb*radius(nb)-mb*radius(mb)));
+                }
                 o.position=UnityObjectToClipPos(float4(p,1));
                 o.viewPosition=UnityObjectToViewPos(float4(p,1));
                 o.viewNormal=mul((float3x3)UNITY_MATRIX_V,UnityObjectToWorldNormal(normal));
