@@ -11381,6 +11381,7 @@ MonoBehaviour:
   useFerrofluid: 1
   surfaceShader: {fileID: 4800000, guid: 88ba3ad06b9f48c419cfff2c016543c1, type: 3}
   faceResolution: 192
+  optimizeBodyGeometry: 1
   surfaceDensity: 6.08
   surfaceRelief: 0.0808
   motionSpeed: 1
@@ -13531,6 +13532,7 @@ MonoBehaviour:
   labelFont: {fileID: 11400000, guid: 13b46f913b61e2d4195306f4c4e38dbd, type: 2}
   regularLabelFont: {fileID: 11400000, guid: 98a6eab30b5680947bdaeaa346386b29, type: 2}
   coalescenceShader: {fileID: 4800000, guid: 40adc05383e146bebebe1da02b92fc61, type: 3}
+  playerSurfaceShader: {fileID: 4800000, guid: fc4b1fa230e968f43a10b62c5d096600, type: 3}
   labelsHeight: 0.138
   spheresHeight: 0.2604
   sphereDiameter: 0.0578
@@ -13544,6 +13546,8 @@ MonoBehaviour:
   beginPromptPrefab: {fileID: 5130827643780775028, guid: fbd949fa6785ab743a28b7887c984a2c,
     type: 3}
   playerDensity: 7.37
+  playerMeshResolution: 32
+  playerMotionSpeed: 1
   playerRelief: 0.0825
   playerHighlightCoverage: 0.808
   whiteSphereTextureScale: 1.548

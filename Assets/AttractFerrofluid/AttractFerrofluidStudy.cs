@@ -14,6 +14,8 @@ namespace Massive.AttractStudy
         public bool useFerrofluid=true;
         public Shader surfaceShader;
         [Range(64,192)] public int faceResolution=128;
+        [Tooltip("Use a lighter body mesh while retaining the requested detail around the lettering. Applies on enable.")]
+        public bool optimizeBodyGeometry=true;
         [Range(5,14)] public float surfaceDensity=9;
         [Range(.03f,.16f)] public float surfaceRelief=.10f;
         [Range(0,2)] public float motionSpeed=1;
@@ -61,6 +63,7 @@ namespace Massive.AttractStudy
         bool originalEnabled;
         GameObject visual;
         Mesh mesh;
+        int letteringResolution;
         Material material;
         MaterialPropertyBlock properties;
         readonly FerrofluidAttraction attraction=new FerrofluidAttraction();
@@ -82,6 +85,7 @@ namespace Massive.AttractStudy
         static readonly int LogoFlowId=Shader.PropertyToID("_LogoFlow");
         static readonly int LogoTypeFlowId=Shader.PropertyToID("_LogoTypeFlow");
         static readonly int LogoMeshGuardId=Shader.PropertyToID("_LogoMeshGuard");
+        static readonly int LogoDetailId=Shader.PropertyToID("_LogoDetail");
         static readonly int LogoRightId=Shader.PropertyToID("_LogoRight"),LogoUpId=Shader.PropertyToID("_LogoUp"),LogoFrontId=Shader.PropertyToID("_LogoFront");
 
         void OnEnable()
@@ -103,7 +107,8 @@ namespace Massive.AttractStudy
             logoRight=transform.InverseTransformDirection(inputCamera!=null?inputCamera.transform.right:Vector3.right);
             logoUp=transform.InverseTransformDirection(inputCamera!=null?inputCamera.transform.up:Vector3.forward);
             logoFront=transform.InverseTransformDirection(inputCamera!=null?-inputCamera.transform.forward:Vector3.up);
-            mesh=BuildSphere(Mathf.Clamp(faceResolution,64,192));
+            letteringResolution=Mathf.Clamp(faceResolution,64,192);
+            mesh=BuildSphere(optimizeBodyGeometry?Mathf.Min(letteringResolution,128):letteringResolution);
             material=new Material(surfaceShader){name="Attract ferrofluid — transient",hideFlags=HideFlags.DontSave};
             visual=new GameObject("Ferrofluid surface — visual only"){hideFlags=HideFlags.DontSave,layer=gameObject.layer};
             visual.transform.SetParent(transform,false);
@@ -181,7 +186,8 @@ namespace Massive.AttractStudy
             properties.SetFloat(LogoTypeFlowId,Mathf.Clamp01(logoTypeFlow));
             // Use the actual mesh, since changing resolution takes effect on enable.
             int meshResolution=mesh!=null?Mathf.RoundToInt(Mathf.Sqrt(mesh.vertexCount/6f))-1:128;
-            properties.SetFloat(LogoMeshGuardId,3.2f/meshResolution);
+            properties.SetFloat(LogoMeshGuardId,3.2f/letteringResolution);
+            properties.SetFloat(LogoDetailId,4f*letteringResolution/meshResolution);
             properties.SetVector(LogoSettingsId,new Vector4(width,height,logoElevation,LogoIsEmbedded?Mathf.Clamp(logoRecess,0,.03f):0));
             properties.SetVector(LogoRightId,logoRight);properties.SetVector(LogoUpId,logoUp);properties.SetVector(LogoFrontId,logoFront);
             SurfaceRenderer.SetPropertyBlock(properties);
@@ -227,7 +233,7 @@ namespace Massive.AttractStudy
 
         public static Mesh BuildSphere(int resolution)
         {
-            resolution=Mathf.Clamp(resolution,64,192);
+            resolution=Mathf.Clamp(resolution,8,192);
             int side=resolution+1;
             var vertices=new Vector3[6*side*side];var normals=new Vector3[vertices.Length];var indices=new int[36*resolution*resolution];
             Vector3[] axes={Vector3.right,Vector3.left,Vector3.up,Vector3.down,Vector3.forward,Vector3.back};

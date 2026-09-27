@@ -11,6 +11,7 @@ Shader "MASSIVE/Study/Attract Ferrofluid Coalescence"
         _FluidTime("Flow time",Float)=0
         _WhiteDominant("White mounds",Float)=0
         _FormationCore("Reservoir size",Float)=.24
+        _FormationBounds("Conservative field radius",Float)=.8
     }
     SubShader
     {
@@ -23,31 +24,23 @@ Shader "MASSIVE/Study/Attract Ferrofluid Coalescence"
             #pragma vertex vert
             #pragma fragment frag
             #include "UnityCG.cginc"
-            float _Density,_Relief,_Wetness,_FluidTime,_RimWidth,_RimAngle,_WhiteDominant,_FormationCore;
-            float4 _Attraction,_FluidDrops[8];
-            #include "AttractFerrofluidField.hlsl"
+            float _Density,_Relief,_Wetness,_FluidTime,_RimWidth,_RimAngle,_WhiteDominant,_FormationCore,_FormationBounds;
+            float4 _FluidDrops[8];
+            #include "AttractPlayerSurface.hlsl"
             struct appdata{float4 vertex:POSITION;};
             struct v2f{float4 position:SV_POSITION;sample float3 localPosition:TEXCOORD0;};
             struct output{float4 color:SV_Target;float depth:SV_Depth;};
             v2f vert(appdata v)
             {
-                // Fixed envelope. The inner surface swells from a permanent
-                // reservoir through attached lobes, independent of mesh scale.
-                v2f o;o.localPosition=normalize(v.vertex.xyz)*.79;
+                // A 12-triangle cube encloses the implicit surface. CPU bounds
+                // track the core, attached drops and smooth-union expansion.
+                v2f o;o.localPosition=v.vertex.xyz*(2*_FormationBounds);
                 o.position=UnityObjectToClipPos(float4(o.localPosition,1));return o;
             }
             float unionLiquid(float a,float b,float k)
             {
                 float h=max(k-abs(a-b),0)/k;
                 return min(a,b)-h*h*k*.25;
-            }
-            float formingSurface(float3 n)
-            {
-                float3 unused;
-                // A thumbnail-sized reservoir needs broad readable mounds.
-                // Fine player detail arrives continuously as its mass grows.
-                float density=lerp(min(2.5,_Density),_Density,smoothstep(.24,.8,_FormationCore));
-                return fluidSurfaceAtDensity(n,density,unused);
             }
             float field(float3 p)
             {
@@ -68,41 +61,55 @@ Shader "MASSIVE/Study/Attract Ferrofluid Coalescence"
                 }
                 return distance;
             }
-            float fixture(float3 ray,float3 center,float width,float height)
+            float3 fieldNormal(float3 p)
             {
-                center=normalize(center);float3 u=normalize(cross(float3(0,1,0),center)),v=cross(center,u);
-                float2 p=float2(dot(ray,u)/width,dot(ray,v)/height),p2=p*p;
-                return step(dot(p2*p2,float2(1,1)),1)*step(.3,dot(ray,center));
+                float lengthP=max(length(p),.0001);float3 radial=p/lengthP,derivative=0;
+                float radius=.49;
+                if(abs(lengthP-.49*_FormationCore)<.12)radius=formingSurfaceGradient(radial,derivative);
+                float distance=lengthP-radius*_FormationCore;
+                float3 gradient=radial-(_FormationCore/lengthP)*(derivative-radial*dot(radial,derivative));
+                float k=.055+.045*_FormationCore;
+                [unroll]for(int j=0;j<8;j++)
+                {
+                    float4 drop=_FluidDrops[j];
+                    if(drop.w>.0001)
+                    {
+                        float3 delta=p-drop.xyz;float dropLength=max(length(delta),.0001);
+                        float d=dropLength-drop.w;
+                        gradient=lerp(gradient,delta/dropLength,saturate(.5+.5*(distance-d)/k));
+                        distance=unionLiquid(distance,d,k);
+                    }
+                }
+                return normalize(gradient);
             }
             output frag(v2f i)
             {
                 float3 cameraLocal=mul(unity_WorldToObject,float4(_WorldSpaceCameraPos,1)).xyz;
                 float3 forward=mul((float3x3)unity_WorldToObject,mul((float3x3)UNITY_MATRIX_I_V,float3(0,0,-1)));
                 float3 direction=normalize(lerp(i.localPosition-cameraLocal,forward,unity_OrthoParams.w));
-                float3 p=i.localPosition;float travel=0,distance=1;
+                // Skip empty proxy corners and start at the bounding sphere.
+                float b=dot(i.localPosition,direction);
+                float discriminant=b*b-dot(i.localPosition,i.localPosition)+_FormationBounds*_FormationBounds;
+                clip(discriminant);
+                float span=sqrt(max(0,discriminant));
+                float entry=max(0,-b-span),exit=-b+span;
+                float3 p=i.localPosition+direction*entry;float travel=0,distance=1;
+                float maxTravel=exit-entry;
+                clip(maxTravel);
                 [loop]for(int stepIndex=0;stepIndex<88;stepIndex++)
                 {
                     distance=field(p);
-                    if(distance<.0007 || travel>1.65)break;
+                    if(distance<.0007 || travel>maxTravel)break;
                     float stepLength=max(distance*.58,.0004);travel+=stepLength;p+=direction*stepLength;
                 }
-                clip(.0007-distance);clip(1.65-travel);
-                const float e=.0015;
-                float3 normal=normalize(float3(field(p+float3(e,0,0))-field(p-float3(e,0,0)),field(p+float3(0,e,0))-field(p-float3(0,e,0)),field(p+float3(0,0,e))-field(p-float3(0,0,e))));
+                clip(.0007-distance);clip(maxTravel-travel);
+                float3 normal=fieldNormal(p);
                 float3 n=normalize(mul((float3x3)UNITY_MATRIX_V,UnityObjectToWorldNormal(normal)));
                 float3 radial=normalize(mul((float3x3)UNITY_MATRIX_V,UnityObjectToWorldNormal(normalize(p))));
                 float3 viewPosition=UnityObjectToViewPos(float4(p,1));
-                float3 v=normalize(lerp(-viewPosition,float3(0,0,1),unity_OrthoParams.w)),reflected=reflect(-v,n);
-                float scale=lerp(.55,1.2,saturate(_Wetness));
-                float white=max(fixture(reflected,float3(-.55,.55,.7),.20*scale,.62*scale),max(fixture(reflected,float3(.72,-.15,.45),.11*scale,.48*scale),fixture(reflected,float3(.1,.78,-.4),.62*scale,.13*scale)));
-                float angle=radians(_RimAngle);float3 backLight=normalize(float3(cos(angle),sin(angle),-1.7));
-                float rim=step(.0001,_RimWidth)*step(dot(radial,v),_RimWidth)*step(.12,dot(radial.xy,backLight.xy))*step(.16,dot(n,backLight));
-                white=max(white,rim);
-                if(_WhiteDominant>.5)
-                {
-                    float height=(formingSurface(normalize(p))-.455)/max(_Relief,.001);
-                    white=step(.425-saturate(_Wetness)*.06,height);
-                }
+                float height=0;
+                if(_WhiteDominant>.5)height=(formingSurface(normalize(p))-.455)/max(_Relief,.001);
+                float white=playerWhite(n,radial,viewPosition,height);
                 output o;o.color=float4(white,white,white,1);
                 float4 clipPosition=UnityObjectToClipPos(float4(p,1));o.depth=clipPosition.z/clipPosition.w;
                 return o;

@@ -17,6 +17,7 @@ Shader "MASSIVE/Study/Attract Ferrofluid"
         _LogoFlow("Letter ridge undulation",Range(0,1))=1
         _LogoTypeFlow("White type undulation",Range(0,1))=0
         _LogoMeshGuard("Letter floor geometry margin",Float)=.025
+        _LogoDetail("Letter edge tessellation",Float)=4
         _LogoSettings("Logo arc, height, elevation, recess",Vector)=(2.2,.45,.12,0)
         _LogoRight("Logo right",Vector)=(1,0,0,0)
         _LogoUp("Logo up",Vector)=(0,0,1,0)
@@ -41,6 +42,7 @@ Shader "MASSIVE/Study/Attract Ferrofluid"
             float4 _LogoSettings,_LogoRight,_LogoUp,_LogoFront;
             float4 _LogoField_TexelSize;
             float _LogoReveal;
+            float _LogoDetail;
             struct appdata{float4 vertex:POSITION;};
             struct controlPoint{float4 vertex:INTERNALTESSPOS;};
             struct tessFactors{float edge[3]:SV_TessFactor;float inside:SV_InsideTessFactor;};
@@ -119,9 +121,8 @@ Shader "MASSIVE/Study/Attract Ferrofluid"
                 // then relax into the approved ridge near the end of arrival.
                 return smoothstep(.65,1,saturate(_LogoReveal));
             }
-            float radius(float3 n,out float3 logoN,out float floorReached)
+            float recessedRadius(float3 n,float surface,float3 moundSlope,out float3 logoN,out float floorReached)
             {
-                float3 moundSlope;float surface=fluidSurface(n,moundSlope);
                 float3 tangentSlope=moundSlope-n*dot(n,moundSlope);
                 // Transport the outer shoulder only. The inner letter boundary
                 // and the recessed spherical floor keep their original mapping.
@@ -158,6 +159,11 @@ Shader "MASSIVE/Study/Attract Ferrofluid"
                 floorRadius=lerp(floorRadius,surface-_LogoSettings.w,saturate(_LogoTypeFlow));
                 return lerp(surface,floorRadius,cut);
             }
+            float radius(float3 n,out float3 logoN,out float floorReached)
+            {
+                float3 moundSlope;float surface=fluidSurface(n,moundSlope);
+                return recessedRadius(n,surface,moundSlope,logoN,floorReached);
+            }
             float radius(float3 n,out float3 logoN){float unused;return radius(n,logoN,unused);}
             float radius(float3 n){float3 unused;return radius(n,unused);}
             controlPoint tessVert(appdata input){controlPoint o;o.vertex=input.vertex;return o;}
@@ -169,7 +175,7 @@ Shader "MASSIVE/Study/Attract Ferrofluid"
                 // Only the lettering area receives extra geometry. A shared
                 // edge uses the same midpoint from both triangles, so the
                 // tessellator joins the refined collar without cracks.
-                return lerp(1,4,1-smoothstep(band*.65,band,d));
+                return lerp(1,_LogoDetail,1-smoothstep(band*.65,band,d));
             }
             tessFactors patchConstants(InputPatch<controlPoint,3> p)
             {
@@ -185,13 +191,23 @@ Shader "MASSIVE/Study/Attract Ferrofluid"
             v2f vert(appdata input)
             {
                 v2f o;float3 n=normalize(input.vertex.xyz);
-                float3 tangent=normalize(cross(abs(n.y)<.9?float3(0,1,0):float3(1,0,0),n));
-                float3 bitangent=cross(n,tangent);
-                const float e=.0015;
-                float3 nt=normalize(n+tangent*e),nb=normalize(n+bitangent*e);
-                float3 mt=normalize(n-tangent*e),mb=normalize(n-bitangent*e);
-                float3 logoN;float r=radius(n,logoN,o.floorReached);float3 p=n*r;
-                float3 normal=normalize(cross(nt*radius(nt)-mt*radius(mt),nb*radius(nb)-mb*radius(mb)));
+                float3 moundSlope,derivative;
+                float surface=fluidSurfaceGradient(n,_Density,moundSlope,derivative);
+                float3 logoN;float r=recessedRadius(n,surface,moundSlope,logoN,o.floorReached);float3 p=n*r;
+                float3 normal=normalize(n*surface-(derivative-n*dot(n,derivative)));
+                // Keep the approved shoulder/wall normal calculation where the
+                // transported letter field can affect this vertex or its probes.
+                // Broad body areas need only one evaluation of the fluid field.
+                [branch] if(_LogoEnabled>.5 && _LogoReveal>0 &&
+                    logoRestDistance(n)>-(.10*_LogoSettings.x/2.2+_LogoMeshGuard+.65*_LogoSettings.w))
+                {
+                    float3 tangent=normalize(cross(abs(n.y)<.9?float3(0,1,0):float3(1,0,0),n));
+                    float3 bitangent=cross(n,tangent);
+                    const float e=.0015;
+                    float3 nt=normalize(n+tangent*e),nb=normalize(n+bitangent*e);
+                    float3 mt=normalize(n-tangent*e),mb=normalize(n-bitangent*e);
+                    normal=normalize(cross(nt*radius(nt)-mt*radius(mt),nb*radius(nb)-mb*radius(mb)));
+                }
                 o.position=UnityObjectToClipPos(float4(p,1));
                 o.viewPosition=UnityObjectToViewPos(float4(p,1));
                 o.viewNormal=mul((float3x3)UNITY_MATRIX_V,UnityObjectToWorldNormal(normal));

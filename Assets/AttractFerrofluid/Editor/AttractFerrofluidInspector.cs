@@ -42,6 +42,7 @@ public sealed class AttractFerrofluidInspector : Editor
             Field("motionSpeed","Motion Speed");Field("wetness","Highlight Coverage");
             Field("rimWidth","Rim Width");Field("rimAngle","Rim Angle");
             Field("faceResolution","Mesh Resolution","Applies the next time the ferrofluid sphere is enabled.");
+            Field("optimizeBodyGeometry","Optimize Body Geometry","Reduces the broad body mesh while retaining lettering detail. Applies on enable; disable for a geometry comparison.");
         }
         showInput=EditorGUILayout.Foldout(showInput,"Joystick response",true);
         if(showInput)
