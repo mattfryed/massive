@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: 2d1661fb151eb4d48a4dc4e4294a3351
+guid: cc4025c3d0c57f61e8e111e0b087f2e7
 MonoImporter:
   externalObjects: {}
   serializedVersion: 2
@@ -14,5 +14,5 @@ AssetOrigin:
   productId: 69534
   packageName: Fullscreen Editor
   packageVersion: 2.2.11
-  assetPath: Assets/Fullscreen/Editor/Windows/User32.cs
+  assetPath: Assets/Fullscreen/Editor/Windows/NativeFullscreenHookWin.cs
   uploadId: 955676

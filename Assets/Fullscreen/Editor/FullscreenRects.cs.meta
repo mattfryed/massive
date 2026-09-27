@@ -15,6 +15,6 @@ AssetOrigin:
   serializedVersion: 1
   productId: 69534
   packageName: Fullscreen Editor
-  packageVersion: 2.2.8
+  packageVersion: 2.2.11
   assetPath: Assets/Fullscreen/Editor/FullscreenRects.cs
-  uploadId: 612576
+  uploadId: 955676

@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.Audio;
@@ -8,6 +9,9 @@ using UnityEngine.Audio;
 public sealed class BGMManager : MonoBehaviour
 {
     public static BGMManager Instance { get; private set; }
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetStatics() => Instance = null;
 
     [Serializable]
     public struct SceneMusicOverride
@@ -34,6 +38,11 @@ public sealed class BGMManager : MonoBehaviour
     [Header("Fallback (optional)")]
     [Tooltip("If nothing else requests music, and nothing is currently playing, play this.")]
     [SerializeField] private LevelAudioProfile defaultProfile;
+
+    [Header("Session Preloading")]
+    [Tooltip("Music profiles to load at launch and retain across matches. Add new gameplay tracks here.")]
+    [SerializeField] private LevelAudioProfile[] startupProfiles;
+    private readonly HashSet<AudioClip> residentClips = new HashSet<AudioClip>();
 
     [Header("Audio")]
     [Range(0f, 1f)]
@@ -69,13 +78,12 @@ private static void Bootstrap() => EnsureExists();
         Instance = FindFirstObjectByType<BGMManager>();
         if (Instance != null)
         {
-            DontDestroyOnLoad(Instance.gameObject);
+            Instance.PersistAcrossScenes();
             return;
         }
 
         var go = new GameObject("BGMManager");
         Instance = go.AddComponent<BGMManager>();
-        DontDestroyOnLoad(go);
     }
 
     private void Awake()
@@ -87,20 +95,52 @@ private static void Bootstrap() => EnsureExists();
         }
 
         Instance = this;
-        DontDestroyOnLoad(gameObject);
+        PersistAcrossScenes();
 
         EnsureSourcesExistAndConfigured();
 
         _active = sourceA;
         _inactive = sourceB;
 
+        PreloadStartupMusic();
         SceneManager.sceneLoaded += OnSceneLoaded;
+    }
+
+    private void PreloadStartupMusic()
+    {
+        PreloadProfile(defaultProfile);
+        if (sceneOverrides != null)
+            foreach (var sceneOverride in sceneOverrides)
+                PreloadProfile(sceneOverride.profile);
+        if (startupProfiles != null)
+            foreach (var profile in startupProfiles)
+                PreloadProfile(profile);
+    }
+
+    private void PreloadProfile(LevelAudioProfile profile)
+    {
+        if (profile == null || profile.bgmClip == null) return;
+        var clip = profile.bgmClip;
+        // Retain a reference even after both crossfade sources release the clip.
+        // Already loaded clips require no further decode or disk access.
+        if (!residentClips.Add(clip)) return;
+        if (clip.loadState == AudioDataLoadState.Unloaded && !clip.LoadAudioData())
+            Debug.LogWarning($"[BGMManager] Could not preload music '{clip.name}'.", this);
+        else if (clip.loadState == AudioDataLoadState.Failed)
+            Debug.LogWarning($"[BGMManager] Music '{clip.name}' failed to load.", this);
+    }
+
+    private void PersistAcrossScenes()
+    {
+        // Scene hierarchy folders must not own this session-wide manager.
+        transform.SetParent(null, true);
+        DontDestroyOnLoad(gameObject);
     }
 
     private void OnDestroy()
     {
-        if (Instance == this)
-            SceneManager.sceneLoaded -= OnSceneLoaded;
+        SceneManager.sceneLoaded -= OnSceneLoaded;
+        if (Instance == this) Instance = null;
     }
 
     private void Start()
@@ -217,6 +257,7 @@ private static void Bootstrap() => EnsureExists();
             return;
         }
 
+        PreloadProfile(profile);
         EnsureSourcesExistAndConfigured();
         if (_active == null) _active = sourceA;
         if (_inactive == null) _inactive = sourceB;

@@ -220,15 +220,6 @@ public static class SingularityPlayableLevelSetup
         {
             EditorUtility.CopySerialized(All<GameManagerScript>(source).Single(), manager);
             EditorUtility.CopySerialized(All<PlayerRosterController>(source).Single(), roster);
-            // Preserve the reference scene's audio setup without importing its
-            // gameplay, anomaly managers, input manager or EventSystem.
-            var music = All<MusicManagerScript>(source).FirstOrDefault();
-            if (music != null && !All<MusicManagerScript>(target).Any())
-            {
-                var clone = Object.Instantiate(music.gameObject);
-                clone.name = music.gameObject.name;
-                SceneManager.MoveGameObjectToScene(clone, target);
-            }
         }
         finally { EditorSceneManager.ClosePreviewScene(source); }
         var matchData = new SerializedObject(manager);

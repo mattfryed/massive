@@ -116,7 +116,14 @@ namespace FullscreenEditor {
             // the currently focused window is located, not the main display resolution. 
             // This caused the bug #53 on windows.
             // The same behaviour was not tested on Linux as macOS
-            return new Rect(0f, 0f, Screen.currentResolution.width, Screen.currentResolution.height);
+            var screenRect = new Rect(0f, 0f, Screen.currentResolution.width, Screen.currentResolution.height);
+
+            if (FullscreenUtility.IsMacOS) {
+                // Uses EditorGUIUtility.pixelsPerPoint internally to fix scaling issues on retina displays.
+                return EditorGUIUtility.PixelsToPoints(screenRect);
+            }
+
+            return screenRect;
         }
 
         /// <summary>Returns the rect of a given display index.</summary>
@@ -144,17 +151,20 @@ namespace FullscreenEditor {
         /// On Windows it adds a 4px border and does not account for scaling (can cause bugs when using scales different than 100%).
         /// On macOS this returns a fullscreen rect when the main window is maximized and mouseScreen is set to true.</summary>
         /// <param name="mouseScreen">Should we get the rect on the screen where the mouse pointer is?</param>
-        public static Rect GetWorkAreaRect(bool mouseScreen) {
-            return Types.ContainerWindow.InvokeMethod<Rect>("FitRectToScreen", new Rect(Vector2.zero, Vector2.one * 10000f), true, mouseScreen);
-        }
-
-        /// <summary>Returns a rect covering all the screen, except for the taskbar/dock.
-        /// On Windows it adds a 4px border and does not account for scaling (can cause bugs when using scales different than 100%).
-        /// On macOS this returns a fullscreen rect when the main window is maximized and mouseScreen is set to true.</summary>
         /// <param name="container">The ContainerWindow that will be used as reference for calulating border error.</param>
-        /// <param name="mouseScreen">Should we get the rect on the screen where the mouse pointer is?</param>
-        public static Rect GetWorkAreaRect(Object container, bool mouseScreen) {
-            return container.InvokeMethod<Rect>("FitWindowRectToScreen", new Rect(Vector2.zero, Vector2.one * 10000f), true, mouseScreen);
+        public static Rect GetWorkAreaRect(bool mouseScreen, Object container = null) {
+            var fitRectToMouseScreen = Types.ContainerWindow.FindMethod("FitRectToMouseScreen", new [] {typeof(Rect), typeof(bool), Types.ContainerWindow}, false);
+            var fitRectScreen = Types.ContainerWindow.FindMethod("FitRectToScreen", new [] {typeof(Rect), typeof(Vector2), typeof(bool), Types.ContainerWindow}, false);
+            if (fitRectToMouseScreen != null) // Unity 6.1 and later
+                if (mouseScreen)
+                    return (Rect)fitRectToMouseScreen.Invoke(null, new object[] { new Rect(Vector2.zero, Vector2.one * 100000f), true, container });
+                else
+                    return (Rect)fitRectScreen.Invoke(null, new object[] { new Rect(Vector2.zero, Vector2.one * 100000f), Vector2.zero, true, container });
+            else
+                if (container != null)
+                    return container.InvokeMethod<Rect>("FitWindowRectToScreen", new Rect(Vector2.zero, Vector2.one * 100000f), true, mouseScreen);
+                else
+                    return Types.ContainerWindow.InvokeMethod<Rect>("FitRectToScreen", new Rect(Vector2.zero, Vector2.one * 100000f), Vector2.zero, true, mouseScreen);
         }
 
         /// <summary>Returns the bounds rect of the screen that contains the given point. (Windows only)</summary>

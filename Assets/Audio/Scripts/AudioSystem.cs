@@ -36,6 +36,8 @@ private static void ResetStatics()
         }
 
         I = this;
+        // Preserve only the audio service and its pool, not the scene's Managers folder.
+        transform.SetParent(null, true);
         DontDestroyOnLoad(gameObject);
 
         for (int i = 0; i < poolSize; i++)
@@ -50,6 +52,11 @@ private static void ResetStatics()
         }
 
         if (database != null) database.Build();
+    }
+
+    private void OnDestroy()
+    {
+        if (I == this) I = null;
     }
 
     public void Play(AudioEventId id, Vector3 position)

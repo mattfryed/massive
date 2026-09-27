@@ -6,6 +6,11 @@ using Rewired;
 
 public sealed class Ultrastik360FixedAssignment : MonoBehaviour {
 
+    private static Ultrastik360FixedAssignment instance;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetStatics() => instance = null;
+
     [Header("Rewired Player IDs (left-to-right cabinet order)")]
     [SerializeField] private int rewiredP1 = 0;
     [SerializeField] private int rewiredP2 = 1;
@@ -25,6 +30,15 @@ public sealed class Ultrastik360FixedAssignment : MonoBehaviour {
         new Regex(@"Player\s*(\d+)\s*$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private void Awake() {
+        // Returning to Attract must not add another set of Rewired event handlers.
+        if(instance != null && instance != this) {
+            enabled = false;
+            Destroy(gameObject);
+            return;
+        }
+
+        instance = this;
+        transform.SetParent(null, true);
         DontDestroyOnLoad(gameObject);
 
         if(verboseLogs) Debug.Log("[UltraStikAssign] Awake");
@@ -46,6 +60,7 @@ public sealed class Ultrastik360FixedAssignment : MonoBehaviour {
     }
 
     private void OnDestroy() {
+        if(instance == this) instance = null;
         ReInput.InitializedEvent -= OnRewiredInitialized;
         ReInput.ControllerConnectedEvent -= OnControllerChanged;
         ReInput.ControllerDisconnectedEvent -= OnControllerChanged;

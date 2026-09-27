@@ -53,7 +53,6 @@ public class GameManagerScript : MonoBehaviour
     private float _regulationRemainingSeconds;
     private float _bonusElapsedSeconds;
 
-    private GameObject _gmm;
     private GameObject _deathSphere;
     private GameObject _gameplayObjects;
 
@@ -86,7 +85,6 @@ public class GameManagerScript : MonoBehaviour
             levelNumber = def.levelNumber.ToString("000");
         }
 
-        _gmm = GameObject.FindWithTag("GameMusicManager");
         _deathSphere = GameObject.FindWithTag("DeathSphere");
         _gameplayObjects = GameObject.FindWithTag("GameplayObjects");
 
@@ -396,7 +394,6 @@ public class GameManagerScript : MonoBehaviour
         _ending = true;
 
         scoreService?.CloseScoring();
-        StopGameMusic();
 
         GameFlowContext.EnsureExists();
         GameFlowContext.Instance.ClearLastMatchResult();
@@ -422,7 +419,6 @@ public class GameManagerScript : MonoBehaviour
             _regulationDarkScore = finalDarkMilliElectronVolts;
         }
 
-        StopGameMusic();
 
         if (disableGameplayOnEnd && _gameplayObjects != null)
             _gameplayObjects.SetActive(false);
@@ -441,15 +437,6 @@ public class GameManagerScript : MonoBehaviour
         GameFlowContext.Instance.SetLastMatchResult(result);
 
         StartCoroutine(LoadPostGameAfterDelay());
-    }
-
-    private void StopGameMusic()
-    {
-        if (_gmm == null) return;
-
-        MusicManagerScript musicManager = _gmm.GetComponent<MusicManagerScript>();
-        if (musicManager != null)
-            musicManager.StopMusic();
     }
 
     private IEnumerator LoadPostGameAfterDelay()

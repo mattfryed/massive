@@ -58,16 +58,17 @@ namespace FullscreenEditor {
         private static void MVMenuItem() {
             var mainView = FullscreenUtility.GetMainView();
 
-            if (FullscreenUtility.IsLinux) {
-                if (wmctrl.IsInstalled)
-                    wmctrl.ToggleNativeFullscreen(mainView);
-                else
-                    Logger.Warning("wmctrl not installed, cannot fullscreen main view. Install it using 'sudo apt-get install wmctrl'");
+            if (!mainView) {
+                Logger.Error("No Main View found, this should not happen");
                 return;
             }
 
-            if (!mainView) {
-                Logger.Error("No Main View found, this should not happen");
+            if (FullscreenUtility.IsLinux) {
+                if (X11.IsAvailable) {
+                    FullscreenUtility.FocusView(mainView);
+                    X11.ToggleNativeFullscreen();
+                } else
+                    Logger.Warning("X11 native fullscreen not available, cannot fullscreen main view.");
                 return;
             }
 

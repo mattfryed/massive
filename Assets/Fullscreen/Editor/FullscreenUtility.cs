@@ -24,8 +24,8 @@ namespace FullscreenEditor {
         AuxWindow = 5,
         /// <summary>Like PopupMenu, but without keyboard focus.</summary>
         Tooltip = 6,
-        // Show as fullscreen window
-        Fullscreen = 8
+        /// <summary>Modal Utility window</summary>
+        ModalUtility = 7,
     }
 
     /// <summary>Helper class for suppressing unity logs when calling a method that may show unwanted logs.</summary>
@@ -100,7 +100,11 @@ namespace FullscreenEditor {
                 }
             };
 
+#if UNITY_6000_4_OR_NEWER
+            EditorApplication.hierarchyWindowItemByEntityIdOnGUI += (entityId, rect) => RecalculateMousePosition();
+#else
             EditorApplication.hierarchyWindowItemOnGUI += (rect, id) => RecalculateMousePosition();
+#endif
             EditorApplication.projectWindowItemOnGUI += (rect, id) => RecalculateMousePosition();
 
 #if UNITY_2019_1_OR_NEWER

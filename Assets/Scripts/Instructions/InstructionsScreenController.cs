@@ -87,8 +87,18 @@ public class InstructionsScreenController : MonoBehaviour
         // Spawn dynamic content (panel prefab or fallback card)
         SpawnDynamicPanel(selected);
 
+        StartCoroutine(PreloadGameplayAfterFirstFrame());
+
         // Begin timing/input gate
         StartCoroutine(RunGateThenWaitForAnyButton());
+    }
+
+    private IEnumerator PreloadGameplayAfterFirstFrame()
+    {
+        // Present the instructions before starting scene deserialization.
+        yield return null;
+        if (!SceneFlow.PreloadSelectedGameplay())
+            SceneFlow.GoToLevelSelect();
     }
 
     private void ApplyHeader(LevelDefinition def)
@@ -197,6 +207,14 @@ public class InstructionsScreenController : MonoBehaviour
             yield return null;
         }
 
+        _armed = false;
+        // A very early confirmation still keeps the instructions visible while
+        // Unity finishes loading. The persistent SceneFlow owns the operation.
+        if (!SceneFlow.IsSelectedGameplayReady && pressAnyPromptRoot != null)
+        {
+            var prompt = pressAnyPromptRoot.GetComponentInChildren<TMP_Text>(true);
+            if (prompt != null) prompt.text = "LOADING...";
+        }
         SceneFlow.GoToSelectedGameplay();
     }
 

@@ -44,9 +44,9 @@ namespace FullscreenEditor {
         private const string FORUM_THREAD = "https://forum.unity.com/threads/released-fullscreen-editor.661519/";
 
         /// <summary>Current version of the Fullscreen Editor plugin.</summary>
-        public static readonly Version pluginVersion = new Version(2, 2, 8);
+        public static readonly Version pluginVersion = new Version(2, 2, 10);
         /// <summary>Release date of this version.</summary>
-        public static readonly DateTime pluginDate = new DateTime(2023, 09, 07);
+        public static readonly DateTime pluginDate = new DateTime(2025, 10, 11);
 
         private static readonly GUIContent resetSettingsContent = new GUIContent("Use Defaults", "Reset all settings to default ones");
         private static readonly GUIContent versionContent = new GUIContent(string.Format("Version: {0} ({1:d})", pluginVersion, pluginDate));
@@ -103,8 +103,8 @@ namespace FullscreenEditor {
         /// <summary>Defines which display renders on each screen when using Mosaic.</summary>
         public static readonly PrefItem<int[]> MosaicMapping;
 
-        /// <summary>Do not attempt to use wmctrl's fullscreen on Linux environments.</summary>
-        public static readonly PrefItem<bool> DoNotUseWmctrl;
+        /// <summary>Use native X11 fullscreen on Linux environments.</summary>
+        public static readonly PrefItem<bool> NativeX11Fullscreen;
 
         /// <summary>Restore cursor lock and hide state after going in and out of fullscreen.</summary>
         public static readonly PrefItem<bool> RestoreCursorLockAndHideState;
@@ -133,7 +133,7 @@ namespace FullscreenEditor {
             DisableSceneViewRendering = new PrefItem<bool>("DisableSceneViewRendering", true, "Disable Scene View Rendering", "Increase Fullscreen Editor performance by not rendering SceneViews while there are open fullscreen views.");
             UseGlobalToolbarHiding = new PrefItem<bool>("UseGlobalToolbarHiding", FullscreenUtility.IsMacOS, "Use global toolbar hiding", "Changes toolbars of all windows at once. This option fixes the gray bar bug on MacOS.");
             MosaicMapping = new PrefItem<int[]>("MosaicMapping", new[] { 0, 1, 2, 3, 4, 5, 6, 7 }, "Mosaic Screen Mapping", "Defines which display renders on each screen when using Mosaic.");
-            DoNotUseWmctrl = new PrefItem<bool>("DoNotUseWmctrl", false, "Do not use wmctrl", "Avoid using 'wmctrl' helper when opening fullscreen windows");
+            NativeX11Fullscreen = new PrefItem<bool>("NativeX11Fullscreen", true, "Native X11 Fullscreen", "Use native X11 server fullscreen on Linux environments.\nThis option is recommended for better performance and compatibility.");
             RestoreCursorLockAndHideState = new PrefItem<bool>("RestoreCursorLockAndHideState", true, "Restore Cursor Lock and Hide State", "Restore cursor lock and hide state after going in and out of fullscreen.");
 
             onLoadDefaults += () => // Array won't revert automaticaly because it is changed as reference
@@ -228,15 +228,11 @@ namespace FullscreenEditor {
             RestoreCursorLockAndHideState.DoGUI();
 
             if (FullscreenUtility.IsLinux) {
-                using (new EditorGUI.DisabledGroupScope(!FullscreenEditor.Linux.wmctrl.IsInstalled)) {
-                    DoNotUseWmctrl.DoGUI();
+                using (new EditorGUI.DisabledGroupScope(!FullscreenEditor.Linux.X11.IsAvailable)) {
+                    NativeX11Fullscreen.DoGUI();
                 }
-                if (!FullscreenEditor.Linux.wmctrl.IsInstalled) {
-                    EditorGUILayout.HelpBox("'wmctrl' not found. Try installing it with 'sudo apt-get install wmctrl'.", MessageType.Warning);
-                } else {
-                    EditorGUILayout.HelpBox("Try enabling the option above if you're experiencing any kind of toolbars or offsets " +
-                        "while in fullscreen mode.\nDisabling 'wmctrl' can fix issues on some Linux environments when the window manager " +
-                        "does not handle fullscreen windows properly (I'm looking at you Ubuntu).", MessageType.Info);
+                if (!FullscreenEditor.Linux.X11.IsAvailable) {
+                    EditorGUILayout.HelpBox("Native X11 fullscreen not available. Are you using Wayland?", MessageType.Warning);
                 }
             }
 

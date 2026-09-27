@@ -50,16 +50,33 @@ namespace FullscreenEditor {
             var loadPosition = false;
             var displayImmediately = true;
             var setFocus = true;
+            var showMode = FullscreenUtility.IsMacOS ? (int)ShowMode.PopupMenu : (int)ShowMode.NoShadow;
 
             if (cw.HasMethod("Show", new[] { typeof(int), typeof(bool), typeof(bool), typeof(bool), typeof(int) }))
-                cw.InvokeMethod("Show", (int)ShowMode.NoShadow, loadPosition, displayImmediately, setFocus, 0);
+                cw.InvokeMethod("Show", showMode, loadPosition, displayImmediately, setFocus, 0);
             else if (cw.HasMethod("Show", new[] { typeof(int), typeof(bool), typeof(bool) }))
-                cw.InvokeMethod("Show", (int)ShowMode.NoShadow, loadPosition, displayImmediately);
+                cw.InvokeMethod("Show", showMode, loadPosition, displayImmediately);
             else
-                cw.InvokeMethod("Show", (int)ShowMode.NoShadow, loadPosition, displayImmediately, setFocus);
+                cw.InvokeMethod("Show", showMode, loadPosition, displayImmediately, setFocus);
 
             // set min/max size now that native window is not null so that it will e.g., use proper styleMask on macOS
             cw.InvokeMethod("SetMinMaxSizes", rect.size, rect.size); // min, max
+
+            if (FullscreenUtility.IsMacOS && cw.HasProperty("title")) {
+                // We show with ShowMode.PopupMenu because recent Unity versions make ShowMode.NoShadow
+                // windows transparent (that mode doubles as the drag-preview window). PopupMenu is opaque
+                // but has a shadow/frame/rounded corners, so we give the native NSWindow a unique title
+                // (so we and NativeDecorationFix can find it) and strip those decorations. NativeDecorationFix
+                // reapplies the strip while the window is open, since Unity finishes the popup setup later.
+#if UNITY_6000_4_OR_NEWER
+                var nativeTitle = string.Format("Fullscreen Editor {0}", cw.GetEntityId());
+#else
+                var nativeTitle = string.Format("Fullscreen Editor {0}", cw.GetInstanceID());
+#endif
+                cw.SetPropertyValue("title", nativeTitle);
+
+                FullscreenEditor.MacOS.Cocoa.StripWindowDecorations(nativeTitle);
+            }
 
             cw.SetFieldValue("m_ShowMode", (int)ShowMode.PopupMenu); // Prevents window decoration from being draw
             cw.SetFieldValue("m_DontSaveToLayout", true);
@@ -74,7 +91,9 @@ namespace FullscreenEditor {
         /// <param name="containerWindow">The ContainerWindow to freeze the repaints.</param>
         /// <param name="freeze">Wheter to freeze or unfreeze the container.</param>
         protected void SetFreezeContainer(ContainerWindow containerWindow, bool freeze) {
-            containerWindow.InvokeMethod("SetFreezeDisplay", freeze);
+            if (containerWindow.HasMethod("SetFreezeDisplay", new[] { typeof(bool) })) {
+                containerWindow.InvokeMethod("SetFreezeDisplay", freeze);
+            }
         }
 
         /// <summary>Method that will be called just before creating the ContainerWindow for this fullscreen.</summary>

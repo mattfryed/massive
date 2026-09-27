@@ -9,12 +9,8 @@ namespace FullscreenEditor.Linux {
                 return;
 
             FullscreenCallbacks.afterFullscreenOpen += (fs) => {
-                if (wmctrl.IsInstalled && !FullscreenPreferences.DoNotUseWmctrl.Value)
-                    wmctrl.SetNativeFullscreen(true, fs.m_dst.Container);
-            };
-            FullscreenCallbacks.beforeFullscreenClose += (fs) => {
-                if (wmctrl.IsInstalled && !FullscreenPreferences.DoNotUseWmctrl.Value)
-                    wmctrl.SetNativeFullscreen(false, fs.m_dst.Container);
+                if (X11.IsAvailable && FullscreenPreferences.NativeX11Fullscreen.Value)
+                    X11.SetNativeFullscreen(true);
             };
         }
 
