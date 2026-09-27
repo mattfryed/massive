@@ -14,10 +14,10 @@ public sealed class AttractFerrofluidInspector : Editor
     {
         serializedObject.Update();
         EditorGUILayout.LabelField("Attract sphere",EditorStyles.boldLabel);
-        Field("useFerrofluid","Use Ferrofluid Sphere","Off restores the existing sphere and floating title. Settings are retained.");
+        Field("useFerrofluid","Use Ferrofluid Sphere","Off restores the existing sphere. Settings are retained.");
         EditorGUILayout.Space();
         EditorGUILayout.LabelField("Lettering",EditorStyles.boldLabel);
-        Field("embeddedLogo","Embed MASSIVE Lettering","On places white lettering in the sphere. Off restores the original floating title.");
+        Field("embeddedLogo","Embed MASSIVE Lettering","Show or hide the white lettering embedded in the sphere.");
         Field("logoScale","Lettering Scale","Uniform scale on the sphere; 1 is the approved study size. Range 0.25–1.3.");
         Field("logoLetterSpacing","Letter Spacing","Adds space between the seven letters without stretching them. Zero retains the original spacing; negative values tighten it.");
         Field("logoRecess","Embed Depth","Depth below the reference surface, in sphere-local units.");
@@ -54,7 +54,8 @@ public sealed class AttractFerrofluidInspector : Editor
         if(showBindings)
         {
             Field("surfaceShader","Surface Shader");Field("logoDistanceField","Lettering Shape");
-            Field("originalLogo","Original Title");Field("attractionCamera","Input Camera");
+            Field("logoGlyphDistanceFields","Isolated Letter Fields");Field("attractionCamera","Input Camera");
+            Field("logoFieldShader","Letter Field Composer");
             Field("logoArcWidth","Base Lettering Arc","Angular width at scale 1. The default is 2.2 radians.");
         }
         serializedObject.ApplyModifiedProperties();

@@ -10,9 +10,8 @@ Shader "MASSIVE/Study/Attract Ferrofluid"
         _Attraction("Attraction offset",Vector)=(0,0,0,0)
         _FluidTime("Flow time",Float)=0
         _WhiteDominant("White mounds with black valleys",Float)=0
-        _LogoField("Logo signed distance",2D)="black"{}
+        _LogoSpacedField("Spaced letter distance",2D)="black"{}
         _LogoEnabled("Embedded lettering enabled",Float)=0
-        _LogoSpacing("Letter spacing",Float)=0
         _LogoReveal("Lettering arrival",Range(0,1))=1
         _LogoFlow("Letter ridge undulation",Range(0,1))=1
         _LogoTypeFlow("White type undulation",Range(0,1))=0
@@ -36,11 +35,11 @@ Shader "MASSIVE/Study/Attract Ferrofluid"
             #pragma domain domain
             #pragma fragment frag
             #include "UnityCG.cginc"
-            float _Density,_Relief,_Wetness,_FluidTime,_RimWidth,_RimAngle,_LogoEnabled,_LogoFlow,_LogoTypeFlow,_LogoMeshGuard,_WhiteDominant,_LogoSpacing;
+            float _Density,_Relief,_Wetness,_FluidTime,_RimWidth,_RimAngle,_LogoEnabled,_LogoFlow,_LogoTypeFlow,_LogoMeshGuard,_WhiteDominant;
             float4 _Attraction;
-            sampler2D _LogoField;
+            sampler2D _LogoSpacedField;
+            float4 _LogoSourceSize,_LogoFieldDomain;
             float4 _LogoSettings,_LogoRight,_LogoUp,_LogoFront;
-            float4 _LogoField_TexelSize;
             float _LogoReveal;
             float _LogoDetail;
             struct appdata{float4 vertex:POSITION;};
@@ -58,32 +57,13 @@ Shader "MASSIVE/Study/Attract Ferrofluid"
                 if(front<=0)return -1;
                 float2 angles=float2(atan2(dot(n,_LogoRight.xyz),front),asin(clamp(dot(n,_LogoUp.xyz),-1,1)));
                 float2 uv=(angles-float2(0,_LogoSettings.z))/_LogoSettings.xy+.5;
+                uv=(uv*_LogoSourceSize.xy+_LogoFieldDomain.zw)/_LogoFieldDomain.xy;
                 float2 bounded=saturate(uv);
-                if(abs(_LogoSpacing)>.000001)
-                {
-                    // Midpoints of the six gaps in MassiveLogoDistance. Translate
-                    // each complete outline, including its recess, without widening
-                    // the glyph or changing its vertical scale.
-                    const float cuts[6]={.1962890625,.3640136719,.5021972656,.6491699219,.7077636719,.8676757813};
-                    int glyph=0;
-                    [unroll]for(int j=0;j<6;j++)
-                        glyph+=uv.x>cuts[j]+(j-2.5)*_LogoSpacing?1:0;
-                    uv.x-=(glyph-3)*_LogoSpacing;
-                    float lo=glyph==0?0:cuts[glyph-1];
-                    float hi=glyph==6?1:cuts[glyph];
-                    bounded=float2(clamp(uv.x,lo,hi),saturate(uv.y));
-                }
-                float outside=length((uv-bounded)*_LogoSettings.xy);
-                if(outside>.2)return -1;
-                // Exact distance to the source mesh outlines, packed as 16 bits
-                // in RG. Linear decoding commutes with bilinear filtering. B
-                // marks the new encoding so older study textures still work.
-                float3 encoded=tex2Dlod(_LogoField,float4(bounded,0,0)).rgb;
-                float value=encoded.b>.99?dot(encoded.rg,float2(256.0/257.0,1.0/257.0)):encoded.r;
-                float range=encoded.b>.99?256:64;
-                // Extend the negative field beyond the texture padding, so the
-                // outer M/E shoulders do not end in a sudden vertical wall.
-                return (value-.5)*range*_LogoField_TexelSize.x*_LogoSettings.x-outside;
+                float outside=length((uv-bounded)*_LogoFieldDomain.xy);
+                // Spacing is composed only when edited. This single continuous
+                // field preserves each recess without copying neighboring halos.
+                float distance=tex2Dlod(_LogoSpacedField,float4(bounded,0,0)).r-outside;
+                return distance*_LogoSettings.x/_LogoSourceSize.x;
             }
 
             #include "AttractFerrofluidField.hlsl"

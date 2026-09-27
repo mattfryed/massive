@@ -28,10 +28,11 @@ namespace Massive.AttractStudy
         [Min(.05f)] public float attractionSmoothTime=.7f;
         [Range(0,.25f)] public float attractionReach=.14f;
         public Camera attractionCamera;
-        [Header("Embedded logo alternate")]
+        [Header("Embedded logo")]
         public bool embeddedLogo;
         public Texture2D logoDistanceField;
-        public Transform originalLogo;
+        public Texture2DArray logoGlyphDistanceFields;
+        public Shader logoFieldShader;
         [Range(.25f,1.3f)] public float logoScale=1;
         [Tooltip("Extra space between letters, as a fraction of the original word width. Zero preserves the original spacing."),Range(-.008f,.06f)]
         public float logoLetterSpacing;
@@ -46,7 +47,7 @@ namespace Massive.AttractStudy
         [Min(0)] public float logoArrivalDelay=.25f;
         [Min(.1f)] public float logoArrivalDuration=3;
         public float LogoRevealProgress=>!animateLogoArrival?1:Mathf.Clamp01((logoArrivalElapsed-Mathf.Max(0,logoArrivalDelay))/Mathf.Max(.1f,logoArrivalDuration));
-        public bool LogoIsEmbedded=>useFerrofluid && embeddedLogo && logoDistanceField!=null && originalLogo!=null;
+        public bool LogoIsEmbedded=>useFerrofluid && embeddedLogo && logoGlyphDistanceFields!=null;
         public Vector2 AttractionTarget {get;private set;}
         public Vector2 SmoothedAttraction=>attraction.Position;
         public Vector3 AttractionOffset {get;private set;}
@@ -65,22 +66,20 @@ namespace Massive.AttractStudy
         Mesh mesh;
         int letteringResolution;
         Material material;
+        FerrofluidLogoField logoField;
         MaterialPropertyBlock properties;
         readonly FerrofluidAttraction attraction=new FerrofluidAttraction();
         readonly List<Vector2> playerSticks=new List<Vector2>(4);
         Camera inputCamera;
         int horizontalAction=-1,verticalAction=-1;
-        Renderer[] logoRenderers;
-        bool[] logoRendererStates;
         Vector3 logoRight,logoUp,logoFront;
         float logoArrivalElapsed;
         bool logoWasEmbedded;
         static readonly int TimeId=Shader.PropertyToID("_FluidTime"),DensityId=Shader.PropertyToID("_Density"),ReliefId=Shader.PropertyToID("_Relief"),WetnessId=Shader.PropertyToID("_Wetness");
         static readonly int RimWidthId=Shader.PropertyToID("_RimWidth"),RimAngleId=Shader.PropertyToID("_RimAngle");
         static readonly int AttractionId=Shader.PropertyToID("_Attraction");
-        static readonly int LogoFieldId=Shader.PropertyToID("_LogoField"),LogoSettingsId=Shader.PropertyToID("_LogoSettings");
+        static readonly int LogoFieldId=Shader.PropertyToID("_LogoSpacedField"),LogoSettingsId=Shader.PropertyToID("_LogoSettings");
         static readonly int LogoEnabledId=Shader.PropertyToID("_LogoEnabled");
-        static readonly int LogoSpacingId=Shader.PropertyToID("_LogoSpacing");
         static readonly int LogoRevealId=Shader.PropertyToID("_LogoReveal");
         static readonly int LogoFlowId=Shader.PropertyToID("_LogoFlow");
         static readonly int LogoTypeFlowId=Shader.PropertyToID("_LogoTypeFlow");
@@ -98,6 +97,8 @@ namespace Massive.AttractStudy
             original=GetComponent<MeshRenderer>();originalEnabled=original.enabled;
             if(surfaceShader==null)surfaceShader=Shader.Find("MASSIVE/Study/Attract Ferrofluid");
             if(surfaceShader==null){Debug.LogError("[Attract Ferrofluid] Missing surface shader.",this);enabled=false;return;}
+            if(logoFieldShader==null)logoFieldShader=Shader.Find("Hidden/MASSIVE/Spaced Letter Field");
+            if(logoFieldShader!=null)logoField=new FerrofluidLogoField(logoFieldShader);
             AnimationTime=0;
             ReplayLogoArrival();logoWasEmbedded=LogoIsEmbedded;
             attraction.Reset();AttractionTarget=Vector2.zero;AttractionOffset=Vector3.zero;ActiveInputPlayers=0;
@@ -110,6 +111,8 @@ namespace Massive.AttractStudy
             letteringResolution=Mathf.Clamp(faceResolution,64,192);
             mesh=BuildSphere(optimizeBodyGeometry?Mathf.Min(letteringResolution,128):letteringResolution);
             material=new Material(surfaceShader){name="Attract ferrofluid — transient",hideFlags=HideFlags.DontSave};
+            material.SetVector("_LogoSourceSize",new Vector4(FerrofluidLogoLayout.Width,FerrofluidLogoLayout.Height,0,0));
+            material.SetVector("_LogoFieldDomain",FerrofluidLogoField.Domain);
             visual=new GameObject("Ferrofluid surface — visual only"){hideFlags=HideFlags.DontSave,layer=gameObject.layer};
             visual.transform.SetParent(transform,false);
             // Keep the extra front-surface relief behind the world-space mode
@@ -119,7 +122,6 @@ namespace Massive.AttractStudy
             SurfaceRenderer=visual.AddComponent<MeshRenderer>();SurfaceRenderer.sharedMaterial=material;
             SurfaceRenderer.shadowCastingMode=ShadowCastingMode.Off;SurfaceRenderer.receiveShadows=false;
             properties=new MaterialPropertyBlock();Apply();original.enabled=false;
-            UpdateLogoVisibility();
         }
         void Update()
         {
@@ -136,7 +138,6 @@ namespace Massive.AttractStudy
             if(LogoIsEmbedded!=logoWasEmbedded){ReplayLogoArrival();logoWasEmbedded=LogoIsEmbedded;}
             if(LogoIsEmbedded)logoArrivalElapsed+=Mathf.Clamp(arrivalDelta,0,.05f);
             UpdateAttraction(Time.deltaTime);Apply();
-            UpdateLogoVisibility();
         }
         public void ReplayLogoArrival(){logoArrivalElapsed=0;}
         IReadOnlyList<Vector2> ReadPlayerSticks()
@@ -176,11 +177,11 @@ namespace Massive.AttractStudy
             properties.SetFloat(ReliefId,Mathf.Clamp(surfaceRelief,.03f,.16f));properties.SetFloat(WetnessId,Mathf.Clamp01(wetness));
             properties.SetFloat(RimWidthId,Mathf.Clamp(rimWidth,0,.4f));properties.SetFloat(RimAngleId,rimAngle);
             properties.SetVector(AttractionId,new Vector4(AttractionOffset.x,AttractionOffset.y,AttractionOffset.z,0));
-            properties.SetTexture(LogoFieldId,logoDistanceField!=null?logoDistanceField:Texture2D.blackTexture);
+            var field=LogoIsEmbedded && logoField!=null?logoField.Update(logoGlyphDistanceFields,Mathf.Clamp(logoLetterSpacing,-.008f,.06f)):null;
+            if(field!=null)properties.SetTexture(LogoFieldId,field);
             float width=Mathf.Clamp(Mathf.Clamp(logoArcWidth,1.5f,2.9f)*Mathf.Clamp(logoScale,.25f,1.3f),.375f,2.9f);
             float height=logoDistanceField!=null?width*logoDistanceField.height/logoDistanceField.width:.5f;
-            properties.SetFloat(LogoEnabledId,LogoIsEmbedded?1:0);
-            properties.SetFloat(LogoSpacingId,Mathf.Clamp(logoLetterSpacing,-.008f,.06f));
+            properties.SetFloat(LogoEnabledId,field!=null?1:0);
             properties.SetFloat(LogoRevealId,LogoRevealProgress);
             properties.SetFloat(LogoFlowId,Mathf.Clamp01(logoSurfaceFlow));
             properties.SetFloat(LogoTypeFlowId,Mathf.Clamp01(logoTypeFlow));
@@ -192,31 +193,13 @@ namespace Massive.AttractStudy
             properties.SetVector(LogoRightId,logoRight);properties.SetVector(LogoUpId,logoUp);properties.SetVector(LogoFrontId,logoFront);
             SurfaceRenderer.SetPropertyBlock(properties);
         }
-        void UpdateLogoVisibility()
-        {
-            if(LogoIsEmbedded && logoRenderers==null)
-            {
-                // Only hide the original title's renderers, including its particle
-                // letters. Its objects and behavior remain available for restoration.
-                logoRenderers=originalLogo.GetComponentsInChildren<Renderer>(true);
-                logoRendererStates=new bool[logoRenderers.Length];
-                for(int i=0;i<logoRenderers.Length;i++){logoRendererStates[i]=logoRenderers[i].enabled;logoRenderers[i].enabled=false;}
-            }
-            else if(!LogoIsEmbedded)RestoreLogo();
-        }
-        void RestoreLogo()
-        {
-            if(logoRenderers==null)return;
-            for(int i=0;i<logoRenderers.Length;i++)if(logoRenderers[i]!=null)logoRenderers[i].enabled=logoRendererStates[i];
-            logoRenderers=null;logoRendererStates=null;
-        }
         void OnDisable()
         {
             ReleaseSurface();
         }
         void ReleaseSurface()
         {
-            RestoreLogo();
+            if(logoField!=null){logoField.Dispose();logoField=null;}
             if(original!=null)original.enabled=originalEnabled;
             Dispose(visual);Dispose(mesh);Dispose(material);
             visual=null;mesh=null;material=null;SurfaceRenderer=null;properties=null;AnimationTime=0;

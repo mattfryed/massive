@@ -7,18 +7,14 @@ using UnityEngine.UI;
 
 namespace Massive.AttractStudy
 {
-    /// <summary>Presentation alternate for ATTRACT. Existing buttons still own
-    /// the versus game routes; score attack is intentionally a menu preview.</summary>
+    /// <summary>Horizontal ATTRACT menu. Score attack is intentionally a preview.</summary>
     [DisallowMultipleComponent]
     public sealed class AttractModeSelector : MonoBehaviour
     {
-        [Tooltip("Switch live between the horizontal ferrofluid menu and the original vertical menu.")]
+        [InspectorName("Show Mode Select"),Tooltip("Show the horizontal ferrofluid menu, starting with the begin prompt.")]
         public bool useFerrofluidModeSelect=true;
         [Header("Existing scene bindings")]
-        public GameObject legacyModeSelect;
-        public GameObject legacyPseudoPlayers;
-        public Button legacyOneVOne;
-        public Button legacyTwoVTwo;
+        public ChooseModeScript modeFlow;
         public AttractFerrofluidStudy sphereStyle;
         public Camera menuCamera;
         public TMP_FontAsset labelFont;
@@ -94,7 +90,6 @@ namespace Massive.AttractStudy
         readonly MeshFilter[] filters=new MeshFilter[4];
         readonly float[] reveal=new float[4];
         readonly Vector4[] drops=new Vector4[FerrofluidFormation.DropCount];
-        bool legacyMenuState,legacyPlayersState;
         GameObject previousSelection,previousFirstSelection;
         EventSystem input;
         float clock;
@@ -142,10 +137,9 @@ namespace Massive.AttractStudy
                 if(input!=null)input.firstSelectedGameObject=buttons[SelectedOption].gameObject;
             }
             // Also recover selection after an input module's first-frame setup.
-            if(input!=null && (input.currentSelectedGameObject==null || IsLegacySelection(input.currentSelectedGameObject)))
+            if(input!=null && input.currentSelectedGameObject==null)
                 input.SetSelectedGameObject(buttons[SelectedOption].gameObject);
         }
-        bool IsLegacySelection(GameObject obj)=>obj!=null && legacyModeSelect!=null && obj.transform.IsChildOf(legacyModeSelect.transform);
         bool AnyButtonDown()
         {
 #if UNITY_EDITOR
@@ -185,17 +179,11 @@ namespace Massive.AttractStudy
             if(presentation!=null)return;
             if(menuCamera==null)menuCamera=Camera.main;
             if(playerSurfaceShader==null)playerSurfaceShader=Shader.Find("MASSIVE/Study/Attract Player Ferrofluid");
-            if(menuCamera==null || sphereStyle==null || playerSurfaceShader==null || labelFont==null || regularLabelFont==null || coalescenceShader==null || legacyModeSelect==null || legacyPseudoPlayers==null || legacyOneVOne==null || legacyTwoVTwo==null)
-            {Debug.LogError("[Attract Mode Select] Assign the camera, sphere style, font and original menu references.",this);enabled=false;return;}
-            // This controller must be outside the roots it hides.
-            if(transform.IsChildOf(legacyModeSelect.transform) || transform.IsChildOf(legacyPseudoPlayers.transform))
-            {Debug.LogError("[Attract Mode Select] Place this controller outside the legacy menu and pseudo-player roots.",this);enabled=false;return;}
-            legacyMenuState=legacyModeSelect.activeSelf;legacyPlayersState=legacyPseudoPlayers.activeSelf;
+            if(menuCamera==null || sphereStyle==null || playerSurfaceShader==null || labelFont==null || regularLabelFont==null || coalescenceShader==null || modeFlow==null)
+            {Debug.LogError("[Attract Mode Select] Assign the camera, sphere style, shaders, fonts and mode flow.",this);enabled=false;return;}
             input=EventSystem.current;
             previousSelection=input!=null?input.currentSelectedGameObject:null;
             previousFirstSelection=input!=null?input.firstSelectedGameObject:null;
-            if(input!=null && IsLegacySelection(previousSelection))input.SetSelectedGameObject(null);
-            legacyModeSelect.SetActive(false);legacyPseudoPlayers.SetActive(false);
             presentation=new GameObject("Horizontal mode select — runtime"){hideFlags=HideFlags.DontSave};
             presentation.transform.SetParent(transform,false);
             mesh=AttractFerrofluidStudy.BuildSphere(Mathf.Clamp(playerMeshResolution,16,64));
@@ -301,9 +289,7 @@ namespace Massive.AttractStudy
             SelectOption(index);
             if(index==0)return; // Deliberately no scene load or game-mode mutation.
             submitting=true;
-            // Preserve the serialized route, including any future scene setup
-            // attached to the user's existing versus buttons.
-            (index==1?legacyOneVOne:legacyTwoVTwo).onClick.Invoke();
+            modeFlow.MoveToNextScene(index==2);
         }
         void LateUpdate()
         {
@@ -362,8 +348,6 @@ namespace Massive.AttractStudy
                 beginTransition.onOutComplete.RemoveListener(RevealMenu);
             }
             presentation.SetActive(false);
-            if(legacyModeSelect!=null)legacyModeSelect.SetActive(legacyMenuState);
-            if(legacyPseudoPlayers!=null)legacyPseudoPlayers.SetActive(legacyPlayersState);
             if(input!=null)
             {
                 input.firstSelectedGameObject=previousFirstSelection;
