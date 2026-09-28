@@ -282,9 +282,11 @@ public class PseudoPlayerDirector : MonoBehaviour
     private IEnumerator TapAttack(float postDelayOverride)
     {
         // One-frame press only (fires once)
-        PushFrame(new PlayerInputFrame { attackDown = true });
+        PushFrame(new PlayerInputFrame { attackDown = true, attackHeld = true });
         yield return null;
 
+        PushFrame(new PlayerInputFrame { attackUp = true });
+        yield return null;
         PushFrame(default);
         yield return null;
 

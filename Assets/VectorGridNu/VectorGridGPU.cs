@@ -9,6 +9,9 @@ using UnityEngine.Rendering;
 public class VectorGridGPU : MonoBehaviour, IVectorGrid
 {
     public static VectorGridGPU Instance { get; private set; }
+    [Tooltip("Disable for explicitly bound secondary grids, such as demonstration strips.")]
+    public bool registerAsDefault = true;
+    public int ResponsiveAttractorCount => _responsiveAttraction.Count;
 
     [Header("Grid Layout")]
     [Tooltip("Authoritative arena size in the grid object's local XY plane. " +
@@ -274,10 +277,12 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
 
     void OnEnable()
     {
-        if (Instance != null && Instance != this)
-            Debug.LogWarning("Multiple VectorGridGPU detected; Instance will be overwritten.");
-
-        Instance = this;
+        if (registerAsDefault)
+        {
+            if (Instance != null && Instance != this)
+                Debug.LogWarning("Multiple default VectorGridGPU detected; Instance will be overwritten.");
+            Instance = this;
+        }
 
         ResolveDerivedLayout();
 

@@ -132,6 +132,15 @@ namespace Massive.Player
         // Combo-swipe arc offset (degrees). 0 for non-swipe stages.
         private float currentWeaponYawOffsetDeg = 0f;
 
+        public float CooldownRemaining => Mathf.Max(0f, lastAttackEndTime + Effective_attackCooldown - Time.time);
+        public float TimeInStage => stageTimer;
+        public void SetAimDirection(Vector3 direction)
+        {
+            direction.y = 0f;
+            if (direction.sqrMagnitude < .0001f) return;
+            lastNonZeroMoveDir = new Vector2(direction.x, direction.z).normalized;
+            ForwardReference.right = direction.normalized;
+        }
         public bool IsAttacking => isAttacking;
         public PlayerAttackProfile Profile => SharedPlayerTuning && SharedPlayerTuning.attackProfile ? SharedPlayerTuning.attackProfile : attackProfile;
         public AttackStage CurrentStage => currentStage;

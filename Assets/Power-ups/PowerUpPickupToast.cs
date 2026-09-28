@@ -63,6 +63,22 @@ namespace Massive.PowerUps
 
         public void Play(string text, float introSeconds, float totalSeconds, float outroSeconds, Camera camOverride = null)
         {
+            Prepare(text, camOverride);
+            if (_routine != null) StopCoroutine(_routine);
+            _routine = StartCoroutine(Run(introSeconds, totalSeconds, outroSeconds));
+        }
+
+        public void ShowPersistent(string text, Camera camOverride = null)
+        {
+            if (_routine != null) StopCoroutine(_routine);
+            _routine = null;
+            Prepare(text, camOverride);
+            ApplyScaleInstant(shownScale);
+            if (textAnim) { textAnim.PlayIn(); textAnim.Skip(); }
+        }
+
+        private void Prepare(string text, Camera camOverride)
+        {
             _cam = camOverride ? camOverride : (Camera.main ? Camera.main : FindFirstCamera());
 
             if (autoSetupWorldCanvas)
@@ -78,9 +94,6 @@ namespace Massive.PowerUps
             Canvas.ForceUpdateCanvases();
             if (!layoutRoot && scaleRoot) layoutRoot = scaleRoot as RectTransform;
             if (layoutRoot) LayoutRebuilder.ForceRebuildLayoutImmediate(layoutRoot);
-
-            if (_routine != null) StopCoroutine(_routine);
-            _routine = StartCoroutine(Run(introSeconds, totalSeconds, outroSeconds));
         }
 
         private static Camera FindFirstCamera()

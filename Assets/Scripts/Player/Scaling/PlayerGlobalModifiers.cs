@@ -42,7 +42,7 @@ namespace Massive.Player
 
         public static PlayerGlobalModifiers For(PlayerControllerScript player)
         {
-            if (!player || player.IsPseudoPlayer || !player.gameObject.scene.IsValid()) return null;
+            if (!player || !player.UsesGameplayTuning || !player.gameObject.scene.IsValid()) return null;
 #if UNITY_EDITOR
             // Asset/prefab previews and isolated validation fixtures keep their authored values.
             if (UnityEditor.SceneManagement.EditorSceneManager.IsPreviewScene(player.gameObject.scene)) return null;

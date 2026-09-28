@@ -35,7 +35,29 @@ public partial class PlayerControllerScript : MonoBehaviour
     private PlayerInputFrame _scriptedInput;
     private bool _hasScriptedInput;
 
+    [Tooltip("Automatic preserves legacy fixtures. Demonstrations explicitly use SharedGameplay independently of match participation.")]
+    [SerializeField] private PlayerTuningMode tuningMode = PlayerTuningMode.Automatic;
     public bool IsPseudoPlayer => isPseudoPlayer;
+    public bool ParticipatesInMatch => !isPseudoPlayer;
+    public bool UsesGameplayTuning => tuningMode == PlayerTuningMode.SharedGameplay ||
+        (tuningMode == PlayerTuningMode.Automatic && !isPseudoPlayer);
+    public Vector3 AimDirectionWS => lastStickAimWS;
+    public Transform SimulationRoot { get; private set; }
+    public event Action<PlayerInputFrame> InputApplied;
+
+    // Call while the instance is inactive, before Awake/OnEnable can register it.
+    public void ConfigureDemonstration(Transform scope, int slot, int team)
+    {
+        isPseudoPlayer = true;
+        tuningMode = PlayerTuningMode.SharedGameplay;
+        controlMode = PlayerControlMode.Scripted;
+        SimulationRoot = scope;
+        playerID = slot;
+        teamID = team;
+        playMatchSpawnOnSceneLoad = false;
+        showPlayerIdToastOnMatchStart = false;
+        ClearScriptedInput();
+    }
     public PlayerControlMode ControlMode => controlMode;
 
     public void SetControlMode(PlayerControlMode mode)
@@ -655,6 +677,18 @@ if (showPlayerIdToastOnMatchStart)
         float dz2 = aimDeadzone * aimDeadzone;
         if (movement.sqrMagnitude >= dz2)
             lastStickAimWS = movement.normalized;
+
+        if (input.hasAimDirWS)
+        {
+            Vector3 aim = input.aimDirWS; aim.y = 0f;
+            if (aim.sqrMagnitude > .0001f)
+            {
+                lastStickAimWS = aim.normalized;
+                if (visualsController) visualsController.SetAimDirection(lastStickAimWS);
+                if (attackController) attackController.SetAimDirection(lastStickAimWS);
+            }
+        }
+        InputApplied?.Invoke(input);
 
         // Shield (unchanged semantics, but now uses scripted/re-wired values)
         bool shieldDown = input.shieldDown;
@@ -1279,9 +1313,13 @@ isActive = timeSinceLastActivity <= idleTime;
         if (rb != null)
         {
             rb.position = pos;
-            rb.linearVelocity = Vector3.zero;
-            rb.angularVelocity = Vector3.zero;
-            rb.Sleep();
+            // Death already cleared motion before making the body kinematic.
+            if (!rb.isKinematic)
+            {
+                rb.linearVelocity = Vector3.zero;
+                rb.angularVelocity = Vector3.zero;
+                rb.Sleep();
+            }
         }
 
         transform.position = pos;

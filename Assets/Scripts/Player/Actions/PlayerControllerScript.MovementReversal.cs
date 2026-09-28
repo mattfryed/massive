@@ -16,7 +16,7 @@ public partial class PlayerControllerScript
     {
         return !_worldGameplaySuppressed && !_matchInputLocked && !_matchSpawning &&
             !temporarilyEliminated && !isStunned && !IsExternallyStunned &&
-            !isPseudoPlayer && controlMode != PlayerControlMode.Disabled && rb && !rb.isKinematic &&
+            UsesGameplayTuning && controlMode != PlayerControlMode.Disabled && rb && !rb.isKinematic &&
             !movementActionInput && !shieldOn && !(shieldAbility && shieldAbility.IsActive) &&
             !(attackController && attackController.IsAttacking) &&
             !(powerUps && powerUps.HasMovementAction) &&

@@ -278,6 +278,7 @@ namespace Massive.PowerUps
             if (!impactPrefab) return;
 
             var go = Instantiate(impactPrefab, posWS, Quaternion.identity);
+            if (_shooter && _shooter.SimulationRoot) go.transform.SetParent(_shooter.SimulationRoot, true);
 
             // Optional: if your impact VFX supports charge scaling
             var fx = go.GetComponent<ParticleAcceleratorImpactVFX>();

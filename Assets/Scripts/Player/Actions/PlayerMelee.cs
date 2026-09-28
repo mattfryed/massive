@@ -31,6 +31,7 @@ public class PlayerMelee : MonoBehaviour
     private Coroutine gateRoutine;
 
     public PlayerControllerScript Owner => owner;
+    public event System.Action<PlayerControllerScript> ShieldContact;
 
     private bool IsFriendly(PlayerControllerScript otherPlayer)
     {
@@ -177,7 +178,10 @@ public class PlayerMelee : MonoBehaviour
             {
                 direction.Normalize();
                 if (defenderPowerUps.TryHandleShieldImpact(owner, shieldCollider, direction))
+                {
+                    ShieldContact?.Invoke(defender);
                     return;
+                }
             }
         }
 
@@ -189,6 +193,7 @@ public class PlayerMelee : MonoBehaviour
             strength = defenderShield.CurrentStrength01;
 
         owner.Stun(shieldCollider.transform.position, strength);
+        ShieldContact?.Invoke(defender);
         AudioSystem.I?.Play(AudioEventId.Player_Parry, transform.position);
 
         float leak01 = Mathf.Clamp01(1f - strength);

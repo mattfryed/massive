@@ -11,6 +11,35 @@ namespace Massive.PowerUps
         public static IReadOnlyList<PowerUpPickup> ActivePickups => activePickups;
         public int ColliderHierarchyVersion { get; private set; }
         public PowerUpDefinition definition;
+        public event System.Action<PlayerControllerScript> Claimed;
+
+        /// <summary>Configure while inactive so lifetime, intro and physics all see final spawn data.</summary>
+        public static PowerUpPickup Spawn(PowerUpDefinition def, Vector3 position, Quaternion rotation, Transform parent = null)
+        {
+            if (!def || !def.pickupPrefab) throw new System.ArgumentException("Power-up requires a pickup prefab.");
+            var staging = new GameObject("Pickup initialization");
+            staging.SetActive(false);
+            GameObject go = null;
+            try
+            {
+                go = Instantiate(def.pickupPrefab, position, rotation, staging.transform);
+                go.SetActive(false);
+                var pickup = go.GetComponent<PowerUpPickup>();
+                if (!pickup) throw new System.InvalidOperationException("Pickup prefab requires PowerUpPickup on its root.");
+                pickup.definition = def;
+                if (go.TryGetComponent<Rigidbody>(out var body))
+                {
+                    body.position = position; body.rotation = rotation;
+                    if (!body.isKinematic) { body.linearVelocity = Vector3.zero; body.angularVelocity = Vector3.zero; }
+                }
+                go.transform.SetParent(parent, true);
+                go.SetActive(true);
+                if (go.TryGetComponent<PowerUpIconTetheredBody>(out var tether)) tether.ResetAnchorHere();
+                return pickup;
+            }
+            catch { if (go) Destroy(go); throw; }
+            finally { Destroy(staging); }
+        }
 
         [Header("Activation")]
         [Tooltip("If enabled, only colliders on these layers can activate the pickup (ex: PlayerAttackHitbox).")]
@@ -134,12 +163,14 @@ private void OnTriggerEnter(Collider other)
     else
         p.Equip(definition);
 
+    Claimed?.Invoke(player);
+
     // Score is committed immediately on the confirmed claim. The emitter stores
     // only a reward key; its numeric value comes from ScoreEconomyProfile.
     scoreRewardEmitter?.TryAward(player, transform.position);
 
     // Toast ALWAYS (you wanted mass nodes to still show it)
-    if (PowerUpPickupToastSystem.Instance != null)
+    if (player.ParticipatesInMatch && PowerUpPickupToastSystem.Instance != null)
         PowerUpPickupToastSystem.Instance.Show(definition, transform.position);
 
     // Despawn visuals / shatter the cage
@@ -153,9 +184,8 @@ private void OnTriggerEnter(Collider other)
         return;
     }
 
-    // If we don't have an animator, still destroy the WHOLE pickup prefab.
-    // (Using transform.root avoids leaving the cage behind if this component is on a child.)
-    Destroy(transform.root.gameObject);
+    // The component belongs to the pickup root, which may be inside a demo or spawn group.
+    Destroy(gameObject);
 }
 
 

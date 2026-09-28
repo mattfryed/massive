@@ -5341,6 +5341,7 @@ GameObject:
   - component: {fileID: 283940826}
   - component: {fileID: 283940825}
   - component: {fileID: 283940824}
+  - component: {fileID: 283940828}
   m_Layer: 0
   m_Name: Gameplay Vector Grid
   m_TagString: Untagged
@@ -5370,7 +5371,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 283940822}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 27c4223c16570b648af67c11bd84597b, type: 3}
   m_Name: 
@@ -5387,7 +5388,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 283940822}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: a0f139f9db4b147b494b3852a12b07c6, type: 3}
   m_Name: 
@@ -5494,6 +5495,33 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 283940822}
   m_Mesh: {fileID: 0}
+--- !u!114 &283940828
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 283940822}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d4701d00bb26c3740ac4595f2a295185, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  gridSize: {x: 80, y: 80}
+  gridSpacing: 1
+  segmentsPerCell: 8
+  lineWidth: 1.3
+  baseColor: {r: 1, g: 1, b: 1, a: 0.12941177}
+  attractionColor: {r: 4.71, g: 4.71, b: 4.71, a: 0.12941177}
+  attractor: {fileID: 669782936}
+  attractionRadius: 20
+  attractionStrength: 103.9
+  springStrength: 12
+  colorDisplacement: 1
+  innerFraction: 0.2
+  influenceCap: 0.8
+  crowdStiffness: 0.6
+  lineShader: {fileID: 4800000, guid: abf5032319dcc0842ae0e8a0b4ed07c7, type: 3}
 --- !u!1 &291331875
 GameObject:
   m_ObjectHideFlags: 0
@@ -11060,7 +11088,8 @@ MonoBehaviour:
   useFerrofluid: 1
   surfaceShader: {fileID: 4800000, guid: 88ba3ad06b9f48c419cfff2c016543c1, type: 3}
   faceResolution: 192
-  optimizeBodyGeometry: 1
+  optimizeBodyGeometry: 0
+  trimHiddenRear: 1
   surfaceDensity: 6.08
   surfaceRelief: 0.0808
   motionSpeed: 1
@@ -11083,6 +11112,7 @@ MonoBehaviour:
   logoElevation: 0
   logoRecess: 0.01541
   logoSurfaceFlow: 1
+  logoLipFlow: 1
   logoTypeFlow: 0.243
   animateLogoArrival: 1
   logoArrivalDelay: 0.25

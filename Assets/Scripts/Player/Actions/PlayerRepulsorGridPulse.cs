@@ -47,6 +47,7 @@ namespace Massive.Player
         private Vector3? previewOrigin;
 
         public bool PreviewActive => preview;
+        public void BindGrid(VectorGridGPU target) { grid = target; }
 
         private void OnEnable()
         {

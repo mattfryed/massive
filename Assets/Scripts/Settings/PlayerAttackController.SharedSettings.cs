@@ -15,7 +15,7 @@ public partial class PlayerAttackController : ISharedSettingsConsumer
         {
             // Profile inspection and edit-mode VFX can run before Awake.
             if (!ownerController) ownerController = GetComponent<PlayerControllerScript>();
-            return ownerController && ownerController.IsPseudoPlayer ? null : SharedSettingsRuntime.Resolve<PlayerTuningProfile>(this, useSharedSettings);
+            return ownerController && !ownerController.UsesGameplayTuning ? null : SharedSettingsRuntime.Resolve<PlayerTuningProfile>(this, useSharedSettings);
         }
     }
     public float Effective_attackCooldown => SharedPlayerTuning != null ? SharedPlayerTuning.combat.attackCooldown : attackCooldown;

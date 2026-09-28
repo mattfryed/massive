@@ -7,6 +7,8 @@ using UnityEngine;
 /// - Scripted: pseudo-player / tutorial bot drives the controller via injected frames
 /// - Disabled: ignores all input
 /// </summary>
+public enum PlayerTuningMode { Automatic = 0, SharedGameplay = 1, Local = 2 }
+
 public enum PlayerControlMode
 {
     Rewired = 0,

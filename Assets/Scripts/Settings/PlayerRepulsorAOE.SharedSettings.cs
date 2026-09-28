@@ -14,7 +14,7 @@ public partial class PlayerRepulsorAOE : ISharedSettingsConsumer
         get
         {
             if (!tuningOwner) tuningOwner = owner ? owner : GetComponentInParent<PlayerControllerScript>(true);
-            return tuningOwner && tuningOwner.IsPseudoPlayer ? null : SharedSettingsRuntime.Resolve<PlayerTuningProfile>(this, useSharedSettings);
+            return tuningOwner && !tuningOwner.UsesGameplayTuning ? null : SharedSettingsRuntime.Resolve<PlayerTuningProfile>(this, useSharedSettings);
         }
     }
     public bool Effective_applyKnockback => SharedPlayerTuning != null ? SharedPlayerTuning.repulsor.applyKnockback : applyKnockback;

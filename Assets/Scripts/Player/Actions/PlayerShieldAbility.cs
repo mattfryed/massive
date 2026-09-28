@@ -174,7 +174,7 @@ namespace Massive.Player
             // Future-proofing: if shield collider becomes directional, keep it facing movement.
             if (shieldColliderObject != null && owner != null)
             {
-                Vector3 face = (owner.movement.sqrMagnitude > 0.001f) ? owner.movement : lastFaceDirWS;
+                Vector3 face = owner.AimDirectionWS;
                 face.y = 0f;
                 if (face.sqrMagnitude > 0.0001f)
                 {

@@ -290,6 +290,7 @@ public void PreTickInput(in PowerUpInputState input)
                 // impactPrefabOverride: (optional) you can pass one here if you add it to the definition
 
             );
+            _host.NotifyProjectileFired(go);
         }
 
         private static float ComputeBlockedDistance(Vector3 origin, Vector3 dir, float maxDist, float radius, LayerMask blockMask)

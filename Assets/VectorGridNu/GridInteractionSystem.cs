@@ -15,25 +15,19 @@ public class GridInteractionSystem : MonoBehaviour
     {
         if (_interactors.Count == 0) return;
 
-        _forces.Clear();
         _scratch.Clear();
         foreach (var gi in _interactors) _scratch.Add(gi);
 
-        VectorGridGPU grid = null;
-
-        // Gather forces from all interactors
+        // Each interactor owns its grid. Never mix local coordinates from different grids.
         for (int i = 0; i < _scratch.Count; i++)
         {
             var gi = _scratch[i];
             if (gi == null || !gi.enabled || !gi.gameObject.activeInHierarchy) continue;
-            if (grid == null && gi.grid != null) grid = gi.grid;
+            _forces.Clear();
             gi.EmitForces(_forces);
+            var grid = gi.grid; // EmitForces may resolve an unbound legacy interactor.
+            if (!grid || !grid.isActiveAndEnabled) continue;
+            for (int f = 0; f < _forces.Count; f++) grid.AddForce(_forces[f]);
         }
-
-        if (grid == null || _forces.Count == 0) return;
-
-        // Upload by adding each force (VectorGridGPU batches internally)
-        for (int i = 0; i < _forces.Count; i++)
-            grid.AddForce(_forces[i]);
     }
 }

@@ -58,7 +58,10 @@ public class PowerUpIconManifestAnimator : MonoBehaviour
         // - World pickup: kill the prefab root (so no leftover wire cage child/sibling)
         // - Player mode: only affect this object (never destroy the player root)
         if (despawnRoot == null)
-            despawnRoot = (controller == null) ? transform.root : transform;
+        {
+            var pickup = controller == null ? GetComponentInParent<PowerUpPickup>() : null;
+            despawnRoot = pickup ? pickup.transform : transform;
+        }
 
         // IMPORTANT: auto-find using despawnRoot, not "this", so it works even if the animator is on a child.
         if (wire == null) wire = despawnRoot.GetComponentInChildren<ParametricPolyhedronWire>(true);

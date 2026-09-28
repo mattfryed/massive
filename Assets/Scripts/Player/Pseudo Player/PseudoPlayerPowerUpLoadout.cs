@@ -35,11 +35,18 @@ public class PseudoPlayerPowerUpLoadout : MonoBehaviour
     private void OnEnable()
     {
         if (!equipOnEnable) return;
+        StartCoroutine(EquipAfterInitialization());
+    }
+
+    private System.Collections.IEnumerator EquipAfterInitialization()
+    {
+        yield return null;
         Equip();
     }
 
     private void OnDisable()
     {
+        StopAllCoroutines();
         if (!clearOnDisable) return;
         if (powerUps != null) powerUps.Clear();
     }

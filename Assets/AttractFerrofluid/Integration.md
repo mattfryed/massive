@@ -104,3 +104,75 @@ The horizontal menu uses the existing versus game handler directly. SCORE ATTACK
 Letter spacing previously moved slices of the whole-word signed-distance field. Because that field also describes the nearest neighboring outline, slices brought unrelated recess halos into the gaps. Each letter now has an independent R16 field derived from the approved subpixel contours. Their continuous union follows the actual spaced outlines, including around the M/A, A/S, S/I and V gaps.
 
 MassiveLogoDistance.png remains the authoring source. **MASSIVE → Attract Ferrofluid → Rebuild isolated letter fields** regenerates MassiveLogoGlyphs.asset without requiring the deleted scene lettering. The seven 768-square slices cover 1024 source pixels each. Runtime composition creates a padded 3072 × 1447 half-float field only on initialization, a spacing/source change, or render-texture recovery. Normal animation samples that single field; arrival, scale, depth, ridge flow and type flow do not rebake it. The field contains shape data, not displayed gray colors. Existing 8× MSAA and opaque white/black shading are unchanged.
+
+## Cached Attract grid — September 27, 2026
+
+In **S-0_ATTRACT**, select **Vector Grid > Gameplay Vector Grid**, then edit **Attract Cached Grid**. The original Rotator, Animator, animation clips and transforms remain active and unchanged.
+
+- **Line Width** is now a real pixel-width control. The previous gameplay line shader did not use its width value.
+- **Grid Size** controls total coverage, including the area revealed by tilt. The 80 x 80 default replaces the old 40 x 40 layout with 2x render overscan.
+- **Grid Spacing** controls the size of the squares. Layout changes automatically rebuild the line mesh.
+- **Base Color** and **Attraction Color** independently control the line colors, including alpha and HDR intensity. They update without a rebake. **Color Displacement** sets how much pull reaches the full attraction color.
+- **Attraction Radius/Strength**, **Spring Strength**, and the falloff settings rebuild a small radial lookup. **Rebake Grid** is also available in the Inspector and component context menu. Save lasting settings in Edit Mode; Play Mode edits remain temporary.
+
+The shape is the settled radial force field, cached once rather than simulated every frame. Because the grid still rotates, tilts and moves vertically, a cheap vertex shader samples that fixed world-space field as the grid passes through it. The attraction therefore stays centered on the sphere. Mesh topology and the radial lookup do not rebake for animation. The former spring wobble/settling delay is intentionally absent.
+
+The renderer uses one pass and has no simulation buffers, compute dispatches, gameplay border pass, or per-vertex gameplay curve reconstruction. The default mesh has 207,684 vertices versus 850,086 in the former overscanned grid. Generated mesh, texture and material resources are transient, recreated on enable, and released on disable. A 500,000-vertex budget limits extreme authoring combinations; the Inspector reports when requested curve sampling is reduced.
+
+The old **Vector Grid GPU** and **Attract Vector Grid** components are disabled only on this Attract object, with their settings retained. Gameplay scenes and shared grid shaders/scripts are unchanged. To manually restore the old renderer, disable Attract Cached Grid and enable those two components.
+
+Validation is available in Edit Mode at **MASSIVE > Attract > Validate Cached Grid**. It checks the frozen field against the existing GPU simulation at three heights, rendered line width, editable colors/layout, cache invalidation, animation without rebaking, resource cleanup, and bounded authoring settings.
+
+## Hidden rear shell — September 27, 2026
+
+**Black hole > Attract Ferrofluid Study > Surface and lighting > Trim Hidden Rear** is enabled in ATTRACT. The full original source sphere and player-preview spheres remain available. This setting applies on the next activation; disabling it restores the full generated title mesh.
+
+The title retains its visible surface plus a conservative rear skirt, based on the minimum and maximum radius of the current fluid/recess settings. Only triangles entirely behind that cutoff are removed. Vertex positions, normals, winding and lettering refinement stay unchanged. At the current settings, base triangles fall from 196,608 to 157,706 (19.8%), and vertices from 99,846 to 80,267. Cutting exactly at the hemisphere would risk changing the moving profile.
+
+Flow and joystick movement do not regenerate the mesh. Increasing relief or recess expands coverage when necessary. Changing the relative viewing direction restores the full shell once; a perspective camera starts with a full shell. This optimization targets the fixed orthographic title view; it does not provide a complete rear surface for additional viewpoints. If the radial shader's displacement formula or exposed parameter ranges change, update its conservative bounds in SafeRearCutoff as well.
+
+Open ATTRACT in Edit Mode and use **MASSIVE > Attract > Validate Rear Shell**. All 36 checks passed, including 13 full/trimmed image pairs covering arrival, flow, four maximum joystick offsets, relief/recess extremes and a native 4K render. Every pair had zero changed pixels. Camera fallback, lettering density, cleanup, player-preview geometry and no per-frame rebuilding also passed.
+
+Standalone measurements at Begin (4K, 8x MSAA, VSync=1, BitBlt, driver 617.14) were effectively tied: full sphere 56.26 FPS, trimmed 56.04 FPS, warm full-sphere repeat 56.09 FPS. Each capture used seconds 30–120 of a 150-second run in the same non-development executable. This verifies a geometry reduction, not a measurable FPS gain; the scene still needs rendering headroom for steady 60 FPS. The next candidate is early rejection of lettering calculations outside the affected region. Further geometry/AA changes need separate visual and timing validation.
+
+## Lettering region shortcut — September 27, 2026
+
+The title shader now skips inverse trigonometry and distance-texture reads at points too far from the lettering to affect its recess, normals, tessellation or shading. This is automatic: existing scale, spacing and vertical-position controls update a cached conservative region. The region includes 0.25 distance units beyond the letter extents, plus filtering padding, exceeding the largest current influence band. Each moving shoulder sample is checked at its own position, so ridge flow is preserved. Arrival can only shrink the original outlines. The visible calculations, 8x MSAA and all authoring controls retain their behavior.
+
+**MASSIVE > Attract > Validate Lettering Region** compares unrestricted and bounded rendering in an isolated preview scene. During implementation, the original pre-change shader was retained as a separate reference: all 93 checks passed, including 45 before/after image pairs with zero changed pixels. Cases cover arrival, flow, maximum joystick offsets, scale/spacing/elevation extremes, maximum relief and recess, minimum mesh resolution, disabled lettering, and two native 4K renders.
+
+The bounds depend on FerrofluidLogoFieldBaker keeping contours inside GlyphRects and the source image height, and on the current shader influence ranges. Review ConservativeRegion and rerun the image comparisons when changing those contracts. No source distance texture rebake or scene migration is required.
+
+Standalone Begin-screen testing at 4K/8x MSAA/VSync=1/BitBlt measured 56.44 FPS original, 57.40 FPS bounded, and 56.05 FPS original warm repeat. Average GPU time was 17.438 / 17.156 / 17.572 ms. The shortcut saves approximately 0.28-0.42 ms of GPU time (1.7-2.4% throughput improvement) with the tested appearance preserved. Steady 60 FPS remains unmet.
+
+## Repeated lettering surface evaluations experiment - September 27, 2026
+
+Two alternatives to the four neighboring surface evaluations were tested and rejected. Sharing mound-placement work across neighboring samples first triggered a shader-compiler failure; a smaller version compiled but changed three pixels during arrival. Skipping normal probes inside fully revealed white letter faces passed 117 checks, including 57 image comparisons with zero changed pixels, but slowed the standalone Begin screen.
+
+At 3840 x 2160, 8x MSAA, VSync=1 and BitBlt, the existing shader measured 57.38 FPS, the interior-probe shortcut 55.26 FPS, and a warmed repeat of the existing shader 57.25 FPS. Average GPU times were 17.152 / 17.816 / 17.194 ms. All runs used the same non-development comparison executable with Unity closed, analyzing seconds 30-120 of each 150-second capture. The exact GPU cause of the regression was not isolated.
+
+The shader and lettering-region validator were restored to their exact pre-experiment versions, and temporary comparison assets were removed. The existing Cabinet-20260927-LetterRegion build and launchers remain current. No runtime optimization from this experiment is retained; previous cached-grid, rear-shell and lettering-region work is preserved. Measurements, experimental sources and image comparisons are archived in the Codex attract-letter-normals-20260927 diagnostic folder.
+
+
+## MSAA control and full body detail - September 27, 2026
+
+**Black hole > Attract Ferrofluid Study > Game MSAA** switches the current project Quality preset between 4x and 8x; its choice is saved even in Play Mode and applies across the game and future builds. Very High now uses 4x. VSync and BitBlt are unchanged. The selector supports Undo/Redo and shows the active quality preset.
+
+The earlier Optimize Body Geometry setting capped the broad body at 128 despite the authored Mesh Resolution of 192. Hard reflection contours revealed the coarser interpolation of vertex normals. Same-time 4K renders at both sample counts reproduced the angular contour; restoring full 192 body detail smoothed it. Substituting the older four-sample normal method at 128 retained the contour corners. MSAA resolves pixel coverage and cannot restore the missing curvature samples.
+
+The saved Attract title now has Optimize Body Geometry disabled, Mesh Resolution 192, and Trim Hidden Rear enabled. Body Resolution on Enable in the Inspector makes the effective density explicit. Shader calculations, flow, relief and lettering parameters are unchanged. The full-detail rear-trimmed title contains 179,283 vertices and 354,346 base triangles.
+
+At the standalone Begin screen, 8x/body128 averaged 57.03 FPS; 4x/body128 and 4x/body192 both averaged 60.00 FPS. Their 99th-percentile frame times were 19.470, 17.073 and 17.107 ms. Measurements used the same non-development executable at 3840x2160, VSync=1 and BitBlt, with Unity closed and matching Begin-screen state. These results do not establish 60 FPS across all scenes. See Docs/AI/CabinetPresentation.md for the clean build and detailed validation.
+
+
+## Stronger outer letter lip - September 27, 2026
+
+**Black hole > Attract Ferrofluid Study > Outer Lip Flow** adds stronger surface-to-recess coupling. The saved ATTRACT setting is 1; 0 restores the previous lip appearance. Ridge Undulation remains its motion control, and Type Undulation independently controls the recessed white faces. Save lasting preferences in Edit Mode; Play Mode edits are temporary.
+
+The lip reuses existing mound height and slope, enlarges their bounded effect on the outer recess, and carries the height shift into the opaque black collar. It fades toward the inner wall and blends in near the end of the existing arrival animation. A slightly wider tessellation band resolves the moving lip; base Mesh Resolution remains 192, with 179,283 vertices / 354,346 base triangles after rear trimming. MSAA remains 4x. There is no additional fluid/noise evaluation per fragment, simulation, texture rebake, or CPU mesh rebuild for this motion.
+
+Validation: 8 native 4K comparisons with Outer Lip Flow 0 were pixel-identical to the pre-change shader. Stronger values were visually checked at four frozen times and during arrival. With Type Undulation 0 at the captured time, all seven white letter faces and their three-pixel surrounding edges were unchanged. The existing 93 lettering-region and 36 rear-shell checks passed with the new effect enabled, including extreme layouts, joystick offsets and surface settings. These are representative checks, not a guarantee for every possible authoring combination.
+
+A same-executable standalone comparison at 4K / 4x MSAA / VSync=1 / BitBlt, with Unity closed, averaged 60.00 FPS for both the original and stronger shaders. Mean GPU times were 15.956 and 15.910 ms; P99 frame times were 17.068 and 17.113 ms. The difference is too small to claim a performance improvement; no measurable slowdown occurred in this run. Each analysis used seconds 30-120 of a 150-second focused Begin-screen run. Other gameflow scenes were not reprofiled.
+
+The clean LipFlow build succeeded with 0 errors and 99 warnings in 51.36 seconds, GUID 1c478625d4474ea2b0cf40457e857cfc. Current local executable: Builds/Cabinet-20260927-LipFlow/MASSIVE.exe, with the normal launcher chain updated. Temporary runtime probes and reference assets were removed before this build; FrameTimingStats remains off. Detailed renders, original shader, timing CSVs and test logs are archived in the Codex attract-lip-flow-20260927 folder.

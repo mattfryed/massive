@@ -2,7 +2,7 @@
 
 Open **MASSIVE > Player Tuning** (also **MASSIVE > Player > Player Tuning**).
 
-The window edits the existing shared attack profile, melee appearance and P1–P4 size/reversal asset, plus `Resources/PlayerTuningProfile.asset` for movement, combo input, lunge assistance and Repulsor impact. Values persist across scenes and in builds. Edits made during Play Mode are saved. Each participating controller has **Use Shared Project Settings** to restore its unchanged local fallback. Pseudo players and isolated preview fixtures retain local settings.
+The window edits the existing shared attack profile, melee appearance and P1–P4 size/reversal asset, plus `Resources/PlayerTuningProfile.asset` for movement, combo input, lunge assistance and Repulsor impact. Values persist across scenes and in builds. Edits made during Play Mode are saved. Each participating controller has **Use Shared Project Settings** to restore its unchanged local fallback. How To Play demonstrations explicitly use Shared Gameplay tuning, including slot size and reversal. Legacy pseudo players with Automatic tuning and isolated preview fixtures retain local settings. Local tuning remains an explicit opt-out.
 
 ## Attack timeline
 

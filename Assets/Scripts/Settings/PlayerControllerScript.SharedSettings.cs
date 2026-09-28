@@ -8,7 +8,7 @@ public partial class PlayerControllerScript : ISharedSettingsConsumer
     public bool UseSharedSettings { get => useSharedSettings; set => useSharedSettings = value; }
     public SharedSettingsProfile SharedSettingsAsset => SharedSettingsRuntime.Load<PlayerTuningProfile>();
     public string SharedSettingsGroup => "movement";
-    private PlayerTuningProfile SharedPlayerTuning => IsPseudoPlayer ? null : SharedSettingsRuntime.Resolve<PlayerTuningProfile>(this, useSharedSettings);
+    private PlayerTuningProfile SharedPlayerTuning => !UsesGameplayTuning ? null : SharedSettingsRuntime.Resolve<PlayerTuningProfile>(this, useSharedSettings);
     public float Effective_movePower => SharedPlayerTuning != null ? SharedPlayerTuning.movement.movePower : movePower;
     public float Effective_maxMoveSpeed => SharedPlayerTuning != null ? SharedPlayerTuning.movement.maxMoveSpeed : maxMoveSpeed;
     public bool Effective_clampSpeed => SharedPlayerTuning != null ? SharedPlayerTuning.movement.clampSpeed : clampSpeed;

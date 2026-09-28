@@ -26,9 +26,21 @@ namespace Massive.PowerUps
 
         public event Action<PowerUpDefinition> OnEquipped;
         public event Action OnExpired;
+        public event Action<GameObject> ProjectileFired;
+        public void NotifyProjectileFired(GameObject projectile)
+        {
+            if (_player && _player.SimulationRoot) projectile.transform.SetParent(_player.SimulationRoot, true);
+            ProjectileFired?.Invoke(projectile);
+        }
+        private void OnDisable() { Clear(); }
+        private void EnsureInitialized()
+        {
+            if (!_player) _player = GetComponent<PlayerControllerScript>();
+        }
 
         
 public float RemainingSeconds => remaining;
+public float CooldownRemaining => cooldownRemaining;
 
 public void OverrideRemainingSeconds(float seconds)
 {
@@ -113,6 +125,7 @@ private static IEnumerator IgnoreCollisionsCo(PlayerControllerScript a, PlayerCo
         public void Equip(PowerUpDefinition def)
         {
             if (def == null) return;
+            EnsureInitialized();
 
             // overwrite behavior: replace existing
             UnequipInternal();
@@ -138,6 +151,7 @@ private static IEnumerator IgnoreCollisionsCo(PlayerControllerScript a, PlayerCo
         public void Equip(PowerUpDefinition def, float durationSecondsOverride)
         {
             if (def == null) return;
+            EnsureInitialized();
 
             // overwrite behavior: replace existing
             UnequipInternal();

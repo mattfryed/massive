@@ -13,7 +13,9 @@ Shader "MASSIVE/Study/Attract Ferrofluid"
         _LogoSpacedField("Spaced letter distance",2D)="black"{}
         _LogoEnabled("Embedded lettering enabled",Float)=0
         _LogoReveal("Lettering arrival",Range(0,1))=1
+        [HideInInspector] _LogoRegion("Conservative lettering region",Vector)=(-10000000000,10000000000,-1,1)
         _LogoFlow("Letter ridge undulation",Range(0,1))=1
+        _LogoLipFlow("Outer lip surface coupling",Range(0,1))=0
         _LogoTypeFlow("White type undulation",Range(0,1))=0
         _LogoMeshGuard("Letter floor geometry margin",Float)=.025
         _LogoDetail("Letter edge tessellation",Float)=4
@@ -38,23 +40,31 @@ Shader "MASSIVE/Study/Attract Ferrofluid"
             float _Density,_Relief,_Wetness,_FluidTime,_RimWidth,_RimAngle,_LogoEnabled,_LogoFlow,_LogoTypeFlow,_LogoMeshGuard,_WhiteDominant;
             float4 _Attraction;
             sampler2D _LogoSpacedField;
-            float4 _LogoSourceSize,_LogoFieldDomain;
+            float4 _LogoSourceSize,_LogoFieldDomain,_LogoRegion;
             float4 _LogoSettings,_LogoRight,_LogoUp,_LogoFront;
             float _LogoReveal;
-            float _LogoDetail;
+            float _LogoDetail,_LogoLipFlow;
             struct appdata{float4 vertex:POSITION;};
             struct controlPoint{float4 vertex:INTERNALTESSPOS;};
             struct tessFactors{float edge[3]:SV_TessFactor;float inside:SV_InsideTessFactor;};
             // Sample-frequency interpolation lets the camera's existing MSAA
             // resolve our internal hard borders, not just triangle silhouettes.
             // Each sample remains opaque pure black or pure white.
-            struct v2f{float4 position:SV_POSITION;sample float3 viewNormal:TEXCOORD0;sample float3 viewPosition:TEXCOORD1;sample float3 viewRadial:TEXCOORD2;sample float3 localRadial:TEXCOORD3;sample float3 shoulderRadial:TEXCOORD4;sample float moundHeight:TEXCOORD5;sample float floorReached:TEXCOORD6;};
+            struct v2f{float4 position:SV_POSITION;sample float3 viewNormal:TEXCOORD0;sample float3 viewPosition:TEXCOORD1;sample float3 viewRadial:TEXCOORD2;sample float3 localRadial:TEXCOORD3;sample float4 shoulderRadial:TEXCOORD4;sample float moundHeight:TEXCOORD5;sample float floorReached:TEXCOORD6;};
 
             float logoRestDistance(float3 n)
             {
                 if(_LogoEnabled<.5)return -1;
                 float front=dot(n,_LogoFront.xyz);
                 if(front<=0)return -1;
+                // CPU bounds include every glyph plus more than the widest
+                // tessellation/normal/recess influence. Test each transported
+                // shoulder independently; do not reject it using the body point.
+                // Outside this region the exact negative distance cannot affect
+                // any consumer, so skip inverse trig and the texture fetch.
+                float right=dot(n,_LogoRight.xyz),up=dot(n,_LogoUp.xyz);
+                [branch] if(right<_LogoRegion.x*front || right>_LogoRegion.y*front ||
+                    up<_LogoRegion.z || up>_LogoRegion.w)return -1;
                 float2 angles=float2(atan2(dot(n,_LogoRight.xyz),front),asin(clamp(dot(n,_LogoUp.xyz),-1,1)));
                 float2 uv=(angles-float2(0,_LogoSettings.z))/_LogoSettings.xy+.5;
                 uv=(uv*_LogoSourceSize.xy+_LogoFieldDomain.zw)/_LogoFieldDomain.xy;
@@ -101,12 +111,24 @@ Shader "MASSIVE/Study/Attract Ferrofluid"
                 // then relax into the approved ridge near the end of arrival.
                 return smoothstep(.65,1,saturate(_LogoReveal));
             }
+            float outerLipFlow()
+            {
+                // Arriving strokes keep their original opening. Couple the lip
+                // only as the resting collar appears, using existing surface data.
+                return saturate(_LogoLipFlow)*arrivalCollarSettle();
+            }
+            float outerLipHeight(float surface)
+            {
+                float height=(surface-.455)/max(_Relief,.001)-.42;
+                return clamp(height,-.35,.35)*.10*(_LogoSettings.x/2.2)*outerLipFlow()*saturate(_LogoFlow);
+            }
             float recessedRadius(float3 n,float surface,float3 moundSlope,out float3 logoN,out float floorReached)
             {
                 float3 tangentSlope=moundSlope-n*dot(n,moundSlope);
                 // Transport the outer shoulder only. The inner letter boundary
                 // and the recessed spherical floor keep their original mapping.
-                float transport=.012*min(_LogoSettings.x/2.2,1)*(_Relief/.1)*saturate(_LogoFlow);
+                float extraFlow=outerLipFlow();
+                float transport=.012*(1+2*extraFlow)*min(_LogoSettings.x/2.2,1)*(_Relief/.1)*saturate(_LogoFlow);
                 float collarSettle=arrivalCollarSettle();
                 if(_LogoReveal<1)transport*=lerp(.1,1,collarSettle);
                 logoN=normalize(n+tangentSlope*transport);
@@ -127,7 +149,10 @@ Shader "MASSIVE/Study/Attract Ferrofluid"
                     inner=lerp(partingInner,inner,collarSettle);
                 }
                 float shoulder=1-smoothstep(outer,inner,d);
-                float movedDistance=d+clamp(logoDistance(logoN)-d,-.014*bevelScale,.014*bevelScale)*shoulder;
+                // Height changes the width of the lip; slope bends its outline.
+                // Fade both toward the fixed inner wall so the white type stays legible.
+                float lipLimit=(.014+.026*extraFlow)*bevelScale;
+                float movedDistance=d+clamp(logoDistance(logoN)-d+outerLipHeight(surface),-lipLimit,lipLimit)*shoulder;
                 float cut=smoothstep(outer,inner,movedDistance);
                 if(_LogoReveal<1)cut*=arrivalDepth();
                 floorReached=cut;
@@ -151,7 +176,8 @@ Shader "MASSIVE/Study/Attract Ferrofluid"
             {
                 if(_LogoEnabled<.5)return 1;
                 float d=abs(logoRestDistance(normalize(a+b)));
-                float band=.085*_LogoSettings.x/2.2+_LogoMeshGuard;
+                float extraFlow=outerLipFlow()*saturate(_LogoFlow);
+                float band=(.085+.025*extraFlow)*_LogoSettings.x/2.2+_LogoMeshGuard+.65*_LogoSettings.w*extraFlow;
                 // Only the lettering area receives extra geometry. A shared
                 // edge uses the same midpoint from both triangles, so the
                 // tessellator joins the refined collar without cracks.
@@ -193,7 +219,7 @@ Shader "MASSIVE/Study/Attract Ferrofluid"
                 o.viewNormal=mul((float3x3)UNITY_MATRIX_V,UnityObjectToWorldNormal(normal));
                 o.viewRadial=mul((float3x3)UNITY_MATRIX_V,UnityObjectToWorldNormal(n));
                 o.localRadial=n;
-                o.shoulderRadial=logoN;
+                o.shoulderRadial=float4(logoN,outerLipHeight(surface));
                 o.moundHeight=(r-.455)/max(_Relief,.001);
                 return o;
             }
@@ -237,7 +263,12 @@ Shader "MASSIVE/Study/Attract Ferrofluid"
                 // Black shoulder and wall separate the white inlay from passing
                 // reflections. There is no translucent decal or text overlay.
                 float bevelScale=_LogoSettings.x/2.2;
-                float shoulder=logoDistance(normalize(i.shoulderRadial));
+                float shoulder=logoDistance(normalize(i.shoulderRadial.xyz));
+                // The opaque collar uses the same transported field and mound
+                // height as its geometry; no extra fluid evaluation per pixel.
+                float lipLimit=(.014+.026*outerLipFlow())*bevelScale;
+                float movedShoulder=lettering+clamp(shoulder-lettering+i.shoulderRadial.w,-lipLimit,lipLimit);
+                shoulder=lerp(shoulder,movedShoulder,outerLipFlow());
                 float clearance=.006*bevelScale+.65*_LogoSettings.w;
                 float restingBorder=-.018*bevelScale-_LogoMeshGuard-clearance;
                 float partingBorder=-.001*bevelScale-.12*_LogoMeshGuard;
