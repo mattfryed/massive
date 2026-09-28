@@ -53,6 +53,7 @@ public static partial class MassiveDemoMigration
     {
         if (EditorApplication.isPlayingOrWillChangePlaymode) throw new Exception("Use Edit Mode.");
         if (AssetDatabase.LoadAssetAtPath<GameObject>(ActorPath)) return "Shared Player already exists; no migration repeated.";
+        var inheritedReferences = PlayerActorReferenceMigration.Capture(RosterPath, GameplayPath);
         Backup(RosterPath); Backup(GameplayPath);
         GameObject gameplay = PrefabUtility.LoadPrefabContents(GameplayPath);
         try
@@ -69,6 +70,7 @@ public static partial class MassiveDemoMigration
                 clone.SetActive(true);
                 var p = clone.GetComponent<PlayerControllerScript>();
                 p.goalZone = null; p.playerID = 0; p.teamID = 1;
+                Set(p, "respawnPointOverride", null);
                 Set(p, "tuningMode", (int)PlayerTuningMode.SharedGameplay);
                 PrefabUtility.SaveAsPrefabAsset(clone, ActorPath);
             }
@@ -95,6 +97,11 @@ public static partial class MassiveDemoMigration
             foreach (var player in roster.GetComponentsInChildren<PlayerControllerScript>(true))
             {
                 int slot = player.playerID, team = player.teamID;
+                // These references belong to the roster, outside the actor subtree.
+                // Conversion deliberately inherits common Actor values, so retain
+                // the per-slot bindings explicitly instead of losing them.
+                var spawn = new SerializedObject(player).FindProperty("respawnPointOverride").objectReferenceValue;
+                var goal = player.goalZone;
                 var go = player.gameObject; bool active = go.activeSelf;
                 PrefabUtility.ConvertToPrefabInstance(go, canonical, new ConvertToPrefabInstanceSettings
                 {
@@ -103,13 +110,16 @@ public static partial class MassiveDemoMigration
                     changeRootNameToAssetName = false
                 }, InteractionMode.AutomatedAction);
                 var actor = go.GetComponent<PlayerControllerScript>(); actor.playerID = slot; actor.teamID = team;
+                actor.goalZone = goal;
+                Set(actor, "respawnPointOverride", spawn);
                 PrefabUtility.RecordPrefabInstancePropertyModifications(actor);
                 go.SetActive(active); PrefabUtility.RecordPrefabInstancePropertyModifications(go);
             }
             PrefabUtility.SaveAsPrefabAsset(roster, RosterPath);
         }
         finally { PrefabUtility.UnloadPrefabContents(roster); }
-        return "Created PlayerActor and connected all four roster players; gameplay additions moved to the shared actor.";
+        int consumers = PlayerActorReferenceMigration.Remap(inheritedReferences);
+        return "Created PlayerActor and connected all four roster players; preserved references in " + consumers + " consumer assets.";
     }
 
     public static void Set(Object target, string name, object value)

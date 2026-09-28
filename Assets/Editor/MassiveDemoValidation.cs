@@ -132,7 +132,13 @@ public static partial class MassiveDemoValidation
                     Check(p.GetComponentsInChildren<PlayerMelee>(true).All(m=>new SerializedObject(m).FindProperty("owner").objectReferenceValue == p), path + " melee ownership " + p.name);
                     Check(p.GetComponentsInChildren<Transform>(true).All(t=>GameObjectUtility.GetMonoBehavioursWithMissingScriptCount(t.gameObject)==0), path + " missing scripts " + p.name);
                     if (path != MassiveDemoMigration.ActorPath)
+                    {
                         Check(PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(p.gameObject) == MassiveDemoMigration.ActorPath, path + " shared actor source " + p.name);
+                        var anchor = new SerializedObject(p).FindProperty("respawnPointOverride").objectReferenceValue as Transform;
+                        Check(anchor && anchor == root.transform.Find("PLAYER RESPAWNS/P" + (p.playerID + 1) + " Respawn"), path + " per-slot spawn anchor " + p.name);
+                    }
+                    else
+                        Check(!new SerializedObject(p).FindProperty("respawnPointOverride").objectReferenceValue, "Standalone Actor must not bind a roster anchor");
                 }
             }
             finally { PrefabUtility.UnloadPrefabContents(root); }

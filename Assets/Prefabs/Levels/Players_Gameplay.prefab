@@ -58,27 +58,27 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: 4638968810721222376, guid: 13fd16da5760c4d6a83f03011206fd23,
+    - target: {fileID: 2953052356426356236, guid: 13fd16da5760c4d6a83f03011206fd23,
         type: 3}
       propertyPath: m_LocalScale.x
       value: 0.66
       objectReference: {fileID: 0}
-    - target: {fileID: 4638968810721222376, guid: 13fd16da5760c4d6a83f03011206fd23,
+    - target: {fileID: 2953052356426356236, guid: 13fd16da5760c4d6a83f03011206fd23,
         type: 3}
       propertyPath: m_LocalScale.y
       value: 0.66
       objectReference: {fileID: 0}
-    - target: {fileID: 4638968810721222376, guid: 13fd16da5760c4d6a83f03011206fd23,
+    - target: {fileID: 2953052356426356236, guid: 13fd16da5760c4d6a83f03011206fd23,
         type: 3}
       propertyPath: m_LocalScale.z
       value: 0.66
       objectReference: {fileID: 0}
-    - target: {fileID: 6050816925445004006, guid: 13fd16da5760c4d6a83f03011206fd23,
+    - target: {fileID: 4794742283231144049, guid: 13fd16da5760c4d6a83f03011206fd23,
         type: 3}
       propertyPath: m_Enabled
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: 7449126616696641186, guid: 13fd16da5760c4d6a83f03011206fd23,
+    - target: {fileID: 3888292537824597587, guid: 13fd16da5760c4d6a83f03011206fd23,
         type: 3}
       propertyPath: forwardReference
       value: 
@@ -88,32 +88,32 @@ PrefabInstance:
       propertyPath: m_Name
       value: Players_Gameplay
       objectReference: {fileID: 0}
-    - target: {fileID: 8213169850770846564, guid: 13fd16da5760c4d6a83f03011206fd23,
+    - target: {fileID: 18796503711901391, guid: 13fd16da5760c4d6a83f03011206fd23,
         type: 3}
       propertyPath: m_IsActive
       value: 1
       objectReference: {fileID: 0}
-    - target: {fileID: 8945294885987591364, guid: 13fd16da5760c4d6a83f03011206fd23,
+    - target: {fileID: 5756316784348988401, guid: 13fd16da5760c4d6a83f03011206fd23,
         type: 3}
       propertyPath: m_LocalScale.x
       value: 0.66
       objectReference: {fileID: 0}
-    - target: {fileID: 8945294885987591364, guid: 13fd16da5760c4d6a83f03011206fd23,
+    - target: {fileID: 5756316784348988401, guid: 13fd16da5760c4d6a83f03011206fd23,
         type: 3}
       propertyPath: m_LocalScale.y
       value: 0.66
       objectReference: {fileID: 0}
-    - target: {fileID: 8945294885987591364, guid: 13fd16da5760c4d6a83f03011206fd23,
+    - target: {fileID: 5756316784348988401, guid: 13fd16da5760c4d6a83f03011206fd23,
         type: 3}
       propertyPath: m_LocalScale.z
       value: 0.66
       objectReference: {fileID: 0}
-    - target: {fileID: 9041434841930965388, guid: 13fd16da5760c4d6a83f03011206fd23,
+    - target: {fileID: 6784103517402288259, guid: 13fd16da5760c4d6a83f03011206fd23,
         type: 3}
       propertyPath: sword
       value: 
       objectReference: {fileID: 0}
-    - target: {fileID: 9041434841930965388, guid: 13fd16da5760c4d6a83f03011206fd23,
+    - target: {fileID: 6784103517402288259, guid: 13fd16da5760c4d6a83f03011206fd23,
         type: 3}
       propertyPath: playerIdToastLifetime
       value: 4
@@ -125,7 +125,7 @@ PrefabInstance:
   m_SourcePrefab: {fileID: 100100000, guid: 13fd16da5760c4d6a83f03011206fd23, type: 3}
 --- !u!4 &4531754051912600442 stripped
 Transform:
-  m_CorrespondingSourceObject: {fileID: 6439864558108174988, guid: 13fd16da5760c4d6a83f03011206fd23,
+  m_CorrespondingSourceObject: {fileID: 8729926398407287133, guid: 13fd16da5760c4d6a83f03011206fd23,
     type: 3}
   m_PrefabInstance: {fileID: 7474560304905085430}
   m_PrefabAsset: {fileID: 0}

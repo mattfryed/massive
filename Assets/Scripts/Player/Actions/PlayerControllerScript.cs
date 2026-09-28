@@ -205,6 +205,7 @@ public partial class PlayerControllerScript : MonoBehaviour
 
     [Header("Respawn")]
     [SerializeField] private Transform respawnPointOverride;
+    public Transform MatchSpawnAnchor => respawnPointOverride;
     [SerializeField] private float deathFxSeconds = 0.25f;
     [SerializeField] private float respawnDelaySeconds = 0.5f;
     [SerializeField] private float respawnFxSeconds = 0.25f;

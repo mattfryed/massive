@@ -271,6 +271,11 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 5166850474582805625, guid: ef11db7a22c9ebf43826b8f6ab3469f3,
+        type: 3}
+      propertyPath: respawnPointOverride
+      value: 
+      objectReference: {fileID: 4137262321808284719}
     - target: {fileID: 8984405948043393506, guid: ef11db7a22c9ebf43826b8f6ab3469f3,
         type: 3}
       propertyPath: m_Name
@@ -372,6 +377,11 @@ PrefabInstance:
       propertyPath: playerID
       value: 3
       objectReference: {fileID: 0}
+    - target: {fileID: 5166850474582805625, guid: ef11db7a22c9ebf43826b8f6ab3469f3,
+        type: 3}
+      propertyPath: respawnPointOverride
+      value: 
+      objectReference: {fileID: 4276482732142744694}
     - target: {fileID: 8984405948043393506, guid: ef11db7a22c9ebf43826b8f6ab3469f3,
         type: 3}
       propertyPath: m_Name
@@ -468,6 +478,11 @@ PrefabInstance:
       propertyPath: playerID
       value: 1
       objectReference: {fileID: 0}
+    - target: {fileID: 5166850474582805625, guid: ef11db7a22c9ebf43826b8f6ab3469f3,
+        type: 3}
+      propertyPath: respawnPointOverride
+      value: 
+      objectReference: {fileID: 1079406687142751165}
     - target: {fileID: 8984405948043393506, guid: ef11db7a22c9ebf43826b8f6ab3469f3,
         type: 3}
       propertyPath: m_Name
@@ -569,6 +584,11 @@ PrefabInstance:
       propertyPath: playerID
       value: 2
       objectReference: {fileID: 0}
+    - target: {fileID: 5166850474582805625, guid: ef11db7a22c9ebf43826b8f6ab3469f3,
+        type: 3}
+      propertyPath: respawnPointOverride
+      value: 
+      objectReference: {fileID: 4965124703129042962}
     - target: {fileID: 8984405948043393506, guid: ef11db7a22c9ebf43826b8f6ab3469f3,
         type: 3}
       propertyPath: m_Name

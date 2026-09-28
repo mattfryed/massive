@@ -73,6 +73,8 @@ public class GameManagerScript : MonoBehaviour
     public MatchScoreService ScoreService => scoreService;
     public long FinalLightMilliElectronVolts => finalLightMilliElectronVolts;
     public long FinalDarkMilliElectronVolts => finalDarkMilliElectronVolts;
+    public string StartupFailureReason { get; private set; }
+    public bool IsStartupBlocked => !string.IsNullOrEmpty(StartupFailureReason);
 
     private void Start()
     {
@@ -88,7 +90,13 @@ public class GameManagerScript : MonoBehaviour
         _deathSphere = GameObject.FindWithTag("DeathSphere");
         _gameplayObjects = GameObject.FindWithTag("GameplayObjects");
 
-        _roster = FindFirstObjectByType<PlayerRosterController>();
+        int rosterCount = 0;
+        foreach (var roster in FindObjectsByType<PlayerRosterController>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
+            if (roster.gameObject.scene != gameObject.scene) continue;
+            _roster = roster;
+            rosterCount++;
+        }
         CachePlayerControllers();
         EnsureScoreService();
         RegisterActivePlayersWithScoreService();
@@ -104,7 +112,15 @@ public class GameManagerScript : MonoBehaviour
         SetPhase(MatchRuntimePhase.Preparing);
         RegulationTimeChanged?.Invoke(_regulationRemainingSeconds);
 
-        if (waitForRosterSpawnCompletion && _roster != null)
+        if (rosterCount != 1)
+        {
+            RejectStartup(rosterCount == 0 ? "Missing PlayerRosterController binding in this scene." : $"Found {rosterCount} PlayerRosterControllers; expected exactly one scene roster.");
+            return;
+        }
+        _roster.StartupFailed += OnRosterStartupFailed;
+        if (!EnsureStartupRoster()) return;
+
+        if (waitForRosterSpawnCompletion)
         {
             _roster.RosterReady += OnRosterReady;
             if (_roster.IsRosterReady)
@@ -119,12 +135,17 @@ public class GameManagerScript : MonoBehaviour
     private void OnDestroy()
     {
         if (_roster != null)
+        {
             _roster.RosterReady -= OnRosterReady;
+            _roster.StartupFailed -= OnRosterStartupFailed;
+        }
     }
 
     private void Update()
     {
-        if (_ending) return;
+        if (_ending || IsStartupBlocked) return;
+        if ((Phase == MatchRuntimePhase.Preparing || Phase == MatchRuntimePhase.Countdown) &&
+            (!_roster || !_roster.isActiveAndEnabled || _roster.HasStartupFailed) && !EnsureStartupRoster()) return;
 
         if (autoReturnOnAllPlayersInactive)
         {
@@ -200,6 +221,7 @@ public class GameManagerScript : MonoBehaviour
     {
         if (_ending || _countdownStarted)
             return;
+        if (!EnsureStartupRoster()) return;
 
         _countdownStarted = true;
         StartCoroutine(CountdownRoutine());
@@ -214,19 +236,20 @@ public class GameManagerScript : MonoBehaviour
         float remaining = Mathf.Max(0f, preMatchCountdownSeconds);
         CountdownTimeChanged?.Invoke(remaining);
 
-        while (remaining > 0f && !_ending)
+        while (remaining > 0f && !_ending && !IsStartupBlocked)
         {
             remaining = Mathf.Max(0f, remaining - MatchDeltaTime());
             CountdownTimeChanged?.Invoke(remaining);
             yield return null;
         }
 
-        if (!_ending)
+        if (!_ending && !IsStartupBlocked)
             BeginRegulation();
     }
 
     private void BeginRegulation()
     {
+        if (!EnsureStartupRoster()) return;
         _regulationRemainingSeconds = _regulationDurationSeconds;
         _regulationExpiredDuringBonus = false;
         _regulationClockRunsDuringBonus = false;
@@ -235,6 +258,33 @@ public class GameManagerScript : MonoBehaviour
         SetPhase(MatchRuntimePhase.Regulation);
         scoreService.OpenScoring(chainClockRunning: true);
         RegulationTimeChanged?.Invoke(_regulationRemainingSeconds);
+    }
+
+    private bool EnsureStartupRoster()
+    {
+        if (IsStartupBlocked) return false;
+        if (!_roster)
+        {
+            RejectStartup("Missing PlayerRosterController binding in this scene.");
+            return false;
+        }
+        if (_roster.ValidateForMatch()) return true;
+        OnRosterStartupFailed(_roster.StartupFailureReason);
+        return false;
+    }
+
+    private void OnRosterStartupFailed(string reason) => RejectStartup(reason, logError: false);
+
+    private void RejectStartup(string reason, bool logError = true)
+    {
+        if (IsStartupBlocked) return;
+        StartupFailureReason = logError ? $"[Match] Startup blocked in scene '{gameObject.scene.name}': {reason} Fix the bindings and reload the scene." : reason;
+        StopAllCoroutines();
+        scoreService.CloseScoring();
+        foreach (var player in FindObjectsByType<PlayerControllerScript>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            if (player && player.gameObject.scene == gameObject.scene && player.ParticipatesInMatch) player.SetMatchInputLocked(true);
+        SetPhase(MatchRuntimePhase.Preparing);
+        if (logError) Debug.LogError(StartupFailureReason, this);
     }
 
     private void TickRegulationClock(bool deferEndUntilBonusCompletes = false)
@@ -334,10 +384,10 @@ public class GameManagerScript : MonoBehaviour
 
     private void SetPlayersMatchInputLocked(bool locked)
     {
-        _p1c?.SetMatchInputLocked(locked);
-        _p2c?.SetMatchInputLocked(locked);
-        _p3c?.SetMatchInputLocked(locked);
-        _p4c?.SetMatchInputLocked(locked);
+        if (_p1c) _p1c.SetMatchInputLocked(locked);
+        if (_p2c) _p2c.SetMatchInputLocked(locked);
+        if (_p3c) _p3c.SetMatchInputLocked(locked);
+        if (_p4c) _p4c.SetMatchInputLocked(locked);
     }
 
     private void CheckForInactivePlayers()
