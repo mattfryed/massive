@@ -12,6 +12,13 @@ namespace Massive.Settings
     {
         [Header("Treatment")]
         public MeleeVisualStyle visualStyle = MeleeVisualStyle.Plasma;
+        [Header("Original Particles - editable stage prefabs")]
+        public OriginalAttackStageVfx originalThrustPrefab;
+        public OriginalAttackStageVfx originalSweepPrefab;
+        public OriginalAttackStageVfx originalRepulsorPrefab;
+        [Header("Legacy fallback - actors without stage prefabs")]
+        [Tooltip("Live GPU particle tuning for Original Particles. Thrust and Sweep share these values.")]
+        public LegacyAttackParticleSettings legacyParticles = new LegacyAttackParticleSettings();
         [Tooltip("Shared asset. Per-player settings use a property block, not material instances.")]
         public Material plasmaMaterial;
         [Header("Layers — independent toggles")]
@@ -162,6 +169,22 @@ namespace Massive.Settings
         [Range(0, 1)] public float repulsorEjectaDensity = .65f;
         public PlayerRepulsorFeedbackSettings body = new PlayerRepulsorFeedbackSettings();
         public PlayerRepulsorGridPulseSettings grid = new PlayerRepulsorGridPulseSettings();
+    }
+
+    [System.Serializable]
+    public sealed class LegacyAttackParticleSettings
+    {
+        [Min(1)] public int particleCount = 24000;
+        [Min(0)] public float trailLength = 2f;
+        [Min(0)] public float baseWidth = 0.7f;
+        [Min(0)] public float tipWidth = 0.05f;
+        [Min(0)] public float forwardSpeed = 1f;
+        [Min(0)] public float trailDrag = 1f;
+        [Min(.001f)] public float minLifetime = 0.2f;
+        [Min(.001f)] public float maxLifetime = 0.35f;
+        [Min(0)] public float sizeStart = 0.05f;
+        [Min(0)] public float sizeEnd = 0f;
+        [Min(0)] public float emissionRate = 80000f;
     }
 
     [System.Serializable]

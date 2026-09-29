@@ -27,6 +27,7 @@ Shader "MASSIVE/NuggetInstanced"
             #pragma fragment frag
             #pragma multi_compile_instancing
             #include "UnityCG.cginc"
+            #include "NuggetShieldFeedback.hlsl"
             #include "../Anomalies/SINGULARITY/SingularitySurfaceMapping.cginc"
 
             // ---- Buffers used by the DRAW (read-only here) ----
@@ -58,7 +59,7 @@ Shader "MASSIVE/NuggetInstanced"
                 float2 corner = uv * 2.0 - 1.0;
 
                 // Local → world for this nugget
-                float3 local = _NuggetPos[v.iid];       // (x,0,z) local offsets
+                float3 local = ApplyNuggetShieldFeedback(_NuggetPos[v.iid], v.iid);       // (x,0,z) local offsets
                 float3 Pw    = _CenterWS + local * _PlayerSize;
 
                 // Billboard in world space
@@ -110,6 +111,7 @@ return float4(_Color.rgb * fa * i.brightness, fa); // premultiplied, with opacit
             #pragma fragment frag
             #pragma multi_compile_instancing
             #include "UnityCG.cginc"
+            #include "NuggetShieldFeedback.hlsl"
             #include "../Anomalies/SINGULARITY/SingularitySurfaceMapping.cginc"
 
             StructuredBuffer<float3> _NuggetPos;
@@ -132,7 +134,7 @@ return float4(_Color.rgb * fa * i.brightness, fa); // premultiplied, with opacit
                 float2 uv = float2((v.vid & 1)?1:0, (v.vid & 2)?1:0);
                 float2 corner = uv*2.0-1.0;
 
-                float3 local = _NuggetPos[v.iid];
+                float3 local = ApplyNuggetShieldFeedback(_NuggetPos[v.iid], v.iid);
                 float3 Pw    = _CenterWS + local * _PlayerSize;
 
                 float s = (_DotRadius + _OutlineWidth) * _PlayerSize;

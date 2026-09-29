@@ -29,7 +29,7 @@ namespace Massive.EditorTools
                     if (item.transform.parent != null && item.transform.parent.name == "Players" && item.GetComponent<PlayerControllerScript>() != null
                         && item.GetComponent<PlayerControllerScript>().playerID == 0) { player = item; break; }
                 Copy(player, p);
-                if (player) { Copy(player.GetComponent<PlayerRepulsorFeedback>(), p.body); Copy(player.GetComponent<PlayerRepulsorGridPulse>(), p.grid); }
+                if (player) { Copy(player.GetComponent<AttackTrailGPU>(), p.legacyParticles); Copy(player.GetComponent<PlayerRepulsorFeedback>(), p.body); Copy(player.GetComponent<PlayerRepulsorGridPulse>(), p.grid); }
             });
             Create<AmplifierSharedProfile>(p =>
             {
@@ -135,6 +135,17 @@ namespace Massive.EditorTools
                 while (iterator.NextVisible(enter))
                 {
                     enter = false;
+                    if (data.targetObject is MeleeVisualProfile)
+                    {
+                        if (OriginalAttackStageEditing.IsPrefabField(iterator.name)) continue;
+                        if (iterator.name == "legacyParticles")
+                        {
+                            OriginalAttackStageEditing.Draw(data);
+                            iterator.isExpanded = EditorGUILayout.Foldout(iterator.isExpanded, "Legacy fallback (actors without stage prefabs)", true);
+                            if (iterator.isExpanded) EditorGUILayout.PropertyField(iterator, true);
+                            continue;
+                        }
+                    }
                     if (iterator.name != "m_Script") EditorGUILayout.PropertyField(iterator, true);
                 }
             }
@@ -192,6 +203,7 @@ namespace Massive.EditorTools
         }
         public static void Refresh()
         {
+            OriginalAttackStageVfx.InvalidateContent();
             foreach (var core in Object.FindObjectsByType<AmplifierCoreGameplay>(FindObjectsInactive.Include, FindObjectsSortMode.None))
                 if (!UnityEditor.SceneManagement.EditorSceneManager.IsPreviewSceneObject(core.gameObject)) core.ApplyTuning();
             foreach (var effect in Object.FindObjectsByType<AmplifierGoalTreatments>(FindObjectsInactive.Include, FindObjectsSortMode.None)) effect.RenderTreatment();
@@ -261,6 +273,19 @@ namespace Massive.EditorTools
     [CustomEditor(typeof(SharedSettingsProfile), true)]
     public sealed class SharedProfileEditor : UnityEditor.Editor
     { public override void OnInspectorGUI() { SharedSettingsEditing.DrawGroup(serializedObject, ""); } }
+    [CustomEditor(typeof(AttackTrailGPU))]
+    public sealed class SharedAttackTrailEditor : SharedComponentEditor
+    {
+        public override void OnInspectorGUI()
+        {
+            var gpu = (AttackTrailGPU)target;
+            if (!gpu.IsStagePrefabEmitter) { base.OnInspectorGUI(); return; }
+            EditorGUILayout.HelpBox("Stage prefab particle settings. These values belong to this prefab, independently of the other attack stages.", MessageType.Info);
+            OriginalAttackStageEditing.DrawEmitter(serializedObject);
+            var stage = gpu.GetComponentInParent<OriginalAttackStageVfx>();
+            if (stage) OriginalAttackStageVfxEditor.DrawPreview(stage);
+        }
+    }
     [CustomEditor(typeof(PlayerRepulsorFeedback))] public sealed class SharedRepulsorBodyEditor : SharedComponentEditor {}
     [CustomEditor(typeof(PlayerRepulsorGridPulse))] public sealed class SharedRepulsorGridEditor : SharedComponentEditor {}
     [CustomEditor(typeof(AmplifierCoreVisual))] public sealed class SharedCoreSurfaceEditor : SharedComponentEditor {}

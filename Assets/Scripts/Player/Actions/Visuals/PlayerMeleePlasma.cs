@@ -109,6 +109,7 @@ namespace Massive.Player
         void OnEnable()
         {
             ResolveReferences();
+            BindOriginalStageEvents();
             ApplyLegacyVisibility();
 #if UNITY_EDITOR
             lastEditorTime = UnityEditor.EditorApplication.timeSinceStartup;
@@ -150,6 +151,7 @@ namespace Massive.Player
             UnityEditor.EditorApplication.playModeStateChanged -= PlayModeChanged;
             UnityEditor.AssemblyReloadEvents.beforeAssemblyReload -= StopPreview;
 #endif
+            UnbindOriginalStageEvents();
             StopPreview();
             RestoreLegacyVisibility();
             ReleaseGraphics();
@@ -160,6 +162,14 @@ namespace Massive.Player
             ApplyLegacyVisibility();
             if (!Application.isPlaying) return;
             if (PreviewActive) StopPreview();
+            if (Effective_visualStyle == MeleeVisualStyle.OriginalParticles && attackController && attackController.isActiveAndEnabled &&
+                (!owner || !owner.temporarilyEliminated))
+            {
+                HideNonVolume(); HideVolumeArc(); HideThrustTrails(); HideRepulsorPulses();
+                TickOriginalStageEffects();
+                return;
+            }
+            StopOriginalStageEffects();
             if ((Effective_visualStyle != MeleeVisualStyle.Plasma && Effective_visualStyle != MeleeVisualStyle.SwordSlashes) || !attackController || !attackController.isActiveAndEnabled ||
                 (owner && owner.temporarilyEliminated))
             { Hide(); return; }
@@ -184,7 +194,7 @@ namespace Massive.Player
             bool suppress = isActiveAndEnabled && Effective_visualStyle != MeleeVisualStyle.OriginalParticles &&
                 (Effective_visualStyle == MeleeVisualStyle.Off || Effective_plasmaMaterial != null ||
                  (Effective_visualStyle == MeleeVisualStyle.SwordSlashes && Effective_thrustPrefabEffect.prefab && Effective_swipePrefabEffect.prefab));
-            if (legacyTrail) legacyTrail.SetMeleeVisualSuppressed(suppress);
+            if (legacyTrail) legacyTrail.SetMeleeVisualSuppressed(suppress || OriginalPrefabsReplaceTrail);
             if (suppress == suppressing) return;
             if (!suppress) { RestoreLegacyVisibility(); return; }
             var sources = legacyMeleeParticles != null && legacyMeleeParticles.Length > 0 ? legacyMeleeParticles : detectedMeleeParticles;
@@ -417,9 +427,10 @@ namespace Massive.Player
             PreviewRepulsorGrid(stage);
         }
         void HideNonVolume() { if (ribbonRenderer) ribbonRenderer.enabled = false; HidePrefabEffects(); }
-        void Hide() { HideNonVolume(); HideVolumeArc(); HideThrustTrails(); HideRepulsorPulses(); StopRepulsorPresentationPreview(); }
+        void Hide() { StopOriginalStageEffects(); HideNonVolume(); HideVolumeArc(); HideThrustTrails(); HideRepulsorPulses(); StopRepulsorPresentationPreview(); }
         void ReleaseGraphics()
         {
+            ReleaseOriginalStageEffects();
             ReleaseThrustTrails();
             ReleaseVolumeArc();
             ReleaseRepulsorPulses();

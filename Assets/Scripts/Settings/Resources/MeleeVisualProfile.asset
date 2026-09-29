@@ -13,7 +13,25 @@ MonoBehaviour:
   m_Name: MeleeVisualProfile
   m_EditorClassIdentifier: 
   sharedEnabled: 1
-  visualStyle: 3
+  visualStyle: 0
+  originalThrustPrefab: {fileID: 643465456689565548, guid: 07654a91a303615449d7206dbbe8331b,
+    type: 3}
+  originalSweepPrefab: {fileID: 1332533437918642566, guid: d4b7d592cc002d244a4c50a00cc1eb98,
+    type: 3}
+  originalRepulsorPrefab: {fileID: 4147839226840024392, guid: 6c7e80fc77f05344a80185995a3d2dc7,
+    type: 3}
+  legacyParticles:
+    particleCount: 24000
+    trailLength: 2
+    baseWidth: 0.7
+    tipWidth: 0.05
+    forwardSpeed: 1
+    trailDrag: 1
+    minLifetime: 0.2
+    maxLifetime: 0.35
+    sizeStart: 0.05
+    sizeEnd: 0
+    emissionRate: 80000
   plasmaMaterial: {fileID: 2100000, guid: 1e3ff57d3bf5f334d9b0c5347380e37b, type: 2}
   solidBody: 1
   brightRim: 1

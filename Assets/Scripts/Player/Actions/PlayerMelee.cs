@@ -29,6 +29,7 @@ public class PlayerMelee : MonoBehaviour
     [SerializeField] private GameObject swordClashPrefab;
 
     private Coroutine gateRoutine;
+    private readonly System.Collections.Generic.HashSet<PlayerControllerScript> shieldContacts = new();
 
     public PlayerControllerScript Owner => owner;
     public event System.Action<PlayerControllerScript> ShieldContact;
@@ -90,6 +91,7 @@ public class PlayerMelee : MonoBehaviour
 
     private void OnStageStarted(AttackStage stage)
     {
+        shieldContacts.Clear();
         if (!gateHitboxToActivationWindow || hitbox == null)
             return;
 
@@ -165,37 +167,41 @@ public class PlayerMelee : MonoBehaviour
     private void ResolveShieldImpact(Collider shieldCollider)
     {
         PlayerControllerScript defender = shieldCollider.GetComponentInParent<PlayerControllerScript>();
-        if (defender != null && IsFriendly(defender))
+        if (defender != null && (!owner.SharesSimulationWith(defender) || IsFriendly(defender)))
             return;
+
+        var defenderShield = shieldCollider.GetComponentInParent<PlayerShieldAbility>();
+        if (defenderShield != null && !defenderShield.IsActive) return;
+        if (defender != null && !shieldContacts.Add(defender)) return;
+
+        ShieldContact?.Invoke(defender);
+        // A sustained block absorbs the attack without applying a fresh stun or power-up parry.
+        if (defenderShield != null && !defenderShield.IsParryWindow) return;
 
         PlayerPowerUpController defenderPowerUps = shieldCollider.GetComponentInParent<PlayerPowerUpController>();
         if (defenderPowerUps != null)
         {
             Vector3 direction = shieldCollider.transform.position - owner.transform.position;
             direction.y = 0f;
-
-            if (direction.sqrMagnitude > 0.0001f)
-            {
-                direction.Normalize();
-                if (defenderPowerUps.TryHandleShieldImpact(owner, shieldCollider, direction))
-                {
-                    ShieldContact?.Invoke(defender);
-                    return;
-                }
-            }
+            if (direction.sqrMagnitude > .0001f &&
+                defenderPowerUps.TryHandleShieldImpact(owner, shieldCollider, direction.normalized)) return;
         }
 
-        Massive.Player.PlayerShieldAbility defenderShield =
-            shieldCollider.GetComponentInParent<Massive.Player.PlayerShieldAbility>();
+        if (defenderShield != null)
+        {
+            defenderShield.QueueMeleeParry(owner, (strength, fullyBlocked) =>
+            {
+                if (!fullyBlocked && owner && defender) ApplyShieldLeak(defender, strength);
+            });
+            return;
+        }
 
-        float strength = 1f;
-        if (defenderShield != null && defenderShield.IsActive)
-            strength = defenderShield.CurrentStrength01;
-
-        owner.Stun(shieldCollider.transform.position, strength);
-        ShieldContact?.Invoke(defender);
+        owner.Stun(shieldCollider.transform.position, 1f);
         AudioSystem.I?.Play(AudioEventId.Player_Parry, transform.position);
+    }
 
+    private void ApplyShieldLeak(PlayerControllerScript defender, float strength)
+    {
         float leak01 = Mathf.Clamp01(1f - strength);
         if (defender == null || IsFriendly(defender) || leak01 <= 0.001f)
             return;
@@ -212,7 +218,7 @@ public class PlayerMelee : MonoBehaviour
     private void ResolvePlayerImpact(Collider playerCollider)
     {
         PlayerControllerScript victim = playerCollider.GetComponentInParent<PlayerControllerScript>();
-        if (victim == null || victim == owner || IsFriendly(victim))
+        if (victim == null || victim == owner || !owner.SharesSimulationWith(victim) || IsFriendly(victim))
             return;
 
         if (victim.shieldOn)

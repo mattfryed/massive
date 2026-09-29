@@ -43,6 +43,8 @@ public partial class PlayerControllerScript : MonoBehaviour
         (tuningMode == PlayerTuningMode.Automatic && !isPseudoPlayer);
     public Vector3 AimDirectionWS => lastStickAimWS;
     public Transform SimulationRoot { get; private set; }
+    // Match actors share the null scope. Tutorial/demo pairs have distinct scopes.
+    public bool SharesSimulationWith(PlayerControllerScript other) => other && SimulationRoot == other.SimulationRoot;
     public event Action<PlayerInputFrame> InputApplied;
 
     // Call while the instance is inactive, before Awake/OnEnable can register it.
@@ -543,6 +545,7 @@ if (showPlayerIdToastOnMatchStart)
 
         if (_matchInputLocked || IsSingularityTransitControlled)
         {
+            shieldAbility?.ForceStopShield();
             moveHorizontal = 0f;
             moveVertical = 0f;
             movement = Vector3.zero;
@@ -578,6 +581,7 @@ if (showPlayerIdToastOnMatchStart)
 
         if (isStunned || IsExternallyStunned)
         {
+            shieldAbility?.ForceStopShield();
             // Hard input lock
             movement = Vector3.zero;
             shieldOn = false;
@@ -598,6 +602,7 @@ if (showPlayerIdToastOnMatchStart)
 
         if (_worldGameplaySuppressed)
             {
+                shieldAbility?.ForceStopShield();
                 // Clear world-driven state
                 moveHorizontal = 0f;
                 moveVertical = 0f;
@@ -691,7 +696,7 @@ if (showPlayerIdToastOnMatchStart)
         }
         InputApplied?.Invoke(input);
 
-        // Shield (unchanged semantics, but now uses scripted/re-wired values)
+        // A tap keeps its original parry lifetime; holding extends full damage protection.
         bool shieldDown = input.shieldDown;
         bool shieldHeldInput = input.shieldHeld;
 
@@ -699,6 +704,7 @@ if (showPlayerIdToastOnMatchStart)
         {
             if (shieldDown)
                 shieldAbility.TryActivate();
+            shieldAbility.SetHeld(shieldHeldInput);
 
             shieldOn = shieldAbility.IsActive;
         }
@@ -1079,6 +1085,10 @@ if (showPlayerIdToastOnMatchStart)
         if (temporarilyEliminated || (respectInvulnerability && IsInvulnerable) || requestedLoss01 <= 0f)
             return result;
 
+        // Includes hazards/projectiles that intentionally bypass respawn invulnerability.
+        if (shieldAbility != null && shieldAbility.BlocksAllDamage)
+            return result;
+
         if (respectHitCooldown && Time.time - _timeOfLastShrink < hitShrinkCooldownSeconds)
             return result;
 
@@ -1439,7 +1449,7 @@ private void SetCollidersEnabled(bool enabled)
             attackController.CancelAttack(); //
 
         
-        // shieldAbility?.ForceStopShield();
+        shieldAbility?.ForceStopShield();
 
         if (shield) shield.SetActive(false);
         if (sword) sword.SetActive(false);
@@ -1480,6 +1490,8 @@ private void SetCollidersEnabled(bool enabled)
         if (visualsController != null)
             visualsController.SetExternalChargeJitter01(Mathf.Clamp01(stunBlobJitterMul * s));
         // (This ultimately drives the amp*sin/cos render jitter)
+
+        if (nuggetsGPU != null) nuggetsGPU.SetStunFeedback(s);
 
         // Nuggets drag ramp
         if (nuggetsGPU != null && _baseNuggetDrag <= 0f)
@@ -1534,6 +1546,8 @@ private void SetCollidersEnabled(bool enabled)
         // Reset visuals
         if (visualsController != null)
             visualsController.SetExternalChargeJitter01(0f);
+
+        if (nuggetsGPU != null) nuggetsGPU.SetStunFeedback(0f);
 
         // Reset nuggets drag
         if (nuggetsGPU != null && _baseNuggetDrag > 0f)

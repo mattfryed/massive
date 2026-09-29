@@ -666,6 +666,7 @@ private Vector3 GetAttackDirection()
         var pcs = col.GetComponent<PlayerControllerScript>();
         if (pcs == null) continue;
         if (pcs == ownerController) continue;
+        if (ownerController && !ownerController.SharesSimulationWith(pcs)) continue;
 
         if (lockOnIgnoreEliminated && pcs.temporarilyEliminated) continue;
         if (lockOnIgnoreSameTeam && ownerController != null && pcs.teamID == ownerController.teamID) continue;

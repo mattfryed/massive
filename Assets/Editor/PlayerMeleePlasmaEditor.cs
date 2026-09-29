@@ -479,7 +479,9 @@ internal static class PlayerMeleePlasmaPreviewGUI
         {
             EditorGUILayout.HelpBox(value == 2
                 ? "Melee visual effects are off. Attack input, damage, reach and combo rules are unchanged."
-                : "The existing melee particle emitters supply this treatment. Their settings remain on the original components.", MessageType.None);
+                : "Each Original Particles stage has an editable effect prefab. Open it to tune its emitters or add additional effects.", MessageType.None);
+            if (value == 0 && Massive.EditorTools.OriginalAttackStageEditing.HasPrefabs(serialized))
+                Massive.EditorTools.OriginalAttackStageEditing.Draw(serialized, selectedStage);
             DrawReferences(serialized);
             return;
         }
@@ -491,7 +493,7 @@ internal static class PlayerMeleePlasmaPreviewGUI
         while (iterator.NextVisible(children))
         {
             children = false;
-            if (iterator.name == "m_Script" || iterator.name == "visualStyle" ||
+            if (iterator.name == "m_Script" || iterator.name == "visualStyle" || iterator.name == "legacyParticles" || Massive.EditorTools.OriginalAttackStageEditing.IsPrefabField(iterator.name) ||
                 iterator.name == "previewPlaybackSpeed" || iterator.name == "previewRepeatDelay" ||
                 iterator.name == "thrustPrefabEffect" || iterator.name == "swipePrefabEffect" ||
                 iterator.name.StartsWith("thrust", System.StringComparison.Ordinal) ||

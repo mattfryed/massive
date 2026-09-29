@@ -18,3 +18,16 @@ The initial profiles were seeded from the current Dynamo setup, including P1's m
 Gameplay attack timing, reach and damage remain in the existing **Player Attack Profile**. Text animation modules remain reusable **Text Animation Preset** assets; the Text tab assigns them and provides direct access to the score preset and tier-style library.
 
 Developer note: public/local serialized fields retain their original names for compatibility. Rendering and gameplay consumers resolve shared values through effective accessors. Code that deliberately needs an instance variation should set `UseSharedSettings = false` before changing its local fields. Editor preview-scene fixtures retain local values; normal loaded scenes and runtime spawns resolve the shared Resources assets. No scene object references or live preview state are stored in those assets.
+
+
+## Original Particles
+
+**MASSIVE > Shared Settings > Melee** and **Player Tuning > Appearance** expose three Original Particles prefab assignments and Open buttons. The assets live in `Assets/Prefabs/Player/Attack Stages/Original Particles`.
+
+Thrust and Sweep each contain the actual **GPU Particle Trail** emitter. Their particle count, length, widths, speed, drag, lifetimes, sizes and emission rate are now independently owned by each prefab. The window's GPU foldouts edit and save those same prefab fields during Play Mode. Open the whole prefab to add Particle Systems or other effects. Saved prefab changes refresh running actors, including new children. The root/emitter Inspector provides a looping Scene-view preview.
+
+Repulsor keeps its existing body/grid feedback and has a disabled optional particle layer. Enable it in the prefab to add particles. Each stage has independent placement, activation gating and a bounded visual tail; gameplay timing, hitboxes and damage remain in the attack profile.
+
+The old `legacyParticles` group remains under **Legacy fallback (actors without stage prefabs)**. Player-root local fields and external/Time Dilation configuration are retained. Stage-prefab GPU emitters always use their own authored values. Player Tuning snapshots capture prefab assignments; whole prefab contents use their own asset history.
+
+See **Editing these effects.md** beside the three prefabs for the full workflow.

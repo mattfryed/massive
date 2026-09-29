@@ -1,13 +1,48 @@
 using UnityEngine;
 using UnityEngine.Rendering;
+using Massive.Settings;
 using Massive.Player; // for PlayerAttackController / AttackStage
 
 [DisallowMultipleComponent]
-public class AttackTrailGPU : MonoBehaviour
+public class AttackTrailGPU : MonoBehaviour, ISharedSettingsConsumer
 {
     MaterialPropertyBlock _mpb;
     Massive.Singularity.SingularityPlayerAdapter singularityPresentation;
     static readonly int SingularityEnabledId = Shader.PropertyToID("_SingularityEnabled");
+
+    [SerializeField, Tooltip("Use persistent project-wide particle tuning. Disable to use the local prefab values.")]
+    private bool useSharedSettings = true;
+    [SerializeField, HideInInspector] private bool stagePrefabEmitter;
+    public bool IsStagePrefabEmitter => stagePrefabEmitter;
+    bool presentationInitialized, sampledStageActive;
+    float sampledStageTime;
+    Vector3 sampledStageDirection;
+
+    // Stage-prefab emitters are owned by their prefab, including in Prefab Mode.
+    public void ConfigureAsStageEmitter() { stagePrefabEmitter = true; useSharedSettings = false; }
+    public void SampleStage(float normalizedTime, bool emitting, Vector3 direction, float duration, float deltaTime)
+    {
+        if (!presentationInitialized) OnEnable();
+        sampledStageTime = normalizedTime; sampledStageActive = emitting;
+        sampledStageDirection = direction; _currentStageDuration = duration;
+        SimulateFrame(deltaTime);
+    }
+    public void StopEditorPreview() { if (!Application.IsPlaying(gameObject)) OnDisable(); }
+    public bool UseSharedSettings { get => useSharedSettings; set => useSharedSettings = value; }
+    public SharedSettingsProfile SharedSettingsAsset => SharedSettingsRuntime.Load<MeleeVisualProfile>();
+    public string SharedSettingsGroup => "legacyParticles";
+    private LegacyAttackParticleSettings SharedParticles => SharedSettingsRuntime.Resolve<MeleeVisualProfile>(this, useSharedSettings && !stagePrefabEmitter)?.legacyParticles;
+    public int Effective_particleCount => Mathf.Max(1, SharedParticles?.particleCount ?? particleCount);
+    public float Effective_trailLength => SharedParticles?.trailLength ?? trailLength;
+    public float Effective_baseWidth => SharedParticles?.baseWidth ?? baseWidth;
+    public float Effective_tipWidth => SharedParticles?.tipWidth ?? tipWidth;
+    public float Effective_forwardSpeed => SharedParticles?.forwardSpeed ?? forwardSpeed;
+    public float Effective_trailDrag => SharedParticles?.trailDrag ?? trailDrag;
+    public float Effective_minLifetime => SharedParticles?.minLifetime ?? minLifetime;
+    public float Effective_maxLifetime => SharedParticles?.maxLifetime ?? maxLifetime;
+    public float Effective_sizeStart => SharedParticles?.sizeStart ?? sizeStart;
+    public float Effective_sizeEnd => SharedParticles?.sizeEnd ?? sizeEnd;
+    public float Effective_emissionRate => SharedParticles?.emissionRate ?? emissionRate;
 
     [Header("References")]
     [SerializeField] PlayerAttackController attackController;
@@ -103,6 +138,7 @@ public class AttackTrailGPU : MonoBehaviour
     // runtime
     int _kUpdate = -1;
     ComputeBuffer _particles;
+    AttackParticle[] stageInitialization;
     ComputeBuffer _args;
     Bounds _drawBounds;
 
@@ -135,6 +171,8 @@ public class AttackTrailGPU : MonoBehaviour
 
     void OnEnable()
     {
+        if (presentationInitialized) return;
+        presentationInitialized = true;
         singularityPresentation = GetComponentInParent<Massive.Singularity.SingularityPlayerAdapter>();
         if (_mpb == null)
             _mpb = new MaterialPropertyBlock();
@@ -149,7 +187,7 @@ public class AttackTrailGPU : MonoBehaviour
         EnsureKernel();
         InitBuffersIfNeeded();
 
-        if (attackController != null)
+        if (!stagePrefabEmitter && attackController != null)
         {
             attackController.OnStageStarted.AddListener(OnStageStarted);
             attackController.OnStageCompleted.AddListener(OnStageCompleted);
@@ -160,9 +198,10 @@ public class AttackTrailGPU : MonoBehaviour
 
     void OnDisable()
     {
+        presentationInitialized = false;
         Camera.onPreCull -= HandlePreCull;
 
-        if (attackController != null)
+        if (!stagePrefabEmitter && attackController != null)
         {
             attackController.OnStageStarted.RemoveListener(OnStageStarted);
             attackController.OnStageCompleted.RemoveListener(OnStageCompleted);
@@ -174,15 +213,6 @@ public class AttackTrailGPU : MonoBehaviour
     void OnDestroy()
     {
         ReleaseBuffers();
-    }
-
-    void OnValidate()
-    {
-        if (Application.isPlaying)
-        {
-            if (particleCount != _allocatedCount)
-                _needRebuild = true;
-        }
     }
 
     void EnsureKernel()
@@ -211,26 +241,28 @@ public class AttackTrailGPU : MonoBehaviour
 
     void InitBuffersIfNeeded()
     {
-        if (_particles != null && _args != null && _allocatedCount == particleCount && !_needRebuild)
+        int count = Effective_particleCount;
+        if (_particles != null && _args != null && _allocatedCount == count && !_needRebuild)
             return;
 
         ReleaseBuffers();
 
-        if (particleCount <= 0) particleCount = 1;
-
-        _particles = new ComputeBuffer(particleCount, STRIDE, ComputeBufferType.Structured);
+        _particles = new ComputeBuffer(count, STRIDE, ComputeBufferType.Structured);
 
         if (!quadMesh)
             quadMesh = Resources.GetBuiltinResource<Mesh>("Quad.fbx");
 
         _args = new ComputeBuffer(1, sizeof(uint) * 5, ComputeBufferType.IndirectArguments);
         uint indexCount = quadMesh ? quadMesh.GetIndexCount(0) : 6u;
-        _args.SetData(new uint[] { indexCount, (uint)particleCount, 0, 0, 0 });
+        _args.SetData(new uint[] { indexCount, (uint)count, 0, 0, 0 });
 
         // initialize particles as "dead"
-        AttackParticle[] initData = new AttackParticle[particleCount];
+        // Pooled stage objects are enabled repeatedly; reuse their CPU initialization storage.
+        AttackParticle[] initData = stagePrefabEmitter && stageInitialization != null && stageInitialization.Length == count
+            ? stageInitialization : new AttackParticle[count];
+        if (stagePrefabEmitter) stageInitialization = initData;
         Vector3 center = GetTrailOriginWS();
-        for (int i = 0; i < particleCount; i++)
+        for (int i = 0; i < count; i++)
         {
             initData[i].posWS   = center;
             initData[i].velXZ   = Vector2.zero;
@@ -247,9 +279,9 @@ public class AttackTrailGPU : MonoBehaviour
             sim.SetBuffer(_kUpdate, "_Particles", _particles);
         }
 
-        _drawBounds = new Bounds(center, Vector3.one * (trailLength + 5f));
+        _drawBounds = new Bounds(center, Vector3.one * (Effective_trailLength + 5f));
 
-        _allocatedCount = particleCount;
+        _allocatedCount = count;
         _needRebuild = false;
     }
 
@@ -267,6 +299,7 @@ public class AttackTrailGPU : MonoBehaviour
 
     Vector3 GetTrailOriginWS()
     {
+        if (stagePrefabEmitter) return transform.position;
         if (controller && controller.visuals) return controller.visuals.position;
         if (controller)                        return controller.transform.position;
         return transform.position;
@@ -274,19 +307,24 @@ public class AttackTrailGPU : MonoBehaviour
 
     void LateUpdate()
     {
-        if (_needRebuild) InitBuffersIfNeeded();
+        if (!stagePrefabEmitter) SimulateFrame(Time.deltaTime);
+    }
+
+    void SimulateFrame(float deltaTime)
+    {
+        if (_needRebuild || _allocatedCount != Effective_particleCount) InitBuffersIfNeeded();
         if (sim == null || trailMat == null || _particles == null || _args == null) return;
 
         EnsureKernel();
         if (_kUpdate < 0) return;
 
-        float dt = Mathf.Max(Time.deltaTime, 1e-4f);
+        float dt = Mathf.Max(deltaTime, 1e-4f);
 
         // --- determine origin ---
         Vector3 origin = GetTrailOriginWS();
 
-        bool attackActive = (!_meleeVisualSuppressed && attackController != null && attackController.IsAttacking && attackController.CurrentStage != null);
-        bool externalActive = allowExternalActivation && _externalActive;
+        bool attackActive = stagePrefabEmitter ? sampledStageActive : (!_meleeVisualSuppressed && attackController != null && attackController.IsAttacking && attackController.CurrentStage != null);
+        bool externalActive = !stagePrefabEmitter && allowExternalActivation && _externalActive;
 
         // --- external motion (Time Dilation) ---
         Vector3 extVel = Vector3.zero;
@@ -322,7 +360,7 @@ public class AttackTrailGPU : MonoBehaviour
         if (attackActive)
         {
             // Use visual direction so the trail can follow combo-swipe arcs.
-            fwdWS = attackController.CurrentAttackVisualDirectionWS;
+            fwdWS = stagePrefabEmitter ? sampledStageDirection : attackController.CurrentAttackVisualDirectionWS;
         }
         else if (extT > 0.001f && extVel.sqrMagnitude > 0.0001f)
         {
@@ -343,23 +381,23 @@ public class AttackTrailGPU : MonoBehaviour
         fwdWS.Normalize();
 
         // Stage time 0..1 (attack uses real stage time; external uses extT)
-        float stageT = attackActive ? attackController.StageNormalizedTime : extT;
+        float stageT = attackActive ? (stagePrefabEmitter ? sampledStageTime : attackController.StageNormalizedTime) : extT;
 
         // Repulsor (stage 3) has its own dedicated VFX; suppress the forward "sword" trail.
-        if (attackActive && attackController.CurrentStage != null &&
+        if (!stagePrefabEmitter && attackActive && attackController.CurrentStage != null &&
             attackController.CurrentStage.StageType == AttackStageType.FinisherRepulsor)
         {
             stageT = 0f;
         }
 
         // Defaults (attack look)
-        float useTrailLength  = trailLength;
-        float useBaseWidth    = baseWidth;
-        float useTipWidth     = tipWidth;
-        float useForwardSpeed = forwardSpeed;
-        float useEmitRate     = emissionRate;
-        float useMinLife      = minLifetime;
-        float useMaxLife      = maxLifetime;
+        float useTrailLength  = Effective_trailLength;
+        float useBaseWidth    = Effective_baseWidth;
+        float useTipWidth     = Effective_tipWidth;
+        float useForwardSpeed = Effective_forwardSpeed;
+        float useEmitRate     = Effective_emissionRate;
+        float useMinLife      = Effective_minLifetime;
+        float useMaxLife      = Mathf.Max(useMinLife, Effective_maxLifetime);
         float useStageDuration = _currentStageDuration;
 
         // External ghost-only mode: behind-player trail, no forward “sword”
@@ -400,11 +438,12 @@ public class AttackTrailGPU : MonoBehaviour
         }
 
         // This buffer stores world positions, so hierarchy scale does not reach it.
-        float playerSize = PlayerScaleAdjuster.SizeOf(this);
-        useTrailLength *= playerSize;
+        float playerSize = stagePrefabEmitter ? Mathf.Abs(transform.lossyScale.x) : PlayerScaleAdjuster.SizeOf(this);
+        float lengthScale = stagePrefabEmitter ? Mathf.Abs(transform.lossyScale.z) : playerSize;
+        useTrailLength *= lengthScale;
         useBaseWidth *= playerSize;
         useTipWidth *= playerSize;
-        useForwardSpeed *= playerSize;
+        useForwardSpeed *= lengthScale;
 
         // Emit only if we have meaningful stageT (compute won't spawn otherwise)
         bool stageActiveForEmit = (stageT >= 0.02f);
@@ -413,10 +452,10 @@ public class AttackTrailGPU : MonoBehaviour
         _emitAccumulator += (stageActiveForEmit ? useEmitRate : 0f) * dt;
         int emitCount = Mathf.FloorToInt(_emitAccumulator);
         _emitAccumulator -= emitCount;
-        emitCount = Mathf.Clamp(emitCount, 0, particleCount);
+        emitCount = Mathf.Clamp(emitCount, 0, _allocatedCount);
 
         // Set compute params
-        sim.SetInt("_ParticleCount", particleCount);
+        sim.SetInt("_ParticleCount", _allocatedCount);
         sim.SetInt("_EmitCount", emitCount);
         sim.SetInt("_StageActive", stageActiveForEmit ? 1 : 0);
         sim.SetFloat("_Dt", dt);
@@ -426,11 +465,11 @@ public class AttackTrailGPU : MonoBehaviour
         sim.SetFloat("_BaseWidth", useBaseWidth);
         sim.SetFloat("_TipWidth", useTipWidth);
         sim.SetFloat("_ForwardSpeed", useForwardSpeed);
-        sim.SetFloat("_TrailDrag", trailDrag);
+        sim.SetFloat("_TrailDrag", Effective_trailDrag);
         sim.SetFloat("_MinLife", useMinLife);
         sim.SetFloat("_MaxLife", useMaxLife);
-        sim.SetFloat("_SizeStart", sizeStart * playerSize);
-        sim.SetFloat("_SizeEnd", sizeEnd * playerSize);
+        sim.SetFloat("_SizeStart", Effective_sizeStart * playerSize);
+        sim.SetFloat("_SizeEnd", Effective_sizeEnd * playerSize);
         sim.SetFloat("_PlayerSize", playerSize);
         sim.SetFloat("_StageT", stageT);
         sim.SetFloat("_StageDuration", useStageDuration);
@@ -445,7 +484,7 @@ public class AttackTrailGPU : MonoBehaviour
         }
 
         // Dispatch
-        int groups = Mathf.CeilToInt(particleCount / (float)THREAD_GROUP_SIZE);
+        int groups = Mathf.CeilToInt(_allocatedCount / (float)THREAD_GROUP_SIZE);
         sim.Dispatch(_kUpdate, Mathf.Max(1, groups), 1, 1);
 
         // Update draw bounds

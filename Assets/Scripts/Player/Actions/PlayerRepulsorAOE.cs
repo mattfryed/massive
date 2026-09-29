@@ -425,7 +425,7 @@ namespace Massive.Player
             if (!other.CompareTag(playerTag)) return;
 
             var victim = other.GetComponentInParent<PlayerControllerScript>();
-            if (!victim)
+            if (!victim || !owner.SharesSimulationWith(victim))
                 return;
             if (victim.temporarilyEliminated)
                 return;
@@ -474,18 +474,20 @@ namespace Massive.Player
                 }
             }
 
+            // Resolve damage while the shield state at impact is still intact;
+            // the optional stun below can cancel an active shield.
+            if (Effective_applyMassLoss)
+            {
+                float s = Mathf.Clamp01(Effective_massLossScale01 * strength01);
+                PlayerHitResult hit = victim.TryApplyHit(owner.gameObject, s);
+                if (hit.accepted && Effective_giveAttackerMass)
+                    owner.GrowScaled(hit.appliedScale01);
+            }
+
             if (Effective_applyStun)
             {
                 float s = Mathf.Clamp01(Effective_stunStrength01 * strength01);
                 victim.Stun(OriginWorld, Mathf.Lerp(0.1f, 1f, s));
-            }
-
-            if (Effective_applyMassLoss)
-            {
-                float s = Mathf.Clamp01(Effective_massLossScale01 * strength01);
-                victim.ShrinkScaled(owner.gameObject, s);
-                if (Effective_giveAttackerMass)
-                    owner.GrowScaled(s);
             }
         }
     }

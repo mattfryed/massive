@@ -35,10 +35,19 @@ namespace Massive.Demonstrations
         public int ConfirmedShots { get; private set; }
         public int ConfirmedClaims { get; private set; }
         public int LastComboStage { get; private set; } = -1;
+        public int ConfirmedHits { get; private set; }
+        public int ConfirmedParries { get; private set; }
+        public int ConfirmedLateBlocks { get; private set; }
+        public int ConfirmedDecoherenceParries { get; private set; }
+        public int ConfirmedProjectileContacts { get; private set; }
+        public float LastContactShieldAge { get; private set; }
+        public string LastOutcome { get; private set; } = "Ready";
+        public bool IsRunning => routine != null;
         public event Action<PlayerDemoDirector> LoopCompleted;
         private GameObject session;
         private PlayerControllerScript primary, partner;
-        private bool failed, blocked, shot;
+        private bool failed, blocked, shot, receivedHit, projectileContact;
+        private float shieldRaisedAt;
         private Coroutine routine;
         private Vector3 joystickHome;
         private float attackCueUntil, shieldCueUntil;
@@ -53,7 +62,7 @@ namespace Massive.Demonstrations
         public void Play()
         {
             Stop();
-            failed = false;
+            failed = false; LastFailure = null;
             if (!scenario || !scenario.playerPrefab) { Fail("Missing scenario or canonical Player prefab."); return; }
             var template = scenario.playerPrefab.GetComponent<PlayerControllerScript>();
             if (!template || !template.attackController || !template.powerUps || !template.GetComponent<PlayerShieldAbility>())
@@ -89,35 +98,74 @@ namespace Massive.Demonstrations
             var stage = primary.attackController.Profile.GetStage(0);
             float travel = stage.TravelDistance * PlayerScaleAdjuster.ActionReachOf(primary);
             pickupGap = PlayerScaleAdjuster.BodyRadiusOf(primary) + travel * .5f + .3f;
-            if (scenario.kind == PlayerDemoKind.Block || scenario.powerUp is ParticleAcceleratorPowerUpDefinition)
+            if (scenario.kind == PlayerDemoKind.Block || scenario.kind == PlayerDemoKind.CombatPair || scenario.powerUp is ParticleAcceleratorPowerUpDefinition)
             {
-                float gap = scenario.kind == PlayerDemoKind.Block
-                    ? PlayerScaleAdjuster.BodyRadiusOf(primary) * 2f + travel * .45f
-                    : pickupGap + scenario.acceleratorTargetDistance;
+                bool meleePair = scenario.kind == PlayerDemoKind.Block ||
+                    (scenario.kind == PlayerDemoKind.CombatPair && !(scenario.powerUp is ParticleAcceleratorPowerUpDefinition));
+                float gap = meleePair ? PlayerScaleAdjuster.BodyRadiusOf(primary) * 2f + travel * .45f :
+                    (scenario.kind == PlayerDemoKind.CombatPair ? scenario.acceleratorTargetDistance : pickupGap + scenario.acceleratorTargetDistance);
                 partnerHome = transform.position + Vector3.right * gap;
                 partner = CreateActor(2, 2, Vector3.right * gap);
                 partner.DeathStarted += p => { targetDied = true; ConfirmedKills++; };
                 partner.RespawnCompleted += p => { targetRespawned = true; ConfirmedRespawns++; };
+                partner.HitAccepted += hit => { receivedHit = true; ConfirmedHits++; };
+                if (scenario.kind == PlayerDemoKind.CombatPair)
+                {
+                    primaryHome = transform.position - Vector3.right * gap * .5f;
+                    partnerHome = transform.position + Vector3.right * gap * .5f;
+                    primary.transform.localPosition = Vector3.left * gap * .5f;
+                    partner.transform.localPosition = Vector3.right * gap * .5f;
+                }
+            }
+            if (scenario.kind == PlayerDemoKind.SoloCombo)
+            {
+                // Center the solo attack's travel within its gallery lane.
+                float comboTravel = 0f;
+                foreach (var comboStage in primary.attackController.Profile.Stages) comboTravel += comboStage.TravelDistance;
+                primaryHome = transform.position - Vector3.right * (comboTravel * PlayerScaleAdjuster.ActionReachOf(primary) * .5f);
+                primary.transform.position = primaryHome;
             }
             session.SetActive(true);
             yield return null;
             yield return null;
             SetFrame(primary, Vector2.zero, Vector3.right);
             if (partner) SetFrame(partner, Vector2.zero, Vector3.left);
+            if (scenario.kind == PlayerDemoKind.CombatPair)
+            {
+                if (scenario.powerUp) primary.powerUps.Equip(scenario.powerUp, float.PositiveInfinity);
+                if (scenario.defense == CombatDemoDefense.DecoherenceParry)
+                {
+                    if (!scenario.defenderPowerUp) { Fail("Missing Decoherence definition."); yield break; }
+                    partner.powerUps.Equip(scenario.defenderPowerUp, float.PositiveInfinity);
+                }
+            }
             FrameStage();
             if (presentationCamera) presentationCamera.enabled = true;
             do
             {
-                failed = blocked = shot = false;
+                failed = blocked = shot = receivedHit = projectileContact = false;
                 targetDied = targetRespawned = false;
                 LastComboStage = -1;
-                if (scenario.kind == PlayerDemoKind.Block) yield return BlockDemo();
+                if (scenario.kind == PlayerDemoKind.CombatPair) yield return CombatPairDemo();
+                else if (scenario.kind == PlayerDemoKind.Block) yield return BlockDemo();
                 else if (scenario.kind == PlayerDemoKind.PowerUp) yield return PowerUpDemo();
                 else yield return ComboDemo();
                 Neutral();
                 if (failed) break; // Keep the scene intact for diagnosis; never hide a failure with a reset.
                 yield return new WaitForSeconds(scenario.readablePause);
                 Phase = "Returning";
+                if (scenario.kind == PlayerDemoKind.CombatPair)
+                {
+                    yield return Ready(primary); yield return Ready(partner);
+                    if (failed) break;
+                    if (primary.transform.position.x > partner.transform.position.x)
+                    {
+                        // Decoherence sends the attacker through: walk around the defender on the way home.
+                        float bypass = PlayerScaleAdjuster.BodyRadiusOf(primary) + PlayerScaleAdjuster.BodyRadiusOf(partner) + .4f;
+                        yield return MoveActorTo(primary, primary.transform.position + Vector3.forward * bypass, Vector3.right);
+                        yield return MoveActorTo(primary, primaryHome + Vector3.forward * bypass, Vector3.right);
+                    }
+                }
                 yield return MoveActorTo(primary, primaryHome, Vector3.right);
                 if (partner && !partner.temporarilyEliminated)
                     yield return MoveActorTo(partner, partnerHome, Vector3.left);
@@ -142,7 +190,13 @@ namespace Massive.Demonstrations
             foreach (var interactor in go.GetComponentsInChildren<GridInteractor>(true)) interactor.grid = demoGrid;
             foreach (var pulse in go.GetComponentsInChildren<PlayerRepulsorGridPulse>(true)) pulse.BindGrid(demoGrid);
             actor.InputApplied += OnInput;
-            actor.attackController.OnStageStarted.AddListener(stage => LastComboStage = actor.attackController.CurrentStageIndex);
+            actor.attackController.OnStageStarted.AddListener(stage =>
+            {
+                LastComboStage = actor.attackController.CurrentStageIndex;
+                if (scenario.kind == PlayerDemoKind.SoloCombo)
+                    Phase = stage.StageType == AttackStageType.PrimaryLunge ? "Thrust" :
+                        stage.StageType == AttackStageType.ComboSwipe ? "Sweep" : "Repulsor";
+            });
             foreach (var melee in go.GetComponentsInChildren<PlayerMelee>(true)) melee.ShieldContact += OnBlock;
             actor.powerUps.ProjectileFired += OnShot;
             return actor;
@@ -183,9 +237,20 @@ namespace Massive.Demonstrations
         {
             if (defender != partner) return;
             if (!blocked) ConfirmedBlocks++;
+            LastContactShieldAge = Time.time - shieldRaisedAt;
             blocked = true;
         }
-        private void OnShot(GameObject projectile) { shot = true; ConfirmedShots++; }
+        private void OnShot(GameObject projectile)
+        {
+            shot = true; ConfirmedShots++;
+            if (projectile.TryGetComponent<ParticleAcceleratorProjectile>(out var beam))
+                beam.PlayerContact += (victim, shielded) =>
+                {
+                    if (victim != partner) return;
+                    projectileContact = true; ConfirmedProjectileContacts++;
+                    if (shielded) OnBlock(victim);
+                };
+        }
         private void Cleanup()
         {
             Neutral();
@@ -212,10 +277,10 @@ namespace Massive.Demonstrations
             while (!condition() && Time.time < end) yield return null;
             if (!condition()) Fail(failure);
         }
-        private void SetFrame(PlayerControllerScript actor, Vector2 move, Vector3 aim, bool down = false, bool held = false, bool up = false, bool shield = false)
+        private void SetFrame(PlayerControllerScript actor, Vector2 move, Vector3 aim, bool down = false, bool held = false, bool up = false, bool shield = false, bool holdShield = false)
         {
             actor.SetScriptedInput(new PlayerInputFrame { moveInput = move, hasAimDirWS = true, aimDirWS = aim,
-                attackDown = down, attackHeld = held, attackUp = up, shieldDown = shield, shieldHeld = shield });
+                attackDown = down, attackHeld = held, attackUp = up, shieldDown = shield, shieldHeld = shield || holdShield });
         }
         private IEnumerator Attack(PlayerControllerScript actor, Vector3 direction, float hold = 0f)
         {
@@ -270,10 +335,13 @@ namespace Massive.Demonstrations
         {
             var profile = primary.attackController.Profile;
             if (!profile || profile.Stages.Count == 0) { Fail("Player has no attack profile."); yield break; }
-            yield return MoveTo(transform.position + Vector3.left * scenario.movementDistance);
-            if (failed) yield break;
-            yield return MoveTo(transform.position);
-            if (failed) yield break;
+            if (scenario.kind == PlayerDemoKind.MovementAndCombo)
+            {
+                yield return MoveTo(transform.position + Vector3.left * scenario.movementDistance);
+                if (failed) yield break;
+                yield return MoveTo(transform.position);
+                if (failed) yield break;
+            }
             Phase = "Thrust / Sweep / Repulsor";
             yield return Ready(primary); if (failed) yield break;
             yield return Attack(primary, Vector3.right);
@@ -312,6 +380,79 @@ namespace Massive.Demonstrations
             }
             if (!failed) yield return Until(() => blocked, "Attack did not make shield contact.");
         }
+        private IEnumerator CombatPairDemo()
+        {
+            var shield = partner.GetComponent<PlayerShieldAbility>();
+            var accelerator = scenario.powerUp as ParticleAcceleratorPowerUpDefinition;
+            bool heldBlock = scenario.defense == CombatDemoDefense.HeldBlock;
+            bool undefended = scenario.defense == CombatDemoDefense.None;
+            bool decoherence = scenario.defense == CombatDemoDefense.DecoherenceParry;
+            Phase = "Recharging";
+            yield return Ready(primary); if (failed) yield break;
+            yield return Ready(partner); if (failed) yield break;
+            yield return Until(() => !shield.IsActive && shield.CooldownRemaining <= 0f && shield.ActivationCooldownRemaining <= 0f &&
+                primary.powerUps.CooldownRemaining <= 0f, "Actions did not recharge.");
+            if (failed) yield break;
+            float massBefore = partner.massScore;
+
+            if (heldBlock)
+            {
+                Phase = "Holding / parry window ending";
+                shieldRaisedAt = Time.time;
+                SetFrame(partner, Vector2.zero, Vector3.left, shield: true, holdShield: true);
+                yield return null;
+                SetFrame(partner, Vector2.zero, Vector3.left, holdShield: true);
+                yield return new WaitForSeconds(shield.DurationSeconds + scenario.heldBlockLead);
+            }
+            if (accelerator)
+            {
+                Phase = "Charging shot";
+                yield return Attack(primary, Vector3.right, accelerator.chargeToMaxSeconds * scenario.acceleratorChargeFraction);
+                if (!heldBlock && !undefended)
+                {
+                    shieldRaisedAt = Time.time;
+                    yield return Shield(partner, Vector3.left);
+                }
+                Phase = heldBlock ? "Projectile / held block" : "Projectile / parry";
+                yield return Until(() => projectileContact, "Projectile did not contact its intended defender.");
+            }
+            else
+            {
+                if (!heldBlock && !undefended)
+                {
+                    shieldRaisedAt = Time.time;
+                    yield return Shield(partner, Vector3.left);
+                }
+                Phase = undefended ? "Attack / exposed player" : heldBlock ? "Attack / held block" : "Attack / parry";
+                yield return Attack(primary, Vector3.right);
+                yield return Until(() => undefended ? receivedHit : blocked, "Melee did not reach its intended defender.");
+            }
+            if (failed) yield break;
+            if (undefended)
+            {
+                if (!receivedHit || partner.massScore >= massBefore) { Fail("Exposed defender did not take damage."); yield break; }
+                LastOutcome = "Damage landed";
+            }
+            else if (heldBlock)
+            {
+                if (shield.IsParryWindow || !shield.IsHolding || primary.IsStunned || primary.IsExternallyStunned || partner.massScore < massBefore)
+                { Fail("Expected block-only contact after the parry window."); yield break; }
+                ConfirmedLateBlocks++; LastOutcome = "Blocked / no stun";
+                yield return Until(() => !shield.IsActive, "Held shield did not expire.");
+            }
+            else
+            {
+                yield return Until(() => decoherence && !accelerator ? primary.IsExternallyStunned : primary.IsStunned,
+                    "Contact did not resolve the expected parry.");
+                if (failed) yield break;
+                if (partner.massScore < massBefore) { Fail("Fully charged parry leaked damage."); yield break; }
+                ConfirmedParries++;
+                if (decoherence) ConfirmedDecoherenceParries++;
+                LastOutcome = decoherence ? "Decoherence parry" : "Parried / attacker stunned";
+            }
+            Phase = LastOutcome;
+        }
+
         private IEnumerator ClaimPowerUp()
         {
             var def = scenario.powerUp;

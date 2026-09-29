@@ -40,6 +40,8 @@ namespace Massive.PowerUps
         private float _hitDist;
         private bool _impactSpawned;
 
+        public event System.Action<PlayerControllerScript, bool> PlayerContact;
+
         private const string ShieldTag = "Shield";
 
         public void Init(
@@ -125,48 +127,32 @@ namespace Massive.PowerUps
                         _hitDist = _headDist + Mathf.Max(0f, nearest.distance - 0.01f);
                         _hitDist = Mathf.Clamp(_hitDist, 0f, _maxDistance);
 
-                            // Shield interaction (tagged "Shield") uses scaled stun + partial damage leak,
-                            // instead of the standard full damage logic.
-                            bool hitShield = nearest.collider != null && nearest.collider.CompareTag(ShieldTag);
-
+                        bool hitShield = nearest.collider != null && nearest.collider.CompareTag(ShieldTag);
+                        if ((hitShield || !isBlocker) && victim && victim != _shooter)
+                        {
+                            float damageScale = 1f;
                             if (hitShield)
-                             {
-                                float strength01 = 1f;
-                                if (victim)
+                            {
+                                var shieldAbility = victim.GetComponent<PlayerShieldAbility>();
+                                if (shieldAbility != null && shieldAbility.IsActive)
                                 {
-                                    var shieldAbility = victim.GetComponent<PlayerShieldAbility>();
-                                    if (shieldAbility != null && shieldAbility.IsActive)
-                                        strength01 = shieldAbility.CurrentStrength01;
+                                    float strength = shieldAbility.CurrentStrength01;
+                                    shieldAbility.TryParryProjectile(_shooter, _originWS + _dir * _hitDist);
+                                    damageScale = shieldAbility.BlocksAllDamage ? 0f : 1f - strength;
                                 }
-                                strength01 = Mathf.Clamp01(strength01);
- 
-                                // 1) Attacker gets stunned proportional to shield strength
-                                if (_shooter && victim && victim != _shooter)
-                                    _shooter.Stun(_originWS + _dir * _hitDist, strength01);
-
-                                // 2) Defender takes "leaked" damage proportional to weakness (1 - strength)
-                                float leak01 = 1f - strength01;
-                                if (leak01 > 0.0001f && victim && victim != _shooter)
+                                else
                                 {
-                                    float leakedMass = _massRemove * leak01;
-                                    victim.ApplyExternalMassDelta(-leakedMass, allowDeath: true);
-
-                                    if (_transfer && _shooter)
-                                        _shooter.ApplyExternalMassDelta(+leakedMass, allowDeath: false);
+                                    if (_shooter) _shooter.Stun(_originWS + _dir * _hitDist, 1f);
+                                    damageScale = 0f;
                                 }
                             }
-                            else
-                            {
-                                // Apply mass drain if we hit a player
-                                if (!isBlocker && victim && victim != _shooter)
-                                {
-                                    victim.ApplyExternalMassDelta(-_massRemove, allowDeath: true);
+                            var hit = victim.ApplyExternalMassDelta(-_massRemove * damageScale,
+                                _shooter ? _shooter.gameObject : null, allowDeath: true);
+                            if (hit.accepted && _transfer && _shooter)
+                                _shooter.ApplyExternalMassDelta(hit.massLost01, allowDeath: false);
+                        }
 
-                                    if (_transfer && _shooter)
-                                        _shooter.ApplyExternalMassDelta(+_massRemove, allowDeath: false);
-                                }
-                             }
-
+                        if (victim && victim != _shooter) PlayerContact?.Invoke(victim, hitShield);
                         SpawnImpactOnce(_originWS + _dir * _hitDist);
                     }
                     else
@@ -252,6 +238,9 @@ namespace Massive.PowerUps
                 // Ignore shooter
                 if (_shooter && h.collider.GetComponentInParent<PlayerControllerScript>() == _shooter)
                     continue;
+
+                var hitPlayer = h.collider.GetComponentInParent<PlayerControllerScript>();
+                if (_shooter && hitPlayer && !_shooter.SharesSimulationWith(hitPlayer)) continue;
 
                 if (h.distance < best)
                 {

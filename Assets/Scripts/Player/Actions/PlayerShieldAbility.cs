@@ -1,17 +1,11 @@
 using System;
+using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace Massive.Player
 {
-    /// <summary>
-    /// Timed shield ability with a soft cooldown.
-    ///
-    /// Design:
-    /// - Shield is activated on button DOWN (not held)
-    /// - Shield stays active for a fixed duration
-    /// - Shield can be re-triggered during cooldown, but strength scales with cooldown progress
-    /// - Strength is exposed for combat logic (partial stun + partial damage leak)
-    /// </summary>
+    /// <summary>Tap for the original parry; keep holding for a limited, full damage block.</summary>
     [DisallowMultipleComponent]
     public sealed class PlayerShieldAbility : MonoBehaviour
     {
@@ -28,9 +22,18 @@ namespace Massive.Player
         [SerializeField, Min(0f)] private float activationCooldownSeconds = 0.35f;
 
 
-        [Tooltip("Soft cooldown / recharge time to return to full strength (1.0).")]
+        [Tooltip("Tap lifetime and opening parry window, including when held.")]
         [SerializeField, Min(0.05f)] private float durationSeconds = 0.65f;
         [SerializeField, Min(0.05f)] private float cooldownSeconds = 2.0f;
+
+        [Tooltip("Total protection time from button-down while the button remains held.")]
+        [SerializeField, Min(.05f)] private float maxHoldSeconds = 3f;
+
+        [Header("Parry contact")]
+        [Tooltip("Allow the lunge to close this fraction of the remaining body gap before the registered parry resolves.")]
+        [SerializeField, Range(0f, 1f)] private float contactAdvanceFraction = .5f;
+        [Tooltip("Maximum extra lunge time. The original contact reserves the parry even if its window expires meanwhile.")]
+        [SerializeField, Range(0f, .15f)] private float maxContactDelay = .08f;
 
         [Header("Strength (soft cooldown)")]
         [Tooltip("When you press Shield while still on cooldown, this is the minimum strength you can get. Set to 0 for 'no shield if spammed'.")]
@@ -51,6 +54,11 @@ namespace Massive.Player
         /// </summary>
         public float CurrentStrength01 { get; private set; } = 1f;
 
+        public bool IsHolding => IsActive && inputHeld && Time.time < endTime;
+        public bool BlocksAllDamage => IsHolding;
+        public bool IsParryWindow => IsActive && Time.time < lastUseTime + durationSeconds && Time.time < endTime;
+        public float MaxHoldSeconds => maxHoldSeconds;
+        public float HoldRemaining => IsHolding ? Mathf.Max(0f, endTime - Time.time) : 0f;
         public float CooldownSeconds => cooldownSeconds;
         public float DurationSeconds => durationSeconds;
 
@@ -83,6 +91,9 @@ namespace Massive.Player
 
         private float lastUseTime = -999f;
         private float endTime;
+        private bool inputHeld, released;
+        private PlayerNuggetsGPU nuggets;
+        private readonly HashSet<PlayerControllerScript> pendingParries = new HashSet<PlayerControllerScript>();
         private Vector3 lastFaceDirWS = Vector3.right;
         private float nextAllowedActivateTime = -999f;
 
@@ -102,6 +113,8 @@ namespace Massive.Player
             if (!attackController) attackController = GetComponentInParent<PlayerAttackController>();
             if (!shieldColliderObject && owner != null) shieldColliderObject = owner.shield;
             if (!ringsVfx) ringsVfx = GetComponentInChildren<ShieldRingsVfx_Shapes>(true);
+
+            nuggets = owner ? owner.GetComponentInChildren<PlayerNuggetsGPU>(true) : null;
 
             // Ensure rings follow the correct player (prevents duplicate/prefab offset issues)
             if (ringsVfx != null && owner != null)
@@ -138,6 +151,10 @@ namespace Massive.Player
             }
 
             ForceStopShield();
+            StopAllCoroutines();
+            pendingParries.Clear();
+            if (ringsVfx) ringsVfx.Stop(immediate: true);
+            if (nuggets) nuggets.ClearParryFeedback();
         }
 
         private void Update()
@@ -205,6 +222,68 @@ namespace Massive.Player
             return true;
         }
 
+        /// <summary>Called for both Rewired and scripted input. Release never re-arms without another press.</summary>
+        public void SetHeld(bool held)
+        {
+            if (!IsActive || released) return;
+            inputHeld = held;
+            if (!held) released = true;
+            endTime = lastUseTime + (held ? Mathf.Max(.05f, maxHoldSeconds) : Mathf.Max(.05f, durationSeconds));
+            if (ringsVfx && !SuppressDefaultShieldVfx)
+                ringsVfx.SetHeld(held, maxHoldSeconds);
+            if (Time.time >= endTime) ForceStopShield();
+        }
+
+        /// <summary>Reserve the opening parry at contact; ordinary attack movement closes part of the gap.</summary>
+        public bool QueueMeleeParry(PlayerControllerScript attacker, Action<float, bool> onImpact)
+        {
+            if (!IsParryWindow || !attacker || attacker.IsStunned || !pendingParries.Add(attacker)) return false;
+            StartCoroutine(ApproachThenParry(attacker, CurrentStrength01, BlocksAllDamage, onImpact));
+            return true;
+        }
+
+        private IEnumerator ApproachThenParry(PlayerControllerScript attacker, float strength, bool fullyBlocked,
+            Action<float, bool> onImpact)
+        {
+            float distance = PlanarDistance(attacker.transform.position, transform.position);
+            float bodyDistance = PlayerScaleAdjuster.BodyRadiusOf(attacker) + PlayerScaleAdjuster.BodyRadiusOf(owner);
+            float targetDistance = distance - Mathf.Max(0f, distance - bodyDistance) * contactAdvanceFraction;
+            float deadline = Time.time + maxContactDelay;
+            try
+            {
+                // No teleport or additional force: collision resolution continues to constrain the lunge.
+                while (attacker && owner && !owner.temporarilyEliminated && !attacker.temporarilyEliminated &&
+                    !attacker.IsStunned && attacker.attackController && attacker.attackController.IsAttacking &&
+                    Time.time < deadline && PlanarDistance(attacker.transform.position, transform.position) > targetDistance + .01f)
+                    yield return new WaitForFixedUpdate();
+
+                if (!attacker || !owner || owner.temporarilyEliminated || attacker.temporarilyEliminated || attacker.IsStunned)
+                    yield break;
+                CompleteParry(attacker, transform.position, strength);
+                onImpact?.Invoke(strength, fullyBlocked);
+            }
+            finally { pendingParries.Remove(attacker); }
+        }
+
+        private static float PlanarDistance(Vector3 a, Vector3 b)
+        { a.y = b.y = 0f; return Vector3.Distance(a, b); }
+
+        public bool TryParryProjectile(PlayerControllerScript attacker, Vector3 impactPosition)
+        {
+            if (!IsParryWindow || !attacker) return false;
+            CompleteParry(attacker, impactPosition, CurrentStrength01);
+            return true;
+        }
+
+        private void CompleteParry(PlayerControllerScript attacker, Vector3 impactPosition, float strength)
+        {
+            attacker.Stun(impactPosition, strength);
+            if (strength <= .0001f) return;
+            if (ringsVfx && !SuppressDefaultShieldVfx) ringsVfx.PlayParryBlast(strength);
+            if (nuggets) nuggets.PlayParryFeedback(attacker.stunTime * strength, strength);
+            AudioSystem.I?.Play(AudioEventId.Player_Parry, transform.position);
+        }
+
         private float ComputeStrength01()
         {
             float charge01 = CooldownProgress01;
@@ -215,6 +294,8 @@ namespace Massive.Player
 
         private void BeginShield(float strength01)
         {
+            inputHeld = false;
+            released = false;
             lastUseTime = Time.time;
             endTime = Time.time + Mathf.Max(0.05f, durationSeconds);
 
@@ -225,16 +306,13 @@ namespace Massive.Player
             if (owner != null)
                 owner.shieldOn = true;
 
-    if (shieldColliderObject != null)
-        shieldColliderObject.SetActive(true);
+            if (shieldColliderObject != null)
+                shieldColliderObject.SetActive(true);
+            if (!SuppressDefaultShieldVfx && ringsVfx != null)
+                ringsVfx.Play(CurrentStrength01, durationSeconds);
 
-    // Only play default rings if NOT suppressed
-    if (!SuppressDefaultShieldVfx && ringsVfx != null)
-        ringsVfx.Play(CurrentStrength01, durationSeconds);
-
-        AudioSystem.I?.Play(AudioEventId.Player_ShieldUp, transform.position);
-
-    ShieldStarted?.Invoke(this);
+            AudioSystem.I?.Play(AudioEventId.Player_ShieldUp, transform.position);
+            ShieldStarted?.Invoke(this);
         }
 
         public void ForceStopShield()
@@ -246,6 +324,8 @@ namespace Massive.Player
             nextAllowedActivateTime = Time.time + Mathf.Max(0f, activationCooldownSeconds);
 
             IsActive = false;
+            inputHeld = false;
+            released = true;
             CurrentStrength01 = 0f;
 
             if (shieldColliderObject != null)
@@ -259,8 +339,6 @@ namespace Massive.Player
             if (owner != null)
                 owner.shieldOn = false;
 
-            if (ringsVfx != null)
-            ringsVfx.Stop(immediate: false);
 
             ShieldEnded?.Invoke(this);
         }
@@ -268,6 +346,10 @@ namespace Massive.Player
         private void OnOwnerDeathStarted(PlayerControllerScript pcs)
         {
             ForceStopShield();
+            StopAllCoroutines();
+            pendingParries.Clear();
+            if (ringsVfx) ringsVfx.Stop(immediate: true);
+            if (nuggets) nuggets.ClearParryFeedback();
         }
 
         private void OnOwnerRespawnCompleted(PlayerControllerScript pcs)

@@ -74,6 +74,32 @@ public int maxDots = 300;
     
 
 
+    [Header("Shield feedback (visual only)")]
+    [SerializeField, Min(0f)] float stunShudderAmplitude = .035f;
+    [SerializeField, Min(0f)] float parryRimPadding = .055f;
+    [SerializeField, Min(0f)] float parryVibrationAmplitude = .018f;
+    float stunFeedback, stunFeedbackTarget;
+    float parryStart = -999f, parryDuration, parryStrength;
+    static readonly int ShieldFeedbackId = Shader.PropertyToID("_ShieldFeedback");
+    static readonly int ShieldBlob0Id = Shader.PropertyToID("_ShieldBlob0");
+    static readonly int ShieldBlob1Id = Shader.PropertyToID("_ShieldBlob1");
+    static readonly int ShieldBlob2Id = Shader.PropertyToID("_ShieldBlob2");
+
+    public void SetStunFeedback(float strength) { stunFeedbackTarget = Mathf.Clamp01(strength); }
+    public void PlayParryFeedback(float seconds, float strength)
+    { parryStart = Time.time; parryDuration = Mathf.Max(.05f, seconds); parryStrength = Mathf.Clamp01(strength); }
+    public void ClearParryFeedback() { parryStart = -999f; parryStrength = 0f; }
+    public float ParryFeedback01
+    {
+        get
+        {
+            float t = (Time.time - parryStart) / Mathf.Max(.001f, parryDuration);
+            if (t < 0f || t >= 1f) return 0f;
+            return parryStrength * Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(t / .12f)) *
+                Mathf.SmoothStep(1f, 0f, Mathf.Clamp01((t - .35f) / .65f));
+        }
+    }
+
     // runtime
     int _kUpdate = -1;
     ComputeBuffer _pos, _prev, _vel, _seed, _args;
@@ -107,12 +133,22 @@ float _lastCenterDensity = -1f;
 float _lastBaseRadius = -1f;
 bool _needRebuild;
 void OnEnable()  { Camera.onPreCull += HandlePreCull; }
-void OnDisable() { Camera.onPreCull -= HandlePreCull; }
+void OnDisable()
+{
+    Camera.onPreCull -= HandlePreCull;
+    stunFeedback = stunFeedbackTarget = 0f;
+    ClearParryFeedback();
+}
 
 void HandlePreCull(Camera cam)
 {
     if (sim == null || nuggetMat == null || quadMesh == null || _args == null || _pos == null) return;
     _mpb.SetFloat(SingularityEnabledId, 0f);
+    _mpb.SetVector(ShieldFeedbackId, new Vector4(stunFeedback * stunShudderAmplitude, ParryFeedback01, Time.time, parryRimPadding));
+    _mpb.SetVector(ShieldBlob0Id, new Vector4(baseRadius, outlineHalf, idleWobble, deformAmt));
+    _mpb.SetVector(ShieldBlob1Id, new Vector4(deformDir.x, deformDir.y, teardropK1, teardropK2));
+    _mpb.SetVector(ShieldBlob2Id, new Vector4(hitImpulse, noisePhase,
+        dotRadius + (playerController && playerController.teamID != 1 ? .02f : 0f), parryVibrationAmplitude));
     Bounds renderBounds = _drawBounds;
     renderBounds.center = GetBlobCenterWS();
     if (singularityPresentation != null && singularityPresentation.IsRenderingOnSurface)
@@ -327,6 +363,7 @@ void HandlePreCull(Camera cam)
 
     void LateUpdate()
     {
+        stunFeedback = Mathf.MoveTowards(stunFeedback, stunFeedbackTarget, Time.deltaTime * 12f);
         if (_needRebuild) RebuildSeedsAndBuffers();
         if (sim == null || nuggetMat == null) return;
 
