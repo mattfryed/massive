@@ -17,6 +17,8 @@ namespace Massive.Enemies
         public Color glowColor = new Color(1f, .19f, .025f, 1f);
         public Color ghostColor = new Color(1f, .12f, .018f, 1f);
         public float rollDegreesPerSecond = 32f;
+        [Tooltip("Local rotation axis. Existing crystal indicators roll around Z; motherships can rotate around Y.")]
+        public Vector3 rotationAxis = Vector3.forward;
         [Range(0f, .15f)] public float breathScale = .035f;
         [Min(0f)] public float breathFrequency = .7f;
         public float Age { get; private set; }
@@ -84,7 +86,8 @@ namespace Massive.Enemies
             }
             float breath = Mathf.Sin(Age * Mathf.PI * 2f * breathFrequency);
             transform.localScale = _baseScale * (1f + breathScale * breath);
-            transform.localRotation = _baseRotation * Quaternion.AngleAxis(Age * rollDegreesPerSecond, Vector3.forward);
+            transform.localRotation = _baseRotation * Quaternion.AngleAxis(Age * rollDegreesPerSecond,
+                rotationAxis.sqrMagnitude > .0001f ? rotationAxis.normalized : Vector3.forward);
             AdvanceGhosts(delta);
             return true;
         }

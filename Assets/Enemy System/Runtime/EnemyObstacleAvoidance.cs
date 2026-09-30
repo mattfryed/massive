@@ -29,6 +29,8 @@ namespace Massive.Enemies
         [Tooltip("Drone filtering: ignore own body, players/weapons, other Drones (handled by separation), floor and non-obstacle triggers.")]
         public bool filterDroneContacts;
         private readonly RaycastHit[] filteredHits = new RaycastHit[64];
+        /// <summary>One owning hull may be ignored briefly while a Drone clears its inset launch bay.</summary>
+        public Collider LaunchClearanceCollider { get; set; }
 
         [Header("Cast")]
         [Tooltip("World Y offset from the enemy position for casts (prevents hitting the floor, if any).")]
@@ -226,7 +228,7 @@ namespace Massive.Enemies
 
         public bool ShouldAvoid(Collider c)
         {
-            if (c == null || !c.enabled || c.transform.IsChildOf(transform)) return false;
+            if (c == null || !c.enabled || c == LaunchClearanceCollider || c.transform.IsChildOf(transform)) return false;
             var resonance = c.GetComponentInParent<Massive.Resonance.ResonanceSegment>();
             if (resonance != null && resonance.EnemiesUseSludge) return false;
             if (!filterDroneContacts) return true;

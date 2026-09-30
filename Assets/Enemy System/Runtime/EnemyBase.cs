@@ -127,8 +127,13 @@ namespace Massive.Enemies
                     _savedVel = _rb.linearVelocity;
                     _savedAngVel = _rb.angularVelocity;
 
-                    _rb.linearVelocity = Vector3.zero;
-                    _rb.angularVelocity = Vector3.zero;
+                    // Stationary enemies already have kinematic bodies; Unity rejects
+                    // velocity writes to those. Dynamic enemies still save/restore motion.
+                    if (!_savedKinematic)
+                    {
+                        _rb.linearVelocity = Vector3.zero;
+                        _rb.angularVelocity = Vector3.zero;
+                    }
                     _rb.isKinematic = true;
                     _rb.Sleep();
                 }

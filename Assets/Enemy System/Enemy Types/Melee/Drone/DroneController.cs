@@ -39,12 +39,29 @@ namespace Massive.Enemies
         private readonly RaycastHit[] sweepHits = new RaycastHit[64];
         private readonly Collider[] overlaps = new Collider[64];
         private CapsuleCollider bodyCollider;
+        private RangedDroneController ranged;
+        private float launchRemaining;
+        private Vector3 launchVelocity;
+
+        /// <summary>Clear a Carrier bay before normal perception and swarm steering take over.</summary>
+        public void Launch(Vector3 direction, float speed, float clearanceSeconds, Collider owningShell = null)
+        {
+            direction.y = 0f;
+            launchVelocity = direction.normalized * Mathf.Max(0f, speed);
+            launchRemaining = Mathf.Max(0f, clearanceSeconds);
+            avoidance.LaunchClearanceCollider = owningShell;
+            age = spawnGraceSeconds;
+            idleAnchor = transform.position;
+            body.linearVelocity = launchVelocity;
+            if (TryGetComponent<DroneVisuals>(out var visuals)) visuals.CompleteFormation();
+        }
 
         private void Awake()
         {
             enemy = GetComponent<EnemyBase>(); body = GetComponent<Rigidbody>();
             avoidance = GetComponent<EnemyObstacleAvoidance>();
             bodyCollider = GetComponent<CapsuleCollider>();
+            ranged = GetComponent<RangedDroneController>();
             body.useGravity = false;
             body.constraints = RigidbodyConstraints.FreezePositionY | RigidbodyConstraints.FreezeRotation;
         }
@@ -52,6 +69,8 @@ namespace Massive.Enemies
         {
             if (!active.Contains(this)) active.Add(this);
             Target = null; age = 0f; recoilRemaining = 0f;
+            launchRemaining = 0f;
+            if (avoidance) avoidance.LaunchClearanceCollider = null;
             decisionTimer = (GetInstanceID() & 15) * .012f;
             ResetIdleSwarm();
         }
@@ -63,7 +82,11 @@ namespace Massive.Enemies
                 foreach (var candidate in FindObjectsByType<ArenaBoundsFromVectorGrid>(FindObjectsSortMode.None))
                     if (candidate.gameObject.scene == gameObject.scene) { bounds = candidate; break; }
         }
-        private void OnDisable() { active.Remove(this); Target = null; }
+        private void OnDisable()
+        {
+            active.Remove(this); Target = null;
+            if (avoidance) avoidance.LaunchClearanceCollider = null;
+        }
 
         private bool IsValidTarget(PlayerControllerScript p)
         {
@@ -109,17 +132,29 @@ namespace Massive.Enemies
         {
             if (enemy == null || enemy.IsDead || enemy.IsPaused || enemy.Definition == null || body.isKinematic) return;
             float dt = Time.fixedDeltaTime;
+            var owningShell = avoidance.LaunchClearanceCollider;
+            if (owningShell && (launchRemaining <= 0f || !bodyCollider ||
+                !Physics.ComputePenetration(bodyCollider, body.position, body.rotation, owningShell,
+                    owningShell.transform.position, owningShell.transform.rotation, out _, out _)))
+                avoidance.LaunchClearanceCollider = null;
             age += dt;
             if (!IsReady) { body.linearVelocity = Vector3.zero; return; }
             decisionTimer -= dt;
             if (decisionTimer <= 0f) { decisionTimer = Mathf.Max(.05f, decisionInterval); Decide(); }
             if (Target != null && !IsValidTarget(Target)) { Target = null; idleAnchor = body.position; }
+            if (ranged) ranged.TickAttack(dt, Target);
             Vector3 velocity;
-            if (recoilRemaining > 0f)
+            if (launchRemaining > 0f)
+            {
+                launchRemaining -= dt;
+                velocity = launchVelocity * enemy.ExternalMovementMultiplier;
+            }
+            else if (recoilRemaining > 0f)
             {
                 recoilRemaining -= dt;
                 velocity = Vector3.MoveTowards(body.linearVelocity, Vector3.zero, acceleration * dt);
             }
+            else if (ranged && ranged.ShouldHoldPosition(Target)) velocity = Vector3.zero;
             else
             {
                 Vector3 desired = Target != null ? Target.transform.position - body.position : idleDirection;
@@ -132,6 +167,7 @@ namespace Massive.Enemies
                     desired += correction * 3f;
                 }
                 desired = avoidance.AdjustDirection(desired, out _);
+                if (Target == null) desired = SmoothIdleSteering(desired, dt);
                 float speed = Target != null ? Mathf.Max(0f, enemy.Definition.moveSpeed) : idleSpeed;
                 speed *= enemy.ExternalMovementMultiplier;
                 velocity = Vector3.MoveTowards(body.linearVelocity, desired * speed, acceleration * dt);
@@ -171,9 +207,9 @@ namespace Massive.Enemies
                 velocity = (clamped - body.position) / dt; velocity.y = 0f;
             }
             body.linearVelocity = velocity;
-            if (velocity.sqrMagnitude > .001f)
-                body.MoveRotation(Quaternion.RotateTowards(body.rotation, Quaternion.LookRotation(velocity, Vector3.up),
-                    Mathf.Max(0f, enemy.Definition.turnSpeed) * dt));
+            Vector3 facing = ranged && Target ? Target.transform.position - body.position : velocity;
+            facing.y = 0f;
+            TurnSmoothly(facing, dt);
         }
 
         private void Capsule(out Vector3 a, out Vector3 b, out float r)
@@ -207,6 +243,7 @@ namespace Massive.Enemies
         private void ResolveContact(Collider other)
         {
             if (!IsReady || other == null) return;
+            if (ranged) return; // Ranged variants deal damage with projectiles, never suicide on contact.
             // Sword collisions are owned exclusively by EnemyHurtbox, including scoring attribution.
             if (other.GetComponentInParent<PlayerMelee>() != null) return;
             var player = other.GetComponentInParent<PlayerControllerScript>();
@@ -216,6 +253,7 @@ namespace Massive.Enemies
                 if (recoilRemaining > 0f) return;
                 Vector3 away = body.position - player.transform.position; away.y = 0f;
                 if (away.sqrMagnitude < .001f) away = -transform.forward;
+                launchRemaining = 0f;
                 body.linearVelocity = away.normalized * shieldRecoilSpeed;
                 recoilRemaining = shieldRecoverySeconds;
                 return;

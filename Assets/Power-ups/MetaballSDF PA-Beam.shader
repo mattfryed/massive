@@ -28,6 +28,7 @@ Shader "MASSIVE/MetaballSDF-PABeam"
             HLSLPROGRAM
             #pragma vertex vert
             #pragma fragment frag
+            #pragma target 3.5
             #include "UnityCG.cginc"
 
             fixed4 _LitColor, _UnlitColor, _OutlineColor;
@@ -38,6 +39,17 @@ Shader "MASSIVE/MetaballSDF-PABeam"
             // Driven via MaterialPropertyBlock
             int _BallCount;
             float4 _Balls[48]; // xyz=center (object space), w=radius
+            float _BeamContinuous, _BeamRamp;
+            float4 _BeamShape;
+            float3 _VolumeHalfExtents;
+            // Optional opaque plasma, enabled per renderer; legacy power-up remains mode 0.
+            float _PlasmaMode;
+            float _PlasmaInk[48];
+            // Eight independent tubes with 65 cross-sections each. Colors belong to volumes,
+            // not an angular surface mask, so crossings occlude at their actual 3D depth.
+            float4 _PlasmaNodes[520];
+            float4 _PlasmaTubeInfo[8]; // black, conservative distance divisor, enabled
+            float4 _PlasmaTubeSampling; // tube count, node count, node spacing OS, half length OS
 
             struct appdata
             {
@@ -76,8 +88,40 @@ float smin(float a, float b, float k)
 
 
 
+            float tubeDistance(float3 p, int strand)
+            {
+                if (_PlasmaTubeInfo[strand].z < .5) return 1e9;
+                float z = clamp(p.z, -_PlasmaTubeSampling.w, _PlasmaTubeSampling.w);
+                float sample = (z + _PlasmaTubeSampling.w) / max(_PlasmaTubeSampling.z, 1e-8);
+                int node = min((int)floor(sample), (int)_PlasmaTubeSampling.y - 2);
+                float4 a = _PlasmaNodes[strand * 65 + node];
+                float4 b = _PlasmaNodes[strand * 65 + node + 1];
+                float4 section = lerp(a, b, saturate(sample - node));
+                return length(p - section.xyz) - section.w;
+            }
+
+            float plasmaDistance(float3 p)
+            {
+                float nearest = 1e9;
+                [loop] for (int s = 0; s < (int)_PlasmaTubeSampling.x; s++)
+                    nearest = min(nearest, tubeDistance(p, s) / _PlasmaTubeInfo[s].y);
+                return nearest;
+            }
+
+            float plasmaWhite(float3 p)
+            {
+                float nearest = 1e9, white = 1.0;
+                [loop] for (int s = 0; s < (int)_PlasmaTubeSampling.x; s++)
+                {
+                    float distance = tubeDistance(p, s);
+                    if (distance < nearest) { nearest = distance; white = 1.0 - _PlasmaTubeInfo[s].x; }
+                }
+                return white;
+            }
+
             float sceneSDF(float3 pOS)
             {
+                if (_PlasmaMode > .5 && _PlasmaMode < 1.5) return plasmaDistance(pOS);
                 float d = 1e9;
                 [loop]
                 for (int i = 0; i < 48; i++)
@@ -87,6 +131,19 @@ float smin(float a, float b, float k)
                     float r  = _Balls[i].w;
                     float sd = length(pOS - c) - r;
                     d = (i == 0) ? sd : smin(d, sd, _SmoothK);
+                }
+                if (_BeamContinuous > 0.5 && _BallCount > 0)
+                {
+                    float halfLength = _BeamShape.x;
+                    float z = clamp(pOS.z, -halfLength, halfLength);
+                    float ramp = max(_BeamRamp, 1e-5);
+                    float radius = lerp(_BeamShape.z, _BeamShape.y, smoothstep(0.0, ramp, z + halfLength));
+                    radius = lerp(radius, _BeamShape.w, smoothstep(0.0, ramp, z - halfLength + ramp));
+                    // Conservative step for the changing radius of the tapered capsule.
+                    float slope = 1.5 * max(abs(_BeamShape.y - _BeamShape.z), abs(_BeamShape.w - _BeamShape.y)) / ramp;
+                    float3 center = float3(0,0,z);
+                    float tube = (length(pOS - center) - radius) / sqrt(1.0 + slope * slope);
+                    d = min(d, tube);
                 }
                 return d;
             }
@@ -113,13 +170,14 @@ float smin(float a, float b, float k)
                 return tmax >= max(tmin, 0.0);
             }
 
-            fixed4 frag(v2f i) : SV_Target
+            struct FragOut { fixed4 color : SV_Target; float depth : SV_Depth; };
+            FragOut frag(v2f i)
             {
             // Ray in world space (handle ortho correctly)
             float isOrtho = unity_OrthoParams.w; // 1 = orthographic, 0 = perspective
 
             // Camera forward in world space (Unity camera forward is +Z in camera local)
-            float3 camFwdWS = normalize(mul((float3x3)unity_CameraToWorld, float3(0,0,1)));
+            float3 camFwdWS = normalize(mul((float3x3)unity_CameraToWorld, float3(0,0,-1)));
 
             float3 roWS;
             float3 rdWS;
@@ -152,6 +210,7 @@ scaleW = max(scaleW, 1e-6);
 
 // Treat _SurfaceEps as WORLD units, convert to object space
 float epsOS = max(_SurfaceEps / scaleW, 1e-4);
+if (_PlasmaMode > .5 && _PlasmaMode < 1.5) epsOS = max(min(_SurfaceEps, .0007) / scaleW, 1e-6);
 
 
 
@@ -159,10 +218,11 @@ float epsOS = max(_SurfaceEps / scaleW, 1e-4);
 
                 // Our bounding mesh should be a unit cube centered at origin
                 float tEnter, tExit;
-                if (!intersectAABB(roOS, rdOS, float3(-0.5,-0.5,-0.5), float3(0.5,0.5,0.5), tEnter, tExit))
+                float3 extent = _BeamContinuous > 0.5 || _PlasmaMode > 1.5 ? _VolumeHalfExtents : float3(0.5,0.5,0.5);
+                if (!intersectAABB(roOS, rdOS, -extent, extent, tEnter, tExit))
                     discard;
 
-                float t = tEnter;
+                float t = max(0.0, tEnter);
                 bool hit = false;
                 float3 pHitOS = 0;
 
@@ -186,6 +246,28 @@ float epsOS = max(_SurfaceEps / scaleW, 1e-4);
 
                 if (!hit) discard;
 
+                fixed4 color;
+                if (_PlasmaMode > .5)
+                {
+                    float white;
+                    if (_PlasmaMode < 1.5)
+                    {
+                        white = plasmaWhite(pHitOS);
+                    }
+                    else
+                    {
+                        float nearest = 1e9; white = 1.0;
+                        [loop] for (int b = 0; b < _BallCount; b++)
+                        {
+                            float sd = length(pHitOS - _Balls[b].xyz) - _Balls[b].w;
+                            if (sd < nearest) { nearest = sd; white = 1.0 - step(.5, _PlasmaInk[b]); }
+                        }
+                    }
+                    // No lighting, blending, alpha fading or intermediate greys in either layer.
+                    color = fixed4(white, white, white, 1);
+                }
+                else
+                {
                 float3 nOS = sceneNormal(pHitOS, epsOS);
 
                 // Quantized (binary) lighting — no gradients
@@ -199,7 +281,18 @@ float epsOS = max(_SurfaceEps / scaleW, 1e-4);
                 float silhouette = 1.0 - abs(dot(nOS, vOS)); // 0 front-facing, 1 at silhouette
                 float isOutline = step(_OutlineThreshold, silhouette);
 
-                return lerp(fill, _OutlineColor, isOutline);
+                color = lerp(fill, _OutlineColor, isOutline);
+                }
+                FragOut result;
+                result.color = color;
+                float3 worldHit = mul(unity_ObjectToWorld, float4(pHitOS, 1)).xyz;
+                float4 clipHit = UnityWorldToClipPos(worldHit);
+                float depth = clipHit.z / clipHit.w;
+                #if defined(SHADER_API_OPENGL) || defined(SHADER_API_GLES) || defined(SHADER_API_GLES3)
+                depth = depth * 0.5 + 0.5;
+                #endif
+                result.depth = saturate(depth);
+                return result;
             }
             ENDHLSL
         }

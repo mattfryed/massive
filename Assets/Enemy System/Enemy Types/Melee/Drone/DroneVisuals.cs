@@ -18,6 +18,32 @@ namespace Massive.Enemies
         [Min(0f)] public float rollDegreesPerSecond = 110f;
         [Range(.001f, .05f)] public float outlineWidth = .012f;
         public Color outlineColor = Color.white;
+        [Header("Ranged variant — front panels only")]
+        public bool floatingFrontFaces;
+        [Header("Ranged panels — idle breathing")]
+        [InspectorName("Idle Face Offset")]
+        [Min(0f)] public float frontFaceLift = .045f;
+        [InspectorName("Idle Amplitude")]
+        [Min(0f)] public float frontHoverAmplitude = .004f;
+        [InspectorName("Idle Speed")]
+        [Tooltip("Idle hovering speed, in radians per second.")]
+        [Min(0f)] public float frontHoverSpeed = 5f;
+        [Header("Ranged panels — charging")]
+        [InspectorName("Charge Amplitude")]
+        [Tooltip("Maximum normal jitter distance while charging, in local units. Independent of idle amplitude.")]
+        [Min(0f)] public float chargeFaceVibration = .006f;
+        [InspectorName("Charge Speed")]
+        [Tooltip("Charging vibration speed in radians per second. Independent of idle speed; layered frequencies add jitter.")]
+        [Min(0f)] public float chargeFaceSpeed = 110f;
+        [InspectorName("Charge Face Offset")]
+        [Tooltip("Absolute distance from the original face while charging, in local units. Replaces idle offset.")]
+        [Min(0f)] public float chargeFaceLift = .025f;
+        [Tooltip("Oscillating hinge angle while charging, in degrees.")]
+        [Range(0f, 30f)] public float chargeFaceTilt;
+        [Tooltip("Seconds to ease between idle breathing and the charging pose, including release/cancellation.")]
+        [Min(.01f)] public float chargePanelBlendSeconds = .18f;
+        [Header("Ranged panels — firing")]
+        [Range(0f, 60f)] public float shotOpenAngle = 30f;
         [Header("Lifecycle")]
         [Min(.01f)] public float spawnSeconds = .45f;
         [Tooltip("Fraction of the animation available for different facet start times.")]
@@ -46,23 +72,30 @@ namespace Massive.Enemies
         private readonly float[] exhaustAges = new float[ExhaustCapacity], exhaustSizes = new float[ExhaustCapacity], exhaustLives = new float[ExhaustCapacity];
         private Mesh mesh;
         private EnemyBase enemy;
+        private EnemyBase pauseOwner;
+        private RangedDroneController ranged;
         private Rigidbody body;
         private MaterialPropertyBlock properties;
         private System.Random random;
-        private float age, deathAge = -1f, roll, emission, engineIntensity, phaseOffset, thrust;
+        private float age, corePhase, panelPhase, chargePanelPhase, chargePanelBlend, deathAge = -1f, roll, emission, engineIntensity, phaseOffset, thrust;
         private int exhaustIndex;
         private static readonly int BallCountId = Shader.PropertyToID("_BallCount"), BallsId = Shader.PropertyToID("_Balls");
 
         public float FacetProgress(int index) => faceProgress[Mathf.Clamp(index, 0, 11)];
+        /// <summary>A Carrier releases an already formed Drone, so its shell stays visible during departure.</summary>
+        public void CompleteFormation() { age = Mathf.Max(age, spawnSeconds); }
         private float Sample(float min, float max) => Mathf.Lerp(min, max, (float)random.NextDouble());
         public override void OnEnable()
         {
             enemy = GetComponent<EnemyBase>(); body = GetComponent<Rigidbody>();
+            pauseOwner = enemy ? enemy : GetComponentInParent<EnemyBase>();
+            ranged = GetComponent<RangedDroneController>();
             if (enemy != null) enemy.Died += OnDeath;
             properties = new MaterialPropertyBlock();
             // Visual randomness never consumes the gameplay/spawn random sequence.
             random = new System.Random(GetInstanceID()); phaseOffset = Sample(0f, 20f);
-            age = 0f; roll = 0f; deathAge = -1f; emission = 0f; thrust = 0f; exhaustIndex = 0;
+            age = corePhase = panelPhase = chargePanelPhase = chargePanelBlend = 0f;
+            roll = 0f; deathAge = -1f; emission = 0f; thrust = 0f; exhaustIndex = 0;
             for (int i = 0; i < 12; i++)
             {
                 faceStart[i] = Sample(0f, 1f); faceDuration[i] = Sample(.72f, 1f); faceCorner[i] = random.Next(3);
@@ -95,9 +128,16 @@ namespace Massive.Enemies
         private void LateUpdate()
         {
             if (shell == null || noseMesh == null) return;
-            if (Application.isPlaying && enemy != null && enemy.IsPaused && !enemy.IsDead) return;
+            if (Application.isPlaying && pauseOwner != null && pauseOwner.IsPaused && !pauseOwner.IsDead) return;
             float dt = Application.isPlaying ? Time.deltaTime : 0f;
             age += dt;
+            corePhase += dt * (1f + (ranged ? ranged.Charge01 * 3f : 0f));
+            // Separate clocks keep idle breathing intact and charging independent of all idle tuning.
+            panelPhase += dt * frontHoverSpeed;
+            chargePanelPhase += dt * chargeFaceSpeed;
+            bool charging = ranged && ranged.isActiveAndEnabled && ranged.Phase == RangedDroneController.AttackPhase.Charging && deathAge < 0f;
+            chargePanelBlend = Mathf.MoveTowards(chargePanelBlend, charging ? 1f : 0f, dt / Mathf.Max(.01f, chargePanelBlendSeconds));
+            float panelBlend = Mathf.SmoothStep(0f, 1f, chargePanelBlend);
             if (deathAge >= 0f) deathAge += dt;
             roll = Mathf.Repeat(roll + rollDegreesPerSecond * dt, 360f);
             float spawn = Application.isPlaying ? Mathf.Clamp01(age / Mathf.Max(.01f, spawnSeconds)) : 1f;
@@ -125,6 +165,20 @@ namespace Massive.Enemies
                 Vector3 a = ring[side], b = ring[(side + 1) % 6];
                 Vector3 c = i < 6 ? Vector3.forward * noseLength : Vector3.back * noseLength * tailLengthRatio;
                 Vector3 center = (a + b + c) / 3f;
+                if (floatingFrontFaces && i < 6)
+                {
+                    Vector3 normal = Vector3.Cross(b - a, c - a).normalized;
+                    float hover = Mathf.Sin(panelPhase + i * 2.39996f + phaseOffset);
+                    float jitterPhase = chargePanelPhase + i * 2.39996f + phaseOffset;
+                    float jitter = (Mathf.Sin(jitterPhase) + .35f * Mathf.Sin(jitterPhase * 2.37f + i)) / 1.35f;
+                    float idleOffset = frontFaceLift + hover * frontHoverAmplitude;
+                    float chargeOffset = chargeFaceLift + jitter * chargeFaceVibration;
+                    Vector3 lift = normal * Mathf.Lerp(idleOffset, chargeOffset, panelBlend);
+                    Vector3 hinge = (a + b) * .5f;
+                    float openingAngle = (ranged ? ranged.ShotPulse : 0f) * shotOpenAngle + jitter * panelBlend * chargeFaceTilt;
+                    Quaternion opening = Quaternion.AngleAxis(openingAngle, (b - a).normalized);
+                    a += lift; b += lift; c = hinge + opening * (c - hinge) + lift;
+                }
                 Vector3 offset = new Vector3(center.x, center.y, i < 6 ? .08f : -.08f).normalized * (removal * breakupDistance);
                 facets[i * 3] = a + offset; facets[i * 3 + 1] = b + offset; facets[i * 3 + 2] = c + offset;
                 if (i >= 6) continue;
@@ -153,9 +207,10 @@ namespace Massive.Enemies
             int count = 0;
             for (int i = 0; i < CoreBallCount; i++)
             {
-                float phase = age * (2.2f + i * .19f) + phaseOffset + i * 2.39996f;
-                Vector3 local = i == 0 ? Vector3.zero : new Vector3(Mathf.Cos(phase), Mathf.Sin(phase * 1.13f), Mathf.Sin(phase * .83f) * .85f) * coreOrbit;
-                float r = coreRadius * (i == 0 ? .85f : .72f + .18f * Mathf.Sin(phase * 1.37f));
+                float charge = ranged ? ranged.Charge01 : 0f;
+                float phase = corePhase * (2.2f + i * .19f) + phaseOffset + i * 2.39996f;
+                Vector3 local = i == 0 ? Vector3.zero : new Vector3(Mathf.Cos(phase), Mathf.Sin(phase * 1.13f), Mathf.Sin(phase * .83f) * .85f) * coreOrbit * (1f + charge * .25f);
+                float r = coreRadius * (1f + charge * .35f) * (i == 0 ? .85f : .72f + .18f * Mathf.Sin(phase * 1.37f));
                 AddBall(volume, transform.TransformPoint(local), r * engineIntensity * rootScale, ref count);
             }
             bool moving = Application.isPlaying && deathAge < 0f && body != null && body.linearVelocity.sqrMagnitude > .02f && spawn > .9f;

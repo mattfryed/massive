@@ -12,9 +12,15 @@ namespace Massive.Enemies
         [Min(0f)] public float swarmWander = .45f;
         [Tooltip("Soft roaming radius around the spawn location or the point where pursuit ended.")]
         [Min(1f)] public float swarmRoamRadius = 4f;
+        [Tooltip("Seconds to ease toward a new idle steering direction.")]
+        [Min(.05f)] public float swarmSteeringSmoothTime = .45f;
+        [Tooltip("Maximum idle heading speed, in degrees per second.")]
+        [Min(1f)] public float swarmTurnSpeed = 100f;
+        [Tooltip("Maximum change of heading speed, in degrees per second squared.")]
+        [Min(1f)] public float swarmTurnAcceleration = 240f;
 
-        private Vector3 idleAnchor;
-        private float swarmPhase;
+        private Vector3 idleAnchor, smoothIdleDirection, idleSteeringVelocity;
+        private float swarmPhase, idleYawSpeed;
 
         private void ResetIdleSwarm()
         {
@@ -22,6 +28,8 @@ namespace Massive.Enemies
             // Distinct smooth paths without changing the gameplay random stream.
             swarmPhase = (uint)GetInstanceID() % 997 * (Mathf.PI * 2f / 997f);
             idleDirection = new Vector3(Mathf.Cos(swarmPhase), 0f, Mathf.Sin(swarmPhase));
+            smoothIdleDirection = transform.forward; smoothIdleDirection.y = 0f;
+            idleSteeringVelocity = Vector3.zero; idleYawSpeed = 0f;
             separation = Vector3.zero;
         }
 
@@ -30,7 +38,8 @@ namespace Massive.Enemies
             Vector3 inward = center - body.position; inward.y = 0f;
             float phase = swarmPhase + age * .65f + Mathf.Sin(age * .27f + swarmPhase) * .9f;
             Vector3 wander = new Vector3(Mathf.Cos(phase), 0f, Mathf.Sin(phase));
-            Vector3 radial = inward.sqrMagnitude > .04f ? -inward.normalized : wander;
+            // Fade the orbit force near its center instead of flipping to a different radial axis.
+            Vector3 radial = -inward / Mathf.Max(.4f, inward.magnitude);
             Vector3 circle = Vector3.Cross(Vector3.up, radial);
             Vector3 cohesion = Vector3.ClampMagnitude(inward / Mathf.Max(.5f, swarmNeighborRadius), 1f);
             alignment.y = 0f;
@@ -40,6 +49,33 @@ namespace Massive.Enemies
             float leash = Mathf.InverseLerp(swarmRoamRadius * .5f, Mathf.Max(1f, swarmRoamRadius), home.magnitude);
             direction += home.normalized * (leash * 2.5f);
             idleDirection = direction.sqrMagnitude > .001f ? direction.normalized : wander;
+        }
+
+        private Vector3 SmoothIdleSteering(Vector3 desired, float dt)
+        {
+            smoothIdleDirection = Vector3.SmoothDamp(smoothIdleDirection, desired, ref idleSteeringVelocity,
+                Mathf.Max(.05f, swarmSteeringSmoothTime), Mathf.Infinity, dt);
+            return smoothIdleDirection; // Preserve speed through a reversal; normalizing would create a snap.
+        }
+
+        private void TurnSmoothly(Vector3 facing, float dt)
+        {
+            float limit = Mathf.Max(0f, enemy.Definition.turnSpeed);
+            if (Target != null || launchRemaining > 0f || recoilRemaining > 0f)
+            {
+                smoothIdleDirection = body.linearVelocity / Mathf.Max(.01f, idleSpeed);
+                idleSteeringVelocity = Vector3.zero;
+                if (facing.sqrMagnitude <= .001f) return;
+                Quaternion next = Quaternion.RotateTowards(body.rotation, Quaternion.LookRotation(facing, Vector3.up), limit * dt);
+                idleYawSpeed = Mathf.DeltaAngle(body.rotation.eulerAngles.y, next.eulerAngles.y) / dt;
+                body.MoveRotation(next); return;
+            }
+            float error = facing.sqrMagnitude > .001f
+                ? Mathf.DeltaAngle(body.rotation.eulerAngles.y, Mathf.Atan2(facing.x, facing.z) * Mathf.Rad2Deg) : 0f;
+            float maxSpeed = Mathf.Min(limit, swarmTurnSpeed);
+            float desiredSpeed = Mathf.Clamp(error / Mathf.Max(.05f, swarmSteeringSmoothTime), -maxSpeed, maxSpeed);
+            idleYawSpeed = Mathf.MoveTowards(idleYawSpeed, desiredSpeed, swarmTurnAcceleration * dt);
+            body.MoveRotation(Quaternion.AngleAxis(idleYawSpeed * dt, Vector3.up) * body.rotation);
         }
     }
 }
