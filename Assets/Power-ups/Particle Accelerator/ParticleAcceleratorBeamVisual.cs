@@ -4,7 +4,7 @@ namespace Massive.PowerUps
 {
     [DisallowMultipleComponent]
     [RequireComponent(typeof(MetaballSDFInstance))]
-    public class ParticleAcceleratorBeamVisual : MonoBehaviour
+    public partial class ParticleAcceleratorBeamVisual : MonoBehaviour
     {
 
         [Header("Volume")]
@@ -40,6 +40,39 @@ namespace Massive.PowerUps
         [SerializeField] private float widthJitterAmp = 0.06f;
         [SerializeField] private float widthJitterFreq = 22f;
 
+        [Header("Beam thickness ranges (visual multipliers)")]
+        [Tooltip("Multiplies the whole plasma bundle. 1–1 preserves the current size; equal limits give a fixed thickness.")]
+        public ThicknessRange overallThickness = new ThicknessRange(1f, 1f);
+        [Tooltip("Additional multiplier at the core/muzzle. Blends into the body over Muzzle Ramp World.")]
+        public ThicknessRange startThickness = new ThicknessRange(1f, 1f);
+        [Tooltip("Additional multiplier along the beam body, varying smoothly within these limits.")]
+        public ThicknessRange bodyThickness = new ThicknessRange(1f, 1f);
+        [Tooltip("Additional multiplier at the contact tip. Blends from the body over Muzzle Ramp World.")]
+        public ThicknessRange endThickness = new ThicknessRange(1f, 1f);
+        [Tooltip("Speed of thickness-range variation. Independent of strand motion and the thickness ripple.")]
+        [Min(0f)] public float thicknessVariationSpeed = 4f;
+
+        [Header("Opaque plasma (turret)")]
+        [Tooltip("Separate volumetric black/white plasma strands. Disabled on the original power-up.")]
+        public bool plasmaLayers;
+        [Range(0f, 1f)] public float whiteFraction = .75f;
+        [Tooltip("Average bend frequency; each strand uses different, reversing rates.")]
+        [InspectorName("Strand Bend Frequency"), Min(.1f)] public float swirlTurnsPerUnit = .8f;
+        [Tooltip("Motion of the strand pattern toward the tip. Individual strands travel at different rates.")]
+        [InspectorName("Strand Flow Speed"), Min(0f)] public float swirlSpeed = 7f;
+        [Range(0f, 1f)] public float thicknessWaveAmplitude = .12f;
+        [Min(.2f)] public float waveLength = 1.6f;
+        [Tooltip("Sideways motion as a fraction of beam radius; endpoints stay anchored.")]
+        [Range(0f, 2f)] public float curveAmplitude = .4f;
+        [Header("Plasma stranding")]
+        [Range(3, 8)] public int strandCount = 6;
+        [Tooltip("How far strands wander around the beam, with independent changes of direction.")]
+        [Range(0f, 2f)] public float strandWander = 1.15f;
+        [Tooltip("Zero keeps strand widths even; one lets individual strands taper completely in and out.")]
+        [Range(0f, 1f)] public float strandTaper = 1f;
+        [Tooltip("Spacing of the individual 3D strands around the beam center; larger values open more gaps.")]
+        [Range(0f, 2f)] public float strandSeparation = 1f;
+
         private MetaballSDFInstance _sdf;
 
         private Vector3 _tailWS;
@@ -49,6 +82,16 @@ namespace Massive.PowerUps
 
         private float _volumeSizeWorld = 1f;
         private float _spatialScale = 1f;
+        private float _animationTime = -1f;
+        private MaterialPropertyBlock _properties;
+        private Mesh _volumeMesh;
+        private MeshFilter _filter;
+        private Mesh _sourceMesh;
+        private readonly Vector3[] _volumeVertices = new Vector3[8];
+        public float SegmentLength => Vector3.Distance(_headWS, _tailWS);
+        public float VolumeSizeWorld => _volumeSizeWorld;
+        // Enemy beams supply their active gameplay clock so match pause also freezes flicker.
+        public void SetAnimationTime(float seconds) { _animationTime = Mathf.Max(0f, seconds); }
 
         public void SetSpatialScale(float scale)
         {
@@ -58,6 +101,21 @@ namespace Massive.PowerUps
         private void Awake()
         {
             _sdf = GetComponent<MetaballSDFInstance>();
+            _properties = new MaterialPropertyBlock();
+            _filter = GetComponent<MeshFilter>();
+            if (_filter)
+            {
+                _sourceMesh = _filter.sharedMesh;
+                _volumeMesh = new Mesh { name = "Fitted particle beam volume", hideFlags = HideFlags.DontSave };
+                _volumeMesh.MarkDynamic(); _volumeMesh.vertices = _volumeVertices;
+                _volumeMesh.triangles = new[] { 0,2,1,1,2,3, 4,5,6,5,7,6, 0,1,4,1,5,4, 2,6,3,3,6,7, 0,4,2,2,4,6, 1,3,5,3,7,5 };
+                _filter.sharedMesh = _volumeMesh;
+            }
+        }
+        private void OnDestroy()
+        {
+            if (_filter && _filter.sharedMesh == _volumeMesh) _filter.sharedMesh = _sourceMesh;
+            if (_volumeMesh) Destroy(_volumeMesh);
         }
 
         public void SetSegment(Vector3 tailWS, Vector3 headWS, float radiusWorld, float charge01)
@@ -78,20 +136,28 @@ namespace Massive.PowerUps
             seg.y = 0f;
 
             float len = seg.magnitude;
-            if (len <= 0.02f * _spatialScale)
+            float clock = _animationTime >= 0f ? _animationTime : Time.time;
+            float thickness = plasmaLayers ? overallThickness.Sample(clock * Mathf.Max(0f, thicknessVariationSpeed)) : 1f;
+            if (len <= 0.02f * _spatialScale || thickness <= .00001f)
             {
                 _sdf.Clear();
                 _sdf.Apply();
+                if (_sdf.TargetRenderer)
+                {
+                    _sdf.TargetRenderer.GetPropertyBlock(_properties);
+                    _properties.SetVector("_PlasmaTubeSampling", Vector4.zero);
+                    _sdf.TargetRenderer.SetPropertyBlock(_properties);
+                }
                 return;
             }
 
             Vector3 dir = seg / len;
 
             // Flicker (small)
-            float n = Mathf.PerlinNoise(13.37f, Time.time * widthJitterFreq) * 2f - 1f;
+            float n = Mathf.PerlinNoise(13.37f, clock * widthJitterFreq) * 2f - 1f;
             float jitterMul = 1f + n * widthJitterAmp * Mathf.Lerp(0.35f, 1f, _charge01);
 
-            float bodyR = _radiusWorld * Mathf.Max(0.75f, jitterMul);
+            float bodyR = _radiusWorld * Mathf.Max(0.75f, jitterMul) * thickness;
             float headR = bodyR * headRadiusMul;
             float tailR = bodyR * tailRadiusMul;
 
@@ -121,54 +187,83 @@ namespace Massive.PowerUps
             transform.rotation = Quaternion.LookRotation(dir, Vector3.up);
 
             float invS = 1f / Mathf.Max(0.0001f, _volumeSizeWorld);
+            float waveNumber = 2f * Mathf.PI / Mathf.Max(.2f, waveLength * _spatialScale);
 
             _sdf.Clear();
 
             float half = len * 0.5f;
 
-            // Head + tail
-            _sdf.AddBall(new Vector3(0f, 0f, +half) * invS, headR * invS);
-            _sdf.AddBall(new Vector3(0f, 0f, -half) * invS, tailR * invS);
-
-            // Effective spacing (prevents dense chains getting fatter in the middle)
-            float spacing = Mathf.Max(segmentSpacingWorld * _spatialScale, bodyR * minSpacingRadiusFactor);
-
-            // Compute interior count (keep under 32 balls total)
-            const int maxInterior = 30;
-
-            int interior;
-            if (useFixedInteriorCount)
+            if (!plasmaLayers)
             {
-                interior = Mathf.Clamp(fixedInteriorCount, 0, maxInterior);
-            }
-            else
-            {
-                // “density”: interior grows with length
-                interior = Mathf.CeilToInt(len * Mathf.Max(0.1f, segmentsPerWorldUnit) / _spatialScale) - 1;
-                interior = Mathf.Clamp(interior, 0, maxInterior);
-            }
-            if (interior > 0)
-            {
-                float step = len / (interior + 1f);
+                // Head + tail
+                _sdf.AddBall(new Vector3(0f, 0f, +half) * invS, headR * invS);
+                _sdf.AddBall(new Vector3(0f, 0f, -half) * invS, tailR * invS);
 
-                float ramp = Mathf.Max(0.05f, muzzleRampWorld) * _spatialScale;
+                // Effective spacing (prevents dense chains getting fatter in the middle)
+                float spacing = Mathf.Max(segmentSpacingWorld * _spatialScale, bodyR * minSpacingRadiusFactor);
 
-                for (int i = 0; i < interior; i++)
+                // The shared SDF supports 48 balls. The analytic connecting segment also
+                // keeps long, thin beams continuous when that finite budget is exhausted.
+                const int maxInterior = MetaballSDFInstance.MaxBalls - 2;
+
+                int interior;
+                if (useFixedInteriorCount)
                 {
-                    float z = -half + step * (i + 1f);
+                    interior = Mathf.Clamp(fixedInteriorCount, 0, maxInterior);
+                }
+                else
+                {
+                    // “density”: interior grows with length
+                    interior = Mathf.CeilToInt(len * Mathf.Max(0.1f, segmentsPerWorldUnit) / _spatialScale) - 1;
+                    interior = Mathf.Clamp(interior, 0, maxInterior);
+                }
+                interior = Mathf.Min(interior, Mathf.Max(0, Mathf.CeilToInt(len / Mathf.Max(.001f, spacing)) - 1));
+                if (interior > 0)
+                {
+                    float step = len / (interior + 1f);
 
-                    // Distance from tail (muzzle) in local beam space
-                    float distFromTail = z + half;
+                    float ramp = Mathf.Max(0.05f, muzzleRampWorld) * _spatialScale;
 
-                    // Ramp from tailR to bodyR quickly, then stay stable
-                    float ramp01 = Mathf.Clamp01(distFromTail / ramp);
-                    float rr = Mathf.Lerp(tailR, bodyR, Ease(ramp01));
+                    for (int i = 0; i < interior; i++)
+                    {
+                        float z = -half + step * (i + 1f);
 
-                    _sdf.AddBall(new Vector3(0f, 0f, z) * invS, rr * invS);
+                        // Distance from tail (muzzle) in local beam space
+                        float distFromTail = z + half;
+
+                        // Ramp from tailR to bodyR quickly, then stay stable
+                        float ramp01 = Mathf.Clamp01(distFromTail / ramp);
+                        float rr = Mathf.Lerp(tailR, bodyR, Ease(ramp01));
+
+                        Vector3 center = new Vector3(0f, 0f, z);
+                        _sdf.AddBall(center * invS, rr * invS);
+                    }
                 }
             }
 
             _sdf.Apply();
+            var renderer = _sdf.TargetRenderer;
+            if (renderer)
+            {
+                renderer.GetPropertyBlock(_properties);
+                _properties.SetFloat("_BeamContinuous", 1f);
+                _properties.SetVector("_BeamShape", new Vector4(half * invS, bodyR * invS, tailR * invS, headR * invS));
+                _properties.SetFloat("_BeamRamp", Mathf.Max(.05f, muzzleRampWorld) * _spatialScale * invS);
+                _properties.SetFloat("_PlasmaMode", plasmaLayers ? 1f : 0f);
+                float radial = Mathf.Max(tailR, Mathf.Max(headR, bodyR)) + paddingWorld * _spatialScale;
+                Vector3 extent = new Vector3(radial, radial, half + radial) * invS;
+                if (plasmaLayers) extent = BuildPlasmaStrands(len, bodyR, tailR, headR, invS, clock, waveNumber);
+                _properties.SetVector("_VolumeHalfExtents", extent);
+                // Smoothness belongs to the beam's physical width, not the size of its bounding cube.
+                _properties.SetFloat("_SmoothK", bodyR * .25f * invS);
+                renderer.SetPropertyBlock(_properties);
+                if (_volumeMesh)
+                {
+                    for (int i = 0; i < 8; i++) _volumeVertices[i] = new Vector3((i & 1) == 0 ? -extent.x : extent.x,
+                        (i & 2) == 0 ? -extent.y : extent.y, (i & 4) == 0 ? -extent.z : extent.z);
+                    _volumeMesh.vertices = _volumeVertices; _volumeMesh.RecalculateBounds();
+                }
+            }
         }
     }
 }

@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "executable": "MASSIVE.exe",
+  "arguments": [
+    "-screen-width",
+    "3840",
+    "-screen-height",
+    "2160",
+    "-screen-fullscreen",
+    "1",
+    "-window-mode",
+    "borderless",
+    "-screen-quality",
+    "Very High",
+    "-force-d3d11",
+    "-force-d3d11-bitblt-model"
+  ],
+  "stateDirectory": "%LOCALAPPDATA%/MASSIVE/Watchdog",
+  "startupGraceSeconds": 120,
+  "heartbeatTimeoutSeconds": 60,
+  "restartDelaySeconds": 5,
+  "maxRestarts": 3,
+  "restartWindowSeconds": 600,
+  "stopGraceSeconds": 10,
+  "pollMilliseconds": 500,
+  "retainedPlayerLogs": 10
+}

@@ -152,6 +152,29 @@ namespace Massive.Enemies
             if (_cachedAnomalyRunning && spawnProfile.freezeExistingEnemiesDuringAnomalies) enemy.Pause(true);
         }
 
+        /// <summary>Enroll a hand-placed enemy in the same pause and death bookkeeping as spawned enemies.</summary>
+        public void RegisterAuthoredEnemy(EnemyBase enemy, EnemyDefinition def)
+        {
+            if (!enemy || !def || _alive.Contains(enemy)) return;
+            enemy.Init(def, this); RegisterEnemy(enemy);
+            bool matchClosed = waitForScoring && (MatchScoreService.Instance == null ||
+                !MatchScoreService.Instance.IsScoringOpen || !MatchScoreService.Instance.IsChainClockRunning);
+            enemy.Pause(!isActiveAndEnabled || matchClosed || (anomalyManager != null && anomalyManager.IsAnomalyRunning &&
+                spawnProfile != null && spawnProfile.freezeExistingEnemiesDuringAnomalies));
+        }
+
+        /// <summary>Launch from an authored Carrier bay, retaining shared caps, pause and death bookkeeping.</summary>
+        public bool TryLaunchEnemy(EnemyDefinition def, Vector3 position, Quaternion rotation, out EnemyBase enemy)
+        {
+            enemy = null;
+            if (!isActiveAndEnabled || !CanSpawnEnemy(def, def != null ? def.maxAliveOverride : 0)) return false;
+            if (!arenaBounds.ContainsWorldPoint(position, def.spawnRadiusWorld)) return false;
+            var go = Instantiate(def.prefab, position, rotation, enemyRoot);
+            enemy = go.GetComponent<EnemyBase>();
+            enemy.Init(def, this); RegisterEnemy(enemy); TotalSpawned++;
+            return true;
+        }
+
         private Vector3 SpawnWorldScale(EnemyDefinition def) => Vector3.Scale(def.prefab.transform.localScale,
             enemyRoot ? enemyRoot.lossyScale : Vector3.one);
 

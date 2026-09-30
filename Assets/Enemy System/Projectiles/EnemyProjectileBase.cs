@@ -53,6 +53,7 @@ namespace Massive.Enemies
 
         public EnemyBase Owner { get; private set; }
         public Vector3 TravelDirection => _dir;
+        protected bool ImpactResolved => _impactResolved;
 
         protected virtual void Awake()
         {
@@ -214,7 +215,7 @@ namespace Massive.Enemies
                 player.ApplyExternalMassDelta(-dmg, gameObject, allowDeath: true);
 
             _impactResolved = true;
-            Destroy(gameObject);
+            OnImpactResolved(other);
             return true;
         }
 
@@ -227,9 +228,12 @@ namespace Massive.Enemies
 
             _impactResolved = true;
             target.TakeDamage(reflectedDamageToEnemyMassEq, EnemyDamageSource.ShieldReflect, ReflectedBy);
-            Destroy(gameObject);
+            OnImpactResolved(other);
             return true;
         }
+
+        // Damage remains single-use; specialized shots can finish their visuals after contact.
+        protected virtual void OnImpactResolved(Collider other) => Destroy(gameObject);
 
         protected virtual void OnDestroy()
         {
