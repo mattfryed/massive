@@ -4,15 +4,16 @@ The footer represents characteristic length on a logarithmic ruler. Level Defini
 
 Current anchors from the agreed scale design:
 
-| Level | Exponent |
-| --- | ---: |
-| HIGGS | -18 |
-| ORBITAL | -10 |
-| PULSAR | 4 |
-| DYNAMO | 8 |
-| NOVA | 12 |
+| Stage | Level | Exponent |
+| ---: | --- | ---: |
+| 001 | HIGGS | -18 |
+| 002 | ORBITAL | -10 |
+| 003 | PULSAR | 4 |
+| 004 | DYNAMO | 8 |
+| 005 | NOVA | 12 |
+| 006 | SINGULARITY | 14 |
 
-`LevelScaleRuler` uses fixed exponent bounds of **-35 through 27**, framing the rounded Planck scale and observable-universe diameter. Planck length is not an experimentally established minimum distance, and the observable universe is not the entire universe. The ruler does not rescale when catalog entries change. Level positions are `(exponent + 35) / 62` along the line. Carousel order and stage numbers are unchanged.
+`LevelScaleRuler` uses fixed exponent bounds of **-35 through 27**, framing the rounded Planck scale and observable-universe diameter. Planck length is not an experimentally established minimum distance, and the observable universe is not the entire universe. The ruler does not rescale when catalog entries change. Level positions are `(exponent + 35) / 62` along the line. Stage numbers and the `LevelCatalog.asset` carousel order now follow increasing scale (2026-09-29). Keep each Level Definition's **Level Number** and the catalog list in this order when adding or rescaling stages; the catalog's Populate tool sorts by Level Number.
 
 Each integer exponent gets a minor tick, and each unselected level gets one major tick. The selected level has nine notches sampled from a Gaussian: `height = selectedHeight × exp(-0.5 × (sample / sigma)^2)`, with nine evenly spaced samples from -3 through 3 and default sigma 1.25. From center outward the heights are approximately 100%, 83.5%, 48.7%, 19.8%, and 5.6%. **Peak Standard Deviation** adjusts the shape on the ruler component. The denser samples preserve the previous peak's overall width; its outermost notches stay within three quarters of a decade on either side so background ticks remain unchanged. There is no triangle. Every line and notch uses pure white at full opacity, including the interrupted continuation marks at both ends.
 

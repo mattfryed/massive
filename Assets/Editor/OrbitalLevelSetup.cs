@@ -28,7 +28,7 @@ public static class OrbitalLevelSetup
         if (!definition)
         {
             definition = ScriptableObject.CreateInstance<LevelDefinition>();
-            definition.levelNumber = 5; definition.levelTitle = "ORBITAL";
+            definition.levelNumber = 2; definition.levelTitle = "ORBITAL";
             definition.anomalyTypeName = "ELECTRON PROBABILITY";
             definition.audioProfile = AssetDatabase.LoadAssetAtPath<LevelDefinition>("Assets/Scripts/Level Select/LevelDefinition-DYNAMO.asset").audioProfile;
             AssetDatabase.CreateAsset(definition, DefinitionPath);

@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5fbe94a6bd03940b9a5a78c567bc6665, type: 3}
   m_Name: LevelDefinition-NOVA
   m_EditorClassIdentifier: 
-  levelNumber: 1
+  levelNumber: 5
   levelTitle: NOVA
   scaleExponent: 12
   gameplayScene:
