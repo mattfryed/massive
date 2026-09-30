@@ -68,3 +68,4 @@ crashlytics-build.properties
 
 # Per-user Unity editor state
 /[Uu]ser[Ss]ettings/
+UserSettings/EditorUserSettings.asset
