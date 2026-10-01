@@ -1,6 +1,6 @@
 # Carrier prototype
 
-`Enemy_Carrier.prefab` is a stationary Drone mothership using EnemyBase, EnemyDefinition,
+`Enemy_Carrier.prefab` is a mostly stationary Drone mothership using EnemyBase, EnemyDefinition,
 EnemyHurtbox, EnemyScoreReward and EnemyDirector. Its compact rhombicuboctahedron hull
 uses black filled faces and white Shapes outlines. The regular solid has 24 vertices,
 18 squares and eight equilateral triangles; only its upward triangle is left open to
@@ -29,7 +29,14 @@ it reforms the six docked visuals in the same order, 0.5 seconds apart. The next
 begins 0.5 seconds after the final bay refills. All timing is editable on CarrierController.
 
 Each launch creates the existing Enemy_Drone prefab at its bay and gives it 0.45 seconds
-of outward flight at 3.5 units/second before ordinary Drone steering takes over. The
+of outward flight at 3.5 units/second in open space before ordinary Drone steering takes over.
+Within Boundary Influence Distance (2.5 units), the Carrier instead checks smooth
+curved departures against the arena bounds, including both walls at a corner.
+Launch Straight Seconds (.12) clears the inset tail before Launch Bend Seconds (.55)
+turns toward open space. The route must stay inside with full Drone spawn clearance
+and cannot hook back through the mothership. If no route fits, that bay waits in
+order while the assembly rotates. Existing live obstacle sweeps remain active
+during the launch. Resonance slowdown advances route time and distance together. The
 already-formed shell stays visible on release. Spawn and death rewards remain owned by
 the existing enemy/score systems. The Carrier has 6 health, takes the normal 1-point
 sword hit, awards the existing ENEMY_DEFEAT reward, and has no contact damage. These are
@@ -96,4 +103,36 @@ without a Director starts its own cycle and uses the scene-wide Drone cap.
 - Evidence is written to `Library/CarrierValidation/report.txt` and PNGs beside it.
 
 Current scope is the planar Player Actions scene. Folded SINGULARITY integration,
-Carrier movement, production encounter scheduling and final balance are separate work.
+General Carrier navigation, production level encounter scheduling and final balance are separate work.
+
+Boundary launch regression coverage is in `MASSIVE > Enemies > Validate Baseline Fixes`,
+with evidence in `Library/EnemyBaselineValidation/report.txt`.
+
+
+## Soft turret lane avoidance
+
+The Carrier remains stationary unless its shell is the first solid obstruction
+between a ready Particle Beam Turret and an eligible player. This check works
+before the turret acquires a Target; spawning/protected players, inactive or
+paused turrets, and enemies in other simulation scopes do not request movement.
+A firing turret requests clearance along its current beam direction instead.
+
+The Carrier chooses the shorter unobstructed lateral exit, eases into a small
+sidestep, and settles beyond the lane. It stays at that new position. If a wall,
+player, enemy or arena edge blocks one exit, it tries the other; if both are
+blocked it waits and retries. The route is checked again each physics step.
+Movement respects pause, HoldPosition, movement slowdowns and layout exclusions.
+Drone launch/rebuild timing continues normally. The hull uses kinematic
+Rigidbody movement so its stationary body constraints do not prevent the
+intentional sidestep; the solid shell and damage trigger remain in use.
+
+Tune **Carrier Controller > Soft turret lane avoidance** on the prefab or an
+instance: enable, speed (default .8 units/second), easing (.35 seconds), lane
+padding (.25), settle margin (.15), check interval (.3 seconds), and obstacle
+mask. Clearance radius comes from the solid shell's bounds. This is local
+clearance behavior, not pathfinding around enclosed obstacles.
+
+Focused Play Mode validation: **MASSIVE > Enemies > Validate Carrier Turret
+Avoidance**, with Player Actions / Enemy Lab open. Results are written to
+`Library/CarrierLaneAvoidanceValidation/report.txt`; test fixtures are runtime
+only and the saved scene timeline is retained.

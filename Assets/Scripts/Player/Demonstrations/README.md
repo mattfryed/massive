@@ -41,3 +41,14 @@ Simulation waits use scaled game time, matching Player actions. The existing vis
 - `RosterStartupValidation.StartRun(resultsPath)` injects missing/invalid bindings into disposable NOVA Play Mode instances, verifies actionable single-error rejection and closed scoring/input, and confirms unused 1v1 slots do not block startup. Expected error logs are included in the results file. No authored scene or prefab is saved.
 
 `MassiveDemoMigration` contains the one-time prefab/scene migration and reference-preserving backups under `Library/DemoMigrationBackup`. Migration is already applied; ordinary authoring does not require rerunning it.
+
+
+## Enemy Lab
+
+`S-T_PLAYER-ACTIONS` now also contains **Enemy Lab**, enabled by default. On Play it pauses the match timer, suppresses the match roster and authored encounters, and suspends the Amplifier/Resonance spawner. Disable this root to use the existing Player Action Lab. Stopping the lab restores those prior states.
+
+Six equally spaced columns reference the live Drone, Ranged Drone, Carrier, Particle Beam Turret, Seeker and Dyson Repulsor definitions and the canonical PlayerActor prefab. Enemy/player start markers and the loop count/timing are exposed per column. The turret mounts flush to the arena top wall; its existing beam reaches the unchanged player row. Enemy titles sit above the top border in the toast system's Input Mono Bold font at a smaller size. Column dividers are solid arena partitions; targeting, damage, projectile queries, swarm neighbors and physical actor contacts are also isolated by simulation scope.
+
+Each loop demonstrates three attacks, one actual scripted player melee hit that kills the enemy, its ordinary death effect, a player walk back to its marker, and a fresh enemy with its native warning/assembly sequence. A Drone's three impacts are shielded to preserve it for the counterkill. The Carrier demonstrates three drone launches; Ranged Drone counts three complete bursts. A hit restores the demonstration player's lost mass so this can run indefinitely. One-hit defeat is an explicit runtime demonstration rule; enemy health/score assets and live-match damage are unchanged.
+
+Use **MASSIVE > Demonstrations > Validate Enemy Lab** for the repeat-loop, target isolation, attack count, attributed counterkill and Dyson growth checks. Reports and rendered views go to `Library/EnemyLabValidation`. A failed choreography stops with a visible diagnostic instead of claiming a completed loop.

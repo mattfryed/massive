@@ -15,7 +15,7 @@ MonoBehaviour:
   id: 1
   category: 2
   defeatRewardKey: ENEMY_DYSON_DEFEAT
-  prefab: {fileID: 1372990175634676515, guid: 9e6465d4250ed49cab65e21aa60ba643, type: 3}
+  prefab: {fileID: 1731885047469493719, guid: 818055230c7d922428ef09863dffa079, type: 3}
   spawnWeight: 1
   spawnRadiusWorld: 0.8
   maxAliveOverride: 0

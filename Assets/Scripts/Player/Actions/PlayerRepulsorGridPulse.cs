@@ -45,6 +45,9 @@ namespace Massive.Player
         private bool preview;
         private float previewElapsed, previewWorldRadius = -1f;
         private Vector3? previewOrigin;
+        private bool externalClock;
+        private float externalTime;
+        private float PulseTime => externalClock ? externalTime : Time.time;
 
         public bool PreviewActive => preview;
         public void BindGrid(VectorGridGPU target) { grid = target; }
@@ -96,7 +99,7 @@ namespace Massive.Player
                 // Editor scrubbing cannot become a persistent effect in a live match.
                 preview = false;
                 for (int i = 0; i < pulses.Length; i++)
-                    if (pulses[i].active && Time.time - pulses[i].started >= pulses[i].seconds)
+                    if (pulses[i].active && PulseTime - pulses[i].started >= pulses[i].seconds)
                         pulses[i].active = false;
             }
             else
@@ -117,9 +120,21 @@ namespace Massive.Player
             ResolveReferences();
             Pulse pulse = MakePulse();
             pulse.active = true;
-            pulse.started = Time.time;
+            pulse.started = PulseTime;
             pulses[nextPulse] = pulse;
             nextPulse = (nextPulse + 1) % pulses.Length;
+        }
+
+        /// <summary>Reuse the same bounded grid wave for an enemy, with an owner-controlled paused clock.</summary>
+        public void SetExternalClock(float clock) { externalClock = true; externalTime = clock; }
+        public void TriggerWorldPulse(Vector3 origin, float startRadius, float endRadius)
+        {
+            if (!Effective_pulseEnabled || !isActiveAndEnabled || !Application.isPlaying) return;
+            ResolveReferences();
+            var pulse = MakePulse(); pulse.origin = origin;
+            pulse.radius = Mathf.Max(.1f, endRadius); pulse.startRadius = Mathf.Clamp(startRadius, 0f, pulse.radius);
+            pulse.active = true; pulse.started = PulseTime;
+            pulses[nextPulse] = pulse; nextPulse = (nextPulse + 1) % pulses.Length;
         }
 
         /// <summary>Scrubs a single edit-mode pulse; optional radius override is in world units.</summary>
@@ -198,7 +213,7 @@ namespace Massive.Player
                     {
                         for (int p = 0; p < source.pulses.Length; p++)
                             if (source.pulses[p].active)
-                                Append(target, source.pulses[p], Time.time - source.pulses[p].started, ref count);
+                                Append(target, source.pulses[p], source.PulseTime - source.pulses[p].started, ref count);
                     }
                 }
                 Vector3 scale = target.transform.lossyScale;

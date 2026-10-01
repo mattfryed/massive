@@ -334,7 +334,8 @@ float _gameplayYawVelDeg;
     // Called every frame by PlayerControllerScript
 public void SetAimDirection(Vector3 direction)
 {
-    Vector2 aim = new Vector2(direction.x, direction.z);
+    // Facing yaw rotates local +X about Unity +Y, so positive world Z is negative yaw.
+    Vector2 aim = new Vector2(direction.x, -direction.z);
     if (aim.sqrMagnitude < .0001f) return;
     _aimDir = _gameplayFacing = aim.normalized;
     UpdateGameplayFacingRoot();

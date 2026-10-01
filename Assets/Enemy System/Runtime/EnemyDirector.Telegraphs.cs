@@ -17,7 +17,7 @@ namespace Massive.Enemies
             public BatchState batch;
         }
         private readonly List<ReservedSpawn> _reservedSpawns = new List<ReservedSpawn>();
-        public int PendingSpawnCount => _reservedSpawns.Count;
+        public int PendingSpawnCount => _reservedSpawns.Count + TimelinePendingCount;
 
         private void ReserveSpawn(EnemyDefinition enemy, int cap, Vector3 position, EnemySpawnTelegraph prefab,
             float seconds, float timeout, BatchState batch, int ruleIndex = -1)

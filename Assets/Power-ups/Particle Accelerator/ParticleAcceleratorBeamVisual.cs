@@ -40,7 +40,7 @@ namespace Massive.PowerUps
         [SerializeField] private float widthJitterAmp = 0.06f;
         [SerializeField] private float widthJitterFreq = 22f;
 
-        [Header("Beam thickness ranges (visual multipliers)")]
+        [Header("Beam thickness ranges")]
         [Tooltip("Multiplies the whole plasma bundle. 1–1 preserves the current size; equal limits give a fixed thickness.")]
         public ThicknessRange overallThickness = new ThicknessRange(1f, 1f);
         [Tooltip("Additional multiplier at the core/muzzle. Blends into the body over Muzzle Ramp World.")]
@@ -83,6 +83,7 @@ namespace Massive.PowerUps
         private float _volumeSizeWorld = 1f;
         private float _spatialScale = 1f;
         private float _animationTime = -1f;
+        private float _pathReferenceLength;
         private MaterialPropertyBlock _properties;
         private Mesh _volumeMesh;
         private MeshFilter _filter;
@@ -120,10 +121,20 @@ namespace Massive.PowerUps
 
         public void SetSegment(Vector3 tailWS, Vector3 headWS, float radiusWorld, float charge01)
         {
+            _pathReferenceLength = 0f;
             _tailWS = tailWS;
             _headWS = headWS;
             _radiusWorld = Mathf.Max(0.001f, radiusWorld);
             _charge01 = Mathf.Clamp01(charge01);
+        }
+
+        // Clip a stable animated path rather than reshaping the curve every time collision shortens it.
+        public void SetClippedPath(Vector3 origin, Vector3 direction, float referenceLength, float visibleLength,
+            float radius, float clock)
+        {
+            SetSegment(origin, origin + direction.normalized * visibleLength, radius, 1f);
+            _pathReferenceLength = referenceLength;
+            SetAnimationTime(clock);
         }
 
         private static float Ease(float x) => x * x * (3f - 2f * x); // smoothstep
@@ -153,11 +164,7 @@ namespace Massive.PowerUps
 
             Vector3 dir = seg / len;
 
-            // Flicker (small)
-            float n = Mathf.PerlinNoise(13.37f, clock * widthJitterFreq) * 2f - 1f;
-            float jitterMul = 1f + n * widthJitterAmp * Mathf.Lerp(0.35f, 1f, _charge01);
-
-            float bodyR = _radiusWorld * Mathf.Max(0.75f, jitterMul) * thickness;
+            float bodyR = BodyRadius(_radiusWorld, _charge01, clock);
             float headR = bodyR * headRadiusMul;
             float tailR = bodyR * tailRadiusMul;
 

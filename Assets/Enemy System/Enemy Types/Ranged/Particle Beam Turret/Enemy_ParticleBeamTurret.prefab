@@ -123,7 +123,7 @@ MonoBehaviour:
     type: 3}
   mount: 1
   wallPosition: 0
-  wallInset: 0
+  wallInset: 0.02
   detectionRange: 10
   maxPivotAngle: 75
   trackingDegreesPerSecond: 60
@@ -161,11 +161,18 @@ MonoBehaviour:
   panels: {fileID: 1240258108770050107}
   core: {fileID: 6552989499952396446}
   firingPivot: {fileID: 3118108195955981871}
-  baseRadius: 0.68
-  baseHeight: 0.44774038
-  firingPivotOffset: -0.01774037
+  baseRadius: 1
+  baseHeight: 0.25
+  firingPivotOffset: 0.25
   outlineWidth: 0.012
   domeRadius: 0.3
+  domeVibrationAmplitude: 0.015
+  domeVibrationFrequency: 0.5
+  domeChargeAmplitude: 0.005
+  domeChargeFrequency: 5
+  domeFireAmplitude: 0.025
+  domeFireFrequency: 1
+  panelFloatOffset: 0.13
   ringRadius: 0.43
   mouthRadius: 0.15
   panelLength: 0.4
@@ -554,7 +561,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 1.4705882, y: 1.4705882, z: 0.55835927}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 318160491057606996}
@@ -606,7 +613,7 @@ Transform:
   m_GameObject: {fileID: 5050239296179158093}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0.43}
+  m_LocalPosition: {x: 0, y: 0, z: 0.5}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -751,10 +758,10 @@ CapsuleCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 2
-  m_Radius: 0.59
-  m_Height: 1.65
+  m_Radius: 0.867647
+  m_Height: 1.76
   m_Direction: 2
-  m_Center: {x: 0, y: 0, z: 0.3}
+  m_Center: {x: 0, y: 0, z: 0.35500002}
 --- !u!114 &1941187905586919636
 MonoBehaviour:
   m_ObjectHideFlags: 0

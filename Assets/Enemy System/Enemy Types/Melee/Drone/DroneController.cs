@@ -28,6 +28,7 @@ namespace Massive.Enemies
         [Min(0f)] public float spawnGraceSeconds = .5f;
 
         public PlayerControllerScript Target { get; private set; }
+        public int TotalContacts { get; private set; }
         public bool IsReady => enemy != null && enemy.Definition != null && !enemy.IsDead && !enemy.IsPaused && age >= spawnGraceSeconds;
         private static readonly List<DroneController> active = new List<DroneController>();
         private EnemyBase enemy;
@@ -42,13 +43,22 @@ namespace Massive.Enemies
         private RangedDroneController ranged;
         private float launchRemaining;
         private Vector3 launchVelocity;
+        private DroneLaunchTrajectory launchTrajectory;
+        private float launchAge;
 
         /// <summary>Clear a Carrier bay before normal perception and swarm steering take over.</summary>
         public void Launch(Vector3 direction, float speed, float clearanceSeconds, Collider owningShell = null)
         {
             direction.y = 0f;
-            launchVelocity = direction.normalized * Mathf.Max(0f, speed);
-            launchRemaining = Mathf.Max(0f, clearanceSeconds);
+            Launch(new DroneLaunchTrajectory { direction = direction.normalized, speed = Mathf.Max(0f, speed),
+                straightSeconds = Mathf.Max(0f, clearanceSeconds) }, owningShell);
+        }
+
+        public void Launch(DroneLaunchTrajectory trajectory, Collider owningShell = null)
+        {
+            launchTrajectory = trajectory; launchAge = 0f;
+            launchVelocity = trajectory.Velocity(0f);
+            launchRemaining = trajectory.Duration;
             avoidance.LaunchClearanceCollider = owningShell;
             age = spawnGraceSeconds;
             idleAnchor = transform.position;
@@ -88,12 +98,7 @@ namespace Massive.Enemies
             if (avoidance) avoidance.LaunchClearanceCollider = null;
         }
 
-        private bool IsValidTarget(PlayerControllerScript p)
-        {
-            return p != null && p.isActiveAndEnabled && p.gameObject.scene == gameObject.scene && !p.IsPseudoPlayer
-                && !p.temporarilyEliminated && !p.IsMatchInputLocked && p.massScore > p.massScoreMin
-                && (enemy.OwnerTeamId < 0 || p.teamID != enemy.OwnerTeamId);
-        }
+        private bool IsValidTarget(PlayerControllerScript p) => enemy && enemy.CanTarget(p);
         private static float DistanceSquared(Vector3 a, Vector3 b) { a.y = b.y; return (a - b).sqrMagnitude; }
         private void Decide()
         {
@@ -114,7 +119,7 @@ namespace Massive.Enemies
             float radius2 = separationRadius * separationRadius;
             foreach (var other in active)
             {
-                if (other == this || other == null || other.gameObject.scene != gameObject.scene || other.enemy == null || other.enemy.IsDead) continue;
+                if (other == this || other == null || other.gameObject.scene != gameObject.scene || other.enemy == null || other.enemy.IsDead || !enemy.SharesSimulationWith(other.enemy)) continue;
                 Vector3 away = body.position - other.transform.position; away.y = 0f;
                 float d2 = away.sqrMagnitude;
                 if (Target == null && other.Target == null && !other.enemy.IsPaused && other.enemy.OwnerTeamId == enemy.OwnerTeamId &&
@@ -144,9 +149,13 @@ namespace Massive.Enemies
             if (Target != null && !IsValidTarget(Target)) { Target = null; idleAnchor = body.position; }
             if (ranged) ranged.TickAttack(dt, Target);
             Vector3 velocity;
-            if (launchRemaining > 0f)
+            if (enemy.HoldPosition) velocity = Vector3.zero;
+            else if (launchRemaining > 0f)
             {
-                launchRemaining -= dt;
+                // Advance path distance and its steering together when slowed by Resonance.
+                float step = Mathf.Min(launchRemaining, dt * enemy.ExternalMovementMultiplier);
+                launchVelocity = launchTrajectory.Velocity(launchAge + step * .5f);
+                launchAge += step; launchRemaining -= step;
                 velocity = launchVelocity * enemy.ExternalMovementMultiplier;
             }
             else if (recoilRemaining > 0f)
@@ -242,7 +251,7 @@ namespace Massive.Enemies
         private void OnTriggerStay(Collider other) => ResolveContact(other);
         private void ResolveContact(Collider other)
         {
-            if (!IsReady || other == null) return;
+            if (!IsReady || !enemy.AttacksEnabled || other == null) return;
             if (ranged) return; // Ranged variants deal damage with projectiles, never suicide on contact.
             // Sword collisions are owned exclusively by EnemyHurtbox, including scoring attribution.
             if (other.GetComponentInParent<PlayerMelee>() != null) return;
@@ -255,7 +264,7 @@ namespace Massive.Enemies
                 if (away.sqrMagnitude < .001f) away = -transform.forward;
                 launchRemaining = 0f;
                 body.linearVelocity = away.normalized * shieldRecoilSpeed;
-                recoilRemaining = shieldRecoverySeconds;
+                recoilRemaining = shieldRecoverySeconds; TotalContacts++;
                 return;
             }
             if (player.attackController != null && player.attackController.IsAttacking) return;

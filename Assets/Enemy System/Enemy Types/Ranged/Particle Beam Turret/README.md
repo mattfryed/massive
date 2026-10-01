@@ -15,8 +15,8 @@ The local XY octagon sits against the wall; local +Z faces into the arena. A sma
 ring of eight floating black triangles with white outlines sits forward of the base
 around a Drone-style seven-lobe core. Only the firing apparatus pivots. The base
 has a fixed convex collision hull and a separate trigger for sword damage.
-The Visuals component exposes Base Height (.44774037 along local Z), Base Radius
-(.68), and Firing Pivot Offset (-.01774037 relative to the forward rim). Height
+The Visuals component exposes Base Height (.25 along local Z), Base Radius
+(1), and Firing Pivot Offset (.25 relative to the forward rim). Height
 changes keep the mounting plane fixed, resize collision and move the apparatus.
 All triangles are equilateral at the original height; other heights stretch them.
 
@@ -25,10 +25,29 @@ An open-front **2V backing dome** surrounds the rear of the core: 40 triangles,
 hemisphere construction ([geometry reference](https://www.ziptiedomes.com/geodesic-dome-calculators/2v-geodesic-dome-calculator.htm)).
 Dome Radius (.3) controls its size. It pivots with the apparatus and retains black
 faces and white outlines. All 64 faces share staggered arrival and shatter effects.
+Under **Core backing dome**, **Idle**, **Charge** and **Fire Vibration Amplitude**
+and **Frequency** pairs independently control travel toward/away from the core
+along the firing axis. All three pairs start at .015 local units and 3 cycles/second.
+The existing dome settings are retained as idle/cooldown settings. State transitions
+blend over .15 seconds without resetting oscillator phase. The core stays fixed;
+zero amplitude stops vibration in that state. Motion follows the pivot and freezes
+with enemy pause.
+
+Under **Floating ring**, **Panel Float Offset** (.04 local units) slides the entire
+ring along the beam axis away from the core; decreasing it brings the ring closer.
+Ring radius, panel size and relative positions stay unchanged. Spin, idle breathing,
+charge jitter and firing hinges operate around the translated ring. Its translation
+follows the aiming pivot. Increasing it extends the hurtbox without widening it.
+
+The arrival warning includes all 64 faces, including the ring and dome, in the
+same fade, outward-ghost and glow sequence. Its runtime outline is built from the
+instance's resting geometry, so base dimensions, dome radius, pivot position and
+panel offset stay accurate. The warning owns and releases its generated mesh.
 
 Current prefab tuning (all Inspector-adjustable, including the user's applied top-turret edits):
 
-- Top/Bottom wall mount, horizontal Wall Position, or Authored for manual placement.
+- Top/Bottom wall mount, horizontal Wall Position, or Authored for manual placement;
+  Wall Inset .02, applied from the latest top-turret tuning.
 - Detection Range 10, forward aiming cone ±75 degrees, tracking 60 degrees/second.
 - Charge 2 seconds, one sustained blast 2 seconds, cooldown 3 seconds.
 - Firing Tracking Degrees Per Second 10 follows the player during fire. Zero
@@ -73,8 +92,11 @@ The prefab uses .756; projected coverage varies with taper, depth and view.
 Each tube uses up to 65 sampled cross-sections in fixed reusable buffers, with
 conservative distance bounds and fitted mesh extents. A thin white feeder prevents
 the entire bundle vanishing at once. Tube positions/radii share the paused clock.
-The curve is a small visual displacement around the beam axis, with the muzzle
-and contact endpoints pinned; gameplay uses the original straight sphere trace.
+Beam damage and obstruction checks sample the same animated centerline and
+strand-width equations used by the renderer. A swept bundle envelope follows the
+curve and changing thickness, stopping at the first solid obstacle or arena edge.
+This is a conservative envelope around the strands, not separate hitboxes for
+each gap. Collision clips the sampled path without reshaping its curve afterward.
 There is no alpha blending, glow, lighting gradient or alpha fade in the plasma.
 The shader outputs exactly black or white and actual surface depth.
 
@@ -85,16 +107,16 @@ Curve Amplitude (1.117 times radius, adjustable from 0 to 2). **Plasma stranding
 Strand Wander (1.615), Strand Taper (.283), and Strand Separation (1.201; increase to open
 more space between the 3D strands). The original serialized
 swirlTurnsPerUnit / swirlSpeed fields are retained under the new Inspector labels.
-**Beam thickness ranges (visual multipliers)** provides Overall Thickness plus
+**Beam thickness ranges** provides Overall Thickness plus
 Start Thickness, Body Thickness and End Thickness. Each foldout has Minimum and
 Maximum sliders (0..4); equal limits fix a section's thickness. The applied prefab
 ranges are Overall .8–1.4, Start .14–.51, Body .83–1.53 and End .5–1.
 The overall multiplier combines with the local section's
 multiplier. Start/body/end blend over Muzzle Ramp World at either end of the beam.
 Thickness Variation Speed (4) controls range animation using the paused beam clock;
-the body variation travels along the length. These visual controls layer on the
-existing radius, endpoint multipliers, waves and opening/closing envelope. They
-do not change the controller's straight collision trace or damage radius.
+the body variation travels along the length. These controls layer on the
+existing radius, endpoint multipliers, waves and opening/closing envelope and also
+affect the collision envelope. Zero overall thickness has no damage reach.
 The root controller's **Beam opening pulse** controls the initial 1.7x radius,
 settling over .32 seconds. Beam Fade Seconds is .36 on the prefab; during this final
 interval both radius and length shrink back into the core, stopping contact damage
@@ -125,7 +147,7 @@ actual scene, returns to Edit Mode, and writes reports and renders to
 Library/ParticleBeamTurretValidation. Production spawn schedules and final balance
 are outside this prototype.
 
-Validated in Unity 6000.0.28f1: 88 Play Mode checks passed with no runtime Console
+Validated in Unity 6000.0.28f1: 106 Play Mode checks passed with no runtime Console
 errors. Covers both mounts, regular base triangles, references, warning/face reveal,
 stationary tracking, range and arc gates, charge and cooldown timing, sustained
 damage, aim lock, target loss, walls/bounds, real held shield, pause, disable/reuse,
@@ -149,6 +171,19 @@ already-kinematic stationary enemies.
 
 Apparatus checks cover continuous base topology, the dome's 2V topology and radius,
 all 64 arrival faces, edited height/collider agreement, pivot-following dome panels,
-zero-inset placement on both walls, and eased acquisition/firing/target-loss motion.
+authored-inset placement on both walls, and eased acquisition/firing/target-loss motion.
 The applied prefab's beam is also rendered using the user's settings; canonical
 renderer tests use a separate stable fixture without modifying the prefab.
+Additional checks cover triangle clearance without face distortion, the full-size
+arrival mesh/ghosts, per-instance warning dimensions and mesh cleanup, axial dome
+vibration in both directions, pause and zero-amplitude behavior.
+State checks measure independent charge/fire dome amplitudes and frequencies,
+pause in both states, and return to idle settings during cooldown.
+Ring offset checks verify purely axial movement with unchanged radius at an aimed,
+spinning pivot and during charging/firing, plus no increase in hurtbox width.
+
+Target acquisition and retention use the shared EnemyBase eligibility gate, which
+excludes initial spawn, death/respawn animation, and the post-respawn invulnerability
+window. Sustained beam damage independently checks this protection each tick.
+Focused regression coverage: `MASSIVE > Enemies > Validate Baseline Fixes`; report
+at `Library/EnemyBaselineValidation/report.txt`.

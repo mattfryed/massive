@@ -20,6 +20,8 @@ namespace Massive.Enemies
                 if (c.GetComponentInParent<PlayerMelee>()) return false;
                 return c.CompareTag("Player") && !p.shieldOn;
             }
+            var otherEnemy = c.GetComponentInParent<EnemyBase>();
+            if (otherEnemy && !enemy.SharesSimulationWith(otherEnemy)) return false;
             if (c.GetComponentInParent<EnemyProjectileBase>() || c.GetComponentInParent<Massive.PowerUps.ParticleAcceleratorProjectile>()) return false;
             if (c.GetComponent<VectorGridGPU>() || c.bounds.max.y < BeamOrigin.y - .05f) return false;
             return !c.isTrigger;
@@ -58,6 +60,64 @@ namespace Massive.Enemies
         }
         private void UpdateAimEndpoint()
         { BeamLength = Trace(BeamDirection, beamRange, beamRadius, out _); BeamEnd = BeamOrigin + BeamDirection * BeamLength; }
+
+        private void SampleBeam(float referenceLength, float distance, float radius, out Vector3 center, out float width)
+        {
+            if (beamVisual) beamVisual.SampleCollisionPath(BeamOrigin, BeamDirection, referenceLength, distance,
+                radius, PhaseAge, out center, out width);
+            else { center = BeamOrigin + BeamDirection * distance; width = radius; }
+        }
+
+        private float TraceAnimatedBeam(float referenceLength, float radius, out Collider contact)
+        {
+            contact = null;
+            SampleBeam(referenceLength, 0f, radius, out var previous, out float previousRadius);
+            tracePoint = previous; traceNormal = -BeamDirection;
+            if (referenceLength <= .02f || radius <= .00001f) return 0f;
+            int steps = Mathf.Clamp(Mathf.CeilToInt(referenceLength / .12f), 2, 128);
+            float step = referenceLength / steps;
+            for (int n = 1; n <= steps; n++)
+            {
+                float distance = n * step;
+                SampleBeam(referenceLength, distance, radius, out var next, out float nextRadius);
+                float width = Mathf.Max(previousRadius, nextRadius);
+                Vector3 segment = next - previous; float length = segment.magnitude;
+                float nearest = length;
+                if (width > .00001f)
+                {
+                    int count = Physics.OverlapSphereNonAlloc(previous, width, overlaps, collisionMask, QueryTriggerInteraction.Collide);
+                    if (count == overlaps.Length) return (n - 1) * step;
+                    for (int i = 0; i < count; i++)
+                        if (CanBlock(overlaps[i]))
+                        { contact = overlaps[i]; tracePoint = contact.ClosestPoint(previous); traceNormal = -segment.normalized; return (n - 1) * step; }
+                    count = Physics.SphereCastNonAlloc(previous, width, segment.normalized, hits, length, collisionMask, QueryTriggerInteraction.Collide);
+                    if (count == hits.Length) return (n - 1) * step;
+                    for (int i = 0; i < count; i++)
+                        if (hits[i].distance < nearest && CanBlock(hits[i].collider))
+                        { nearest = hits[i].distance; contact = hits[i].collider; tracePoint = hits[i].point; traceNormal = hits[i].normal; }
+                }
+                if (arenaBounds && arenaBounds.IsValid && !arenaBounds.ContainsWorldPoint(next, width))
+                {
+                    float low = 0f, high = 1f;
+                    for (int i = 0; i < 10; i++)
+                    {
+                        float mid = (low + high) * .5f;
+                        if (arenaBounds.ContainsWorldPoint(Vector3.Lerp(previous, next, mid), width)) low = mid; else high = mid;
+                    }
+                    if (low * length < nearest)
+                    {
+                        nearest = low * length; contact = null;
+                        tracePoint = Vector3.Lerp(previous, next, low);
+                        Vector3 correction = arenaBounds.ClampWorldPointInside(next, width) - next;
+                        correction.y = 0f; traceNormal = correction.normalized;
+                    }
+                }
+                if (nearest < length) return (n - 1 + nearest / Mathf.Max(.00001f, length)) * step;
+                previous = next; previousRadius = nextRadius;
+            }
+            tracePoint = previous; traceNormal = -BeamDirection;
+            return referenceLength;
+        }
         private void FireBeam(float dt)
         {
             float rise = Mathf.SmoothStep(0f, 1f, (PhaseAge + dt) / Mathf.Max(.05f, beamGrowSeconds));
@@ -65,16 +125,20 @@ namespace Massive.Enemies
             BeamEnvelope = rise * fade;
             float opening = Mathf.Lerp(openingRadiusMultiplier, 1f, Mathf.SmoothStep(0f, 1f, PhaseAge / Mathf.Max(.05f, openingSettleSeconds)));
             float radius = beamRadius * BeamEnvelope * opening;
-            float fullLength = Trace(BeamDirection, beamRange * rise, radius, out var contact);
+            // The straight sightline supplies the intended contact tip. Animated collision then
+            // clips that stable path, so clipping cannot bend the already-tested beam elsewhere.
+            float referenceLength = Trace(BeamDirection, beamRange * rise, .001f, out _);
+            float fullLength = TraceAnimatedBeam(referenceLength, radius, out var contact);
             bool touching = contact || fullLength + .001f < beamRange * rise;
             if (fade >= .999f) retractDistance = fullLength;
             // Stop damage/emission as the tip leaves the surface. Never damage along an invisible remainder.
             BeamLength = fade >= .999f ? fullLength : Mathf.Min(fullLength, retractDistance) * fade;
-            BeamEnd = BeamOrigin + BeamDirection * BeamLength;
+            SampleBeam(referenceLength, BeamLength, radius, out var endpoint, out _);
+            BeamEnd = endpoint;
             if (contact && fade >= .999f)
             {
                 var player = contact.GetComponentInParent<PlayerControllerScript>();
-                if (player)
+                if (player && !player.IsSpawning && !player.IsInvulnerable)
                 {
                     float amount = Mathf.Max(0f, damagePerSecond) * dt * BeamEnvelope;
                     if (player.shieldOn)
@@ -83,21 +147,12 @@ namespace Massive.Enemies
                         amount *= shield && shield.IsActive && !shield.BlocksAllDamage ? 1f - shield.CurrentStrength01 : 0f;
                     }
                     if (amount > 0f) player.ApplyExternalMassDelta(-amount, gameObject, allowDeath: true);
-                    if (!player.shieldOn && player.visualsController)
-                    {
-                        Vector3 edge = player.visualsController.OutlinePointTowards(BeamOrigin);
-                        float distance = Vector3.Dot(edge - BeamOrigin, BeamDirection);
-                        BeamLength = Mathf.Clamp(distance - radius * .5f, 0f, beamRange);
-                        BeamEnd = BeamOrigin + BeamDirection * BeamLength;
-                        tracePoint = BeamOrigin + BeamDirection * distance;
-                    }
                 }
             }
             if (beamVisual)
             {
                 beamVisual.gameObject.SetActive(true);
-                beamVisual.SetSegment(BeamOrigin, BeamEnd, radius, 1f);
-                beamVisual.SetAnimationTime(PhaseAge);
+                beamVisual.SetClippedPath(BeamOrigin, BeamDirection, referenceLength, BeamLength, radius, PhaseAge);
             }
             if (contactPlasma)
             {

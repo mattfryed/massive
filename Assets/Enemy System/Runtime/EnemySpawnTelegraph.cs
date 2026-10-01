@@ -48,8 +48,10 @@ namespace Massive.Enemies
             InitializeDiffuseGlow();
         }
 
-        public void Begin(float warningSeconds = 3f, Vector3? enemyWorldScale = null)
+        /// <param name="ownedOutline">Optional generated edge mesh. Ownership transfers to this warning and it is destroyed with it.</param>
+        public void Begin(float warningSeconds = 3f, Vector3? enemyWorldScale = null, Mesh ownedOutline = null)
         {
+            if (ownedOutline) ReplaceOutline(ownedOutline);
             Age = 0f; _finishAge = -1f; Defocus = 0f; _warningSeconds = Mathf.Max(.01f, warningSeconds);
             Vector3 parent = transform.parent ? transform.parent.lossyScale : Vector3.one;
             Vector3 world = enemyWorldScale ?? Vector3.Scale(_authoredScale, parent);

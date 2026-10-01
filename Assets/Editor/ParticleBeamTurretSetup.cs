@@ -162,21 +162,23 @@ public static class ParticleBeamTurretSetup
     {
         string path = Folder + "/Turret Spawn Outline.asset";
         var mesh = AssetDatabase.LoadAssetAtPath<Mesh>(path);
-        int count = ParticleBeamTurretGeometry.BaseFaces * 3;
-        if (mesh && mesh.vertexCount == count * 4) return mesh;
         bool created = !mesh;
-        if (created) mesh = new Mesh { name = "Turret spawn outline" }; else mesh.Clear();
-        var points = new Vector3[count]; var vertices = new List<Vector3>(); var tangents = new List<Vector4>(); var uvs = new List<Vector2>(); var indices = new List<int>();
-        for (int i = 0; i < ParticleBeamTurretGeometry.BaseFaces; i++) ParticleBeamTurretGeometry.BaseTriangle(i, .68f, points, i * 3);
-        for (int i = 0; i < count; i++)
+        if (created) mesh = new Mesh { name = "Turret spawn outline" };
+        var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath);
+        var points = new Vector3[(prefab ? ParticleBeamTurretGeometry.FaceCount : ParticleBeamTurretGeometry.BaseFaces) * 3];
+        if (prefab)
         {
-            Vector3 a = points[i], b = points[i / 3 * 3 + (i + 1) % 3], d = b - a; int n = vertices.Count;
-            vertices.AddRange(new[] { a, a, b, b }); for (int j = 0; j < 4; j++) tangents.Add(new Vector4(d.x, d.y, d.z, 1f));
-            uvs.AddRange(new[] { new Vector2(0,-1), new Vector2(0,1), new Vector2(1,-1), new Vector2(1,1) });
-            indices.AddRange(new[] { n, n+1, n+2, n+2, n+1, n+3 });
+            var contents = PrefabUtility.LoadPrefabContents(PrefabPath);
+            try
+            {
+                var visual = contents.GetComponent<ParticleBeamTurretVisuals>();
+                visual.ApplyDimensions(); visual.CopyPoseCorners(points);
+            }
+            finally { PrefabUtility.UnloadPrefabContents(contents); }
         }
-        mesh.SetVertices(vertices); mesh.SetTangents(tangents); mesh.SetUVs(0, uvs); mesh.SetTriangles(indices, 0);
-        mesh.RecalculateBounds(); var bounds = mesh.bounds; bounds.Expand(.5f); mesh.bounds = bounds;
+        else
+            for (int i = 0; i < ParticleBeamTurretGeometry.BaseFaces; i++) ParticleBeamTurretGeometry.BaseTriangle(i, .68f, points, i * 3);
+        ParticleBeamTurretGeometry.BuildOutline(mesh, points);
         if (created) AssetDatabase.CreateAsset(mesh, path); else { EditorUtility.SetDirty(mesh); AssetDatabase.SaveAssetIfDirty(mesh); }
         return mesh;
     }

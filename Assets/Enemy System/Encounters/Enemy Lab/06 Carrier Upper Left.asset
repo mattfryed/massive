@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e0d204bac5ccc9f4985243ab0fa1692f, type: 3}
+  m_Name: 06 Carrier Upper Left
+  m_EditorClassIdentifier: 
+  warningSeconds: 2
+  slots:
+  - enemy: {fileID: 11400000, guid: 55d708e694ace4746a1091d176812f13, type: 2}
+    telegraph: {fileID: 5361128573134876234, guid: a69286cceea675f45940252d8de9e433,
+      type: 3}
+    region: Arena
+    position: {x: 0.24000001, y: 0.8}
+    facing: {x: 0, y: -1}
+    socket: 
+    releaseDelay: 0
+    entrySeconds: 0
+    entrySpeed: 1.4

@@ -3,9 +3,9 @@ using UnityEngine;
 
 namespace Massive.Enemies
 {
-    /// <summary>A stationary mothership. Docked drones are presentation; released drones use the normal enemy prefab.</summary>
+    /// <summary>A mostly stationary mothership with gentle turret-lane clearance. Docked drones are presentation; released drones use the normal enemy prefab.</summary>
     [DisallowMultipleComponent, RequireComponent(typeof(EnemyBase), typeof(Rigidbody))]
-    public sealed class CarrierController : MonoBehaviour
+    public sealed partial class CarrierController : MonoBehaviour
     {
         public enum CyclePhase { Launching, Cooldown, Rebuilding }
         public EnemyDefinition definition;
@@ -28,6 +28,12 @@ namespace Massive.Enemies
         [Min(.05f)] public float respawnInterval = .5f;
         [Min(0f)] public float launchSpeed = 3.5f;
         [Min(.05f)] public float launchClearanceSeconds = .45f;
+        [Header("Boundary-aware departures")]
+        [Tooltip("Within this distance of an arena edge, prefer a departure that turns back toward open space.")]
+        [Min(.1f)] public float boundaryInfluenceDistance = 2.5f;
+        [Tooltip("Initial outward flight before a boundary turn; lets the Drone's tail clear the shell.")]
+        [Min(.05f)] public float launchStraightSeconds = .12f;
+        [Min(.1f)] public float launchBendSeconds = .55f;
         [Tooltip("Standalone safety cap. Director-managed Carriers also obey its shared caps.")]
         [Min(6)] public int maxActiveDrones = 24;
         public CyclePhase Phase { get; private set; }
@@ -57,10 +63,17 @@ namespace Massive.Enemies
         private ArenaBoundsFromVectorGrid bounds;
         private readonly Collider[] launchOverlaps = new Collider[32];
 
-        private void Awake() { enemy = GetComponent<EnemyBase>(); }
-        private void OnEnable()
+        private void Awake()
         {
             enemy = GetComponent<EnemyBase>();
+            // The hull is an immovable obstacle except for its deliberate, swept sidestep.
+            // Kinematic MovePosition also supports older scene instances with FreezeAll.
+            var body = GetComponent<Rigidbody>(); body.isKinematic = true;
+            body.constraints = RigidbodyConstraints.FreezePositionY | RigidbodyConstraints.FreezeRotation;
+        }
+        private void OnEnable()
+        {
+            enemy = GetComponent<EnemyBase>(); ResetLaneAvoidance();
             visuals = GetComponent<CarrierVisuals>(); hitbox = damageTrigger ? damageTrigger : GetComponent<SphereCollider>();
             hitboxWasEnabled = hitbox && hitbox.enabled;
             if (hitbox) hitbox.enabled = false;
@@ -87,13 +100,13 @@ namespace Massive.Enemies
         private void OnDisable()
         {
             if (enemy) enemy.Died -= OnDeath;
-            CancelWarning();
+            ResetLaneAvoidance(); CancelWarning();
             if (hitbox) hitbox.enabled = hitboxWasEnabled;
             if (shellCollider) shellCollider.enabled = shellWasEnabled;
         }
         private void OnDeath(EnemyBase source, EnemyDamageSource cause)
         {
-            CancelWarning();
+            ResetLaneAvoidance(); CancelWarning();
             foreach (var dock in docks) if (dock) dock.gameObject.SetActive(false);
         }
         private void CancelWarning() { if (warning) warning.Cancel(); warning = null; }
@@ -149,6 +162,7 @@ namespace Massive.Enemies
         }
         private bool TryLaunch(int slot)
         {
+            if (!enemy.AttacksEnabled) return false;
             Transform dock = docks[slot];
             if (!dock) return false;
             int count = 0;
@@ -158,6 +172,7 @@ namespace Massive.Enemies
             if (count >= cap) return false;
             float clearance = Mathf.Max(.1f, droneDefinition.spawnRadiusWorld);
             if (bounds && !bounds.ContainsWorldPoint(dock.position, clearance)) return false;
+            if (!TryPlanLaunch(dock, clearance, out var trajectory)) return false;
             int overlaps = Physics.OverlapSphereNonAlloc(dock.position, .24f, launchOverlaps, (1 << 9) | (1 << 11), QueryTriggerInteraction.Collide);
             if (overlaps > 0) return false;
             EnemyBase drone;
@@ -173,7 +188,7 @@ namespace Massive.Enemies
                 drone.Init(droneDefinition, null);
             }
             drone.OwnerTeamId = enemy.OwnerTeamId;
-            drone.GetComponent<DroneController>().Launch(dock.forward, launchSpeed, launchClearanceSeconds, shellCollider);
+            drone.GetComponent<DroneController>().Launch(trajectory, shellCollider);
             dock.gameObject.SetActive(false);
             TotalLaunched++;
             enemy.PlayAttackSfx();

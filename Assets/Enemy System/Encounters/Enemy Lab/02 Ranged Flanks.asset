@@ -1,0 +1,36 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e0d204bac5ccc9f4985243ab0fa1692f, type: 3}
+  m_Name: 02 Ranged Flanks
+  m_EditorClassIdentifier: 
+  warningSeconds: 2
+  slots:
+  - enemy: {fileID: 11400000, guid: 7a2e65a43b9152044a9f5fd3542cda95, type: 2}
+    telegraph: {fileID: 8608423406655236858, guid: 9bdfe8b86ed5b4f409ed2e0b1bab1ccf,
+      type: 3}
+    region: Arena
+    position: {x: 0.13999999, y: 0.625}
+    facing: {x: 1, y: 0}
+    socket: 
+    releaseDelay: 0
+    entrySeconds: 0
+    entrySpeed: 1.4
+  - enemy: {fileID: 11400000, guid: 7a2e65a43b9152044a9f5fd3542cda95, type: 2}
+    telegraph: {fileID: 8608423406655236858, guid: 9bdfe8b86ed5b4f409ed2e0b1bab1ccf,
+      type: 3}
+    region: Arena
+    position: {x: 0.86, y: 0.625}
+    facing: {x: -1, y: 0}
+    socket: 
+    releaseDelay: 0
+    entrySeconds: 0
+    entrySpeed: 1.4

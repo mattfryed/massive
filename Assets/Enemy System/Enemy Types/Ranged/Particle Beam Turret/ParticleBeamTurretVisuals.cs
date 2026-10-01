@@ -20,7 +20,27 @@ namespace Massive.Enemies
         [Header("Core backing dome")]
         [Tooltip("Radius of the open-front, frequency-two geodesic hemisphere. Rotates with the firing pivot.")]
         [Min(.01f)] public float domeRadius = .3f;
+        [InspectorName("Idle Vibration Amplitude")]
+        [Tooltip("Maximum travel toward/away from the core during idle and cooldown, in local units. Zero disables vibration in this state.")]
+        [Min(0f)] public float domeVibrationAmplitude = .015f;
+        [InspectorName("Idle Vibration Frequency")]
+        [Tooltip("Back-and-forth cycles per second. Pauses with the enemy.")]
+        [Min(0f)] public float domeVibrationFrequency = 3f;
+        [InspectorName("Charge Vibration Amplitude")]
+        [Tooltip("Dome travel toward/away from the core while charging, independent of idle and firing.")]
+        [Min(0f)] public float domeChargeAmplitude = .015f;
+        [InspectorName("Charge Vibration Frequency")]
+        [Tooltip("Back-and-forth cycles per second while charging.")]
+        [Min(0f)] public float domeChargeFrequency = 3f;
+        [InspectorName("Fire Vibration Amplitude")]
+        [Tooltip("Dome travel toward/away from the core while firing, independent of idle and charging.")]
+        [Min(0f)] public float domeFireAmplitude = .015f;
+        [InspectorName("Fire Vibration Frequency")]
+        [Tooltip("Back-and-forth cycles per second while firing.")]
+        [Min(0f)] public float domeFireFrequency = 3f;
         [Header("Floating ring")]
+        [Tooltip("Moves the entire floating ring along the beam axis away from the core. Decrease to bring it closer. Ring radius and panel shapes stay unchanged.")]
+        [Min(0f)] public float panelFloatOffset = .04f;
         [Min(.05f)] public float ringRadius = .43f;
         [Min(.01f)] public float mouthRadius = .15f;
         [Min(.01f)] public float panelLength = .4f;
@@ -40,13 +60,14 @@ namespace Massive.Enemies
         public float RingAngle { get; private set; }
         public float DeathProgress { get; private set; }
         public float MouthOpening { get; private set; }
+        public float DomeOffset { get; private set; }
         private const int FaceCount = ParticleBeamTurretGeometry.FaceCount;
         public float FacetProgress(int f) => progress[Mathf.Clamp(f, 0, FaceCount - 1)];
         public Vector3 FacetCornerWorld(int face, int corner) => transform.TransformPoint(corners[Mathf.Clamp(face, 0, FaceCount - 1) * 3 + Mathf.Clamp(corner, 0, 2)]);
         private EnemyBase enemy;
         private ParticleBeamTurretController turret;
         private Mesh mesh;
-        private float age, deathAge = -1f, chargeMix, jitterClock;
+        private float age, deathAge = -1f, chargeMix, jitterClock, domeClock;
         private readonly Vector3[] corners = new Vector3[FaceCount * 3], vertices = new Vector3[FaceCount * 6];
         private readonly Vector3[] directions = new Vector3[FaceCount], axes = new Vector3[FaceCount];
         private readonly float[] start = new float[FaceCount], duration = new float[FaceCount], progress = new float[FaceCount];
@@ -57,7 +78,7 @@ namespace Massive.Enemies
         {
             enemy = GetComponent<EnemyBase>(); turret = GetComponent<ParticleBeamTurretController>();
             if (enemy) enemy.Died += OnDeath;
-            age = RingAngle = chargeMix = jitterClock = MouthOpening = DeathProgress = 0f; deathAge = -1f;
+            age = RingAngle = chargeMix = jitterClock = MouthOpening = DeathProgress = domeClock = DomeOffset = 0f; deathAge = -1f;
             properties = new MaterialPropertyBlock();
             var random = new System.Random(GetInstanceID());
             float Sample(float a, float b) => Mathf.Lerp(a, b, (float)random.NextDouble());
@@ -101,7 +122,7 @@ namespace Massive.Enemies
             }
             if (turret && turret.damageTrigger is CapsuleCollider hurt)
             {
-                float reach = Mathf.Max(height, height + firingPivotOffset + panelLength);
+                float reach = Mathf.Max(height, height + firingPivotOffset + panelLength + panelFloatOffset);
                 // Retain the established hurtbox at the original dimensions; only the
                 // extra reach/width from authoring controls expands or contracts it.
                 float reachDelta = reach - .83f;
@@ -128,36 +149,56 @@ namespace Massive.Enemies
             jitterClock += dt * Mathf.Lerp(idleSpeed, chargeSpeed, chargeMix);
             RingAngle = Mathf.Repeat(RingAngle + ringSpinSpeed * dt, 360f);
             MouthOpening = Mathf.MoveTowards(MouthOpening, firing ? 1f : 0f, dt / .15f);
+            // Share the apparatus's short state blends, keeping the oscillator phase continuous.
+            float domeAmplitude = Mathf.Lerp(Mathf.Lerp(domeVibrationAmplitude, domeChargeAmplitude, chargeMix), domeFireAmplitude, MouthOpening);
+            float domeFrequency = Mathf.Lerp(Mathf.Lerp(domeVibrationFrequency, domeChargeFrequency, chargeMix), domeFireFrequency, MouthOpening);
+            domeClock = Mathf.Repeat(domeClock + dt * domeFrequency * Mathf.PI * 2f, Mathf.PI * 2f);
+            DomeOffset = Mathf.Sin(domeClock) * domeAmplitude;
             float reveal = Application.isPlaying && turret ? turret.RevealProgress : 1f;
             UpdateGeometry(reveal); UpdateCore(reveal);
         }
-        private void UpdateGeometry(float reveal)
+        /// <summary>Complete pose in root-local space, shared by visible faces and arrival outlines.</summary>
+        public void CopyPoseCorners(Vector3[] destination, bool animated = false)
         {
             if (!firingPivot) return;
-            for (int i = 0; i < ParticleBeamTurretGeometry.BaseFaces; i++) ParticleBeamTurretGeometry.BaseTriangle(i, baseRadius, baseHeight, corners, i * 3);
+            for (int i = 0; i < ParticleBeamTurretGeometry.BaseFaces; i++) ParticleBeamTurretGeometry.BaseTriangle(i, baseRadius, baseHeight, destination, i * 3);
             Matrix4x4 pivotToRoot = transform.worldToLocalMatrix * firingPivot.localToWorldMatrix;
             for (int i = 0; i < 8; i++)
             {
                 float angle = i * Mathf.PI / 4f;
                 Vector3 radial = new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0f);
                 Vector3 tangent = new Vector3(-radial.y, radial.x, 0f);
-                float amplitude = Mathf.Lerp(idleAmplitude, chargeAmplitude, chargeMix);
+                float amplitude = animated ? Mathf.Lerp(idleAmplitude, chargeAmplitude, chargeMix) : 0f;
                 float jitter = (Mathf.Sin(jitterClock + i * 2.4f) + .3f * Mathf.Sin(jitterClock * 2.31f + i)) / 1.3f;
                 Vector3 hinge = radial * (ringRadius + amplitude * jitter);
-                Quaternion open = Quaternion.AngleAxis(panelOpenAngle * MouthOpening, tangent);
-                Quaternion roll = Quaternion.AngleAxis(RingAngle, Vector3.forward);
+                Quaternion open = Quaternion.AngleAxis(animated ? panelOpenAngle * MouthOpening : 0f, tangent);
+                Quaternion roll = Quaternion.AngleAxis(animated ? RingAngle : 0f, Vector3.forward);
                 Vector3 tip = radial * mouthRadius + Vector3.forward * panelLength;
+                Vector3 offset = Vector3.forward * panelFloatOffset;
                 int n = (i + ParticleBeamTurretGeometry.BaseFaces) * 3;
-                corners[n] = pivotToRoot.MultiplyPoint3x4(roll * (hinge - tangent * ringRadius * .32f * panelWidth));
-                corners[n + 1] = pivotToRoot.MultiplyPoint3x4(roll * (hinge + tangent * ringRadius * .32f * panelWidth));
-                corners[n + 2] = pivotToRoot.MultiplyPoint3x4(roll * (hinge + open * (tip - radial * ringRadius)));
+                destination[n] = pivotToRoot.MultiplyPoint3x4(offset + roll * (hinge - tangent * ringRadius * .32f * panelWidth));
+                destination[n + 1] = pivotToRoot.MultiplyPoint3x4(offset + roll * (hinge + tangent * ringRadius * .32f * panelWidth));
+                destination[n + 2] = pivotToRoot.MultiplyPoint3x4(offset + roll * (hinge + open * (tip - radial * ringRadius)));
             }
             for (int i = 0; i < ParticleBeamTurretGeometry.DomeFaces; i++)
             {
                 int n = (i + ParticleBeamTurretGeometry.BaseFaces + ParticleBeamTurretGeometry.RingFaces) * 3;
-                ParticleBeamTurretGeometry.DomeTriangle(i, domeRadius, corners, n);
-                for (int j = 0; j < 3; j++) corners[n + j] = pivotToRoot.MultiplyPoint3x4(corners[n + j]);
+                ParticleBeamTurretGeometry.DomeTriangle(i, domeRadius, destination, n);
+                for (int j = 0; j < 3; j++) destination[n + j] = pivotToRoot.MultiplyPoint3x4(destination[n + j] + Vector3.forward * (animated ? DomeOffset : 0f));
             }
+        }
+        public Mesh CreateSpawnOutline()
+        {
+            ApplyDimensions();
+            var pose = new Vector3[FaceCount * 3]; CopyPoseCorners(pose);
+            var outline = new Mesh { name = "Turret arrival outline (generated)", hideFlags = HideFlags.DontSave };
+            ParticleBeamTurretGeometry.BuildOutline(outline, pose);
+            return outline;
+        }
+        private void UpdateGeometry(float reveal)
+        {
+            if (!firingPivot) return;
+            CopyPoseCorners(corners, true);
             for (int f = 0; f < FaceCount; f++)
             {
                 if (deathAge < 0f) progress[f] = Mathf.Clamp01((reveal - start[f] * facetTimingScatter) / Mathf.Max(.01f, (1f - start[f] * facetTimingScatter) * duration[f]));

@@ -525,7 +525,7 @@ namespace Massive.Enemies
         {
             if (p == null) return false;
             if (!p.gameObject.activeInHierarchy) return false;
-            if (p.temporarilyEliminated) return false;
+            if (p.IsSpawning || p.IsInvulnerable || p.IsMatchInputLocked) return false;
             return true;
         }
 

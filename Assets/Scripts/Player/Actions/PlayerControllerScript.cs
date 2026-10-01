@@ -328,6 +328,8 @@ private bool _matchInputLocked;
     public int LifeSequence => _lifeSequence;
 
     public bool IsInvulnerable => Time.time < _invulnUntil;
+    // Initial match arrival has its own flag; normal respawn remains eliminated until assembly completes.
+    public bool IsSpawning => _matchSpawning || temporarilyEliminated;
 
 private void OnEnable()
 {
@@ -812,6 +814,7 @@ if (showPlayerIdToastOnMatchStart)
         Vector3 input = movement;
         input.y = 0f;
 
+        TickEnemyRepulsorRecoil();
         Vector3 vel = rb.linearVelocity;
         Vector3 velXZ = new Vector3(vel.x, 0f, vel.z);
         ApplyJoystickReversal(ref vel, ref velXZ);
@@ -1026,6 +1029,13 @@ if (showPlayerIdToastOnMatchStart)
         bool allowDeath = true,
         bool disruptsScoreChain = false)
     {
+        if (delta < 0f && hitSource)
+        {
+            var sourceEnemy = hitSource.GetComponentInParent<Massive.Enemies.EnemyBase>();
+            var sourceProjectile = hitSource.GetComponentInParent<Massive.Enemies.EnemyProjectileBase>();
+            if (!sourceEnemy && sourceProjectile) sourceEnemy = sourceProjectile.Owner;
+            if (sourceEnemy && !sourceEnemy.SharesSimulationWith(this)) return default;
+        }
         if (delta >= 0f)
         {
             float restored = RestoreMass(delta);

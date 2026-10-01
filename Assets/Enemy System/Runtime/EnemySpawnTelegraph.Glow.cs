@@ -26,6 +26,17 @@ namespace Massive.Enemies
             var material = Resources.Load<Material>("Enemy Spawn Halo");
             var quad = Resources.Load<Mesh>("Enemy Spawn Halo Quad");
             if (!material || !quad) return;
+            var bounds = DiffuseBounds();
+            var go = new GameObject("Diffuse spawn glow"); go.layer = gameObject.layer;
+            _diffuseTransform = go.transform; _diffuseTransform.SetParent(transform, false); _diffuseTransform.localPosition = bounds.center;
+            go.AddComponent<MeshFilter>().sharedMesh = quad;
+            _diffuseRenderer = go.AddComponent<MeshRenderer>(); _diffuseRenderer.sharedMaterial = material;
+            _diffuseRenderer.shadowCastingMode = ShadowCastingMode.Off; _diffuseRenderer.receiveShadows = false;
+            _diffuseRenderer.enabled = false;
+            _diffuseProperties = new MaterialPropertyBlock();
+        }
+        private Bounds DiffuseBounds()
+        {
             var outline = _sourceOutline;
             if (!OutlineBounds.TryGetValue(outline, out var bounds))
             {
@@ -35,13 +46,7 @@ namespace Massive.Enemies
                 OutlineBounds[outline] = bounds;
             }
             _diffuseRadius = Mathf.Max(.1f, Mathf.Max(bounds.extents.x, Mathf.Max(bounds.extents.y, bounds.extents.z)));
-            var go = new GameObject("Diffuse spawn glow"); go.layer = gameObject.layer;
-            _diffuseTransform = go.transform; _diffuseTransform.SetParent(transform, false); _diffuseTransform.localPosition = bounds.center;
-            go.AddComponent<MeshFilter>().sharedMesh = quad;
-            _diffuseRenderer = go.AddComponent<MeshRenderer>(); _diffuseRenderer.sharedMaterial = material;
-            _diffuseRenderer.shadowCastingMode = ShadowCastingMode.Off; _diffuseRenderer.receiveShadows = false;
-            _diffuseRenderer.enabled = false;
-            _diffuseProperties = new MaterialPropertyBlock();
+            return bounds;
         }
 
         private void SetDiffuseGlow(float opacity)

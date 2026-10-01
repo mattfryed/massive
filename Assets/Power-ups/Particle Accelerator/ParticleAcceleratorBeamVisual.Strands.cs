@@ -24,15 +24,84 @@ namespace Massive.PowerUps
         private readonly Vector4[] strandNodes = new Vector4[MaxStrands * NodesPerStrand];
         private readonly Vector4[] strandInfo = new Vector4[MaxStrands];
 
+        private float BodyRadius(float radius, float charge, float clock)
+        {
+            float thickness = plasmaLayers ? overallThickness.Sample(clock * Mathf.Max(0f, thicknessVariationSpeed)) : 1f;
+            float noise = Mathf.PerlinNoise(13.37f, clock * widthJitterFreq) * 2f - 1f;
+            return radius * Mathf.Max(.75f, 1f + noise * widthJitterAmp * Mathf.Lerp(.35f, 1f, charge)) * thickness;
+        }
+
+        private Vector3 PathCenter(float length, float distance, float bodyRadius, float clock, float waveNumber)
+        {
+            float pin = Mathf.Sin(Mathf.PI * distance / Mathf.Max(.001f, length));
+            return new Vector3(bodyRadius * curveAmplitude * pin * Mathf.Sin(distance * waveNumber * .55f - clock * 2.1f),
+                bodyRadius * curveAmplitude * .32f * pin * Mathf.Sin(distance * waveNumber * .39f - clock * 1.7f + .9f), distance);
+        }
+
+        private void SampleStrand(int s, int count, float length, float distance, float bodyRadius,
+            float tailRadius, float headRadius, float clock, float waveNumber, out Vector3 center, out float radius)
+        {
+            int blackCount = Mathf.Max(1, count / 3), whiteCount = count - blackCount;
+            bool black = s % 3 == 1 && s < blackCount * 3;
+            float share = black ? 1f - Mathf.Clamp01(whiteFraction) : Mathf.Clamp01(whiteFraction);
+            float radiusWeight = .84f * Mathf.Sqrt(share / (black ? blackCount : whiteCount));
+            float seed = s * 2.399963f;
+            float frequency = Mathf.Max(.1f, swirlTurnsPerUnit) * 2f * Mathf.PI / _spatialScale;
+            float ramp = Mathf.Max(.001f, Mathf.Min(length * .45f, Mathf.Max(.05f, muzzleRampWorld) * _spatialScale));
+            float flow = distance * frequency - clock * swirlSpeed * (.73f + .11f * s);
+            float bend = .92f * Mathf.Sin(flow * (.19f + .017f * s) + seed)
+                + .43f * Mathf.Sin(flow * (.47f + .023f * s) - seed * 1.7f)
+                + .18f * Mathf.Sin(flow * .91f + seed * 2.3f);
+            float angle = s * 2f * Mathf.PI / count + .21f * Mathf.Sin(seed) + strandWander * bend;
+            float pin = Ease(Mathf.Clamp01(distance / ramp)) * Ease(Mathf.Clamp01((length - distance) / ramp));
+            float rangeTime = clock * Mathf.Max(0f, thicknessVariationSpeed);
+            float profile = Mathf.Lerp(startThickness.Sample(rangeTime + .7f), bodyThickness.Sample(distance * waveNumber - rangeTime), Ease(Mathf.Clamp01(distance / ramp)));
+            profile = Mathf.Lerp(profile, endThickness.Sample(rangeTime + 2.3f), Ease(Mathf.Clamp01((distance - length + ramp) / ramp)));
+            float orbit = bodyRadius * profile * strandSeparation * (.72f + .18f * Mathf.Sin(flow * .31f + seed)) * pin;
+            center = PathCenter(length, distance, bodyRadius, clock, waveNumber);
+            // Both colors travel through the full cross-section, above and below one another.
+            center += new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0f) * orbit;
+            float life = Mathf.Sin(flow * (.16f + .009f * s) + seed * 1.3f) + .4f * Mathf.Sin(flow * .37f - seed);
+            float taper = Ease(Mathf.Clamp01((life + .48f) / 1.08f));
+            // A thin white feeder prevents the complete bundle disappearing at once.
+            if (s == 0) taper = Mathf.Lerp(.35f, 1f, taper);
+            radius = Mathf.Lerp(tailRadius, bodyRadius, Ease(Mathf.Clamp01(distance / ramp)));
+            radius = Mathf.Lerp(radius, headRadius, Ease(Mathf.Clamp01((distance - length + ramp) / ramp)));
+            radius *= profile * radiusWeight * Mathf.Lerp(1f, taper, strandTaper);
+            radius *= 1f + Mathf.Clamp01(thicknessWaveAmplitude) * Mathf.Sin(distance * waveNumber - clock * 5f + seed * .8f);
+        }
+
+        /// <summary>Conservative bundle envelope on the exact visual centerline; no per-frame allocation.</summary>
+        public void SampleCollisionPath(Vector3 origin, Vector3 direction, float referenceLength, float distance,
+            float radius, float clock, out Vector3 center, out float envelopeRadius)
+        {
+            direction.y = 0f; direction.Normalize();
+            var rotation = Quaternion.LookRotation(direction, Vector3.up);
+            float body = BodyRadius(Mathf.Max(0f, radius), 1f, clock);
+            if (!plasmaLayers)
+            { center = origin + direction * distance; envelopeRadius = body; return; }
+            float wave = 2f * Mathf.PI / Mathf.Max(.2f, waveLength * _spatialScale);
+            Vector3 local = PathCenter(referenceLength, distance, body, clock, wave);
+            center = origin + rotation * local; envelopeRadius = 0f;
+            if (referenceLength <= .02f * _spatialScale || body <= .00001f) return;
+            int count = Mathf.Clamp(strandCount, 3, MaxStrands);
+            for (int s = 0; s < count; s++)
+            {
+                SampleStrand(s, count, referenceLength, distance, body, body * tailRadiusMul, body * headRadiusMul,
+                    clock, wave, out var strandCenter, out float strandRadius);
+                if (strandRadius > .00001f)
+                    envelopeRadius = Mathf.Max(envelopeRadius, (strandCenter - local).magnitude + strandRadius);
+            }
+        }
+
         private Vector3 BuildPlasmaStrands(float length, float bodyRadius, float tailRadius,
             float headRadius, float invScale, float clock, float waveNumber)
         {
             int count = Mathf.Clamp(strandCount, 3, MaxStrands);
-            int blackCount = Mathf.Max(1, count / 3), whiteCount = count - blackCount;
+            int blackCount = Mathf.Max(1, count / 3);
             float frequency = Mathf.Max(.1f, swirlTurnsPerUnit) * 2f * Mathf.PI / _spatialScale;
             int nodeCount = Mathf.Clamp(Mathf.CeilToInt(length * Mathf.Max(6f / _spatialScale, frequency * 1.6f)) + 1, 3, NodesPerStrand);
             float spacing = length / (nodeCount - 1), half = length * .5f;
-            float ramp = Mathf.Min(length * .45f, Mathf.Max(.05f, muzzleRampWorld) * _spatialScale);
             Vector3 extent = Vector3.zero;
             for (int s = 0; s < count; s++)
             {
@@ -40,36 +109,14 @@ namespace Massive.PowerUps
                 // At the 3/6-strand boundaries, exactly count/3 strands use the black material.
                 if (s >= blackCount * 3) black = false;
                 float share = black ? 1f - Mathf.Clamp01(whiteFraction) : Mathf.Clamp01(whiteFraction);
-                float radiusWeight = .84f * Mathf.Sqrt(share / (black ? blackCount : whiteCount));
-                float seed = s * 2.399963f, bound = 1f;
+                float bound = 1f;
                 Vector3 previous = Vector3.zero; float previousRadius = 0f;
                 for (int n = 0; n < nodeCount; n++)
                 {
-                    float distance = n * spacing, z = distance - half;
-                    float flow = distance * frequency - clock * swirlSpeed * (.73f + .11f * s);
-                    float bend = .92f * Mathf.Sin(flow * (.19f + .017f * s) + seed)
-                        + .43f * Mathf.Sin(flow * (.47f + .023f * s) - seed * 1.7f)
-                        + .18f * Mathf.Sin(flow * .91f + seed * 2.3f);
-                    float angle = s * 2f * Mathf.PI / count + .21f * Mathf.Sin(seed) + strandWander * bend;
-                    float pin = Ease(Mathf.Clamp01(distance / ramp)) * Ease(Mathf.Clamp01((length - distance) / ramp));
-                    float rangeTime = clock * Mathf.Max(0f, thicknessVariationSpeed);
-                    float profile = Mathf.Lerp(startThickness.Sample(rangeTime + .7f), bodyThickness.Sample(distance * waveNumber - rangeTime), Ease(Mathf.Clamp01(distance / ramp)));
-                    profile = Mathf.Lerp(profile, endThickness.Sample(rangeTime + 2.3f), Ease(Mathf.Clamp01((distance - length + ramp) / ramp)));
-                    float orbit = bodyRadius * profile * strandSeparation * (.72f + .18f * Mathf.Sin(flow * .31f + seed)) * pin;
-                    float centerPin = Mathf.Sin(Mathf.PI * distance / length);
-                    Vector3 center = new Vector3(
-                        bodyRadius * curveAmplitude * centerPin * Mathf.Sin(distance * waveNumber * .55f - clock * 2.1f),
-                        bodyRadius * curveAmplitude * .32f * centerPin * Mathf.Sin(distance * waveNumber * .39f - clock * 1.7f + .9f), z);
-                    // Both colors travel through the full cross-section, above and below one another.
-                    center += new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0f) * orbit;
-                    float life = Mathf.Sin(flow * (.16f + .009f * s) + seed * 1.3f) + .4f * Mathf.Sin(flow * .37f - seed);
-                    float taper = Ease(Mathf.Clamp01((life + .48f) / 1.08f));
-                    // A thin white feeder prevents the complete bundle disappearing at once.
-                    if (s == 0) taper = Mathf.Lerp(.35f, 1f, taper);
-                    float radius = Mathf.Lerp(tailRadius, bodyRadius, Ease(Mathf.Clamp01(distance / ramp)));
-                    radius = Mathf.Lerp(radius, headRadius, Ease(Mathf.Clamp01((distance - length + ramp) / ramp)));
-                    radius *= profile * radiusWeight * Mathf.Lerp(1f, taper, strandTaper);
-                    radius *= 1f + Mathf.Clamp01(thicknessWaveAmplitude) * Mathf.Sin(distance * waveNumber - clock * 5f + seed * .8f);
+                    float distance = n * spacing;
+                    SampleStrand(s, count, Mathf.Max(length, _pathReferenceLength), distance, bodyRadius, tailRadius,
+                        headRadius, clock, waveNumber, out var center, out float radius);
+                    center.z -= half;
                     strandNodes[s * NodesPerStrand + n] = new Vector4(center.x * invScale, center.y * invScale, center.z * invScale, radius * invScale);
                     extent = Vector3.Max(extent, new Vector3(Mathf.Abs(center.x), Mathf.Abs(center.y), Mathf.Abs(center.z)) + Vector3.one * radius);
                     if (n > 0)

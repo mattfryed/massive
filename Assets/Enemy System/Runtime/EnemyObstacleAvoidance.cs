@@ -229,6 +229,8 @@ namespace Massive.Enemies
         public bool ShouldAvoid(Collider c)
         {
             if (c == null || !c.enabled || c == LaunchClearanceCollider || c.transform.IsChildOf(transform)) return false;
+            var owner = GetComponent<EnemyBase>(); var otherEnemy = c.GetComponentInParent<EnemyBase>();
+            if (owner && otherEnemy && !owner.SharesSimulationWith(otherEnemy)) return false;
             var resonance = c.GetComponentInParent<Massive.Resonance.ResonanceSegment>();
             if (resonance != null && resonance.EnemiesUseSludge) return false;
             if (!filterDroneContacts) return true;

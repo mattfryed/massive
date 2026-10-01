@@ -42,8 +42,8 @@ public static class CarrierPrototypeSetup
             var root = new GameObject("Enemy_Carrier"); root.SetActive(false); root.layer = LayerMask.NameToLayer("Enemy");
             try
             {
-                var body = root.AddComponent<Rigidbody>(); body.useGravity = false; body.mass = 6f;
-                body.constraints = RigidbodyConstraints.FreezeAll;
+                var body = root.AddComponent<Rigidbody>(); body.useGravity = false; body.isKinematic = true; body.mass = 6f;
+                body.constraints = RigidbodyConstraints.FreezePositionY | RigidbodyConstraints.FreezeRotation;
                 var enemy = root.AddComponent<EnemyBase>();
                 var damage = new GameObject("Damage trigger"); damage.layer = root.layer; damage.transform.SetParent(root.transform, false);
                 var hitbox = damage.AddComponent<SphereCollider>(); hitbox.radius = .775f; hitbox.isTrigger = true;

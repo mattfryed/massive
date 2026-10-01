@@ -62,6 +62,15 @@ namespace Massive.Enemies
             strength = Mathf.Clamp01(intensity); IsEmitting = strength > .001f;
         }
         public void StopEmission() { IsEmitting = false; budget = 0f; }
+        /// <summary>One-shot rear exhaust, using the same bounded pool as sustained turret plasma.</summary>
+        public void EmitBurst(Vector3 position, Vector3 direction, int count)
+        {
+            if (!isActiveAndEnabled || !sdf) return;
+            SetContact(position, direction, 1f); StopEmission();
+            coating = 1f;
+            for (int i = 0; i < Mathf.Clamp(count, 0, drops.Length); i++) SpawnDrop();
+            Rebuild();
+        }
         public void Clear()
         {
             StopEmission(); coating = clock = 0f; nextDrop = serial = LiveDropCount = TotalEmitted = 0;
@@ -86,23 +95,27 @@ namespace Massive.Enemies
                 budget += dt * Mathf.Clamp(dropsPerSecond, 0f, 120f);
                 while (budget >= 1f)
                 {
-                    budget -= 1f; int seed = ++serial;
-                    Vector3 side = Vector3.Cross(Vector3.up, normal).normalized;
-                    if (side.sqrMagnitude < .01f) side = Vector3.right;
-                    float lateral = Hash(seed * 3) * 2f - 1f;
-                    drops[nextDrop] = new Drop
-                    {
-                        position = point + side * lateral * contactRadius * .55f,
-                        velocity = (side * lateral + normal * Mathf.Lerp(.2f, .6f, Hash(seed * 5))
-                            + Vector3.up * Mathf.Lerp(.05f, .3f, Hash(seed * 7))) * splashSpeed,
-                        life = dropLifetime * Mathf.Lerp(.7f, 1.2f, Hash(seed * 11)),
-                        radius = dropRadius * Mathf.Lerp(.7f, 1.4f, Hash(seed * 13)),
-                        ink = Mathf.Repeat(seed * .618034f, 1f) < 1f - whiteFraction ? 1f : 0f
-                    };
-                    nextDrop = (nextDrop + 1) % drops.Length; TotalEmitted++;
+                    budget -= 1f; SpawnDrop();
                 }
             }
             Rebuild();
+        }
+        private void SpawnDrop()
+        {
+            int seed = ++serial;
+            Vector3 side = Vector3.Cross(Vector3.up, normal).normalized;
+            if (side.sqrMagnitude < .01f) side = Vector3.right;
+            float lateral = Hash(seed * 3) * 2f - 1f;
+            drops[nextDrop] = new Drop
+            {
+                position = point + side * lateral * contactRadius * .55f,
+                velocity = (side * lateral + normal * Mathf.Lerp(.2f, .6f, Hash(seed * 5))
+                    + Vector3.up * Mathf.Lerp(.05f, .3f, Hash(seed * 7))) * splashSpeed,
+                life = dropLifetime * Mathf.Lerp(.7f, 1.2f, Hash(seed * 11)),
+                radius = dropRadius * Mathf.Lerp(.7f, 1.4f, Hash(seed * 13)),
+                ink = Mathf.Repeat(seed * .618034f, 1f) < 1f - whiteFraction ? 1f : 0f
+            };
+            nextDrop = (nextDrop + 1) % drops.Length; TotalEmitted++;
         }
         private void Add(Vector3 p, float radius, float black)
         {

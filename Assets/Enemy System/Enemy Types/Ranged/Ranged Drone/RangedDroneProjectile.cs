@@ -146,7 +146,7 @@ namespace Massive.Enemies
             var player = other.GetComponentInParent<PlayerControllerScript>();
             if (player)
             {
-                if (!player.isActiveAndEnabled || player.IsPseudoPlayer || player.temporarilyEliminated || player.IsMatchInputLocked || player.IsInvulnerable) return false;
+                if (!player.isActiveAndEnabled || (Owner ? !Owner.SharesSimulationWith(player) : player.IsPseudoPlayer) || player.IsSpawning || player.IsMatchInputLocked || player.IsInvulnerable) return false;
                 if (player == ReflectedBy && ActiveAge - reflectedAt < .15f) return false;
                 if (Owner && Owner.OwnerTeamId >= 0 && player.teamID == Owner.OwnerTeamId && !ReflectedBy) return false;
                 if (other.CompareTag("Shield")) return player.shieldOn;
@@ -154,6 +154,7 @@ namespace Massive.Enemies
                 return other.CompareTag("Player") && !player.shieldOn;
             }
             var enemy = other.GetComponentInParent<EnemyBase>();
+            if (enemy && Owner && !Owner.SharesSimulationWith(enemy)) return false;
             if (enemy == Owner && enemy) return ReflectedBy && !enemy.IsDead && !enemy.IsPaused;
             if (enemy && other.isTrigger) return false;
             if (other.GetComponentInParent<EnemyProjectileBase>()) return false;

@@ -23,7 +23,7 @@ namespace Massive.Enemies
     /// - This script does NOT handle damage; it only reacts visually.
     /// </summary>
     [ExecuteAlways]
-    public sealed class DysonSpherePanels : ImmediateModeShapeDrawer
+    public sealed partial class DysonSpherePanels : ImmediateModeShapeDrawer
     {
         private enum PanelState
         {
@@ -278,7 +278,7 @@ namespace Massive.Enemies
             }
 
             _spawnActive = true;
-            _spawnStartTime = Time.time;
+            _spawnStartTime = PoseTime;
             _spawn01 = 0f;
 
             CacheCoreIfNeeded();
@@ -356,7 +356,7 @@ namespace Massive.Enemies
             // Building here as well leaves a full shell queued for deferred destruction.
             CacheCoreIfNeeded();
         }
-        private void OnEnable()
+        public override void OnEnable()
         {
             if (_rng == null) _rng = new System.Random(GetInstanceID());
             if (_mpb == null) _mpb = new MaterialPropertyBlock();
@@ -390,11 +390,12 @@ namespace Massive.Enemies
             //
             // We call base.OnEnable() LAST so spawn state is initialized before the first draw, preventing
             // a 1-frame outline flash.
+            base.OnDisable(); // Idempotent registration across prefab stages and domain reloads.
             base.OnEnable();
         }
 
 
-        private void OnDisable()
+        public override void OnDisable()
         {
             // Ensure Shapes deregisters correctly.
             base.OnDisable();
@@ -436,7 +437,7 @@ namespace Massive.Enemies
             // Pulse the core (runtime only by default).
             if (core != null)
             {
-                float now = (Application.isPlaying ? Time.time : Time.realtimeSinceStartup);
+                float now = PoseTime;
 
                 float t = now * Mathf.Max(0f, corePulseSpeed);
                 float sin = Mathf.Sin(t);
@@ -498,7 +499,7 @@ namespace Massive.Enemies
                 return;
 
             float dur = Mathf.Max(0.05f, spawnSeconds);
-            float raw = Mathf.Clamp01((Time.time - _spawnStartTime) / dur);
+            float raw = Mathf.Clamp01((PoseTime - _spawnStartTime) / dur);
 
             // SmoothStep easing (feel free to swap to another curve later)
             float eased = raw * raw * (3f - 2f * raw);
@@ -1024,7 +1025,7 @@ namespace Massive.Enemies
 
             p.state = PanelState.Shattering;
             p.alpha01 = 1f;
-            p.shatterStartTime = Application.isPlaying ? Time.time : Time.realtimeSinceStartup;
+            p.shatterStartTime = PoseTime;
             p.shatterStartPos = p.tf.localPosition;
             p.shatterStartRot = p.tf.localRotation;
             p.shatterStartScale = p.tf.localScale;
@@ -1053,7 +1054,7 @@ namespace Massive.Enemies
         {
             if (_panels.Count == 0) return;
 
-            float now = (Application.isPlaying ? Time.time : Time.realtimeSinceStartup);
+            float now = PoseTime;
 
             float spd = Mathf.Max(0f, breatheSpeed);
             float s01 = Mathf.Clamp01(spear01);
@@ -1095,6 +1096,13 @@ namespace Massive.Enemies
                     float lift = baseLift + (breatheLiftAmplitude * breathe);
                     float ins = inset + (breatheInsetAmplitude * breathe);
                     ins = Mathf.Clamp(ins, 0f, 0.95f);
+                    if (radialDriven)
+                    {
+                        ins *= 1f - radialBlend;
+                        float attackLift = LiftToRadius(p, radius * radialRadiusMultiplier, 1f - ins);
+                        float jitter = radialVibration * Mathf.Sin(now * radialFrequency * Mathf.PI * 2f + p.phase * 11.17f);
+                        lift = Mathf.Lerp(lift, attackLift + jitter, radialBlend);
+                    }
 
                     // Spear weighting (based on face normal vs local forward)
                     float dot = Vector3.Dot(p.baseNormalLocal, Vector3.forward);
@@ -1238,17 +1246,21 @@ namespace Massive.Enemies
                     p.mr.SetPropertyBlock(_mpb);
                 }
             }
+            if (radialDriven) MeasureRadialShell();
         }
 
         // -------------------------
         // Outlines (Shapes)
         // -------------------------
 
+        private void OnDestroy() { base.OnDisable(); }
+
         public override void DrawShapes(Camera cam)
         {
+            if (!this || !isActiveAndEnabled) return;
             if (!Application.isPlaying && !generateInEditMode) return;
             if (_panels.Count == 0) return;
-            if (enemy != null && enemy.IsPaused) return;
+            if (enemy != null && enemy.IsPaused && !radialDriven) return;
 
             using (Draw.Command(cam))
             {

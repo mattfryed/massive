@@ -37,6 +37,26 @@ namespace Massive.Enemies
         }
         public static void DomeTriangle(int index, float radius, Vector3[] output, int offset)
         { for (int j = 0; j < 3; j++) output[offset + j] = dome[index * 3 + j] * radius; }
+        public static void BuildOutline(Mesh mesh, Vector3[] corners)
+        {
+            // Four vertices per edge, matching the shared spawn warning shader and join weights.
+            var vertices = new Vector3[corners.Length * 4];
+            var tangents = new Vector4[vertices.Length]; var uv = new Vector2[vertices.Length];
+            var indices = new int[corners.Length * 6];
+            for (int i = 0; i < corners.Length; i++)
+            {
+                Vector3 a = corners[i], b = corners[i / 3 * 3 + (i + 1) % 3], d = b - a;
+                int n = i * 4, t = i * 6;
+                vertices[n] = vertices[n + 1] = a; vertices[n + 2] = vertices[n + 3] = b;
+                for (int j = 0; j < 4; j++) tangents[n + j] = new Vector4(d.x, d.y, d.z, 1f);
+                uv[n] = new Vector2(0, -1); uv[n + 1] = new Vector2(0, 1);
+                uv[n + 2] = new Vector2(1, -1); uv[n + 3] = new Vector2(1, 1);
+                indices[t] = n; indices[t + 1] = n + 1; indices[t + 2] = n + 2;
+                indices[t + 3] = n + 2; indices[t + 4] = n + 1; indices[t + 5] = n + 3;
+            }
+            mesh.Clear(); mesh.vertices = vertices; mesh.tangents = tangents; mesh.uv = uv; mesh.triangles = indices;
+            mesh.RecalculateBounds(); var bounds = mesh.bounds; bounds.Expand(.5f); mesh.bounds = bounds;
+        }
         private static Vector3[] BuildDome()
         {
             var result = new System.Collections.Generic.List<Vector3>(DomeFaces * 3);

@@ -121,9 +121,7 @@ namespace Massive.Enemies
         private void OnDeath(EnemyBase source, EnemyDamageSource cause)
         { CancelWarning(); HideBeam(true); Target = null; Enter(AttackPhase.Seeking); SetColliders(false); }
         private void Enter(AttackPhase phase) { Phase = phase; PhaseAge = 0f; }
-        private bool Eligible(PlayerControllerScript p) => p && p.isActiveAndEnabled && p.gameObject.scene == gameObject.scene
-            && !p.IsPseudoPlayer && !p.temporarilyEliminated && !p.IsMatchInputLocked && p.massScore > p.massScoreMin
-            && (enemy.OwnerTeamId < 0 || p.teamID != enemy.OwnerTeamId);
+        private bool Eligible(PlayerControllerScript p) => enemy && enemy.CanTarget(p);
         private bool InArc(PlayerControllerScript p)
         {
             if (!Eligible(p)) return false;
@@ -179,17 +177,15 @@ namespace Massive.Enemies
                 if (SpawnAge == 0f && WarningSeconds > 0f)
                 {
                     warning = Instantiate(spawnTelegraphPrefab, transform.position, transform.rotation, transform);
-                    Vector3 scale = transform.lossyScale;
-                    if (TryGetComponent<ParticleBeamTurretVisuals>(out var visual))
-                        scale = Vector3.Scale(scale, new Vector3(visual.baseRadius / ParticleBeamTurretGeometry.DefaultBaseRadius,
-                            visual.baseRadius / ParticleBeamTurretGeometry.DefaultBaseRadius, visual.baseHeight / ParticleBeamTurretGeometry.DefaultBaseHeight));
-                    warning.Begin(WarningSeconds, scale);
+                    Mesh outline = TryGetComponent<ParticleBeamTurretVisuals>(out var visual) ? visual.CreateSpawnOutline() : null;
+                    warning.Begin(WarningSeconds, transform.lossyScale, outline);
                 }
                 SpawnAge += dt;
                 if (SpawnAge >= WarningSeconds && warning && !warning.IsCompleting) warning.Complete();
                 if (IsReady) SetColliders(true);
                 return;
             }
+            if (Target && !Eligible(Target)) Target = null;
             PhaseAge += dt;
             if (Phase == AttackPhase.Firing)
             {
@@ -205,7 +201,7 @@ namespace Massive.Enemies
             if (Phase == AttackPhase.Charging && firingTrackingDegreesPerSecond <= 0f)
                 trackingSpeed *= Mathf.SmoothStep(0f, 1f, (chargeSeconds - PhaseAge) / Mathf.Max(.01f, trackingEaseSeconds));
             Track(trackingSpeed, dt);
-            if (Phase == AttackPhase.Seeking && Target && beamVisual) Enter(AttackPhase.Charging);
+            if (Phase == AttackPhase.Seeking && enemy.AttacksEnabled && Target && beamVisual) Enter(AttackPhase.Charging);
             else if (Phase == AttackPhase.Charging && PhaseAge >= chargeSeconds)
             {
                 Enter(AttackPhase.Firing); TotalBlasts++; enemy.PlayAttackSfx(); FireBeam(dt);

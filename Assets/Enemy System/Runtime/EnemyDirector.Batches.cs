@@ -47,7 +47,7 @@ namespace Massive.Enemies
             bool paused = waitForScoring && (MatchScoreService.Instance == null ||
                 !MatchScoreService.Instance.IsScoringOpen || !MatchScoreService.Instance.IsChainClockRunning);
             if (waitForScoring && (MatchScoreService.Instance == null || !MatchScoreService.Instance.IsScoringOpen))
-                CancelBatchTelegraphs();
+            { CancelBatchTelegraphs(); CancelTimeline(); }
             if (paused != _matchPaused)
             {
                 _matchPaused = paused;
@@ -148,7 +148,9 @@ namespace Massive.Enemies
             }
             var enemy = go.GetComponent<EnemyBase>();
             if (enemy == null) enemy = go.AddComponent<EnemyBase>();
-            enemy.Init(def, this); RegisterEnemy(enemy); TotalSpawned++;
+            enemy.Init(def, this);
+            if (SimulationRoot) enemy.ConfigureDemonstration(SimulationRoot, null);
+            RegisterEnemy(enemy); TotalSpawned++;
             if (_cachedAnomalyRunning && spawnProfile.freezeExistingEnemiesDuringAnomalies) enemy.Pause(true);
         }
 
@@ -171,7 +173,9 @@ namespace Massive.Enemies
             if (!arenaBounds.ContainsWorldPoint(position, def.spawnRadiusWorld)) return false;
             var go = Instantiate(def.prefab, position, rotation, enemyRoot);
             enemy = go.GetComponent<EnemyBase>();
-            enemy.Init(def, this); RegisterEnemy(enemy); TotalSpawned++;
+            enemy.Init(def, this);
+            if (SimulationRoot) enemy.ConfigureDemonstration(SimulationRoot, null);
+            RegisterEnemy(enemy); TotalSpawned++;
             return true;
         }
 
@@ -182,6 +186,7 @@ namespace Massive.Enemies
         {
             if (spawnProfile == null || !spawnProfile.enabled || def == null || def.prefab == null || arenaBounds == null) return false;
             if (_matchPaused || (_cachedAnomalyRunning && !spawnProfile.allowSpawningDuringAnomalies)) return false;
+            if (encounterTimeline && (timelinePaused || !TimelineBudgetAllows(null, def, out _))) return false;
             int reservedTotal = 0, reservedType = 0, reservedCategory = 0;
             foreach (var reservation in _reservedSpawns)
             {

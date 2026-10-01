@@ -10,7 +10,7 @@ using Object = UnityEngine.Object;
 public static class DysonSpawnIndicatorSetup
 {
     public const string Folder = "Assets/Enemy System/Enemy Types/Melee/DysonSphere";
-    public const string PrefabPath = Folder + "/Enemy_DysonSphere.prefab";
+    public const string PrefabPath = DysonRepulsorSetup.PrefabPath;
     public const string DefinitionPath = Folder + "/ED_DysonSphere.asset";
     public const string TelegraphPath = Folder + "/Dyson Spawn Telegraph.prefab";
 

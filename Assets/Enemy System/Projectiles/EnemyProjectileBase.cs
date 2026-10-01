@@ -162,7 +162,7 @@ namespace Massive.Enemies
             if (shieldAbility != null && !shieldAbility.IsActive) return false;
 
             var player = other.GetComponentInParent<PlayerControllerScript>();
-            if (player == null || player.temporarilyEliminated) return false;
+            if (player == null || player.IsSpawning || (Owner && !Owner.SharesSimulationWith(player))) return false;
             if (shieldAbility == null && !player.shieldOn) return false;
             ReflectedBy = player;
 
@@ -201,8 +201,8 @@ namespace Massive.Enemies
             if (!other.CompareTag("Player")) return false;
 
             var player = other.GetComponentInParent<PlayerControllerScript>();
-            if (player == null) return false;
-            if (player.temporarilyEliminated) return true;
+            if (player == null || (Owner && !Owner.SharesSimulationWith(player))) return false;
+            if (player.IsSpawning) return true;
             if (player.IsInvulnerable) return true;
 
             // If the player is shielding and projectile is reflectable,

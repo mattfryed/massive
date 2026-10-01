@@ -110,7 +110,7 @@ namespace Massive.EditorTools.Prototyping
                 "Assets/Enemy System/Enemy Types/BaseEnemy.prefab"));
             enemies.Entries.Add(Entry(
                 "DYSON SPHERE",
-                "Assets/Enemy System/Enemy Types/Melee/DysonSphere/Enemy_DysonSphere.prefab"));
+                "Assets/Enemy System/Enemy Types/Melee/DysonSphere/Enemy_DysonSphere_Repulsor.prefab"));
             catalog.Categories.Add(enemies);
 
             GameplayPrefabGalleryCategory powerUps = new(

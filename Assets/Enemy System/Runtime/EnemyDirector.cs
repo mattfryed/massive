@@ -9,7 +9,7 @@ namespace Massive.Enemies
     /// - Tracks alive enemies to enforce caps.
     /// - Optionally freezes/spawn-pauses when AnomalyManager is running.
     ///
-    /// This is Step A: foundation only (no special behaviors per enemy type yet).
+    /// Supports legacy random/batch profiles and optional authored encounter timelines.
     /// </summary>
     [DisallowMultipleComponent]
     public partial class EnemyDirector : MonoBehaviour
@@ -80,7 +80,7 @@ namespace Massive.Enemies
         {
             CleanupDeadRefs();
 
-            if (spawnProfile == null || !spawnProfile.enabled) { CancelBatchTelegraphs(); return; }
+            if (spawnProfile == null || !spawnProfile.enabled) { CancelBatchTelegraphs(); CancelTimeline(); return; }
 
             if (CheckMatchPause()) return;
 
@@ -95,6 +95,8 @@ namespace Massive.Enemies
             if (_cachedAnomalyRunning && !spawnProfile.allowSpawningDuringAnomalies)
                 return;
 
+            if (encounterTimeline) { TickTimeline(Time.deltaTime); return; }
+
             TickBatches(Time.deltaTime);
 
             if (Time.time < _nextSpawnTime) return;
@@ -105,7 +107,7 @@ namespace Massive.Enemies
 
         private void OnDisable()
         {
-            CancelBatchTelegraphs();
+            CancelBatchTelegraphs(); CancelTimeline();
             // Stop all movement/behavior when disabled (match end, scene transitions)
             PauseAll(true);
         }
@@ -211,6 +213,7 @@ namespace Massive.Enemies
 
         private void PauseAll(bool paused)
         {
+            paused |= encounterTimeline && timelinePaused;
             for (int i = 0; i < _alive.Count; i++)
             {
                 var e = _alive[i];

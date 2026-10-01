@@ -13,6 +13,21 @@ namespace Massive.Enemies
 
         private static readonly Dictionary<Mesh, JoinedOutline> JoinedOutlines = new Dictionary<Mesh, JoinedOutline>();
         private Mesh _sourceOutline;
+        private Mesh _ownedOutline;
+
+        private void ReplaceOutline(Mesh mesh)
+        {
+            if (_ownedOutline == mesh) return;
+            ReleaseOutlineJoins();
+            if (_ownedOutline) { OutlineBounds.Remove(_ownedOutline); Destroy(_ownedOutline); }
+            _ownedOutline = mesh;
+            GetComponent<MeshFilter>().sharedMesh = mesh;
+            InitializeOutlineJoins();
+            if (_diffuseTransform) _diffuseTransform.localPosition = DiffuseBounds().center;
+            _ghostMesh = GetComponent<MeshFilter>().sharedMesh;
+            foreach (var ghost in _ghosts)
+                if (ghost != null && ghost.transform) ghost.transform.GetComponent<MeshFilter>().sharedMesh = _ghostMesh;
+        }
 
         private void InitializeOutlineJoins()
         {
@@ -52,6 +67,11 @@ namespace Massive.Enemies
         }
 
         private void OnDestroy()
+        {
+            ReleaseOutlineJoins();
+            if (_ownedOutline) { OutlineBounds.Remove(_ownedOutline); Destroy(_ownedOutline); }
+        }
+        private void ReleaseOutlineJoins()
         {
             if (!_sourceOutline || !JoinedOutlines.TryGetValue(_sourceOutline, out var outline)) return;
             if (--outline.users > 0) return;

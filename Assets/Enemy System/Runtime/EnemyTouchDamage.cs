@@ -43,7 +43,7 @@ namespace Massive.Enemies
 
             var player = other.GetComponentInParent<PlayerControllerScript>();
             if (player == null) return;
-            if (player.temporarilyEliminated) return;
+            if (player.IsSpawning) return;
             if (player.IsInvulnerable) return;
 
             if (ignoreShieldedPlayers && player.shieldOn)

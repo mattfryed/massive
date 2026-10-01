@@ -1,0 +1,36 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e0d204bac5ccc9f4985243ab0fa1692f, type: 3}
+  m_Name: 04 Dyson Flanks
+  m_EditorClassIdentifier: 
+  warningSeconds: 2
+  slots:
+  - enemy: {fileID: 11400000, guid: 7b0ed3d8b87fb4fb892c6742e83ed21b, type: 2}
+    telegraph: {fileID: 7134231835184742519, guid: bf689d5e7baa3a34fb6fea6ffffd064f,
+      type: 3}
+    region: Arena
+    position: {x: 0.120000005, y: 0.3}
+    facing: {x: 1, y: 0}
+    socket: 
+    releaseDelay: 0
+    entrySeconds: 0
+    entrySpeed: 1.4
+  - enemy: {fileID: 11400000, guid: 7b0ed3d8b87fb4fb892c6742e83ed21b, type: 2}
+    telegraph: {fileID: 7134231835184742519, guid: bf689d5e7baa3a34fb6fea6ffffd064f,
+      type: 3}
+    region: Arena
+    position: {x: 0.88, y: 0.3}
+    facing: {x: -1, y: 0}
+    socket: 
+    releaseDelay: 0
+    entrySeconds: 0
+    entrySpeed: 1.4

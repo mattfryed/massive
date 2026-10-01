@@ -42,6 +42,7 @@ namespace Massive.Enemies
             for (int i = 0; i < _ghosts.Length; i++)
             {
                 var ghost = _ghosts[i]; if (ghost == null) continue;
+                ghost.renderer.localBounds = _renderer.localBounds;
                 StartGhost(ghost);
                 ghost.age = -i * Mathf.Max(.05f, ghostLifetime) / Mathf.Max(1, ghostCount);
                 ghost.renderer.enabled = false;

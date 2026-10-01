@@ -26,6 +26,7 @@ namespace Massive.Enemies
         public float Charge01 => Phase == AttackPhase.Charging ? Mathf.Clamp01(PhaseAge / chargeSeconds) : 0f;
         public float ShotPulse { get; private set; }
         public int TotalShots { get; private set; }
+        public int TotalBursts { get; private set; }
         public event Action<RangedDroneProjectile> ShotFired;
         private EnemyBase enemy;
         private DroneController drone;
@@ -36,7 +37,7 @@ namespace Massive.Enemies
         private void Awake() { enemy = GetComponent<EnemyBase>(); drone = GetComponent<DroneController>(); }
         private void OnEnable()
         {
-            Phase = AttackPhase.Seeking; PhaseAge = ShotPulse = 0f; TotalShots = shots = 0; burstTarget = null;
+            Phase = AttackPhase.Seeking; PhaseAge = ShotPulse = 0f; TotalBursts = TotalShots = shots = 0; burstTarget = null;
             enemy.Died += OnDeath;
         }
         private void Start()
@@ -66,6 +67,8 @@ namespace Massive.Enemies
             {
                 var hit = sightHits[i].collider;
                 if (!hit || hit.transform.IsChildOf(transform) || hit.GetComponentInParent<PlayerControllerScript>()) continue;
+                var otherEnemy = hit.GetComponentInParent<EnemyBase>();
+                if (otherEnemy && !enemy.SharesSimulationWith(otherEnemy)) continue;
                 if (hit.GetComponentInParent<Massive.Resonance.ResonanceSegment>()) continue;
                 if (hit.bounds.max.y < transform.position.y - .05f || hit.GetComponent<VectorGridGPU>()) continue;
                 return false;
@@ -86,11 +89,11 @@ namespace Massive.Enemies
             switch (Phase)
             {
                 case AttackPhase.Seeking:
-                    if (valid && projectilePrefab) { burstTarget = target; Enter(AttackPhase.Charging); }
+                    if (enemy.AttacksEnabled && valid && projectilePrefab) { burstTarget = target; Enter(AttackPhase.Charging); }
                     break;
                 case AttackPhase.Charging:
                     if (PhaseAge + .00001f >= chargeSeconds)
-                    { shots = 0; Enter(AttackPhase.Bursting); Fire(target); }
+                    { shots = 0; TotalBursts++; Enter(AttackPhase.Bursting); Fire(target); }
                     break;
                 case AttackPhase.Bursting:
                     if (shots < shotsPerBurst && PhaseAge + .00001f >= shots * shotInterval) Fire(target);

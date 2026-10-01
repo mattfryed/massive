@@ -30,6 +30,24 @@ namespace Massive.Enemies
         public EnemyDefinition Definition { get; private set; }
         public EnemyDirector Director { get; private set; }
 
+        // Null is the live match; demonstrations explicitly bind to one isolated actor.
+        public Transform SimulationRoot { get; private set; }
+        public PlayerControllerScript DemonstrationTarget { get; private set; }
+        public bool AttacksEnabled { get; set; } = true;
+        public bool HoldPosition { get; set; }
+        public bool DemonstrationCounterkill { get; set; }
+        public void ConfigureDemonstration(Transform scope, PlayerControllerScript target)
+        { SimulationRoot = scope; DemonstrationTarget = target; }
+        public bool SharesSimulationWith(PlayerControllerScript player) => player &&
+            (SimulationRoot ? (!DemonstrationTarget || player == DemonstrationTarget) && player.SimulationRoot == SimulationRoot : !player.IsPseudoPlayer);
+        public bool SharesSimulationWith(EnemyBase other) => other && SimulationRoot == other.SimulationRoot;
+
+        /// <summary>Common acquisition/retention gate, including arrival and post-respawn protection.</summary>
+        public bool CanTarget(PlayerControllerScript player) => player && player.isActiveAndEnabled
+            && player.gameObject.scene == gameObject.scene && SharesSimulationWith(player)
+            && !player.IsSpawning && !player.IsInvulnerable && !player.IsMatchInputLocked
+            && player.massScore > player.massScoreMin && (OwnerTeamId < 0 || player.teamID != OwnerTeamId);
+
         public float HealthRemaining { get; private set; }
         public float SpawnTime { get; private set; }
 
@@ -160,6 +178,9 @@ namespace Massive.Enemies
             if (IsDead || IsPaused || Definition == null) return;
             if (amountMassEq <= 0f || float.IsNaN(amountMassEq) || float.IsInfinity(amountMassEq)) return;
 
+            if (creditedPlayer && !SharesSimulationWith(creditedPlayer)) return;
+            if (SimulationRoot && DemonstrationCounterkill && creditedPlayer == DemonstrationTarget)
+                amountMassEq = HealthRemaining;
             HealthRemaining -= amountMassEq;
 
             // Optional SFX

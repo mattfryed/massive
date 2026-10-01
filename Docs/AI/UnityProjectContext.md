@@ -456,3 +456,224 @@ the top turret from Z=6 to 5.8 immediately, and one Undo restored both the field
 and placement. The final authoring audit removed matching generated overrides and
 confirmed no remaining top-turret tuning overrides; all tuning inherits from the
 prefab. Scene references, wall positions and mount selections stay per-instance.
+
+## Particle Beam Turret finishing controls — 2026-09-30
+
+Applied the latest live top-turret overrides to the source prefab: Base Radius 1,
+Base Height .25, Firing Pivot Offset .25 and Wall Inset .02. Both mounts inherit
+the tuning and their derived collision/pivot dimensions. Captured live overrides,
+component snapshots and the original scene/prefab under
+Library/ParticleBeamTurretFinishTask before applying. Scene references, names,
+mount selections and horizontal positions remain per-instance.
+
+ParticleBeamTurretVisuals now exposes Panel Float Offset (.04): rigid translation
+of the entire ring along the firing axis without resizing the ring or its faces.
+The open hinge and existing idle/charge motion remain independent. The backing
+dome translates along the firing axis with Dome Vibration Amplitude (.015 local
+units) and Dome Vibration Frequency (3 cycles/sec). It pivots with the apparatus,
+leaves the core fixed, resets on enable and freezes with Director pause. Amplitude
+zero stops the motion.
+
+The arrival telegraph now includes all 64 faces, rather than only the base band.
+The visual's shared pose generator supplies the runtime outline at each instance's
+authored dimensions/offsets, and the editor setup rebuilds the saved warning mesh
+from the prefab. EnemySpawnTelegraph.Begin optionally takes ownership of a
+generated outline, updating its join weights, ghost meshes and glow bounds;
+destroying the warning releases both generated meshes and the bounds-cache entry.
+Existing callers keep their shared outline assets.
+
+Validation: 97 Player Actions Play Mode/render checks passed, with no runtime
+Console errors. Added full arrival mesh/ghost checks and rendered capture
+turret-full-spawn-warning.png, panel translation/shape preservation, per-instance
+warning geometry and cleanup, bounded axial dome motion, pause and zero amplitude.
+Existing beam, combat, score, lifecycle and Particle Accelerator checks pass.
+Unity returned to Edit Mode; temporary runtime fixtures were discarded.
+
+### Dome vibration by attack state — 2026-09-30
+
+Core backing dome now has separate Idle, Charge and Fire Vibration Amplitude /
+Frequency pairs. Existing serialized domeVibrationAmplitude/Frequency remain the
+idle/cooldown pair; domeChargeAmplitude/Frequency and domeFireAmplitude/Frequency
+are independent. New prefab defaults match the prior .015-unit, 3-Hz motion.
+The existing charge/mouth blends transition settings over .15 seconds while the
+oscillator phase stays continuous. Director pause freezes all dome motion.
+Validated 102 Player Actions checks, including measured charge/fire amplitudes and
+frequencies with idle disabled, pause in both attack states and return to idle
+settings on cooldown. No runtime Console errors; scene remains unchanged.
+
+### Floating ring axial offset correction — 2026-09-30
+
+Panel Float Offset now translates all eight ring triangles together along the
+firing pivot's local +Z/beam direction. The previous outward face-normal offset
+also expanded the ring: a +.2 change measured .163846 radial drift and .085308
+axial distance error. The correction preserves radius, panel geometry and relative
+positions during spin, charge jitter and firing hinge motion. The offset no longer
+widens the hurtbox, and the saved spawn outline was regenerated using the corrected
+pose. Current unsaved top-turret dome tuning was captured and saved before testing;
+snapshots and the baseline measurement are in Library/ParticleBeamTurretRingTask.
+Validation passed 106 Player Actions checks with no runtime Console errors,
+including pure axial translation at a rotated/spinning pivot and during charge/fire,
+unchanged hurtbox width, warning geometry and the existing combat/beam checks.
+
+### Seeker prototype — 2026-09-30
+
+Added `Enemy Types/Melee/Seeker/Enemy_Seeker.prefab`, `ED_Seeker`, the shared-style
+arrival outline/telegraph and an empty authored-test spawn profile. `Seeker Test`
+is active in Player Actions and registered with the gallery's encounter pause.
+The turret encounter and its separately parented top instance are inactive;
+their tuning was preserved. A pre-Seeker scene snapshot is retained in
+`Library/SeekerValidation/PlayerActions-before-seeker.unity`.
+
+`SeekerController` owns the Seeking/Charging/Firing/Hit/Cooldown clock. Initial
+settings: 7-unit detection, 3.8 seek speed, 4.5 attack range/travel, 1.25-second
+charge plus .12-second compression, aim locked after 80% of charge, 22-unit/s
+lunge, .24-second hit recovery and 1.75-second cooldown. One directed player
+attack activation offers one avoidance roll (55%, .16-second reaction), followed
+by a .3-second lateral strafe. Charge/cooldown are stationary with no evasion.
+Shared health is 1, damage is .04 player mass, reward is `ENEMY_DEFEAT`.
+
+Movement uses bounded capsule overlap/sweep queries, shared obstacle avoidance,
+arena clamps and EnemyBase movement influences. A lunge resolves at most one hit,
+stops on shields/obstacles and has no homing after aim lock. EnemyHurtbox,
+EnemyScoreReward and authored Director registration supply existing damage,
+scoring and pause behavior.
+
+`SeekerVisuals` generates 18 white-outlined, black-filled faces: an open-backed
+hexagonal pyramid nose, six large forward/outward rear triangles and six smaller
+backward triangles. All three groups have independent axial offsets/dimensions
+and alternating signed spin speeds. Charge pulls both rear groups back, stretches
+the metaball core, vibrates/inward-tilts the large panels, then compresses at
+launch. The sword hurtbox expands with the exposed rear assembly. All faces
+participate in the shared warning, staggered random-vertex reveal and shatter
+death animation. Runtime generated meshes are unsaved and destroyed on disable.
+
+`ParticleBeamPlasmaContact.EmitBurst` reuses the turret's bounded opaque plasma
+pool without changing sustained emission. The Seeker detaches its owned exhaust
+at runtime so Rigidbody interpolation cannot carry it along; the owner advances
+its paused clock, clears it on disable and destroys it on destruction.
+
+Editor menu: `MASSIVE/Enemies/Seeker` provides create, place and validation. Setup
+preserves existing authored tuning. Play-mode validation passed **40 checks**
+with no runtime Console errors, covering full arrival, geometry/offsets, charge
+stretch/hurtbox, aim lock, one-hit damage, shield blocking, thin-wall and arena
+boundary sweeps, missed lunge range, movement influence, real-input lateral
+avoidance, world-space exhaust/lifetime, target loss, pause, death and scoring.
+The shared pool also passed sustained-emission regression checks. Captured
+idle/charge/compression/launch/death renders were reviewed; the report and PNGs
+are in `Library/SeekerValidation`. Existing player spawn routines still produce
+kinematic-velocity warnings at PlayerControllerScript.cs:399–400; no player code
+was changed for this feature. Unity returned to Edit Mode, discarding fixtures.
+
+### Seeker thrust and stalking polish — 2026-09-30
+
+The nose now accelerates progressively to 8x spin during charge, eases back after
+launch, stretches 18% during powered thrust, and settles with a damped compression
+bounce. Each parameter is exposed in Seeker Visuals. A bounded pool of world-space
+outline snapshots trails powered thrust: .4-unit spacing, .24-second lifetime,
+12 active slots by default (16 maximum). Opaque white lines thin to nothing;
+pause freezes their pose/lifetime and death/disable clears the pool.
+
+Contacts recoil .18 units over the existing .24-second hit recovery. Misses coast
+for .1 seconds with continuous starting speed and squared ease-out, adding about
+.73 units at default speed; the glide retains swept contact checks. Accepted
+player damage selects a separate .65-second cooldown; blocked contacts and
+misses retain 1.75 seconds. Both enter a 3-second Stalking phase, maintaining
+3–4.25 units while circling/strafing, before seeking another attack. Stalk duration,
+distance, radial/orbit/strafe speeds and frequency are independent controls.
+Stalking uses the same targeting, avoidance, arena bounds, movement influence and
+pause systems. Existing enum values were preserved by appending the new phases.
+
+Player Actions validation passed 60 checks with no runtime Console errors,
+including ghost world-space stability/retirement, visual and gameplay pause,
+charge spin, nose elasticity, miss glide, obstacle/player recoil, cooldown
+selection, a full timed stalking orbit and subsequent player hit. The previous
+arrival, damage, shield, wall/boundary, avoidance, score/death and shared plasma
+checks also pass. Rendered ghost and arrival captures were reviewed. The user's
+current scene geometry tuning was preserved byte-for-byte against
+`Library/SeekerPolish/PlayerActions-authored.unity`; new defaults are serialized
+on the prefab. Validation discards its runtime fixtures on returning to Edit Mode.
+
+### Alternate Dyson Sphere Repulsor — 2026-09-30
+
+Read the current MASSIVE Notion GDD again for context. Added the genuine prefab
+variant `DysonSphere/Enemy_DysonSphere_Repulsor.prefab`, its own definition and
+authored-test profile. The original Dyson prefab, definition and spear/lunge
+controller are unchanged. `Dyson Repulsor Test` is active in Player Actions;
+the Seeker encounter remains intact and inactive. The new encounter participates
+in the gallery's existing encounter pause list. Scene rollback snapshot:
+`Library/DysonRepulsorValidation/PlayerActions-before.unity`.
+
+The alternate reuses DysonSpherePanels, core, health-driven panel loss and score
+reward. DysonSphereRepulsorController seeks within 8 units and charges at 1.5.
+Default charge .75 seconds contracts the whole body to .85 scale and closes all
+panels onto the base outline, with independent .008-unit/32-Hz vibration.
+An .08-second expansion reaches 1.15 body scale and 1.3 base panel radius, holds
+for .1 seconds with .015-unit/38-Hz vibration, then springs back over .4 seconds
+(1.5 cycles, damping 3). It resumes normal breathing and cools down for 1.65 seconds.
+All these values are Inspector controls. Core particles use local simulation and
+hierarchy scaling on this variant to follow the whole-body animation.
+
+The outgoing damage sphere and sword hurtbox are measured from live panel
+vertices, including rotation, body scale and vibration. Default peak radius is
+about 1.121 units plus vibration. Damage is active during expansion/hold/return,
+once per eligible player per burst; shields and solid obstructions block it.
+Health and score remain the existing Dyson values; damage preserves its 1.25
+multiplier. No forward lunge or visual-ripple damage is applied.
+
+DysonSpherePanels has an opt-in radial pose/paused-clock API; its original path
+retains normal behavior. PlayerRepulsorGridPulse has an explicit world-space
+trigger and optional external clock so the enemy reuses the same grid wave while
+player pulses retain their original timing. Enemy scale, panels, spin, particles,
+ripple and combat freeze together during pause. Death disables collision and
+lets the existing panel shatter finish over the .8-second cleanup delay.
+
+Unity Player Actions validation passed 30 checks with no runtime Console errors:
+references/original preservation, spawn, charge/expansion/hold/rebound, core
+scaling, independently measured mesh-to-hitbox agreement, stationary attack,
+pause, actual player damage, missed-area safety, shield, repeated bursts, player
+ripple regression, death and scoring. Idle/charge/burst/death renders were
+reviewed. Reports/captures: `Library/DysonRepulsorValidation`. Setup and validation
+menus are under `MASSIVE/Enemies/Dyson Repulsor`; controls are documented in
+`DysonSphere/Repulsor Variant.md`.
+
+
+## Enemy encounter authoring — 2026-09-30
+
+Player Actions (`Assets/Scenes/S-T_PLAYER-ACTIONS.unity`) now saves Enemy Lab in
+Encounter Timeline mode; Columns remains available on the same EnemyLab owner.
+`EnemyDirector.Timeline.cs` extends the existing director with optional authored
+`EnemyEncounterTimeline` and `EnemyFormation` assets, `EnemyArenaLayout` regions,
+exclusions and mount sockets, atomic reservations, explicit warning lead,
+seeded variants, fallback/expiry and shared pressure/population caps (including
+Carrier launches). A null timeline retains legacy random/batch spawning.
+The starter assets are in `Assets/Enemy System/Encounters/Enemy Lab`.
+
+`EnemyEncounterLab` supplies a shared pseudo-player scope, scripted player actors,
+open/blocked-center/side-mount fixtures, single-cue/full-timeline preview, loop,
+pause and restart controls. This is a placement fixture, not integration into
+all six level scenes. `EnemyBase.SharesSimulationWith` accepts all players in a
+shared scope when DemonstrationTarget is null; fixed-target column scopes retain
+prior isolation. Optional Drone entrances use `EnemyFormationEntry` before AI.
+See `Assets/Enemy System/Encounters/README.md` for authoring and scope boundaries.
+
+Setup: MASSIVE > Demonstrations > Set Up Encounter Timeline Lab.
+Validation: MASSIVE > Demonstrations > Validate Encounter Timeline.
+Reports: `Library/EnemyEncounterValidation`. Existing canonical enemy prefabs,
+health and score assets are reused; pressure numbers and example cue pacing are
+initial tuning values. Scene setup preserves an existing preview if rerun.
+
+
+### Carrier turret-lane clearance — 2026-09-30
+
+CarrierController.Avoidance adds a short, eased lateral reposition when the
+Carrier is the first solid blocker of a same-scope, same-allegiance turret's
+eligible player sightline. ParticleBeamTurretController.Clearance supplies the
+request even before target acquisition (or along the current firing direction).
+The Carrier selects a collision-free exit, respects bounds/exclusions, pauses
+and HoldPosition, then stays at its new position. It continues normal drone
+launch/rebuild cycles. Inspector controls are under Soft turret lane avoidance.
+The canonical Carrier Rigidbody is kinematic with planar translation enabled;
+Awake also upgrades older scene overrides so FreezeAll cannot prevent movement.
+Play Mode checks in Enemy Lab passed all 18 cases with no runtime errors.
+Menu: MASSIVE > Enemies > Validate Carrier Turret Avoidance.
+Report: Library/CarrierLaneAvoidanceValidation/report.txt.

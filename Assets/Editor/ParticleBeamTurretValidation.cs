@@ -89,8 +89,9 @@ public static partial class ParticleBeamTurretValidation
             Check(Vector3.Dot(t.transform.forward, inward.normalized) > .99f && t.arenaBounds.ContainsWorldPoint(t.BeamOrigin),
                 t.mount + " mount faces along the inward wall normal with its core inside the arena");
             Vector3 gridLocal = t.arenaBounds.Grid.transform.InverseTransformPoint(t.transform.position);
-            Check(Mathf.Abs(Mathf.Abs(gridLocal.y) - t.arenaBounds.Current.halfSizeLocal.y) < .0001f && t.wallInset == 0f,
-                t.mount + " zero-inset baseline lies exactly on the visible grid boundary");
+            Vector3 wallLocal = gridLocal; wallLocal.y = Mathf.Sign(gridLocal.y) * t.arenaBounds.Current.halfSizeLocal.y;
+            Check(Mathf.Abs(Vector3.Distance(t.transform.position, t.arenaBounds.Grid.transform.TransformPoint(wallLocal)) - t.wallInset) < .0001f,
+                t.mount + " baseline respects the authored inset from the visible grid boundary");
         }
         var points = new Vector3[ParticleBeamTurretGeometry.BaseFaces * 3]; for (int i = 0; i < ParticleBeamTurretGeometry.BaseFaces; i++) ParticleBeamTurretGeometry.BaseTriangle(i, visual.baseRadius, points, i * 3);
         float edge = Vector3.Distance(points[0], points[1]);
@@ -115,6 +116,7 @@ public static partial class ParticleBeamTurretValidation
         Check(enemy.Director == director && enemy.HealthRemaining == 3f, "Turret registers through the shared Director with three health");
         while (turret.SpawnAge < .2f) yield return null;
         Check(turret.SpawnWarning && !turret.damageTrigger.enabled, "Arrival uses the shared warning and prevents premature hits");
+        var warningChecks = ArrivalApparatusChecks(); while (warningChecks.MoveNext()) yield return warningChecks.Current;
         director.enabled = false; float age = turret.SpawnAge, ring = visual.RingAngle;
         float until = Time.time + .2f; while (Time.time < until) yield return null;
         Check(Mathf.Approximately(age, turret.SpawnAge) && Mathf.Approximately(ring, visual.RingAngle), "Pause freezes spawn and ring animation");
@@ -217,6 +219,7 @@ public static partial class ParticleBeamTurretValidation
         while (turret.Phase == ParticleBeamTurretController.AttackPhase.Charging && Time.time < until) yield return null;
         Check(turret.Phase == ParticleBeamTurretController.AttackPhase.Cooldown && !turret.beamVisual.gameObject.activeSelf,
             "Losing the target during charge cancels without a phantom blast");
+        var domeChecks = DomeStateChecks(); while (domeChecks.MoveNext()) yield return domeChecks.Current;
         var motionChecks = ApparatusMotionChecks(authoredFiringSpeed); while (motionChecks.MoveNext()) yield return motionChecks.Current;
         turret.chargeSeconds = .3f; turret.fireSeconds = .8f; turret.cooldownSeconds = .2f;
         Place(player, new Vector3(0,0,3f));

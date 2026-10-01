@@ -24,7 +24,7 @@ public partial class PlayerControllerScript
     private void ApplyEnemyHitFeedback(PlayerHitResult hit)
     {
         if (!hit.accepted || hit.causedDeath || hit.massLost01 <= 0f || !hit.source ||
-            temporarilyEliminated || _worldGameplaySuppressed || _matchSpawning || _matchInputLocked || isPseudoPlayer)
+            temporarilyEliminated || _worldGameplaySuppressed || _matchSpawning || _matchInputLocked || (isPseudoPlayer && !SimulationRoot))
             return;
 
         var projectile = hit.source.GetComponentInParent<EnemyProjectileBase>();
@@ -68,8 +68,35 @@ public partial class PlayerControllerScript
         rb.linearVelocity = new Vector3(planar.x, velocity.y, planar.z);
     }
 
+    private float _repulsorRemaining;
+    private Vector3 _repulsorAway;
+    public void ApplyEnemyRepulsorRecoil(Vector3 direction, float speed, float seconds)
+    {
+        if (!enemyHitKnockback || !rb || rb.isKinematic || temporarilyEliminated) return;
+        direction.y = 0f; if (direction.sqrMagnitude < .0001f) return;
+        _repulsorAway = direction.normalized;
+        _repulsorRemaining = Mathf.Max(.02f, seconds);
+        var velocity = rb.linearVelocity;
+        velocity += _repulsorAway * (Mathf.Max(0f, speed) * ExternalMovementMultiplier * PlayerScaleAdjuster.MovementOf(this)
+            - Vector3.Dot(velocity, _repulsorAway));
+        rb.linearVelocity = velocity;
+    }
+    private void TickEnemyRepulsorRecoil()
+    {
+        if (_repulsorRemaining <= 0f || !rb || rb.isKinematic) return;
+        float before = _repulsorRemaining;
+        _repulsorRemaining = Mathf.Max(0f, before - Time.fixedDeltaTime);
+        // Quadratic velocity decay reaches zero with zero slope. Scale actual velocity
+        // so wall contacts and player steering are respected rather than replaying a path.
+        float ratio = _repulsorRemaining / before;
+        var velocity = rb.linearVelocity;
+        float along = Mathf.Max(0f, Vector3.Dot(velocity, _repulsorAway));
+        rb.linearVelocity = velocity - _repulsorAway * along * (1f - ratio * ratio);
+    }
     private Vector3 EnemyHitBraking(Vector3 braking)
     {
+        if (_repulsorRemaining > 0f && Vector3.Dot(braking, _repulsorAway) < 0f)
+            braking -= Vector3.Project(braking, _repulsorAway);
         float age = Time.time - _enemyHitKickTime;
         if (age >= enemyHitRecoilSeconds || Vector3.Dot(braking, _enemyHitAway) >= 0f) return braking;
         float recovery = Mathf.SmoothStep(.25f, 1f, age / Mathf.Max(.02f, enemyHitRecoilSeconds));
@@ -79,7 +106,7 @@ public partial class PlayerControllerScript
     private void ResetEnemyHitFeedback()
     {
         _enemyHitKickTime = _nextEnemyHitKickTime = float.NegativeInfinity;
-        _enemyHitAway = Vector3.zero;
+        _enemyHitAway = Vector3.zero; _repulsorRemaining = 0f;
         if (visualsController) visualsController.ClearEnemyDamageFeedback();
     }
 }
