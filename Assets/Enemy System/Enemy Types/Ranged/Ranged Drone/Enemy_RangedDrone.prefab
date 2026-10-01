@@ -390,7 +390,7 @@ MonoBehaviour:
   outlineColor: {r: 1, g: 1, b: 1, a: 1}
   floatingFrontFaces: 1
   frontFaceLift: 0.075
-  frontHoverAmplitude: 0.1
+  frontHoverAmplitude: 0.02
   frontHoverSpeed: 5
   chargeFaceVibration: 0.006
   chargeFaceSpeed: 110

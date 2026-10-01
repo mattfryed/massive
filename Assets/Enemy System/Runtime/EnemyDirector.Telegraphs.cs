@@ -19,11 +19,14 @@ namespace Massive.Enemies
         private readonly List<ReservedSpawn> _reservedSpawns = new List<ReservedSpawn>();
         public int PendingSpawnCount => _reservedSpawns.Count + TimelinePendingCount;
 
+        private static Mesh SpawnOutline(EnemyDefinition definition) => definition && definition.prefab &&
+            definition.prefab.TryGetComponent<CarrierVisuals>(out var carrier) ? carrier.CreateSpawnOutline() : null;
+
         private void ReserveSpawn(EnemyDefinition enemy, int cap, Vector3 position, EnemySpawnTelegraph prefab,
             float seconds, float timeout, BatchState batch, int ruleIndex = -1)
         {
             var warning = Instantiate(prefab, position, enemy.prefab.transform.rotation, transform);
-            warning.Begin(seconds, SpawnWorldScale(enemy)); _telegraphs.Add(warning);
+            warning.Begin(seconds, SpawnWorldScale(enemy), SpawnOutline(enemy)); _telegraphs.Add(warning);
             _reservedSpawns.Add(new ReservedSpawn { enemy = enemy, profile = spawnProfile, cap = cap, position = position,
                 remaining = Mathf.Max(0f, seconds), timeout = Mathf.Max(.1f, timeout), warning = warning,
                 batch = batch, ruleIndex = ruleIndex });

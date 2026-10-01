@@ -120,24 +120,24 @@ public static class CarrierPrototypeValidation
         while (carrier.RevealProgress < .45f) yield return null;
         Check(carrier.SpawnWarning && carrier.SpawnWarning.IsCompleting && carrier.SpawnAge >= carrier.spawnWarningSeconds && !hitbox.enabled,
             "Three-second warning transitions into face assembly before collision is enabled");
-        var progress = Enumerable.Range(0, 26).Select(visuals.FacetProgress).ToArray();
+        var progress = Enumerable.Range(0, CarrierHullGeometry.FaceCount).Select(visuals.FacetProgress).ToArray();
         Check(progress.Any(p => p > .01f && p < .99f) && progress.Max() - progress.Min() > .1f,
             "Face outlines trace with varied timing during assembly");
         Capture("carrier-forming.png", carrier.transform.position, 1.6f);
         var docked = carrier.docks[0].GetComponentInChildren<DroneVisuals>(); float dockProgress = docked.FacetProgress(0);
         director.enabled = false;
         float formPause = Time.time + .2f; while (Time.time < formPause) yield return null;
-        Check(Enumerable.Range(0, 26).All(i => Mathf.Approximately(progress[i], visuals.FacetProgress(i))) && Mathf.Approximately(dockProgress, docked.FacetProgress(0)),
+        Check(Enumerable.Range(0, CarrierHullGeometry.FaceCount).All(i => Mathf.Approximately(progress[i], visuals.FacetProgress(i))) && Mathf.Approximately(dockProgress, docked.FacetProgress(0)),
             "Carrier and docked Drone assembly freeze together when paused");
         director.enabled = true;
         while (!carrier.IsSpawnReady) yield return null;
         yield return null;
-        Check(carrier.DockedCount == 6 && hitbox.enabled && Enumerable.Range(0, 26).All(i => visuals.FacetProgress(i) > .999f) && carrier.TotalLaunched == 0,
+        Check(carrier.DockedCount == 6 && hitbox.enabled && Enumerable.Range(0, CarrierHullGeometry.FaceCount).All(i => visuals.FacetProgress(i) > .999f) && carrier.TotalLaunched == 0,
             "All six Drones and hull faces finish assembly before launching");
         Check(visuals.assembly && visuals.assembly.localEulerAngles.y > 10f && carrier.docks.All(d => d.parent == visuals.assembly) &&
             Mathf.Abs(carrier.transform.eulerAngles.y) < .01f, "Subtle Y spin carries the hull and docks without rotating the physics root");
         var hull = carrier.shellCollider as MeshCollider;
-        Check(hull && hull.enabled && hull.convex && !hull.isTrigger && hull.transform == visuals.shell.transform && hull.sharedMesh.vertexCount == 24,
+        Check(hull && hull.enabled && hull.convex && !hull.isTrigger && hull.transform == visuals.shell.transform && hull.sharedMesh.vertexCount == 96,
             "Solid convex collider uses the exact hull vertices and follows the rotating shell");
         Physics.SyncTransforms();
         bool fitted = true;
@@ -246,7 +246,7 @@ public static class CarrierPrototypeValidation
         Check(deaths == 1 && enemy.IsDead && carrier.DockedCount == 0, "Carrier death is resolved once and clears docked Drones immediately");
         Check(!hitbox.enabled && !hull.enabled && visuals.ActiveFuelCount == 0, "Death disables damage trigger and solid shell before visual breakup");
         float deathUntil = Time.time + .25f; while (Time.time < deathUntil) yield return null;
-        Check(carrier && visuals.DeathProgress > .2f && Enumerable.Range(0, 26).All(i => visuals.FaceDisplacement(i) > .3f),
+        Check(carrier && visuals.DeathProgress > .2f && Enumerable.Range(0, CarrierHullGeometry.FaceCount).All(i => visuals.FaceDisplacement(i) > .3f),
             "Death retains the body while every face explodes outward independently");
         Capture("carrier-shattering.png", carrier.transform.position, 2.7f);
         while (carrier) yield return null;
@@ -274,8 +274,8 @@ public static class CarrierPrototypeValidation
     private static void CheckGeometry()
     {
         CarrierHullGeometry.Create(out var vertices, out var faces);
-        Check(vertices.Length == 24 && faces.Count(f => f.Length == 4) == 18 && faces.Count(f => f.Length == 3) == 8,
-            "Rhombicuboctahedron has 24 vertices, 18 square faces and eight triangular faces");
+        Check(vertices.Length == 96 && faces.Count(f => f.Length == 4) == 24 && faces.Count(f => f.Length == 6) == 8 && faces.Count(f => f.Length == 8) == 18,
+            "Truncated hull has 96 vertices, 24 quadrilaterals, eight hexagons and 18 octagons");
         var edges = new Dictionary<Vector2Int, int>();
         var lengths = new List<float>();
         bool regular = true;
@@ -291,25 +291,25 @@ public static class CarrierPrototypeValidation
                 edges.TryGetValue(edge, out int count); edges[edge] = count + 1;
                 lengths.Add(Vector3.Distance(vertices[a], vertices[b]));
                 regular &= Mathf.Abs(Vector3.Dot(normal, vertices[a] - vertices[face[0]])) < .0001f;
-                if (face.Length == 4) regular &= Mathf.Abs(Vector3.Dot((vertices[b] - vertices[a]).normalized, (vertices[c] - vertices[b]).normalized)) < .0001f;
+
             }
         }
-        Check(edges.Count == 48 && edges.Values.All(n => n == 2) && regular && lengths.Max() - lengths.Min() < .0001f,
-            "All 48 hull edges match; faces are planar, regular, convex and outward-facing");
+        Check(edges.Count == 144 && edges.Values.All(n => n == 2) && regular,
+            "All 144 hull edges are shared by two planar, convex, outward-facing faces");
         Check(faces.Count(f => CarrierHullGeometry.IsCrown(vertices, f)) == 1 &&
-            carrier.GetComponent<CarrierVisuals>().shell.sharedMesh.triangles.Length == 43 * 3,
-            "Only the upward crown triangle is open for the core");
+            carrier.GetComponent<CarrierVisuals>().shell.sharedMesh.triangles.Length == CarrierHullGeometry.OpenTriangleCount * 3,
+            "Only the upward hexagonal crown is open for the core");
         bool docksFit = true;
         var drone = carrier.droneDefinition.prefab.GetComponent<DroneVisuals>();
         foreach (var dock in carrier.docks)
         {
             Vector3 p = dock.localPosition, normal = dock.localRotation * Vector3.forward;
-            var face = faces.FirstOrDefault(f => f.Length == 4 &&
+            var face = faces.FirstOrDefault(f => f.Length == 8 &&
                 f.All(i => Mathf.Abs(Vector3.Dot(vertices[i] - p, normal)) < .0001f));
             docksFit &= face != null && Mathf.Abs(p.y) < .0001f && Mathf.Abs(normal.y) < .0001f;
             if (face != null)
             {
-                var center = face.Aggregate(Vector3.zero, (sum, i) => sum + vertices[i]) / 4f;
+                var center = face.Aggregate(Vector3.zero, (sum, i) => sum + vertices[i]) / 8f;
                 docksFit &= Vector3.Distance(center, p) < .0001f;
             }
             var display = dock.GetComponentInChildren<DroneVisuals>(true);
@@ -317,7 +317,7 @@ public static class CarrierPrototypeValidation
             Vector3 tail = p - normal * drone.noseLength * drone.tailLengthRatio * drone.transform.localScale.z;
             docksFit &= faces.All(f => Vector3.Dot(Vector3.Cross(vertices[f[1]] - vertices[f[0]], vertices[f[2]] - vertices[f[0]]).normalized, tail - vertices[f[0]]) < .0001f);
         }
-        Check(docksFit, "Six full-size Drone midsections sit on horizontal square-face centers with tails inside the hull");
+        Check(docksFit, "Six full-size Drone midsections sit on horizontal octagonal-face centers with tails inside the hull");
         Check(Mathf.Approximately(carrier.damageTrigger.radius, .775f) && Mathf.Approximately(carrier.definition.spawnRadiusWorld, 1.25f),
             "Hitbox and spawn clearance match the compact hull");
     }

@@ -3,10 +3,12 @@ using UnityEngine;
 
 namespace Massive.Enemies
 {
-    /// <summary>Regular rhombicuboctahedron, with a threefold axis upright for six planar docks.</summary>
+    /// <summary>Vertex-truncated rhombicuboctahedron, with a threefold axis upright for six planar octagonal docks.</summary>
     public static class CarrierHullGeometry
     {
         public const float Radius = .9f;
+        public const int FaceCount = 50, MaxFaceCorners = 8, OpenTriangleCount = 184;
+        public const float Truncation = .27f;
         private static readonly float A = 1f + Mathf.Sqrt(2f);
         private static readonly float VertexRadius = Mathf.Sqrt(A * A + 2f);
         private static readonly Quaternion Orientation = GetOrientation();
@@ -21,7 +23,7 @@ namespace Massive.Enemies
         public static void GetDockPose(int slot, out Vector3 position, out Quaternion rotation)
         {
             rotation = Quaternion.Euler(0f, slot * 60f, 0f);
-            // These six square faces have normals perpendicular to the original (1,1,1) axis.
+            // Truncation preserves the planes and centers of the six original docking faces.
             float distance = (A + 1f) / Mathf.Sqrt(2f) * Radius / VertexRadius;
             position = rotation * Vector3.forward * distance;
         }
@@ -59,9 +61,37 @@ namespace Massive.Enemies
                     for (int z = -1; z <= 1; z += 2)
                         polygons.Add(Face(raw, new Vector3(x, y, z), A + 2f));
 
-            vertices = new Vector3[24];
-            for (int i = 0; i < vertices.Length; i++) vertices[i] = Orientation * raw[i] * (Radius / VertexRadius);
-            faces = polygons.ToArray();
+            var cut = new List<Vector3>(96);
+            var directedEdges = new Dictionary<Vector2Int, int>(96);
+            int CutVertex(int a, int b)
+            {
+                var key = new Vector2Int(a, b);
+                if (directedEdges.TryGetValue(key, out int existing)) return existing;
+                int id = cut.Count; cut.Add(Vector3.Lerp(raw[a], raw[b], Truncation));
+                directedEdges.Add(key, id); return id;
+            }
+            var truncatedFaces = new List<int[]>(FaceCount);
+            foreach (var polygon in polygons)
+            {
+                var expanded = new int[polygon.Length * 2];
+                for (int i = 0; i < polygon.Length; i++)
+                {
+                    int a = polygon[i], b = polygon[(i + 1) % polygon.Length];
+                    expanded[i * 2] = CutVertex(a, b); expanded[i * 2 + 1] = CutVertex(b, a);
+                }
+                truncatedFaces.Add(expanded);
+            }
+            var cutPoints = cut.ToArray();
+            for (int i = 0; i < raw.Length; i++)
+            {
+                var corners = new List<int>(4);
+                foreach (var edge in directedEdges) if (edge.Key.x == i) corners.Add(edge.Value);
+                SortFace(cutPoints, corners, raw[i].normalized);
+                truncatedFaces.Add(corners.ToArray());
+            }
+            vertices = new Vector3[cutPoints.Length];
+            for (int i = 0; i < vertices.Length; i++) vertices[i] = Orientation * cutPoints[i] * (Radius / VertexRadius);
+            faces = truncatedFaces.ToArray();
         }
 
         private static int[] Face(Vector3[] points, Vector3 normal, float distance)
@@ -69,12 +99,16 @@ namespace Massive.Enemies
             var indices = new List<int>(4);
             for (int i = 0; i < points.Length; i++)
                 if (Mathf.Abs(Vector3.Dot(points[i], normal) - distance) < .0001f) indices.Add(i);
-            normal.Normalize();
+            SortFace(points, indices, normal.normalized);
+            return indices.ToArray();
+        }
+
+        private static void SortFace(Vector3[] points, List<int> indices, Vector3 normal)
+        {
             Vector3 center = normal * (Vector3.Dot(points[indices[0]], normal));
             Vector3 u = (points[indices[0]] - center).normalized, v = Vector3.Cross(normal, u);
             indices.Sort((a, b) => Mathf.Atan2(Vector3.Dot(points[a] - center, v), Vector3.Dot(points[a] - center, u))
                 .CompareTo(Mathf.Atan2(Vector3.Dot(points[b] - center, v), Vector3.Dot(points[b] - center, u))));
-            return indices.ToArray();
         }
 
         public static bool IsCrown(Vector3[] vertices, int[] face)

@@ -66,6 +66,15 @@ namespace Massive.Enemies
             ResetGhosts();
         }
 
+        /// <summary>Adopts updated authoring geometry without restarting the warning or its fade.</summary>
+        public void SetOutline(Mesh ownedOutline)
+        {
+            if (!ownedOutline) return;
+            ReplaceOutline(ownedOutline);
+            var bounds = GetComponent<MeshFilter>().sharedMesh.bounds; bounds.Expand(defocusWidth * 6f);
+            _renderer.localBounds = bounds;
+        }
+
         public bool Advance(float delta)
         {
             delta = Mathf.Max(0f, delta); Age += delta;

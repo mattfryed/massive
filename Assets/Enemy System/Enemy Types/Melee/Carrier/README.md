@@ -1,24 +1,51 @@
 # Carrier prototype
 
 `Enemy_Carrier.prefab` is a mostly stationary Drone mothership using EnemyBase, EnemyDefinition,
-EnemyHurtbox, EnemyScoreReward and EnemyDirector. Its compact rhombicuboctahedron hull
-uses black filled faces and white Shapes outlines. The regular solid has 24 vertices,
-18 squares and eight equilateral triangles; only its upward triangle is left open to
-expose a seven-lobe core using the Drone's MetaballSDF material. Its 0.9-unit hull radius
-is approximately half the previous hull's radius. Geometry uses signed permutations of
-(1, 1, 1 + sqrt(2)), following [Paul Bourke's construction](https://www.paulbourke.net/geometry/Rhombicuboctahedron/).
+EnemyHurtbox, EnemyScoreReward and EnemyDirector. Its vertex-truncated rhombicuboctahedron
+uses black filled faces and white Shapes outlines: 96 vertices, 144 edges and 50 faces
+(18 octagons, eight hexagons and 24 quadrilaterals). Only its upward hexagonal face is
+left open, exposing a seven-lobe core using the Drone's MetaballSDF material. Construction
+cuts 27% along each directed edge of the original 0.9-radius rhombicuboctahedron;
+the remaining faces keep their original planes and docking centers.
 
-A threefold axis points upward, placing six square faces in a horizontal ring. The
+A threefold axis points upward, placing six octagonal faces in a horizontal ring. The
 full-size Drones sit with their widest cross-section on those face centers: tails inset
 inside the body, noses projecting outward. There are no carved notches. Docked and
-launched Drone scales match. The damage trigger has radius 0.775; spawn clearance is 1.25.
+launched Drone scales match. At unit body scale the damage trigger has radius 0.775;
+the authored minimum spawn clearance is 1.25. The Director expands clearance to fit
+the current body and docked noses through EnemyDefinition.GetSpawnRadiusWorld.
 EnemyHurtbox lives on that dedicated child trigger so the Rigidbody root's additional
 shell contacts cannot apply duplicate sword damage.
-A separate solid convex MeshCollider uses the hull's exact 24 vertices and rotates with
+A separate solid convex MeshCollider uses the hull's exact 96 vertices and rotates with
 the shell. It uses a persistent closed collision mesh, independent of the animated face
 mesh. Both colliders are disabled during arrival and death. Drone steering and swept
 movement detect the solid hull. A newly launched Drone ignores only its owning shell
 until its inset tail clears (or the launch window expires), then resumes normal avoidance.
+
+## Body scale
+
+Select `Enemy_Carrier` (prefab, Prefab Mode, or an instance), then use **Carrier Visuals >
+Body dimensions > Body Scale**. The slider runs from **0.75 to 2.5**, default **1**.
+It scales the shell, core and damage trigger, and moves all six docking centers with
+their octagonal faces. Drone size and the absolute inset tail depth stay unchanged.
+The assembly root stays unscaled. Use the prefab to affect Enemy Lab/Director spawns;
+an instance override affects only that Carrier. The custom Inspector supports multi-edit
+and Undo; direct runtime changes are also applied before launches.
+
+The warning is generated from the chosen body size plus six original-size Drone noses.
+Changing the slider during the Carrier-owned warning updates its outline without
+restarting its clock. Director-owned formation warnings use the prefab's dimensions
+when announced. Core Center, Core Radius and Core Orbit are authored at unit body scale.
+Damage Radius At Unit Scale controls the base hurtbox radius. The visual crown is open;
+the convex collision hull remains closed so it still acts as one solid gameplay body.
+
+**MASSIVE > Enemies > Carrier > Validate Hull and Body Scale** checks topology, the open
+crown, size extremes, embedding, warning geometry, pause, real launches, rebuilding and
+breakup in a temporary isolated Play Mode scene. It preserves the open scene and its edits.
+The 50-face implementation passed 52 checks, including all six departures at body scales
+0.75, 1, 1.5 and 2.5 and restoring hull avoidance after departure. Launch clearance uses
+the same capsule as Drone movement sweeps so the wider movement guard cannot snag a bay
+after the physical trigger reports no penetration.
 
 Arrival begins with a 3-second red wireframe warning using the shared EnemySpawnTelegraph
 glow, outward ghosts and defocus fade. The hull and six visual-only Drones then assemble
@@ -57,7 +84,7 @@ The packets and core share one dynamically fitted SDF volume and fixed arrays; t
 no per-packet GameObjects or materials. Blocked launches emit nothing.
 
 Death immediately stops launches, removes docked Drones/fuel and disables collision.
-The individual square and triangular panels then explode outward, tumble, shrink and
+The individual octagonal, hexagonal and quadrilateral panels then explode outward, tumble, shrink and
 fade over 0.8 seconds, using the Dyson Sphere's breakup motion. The core shrinks away
 with them. EnemyBase still resolves damage, score and Director release exactly once.
 
@@ -89,14 +116,14 @@ without a Director starts its own cycle and uses the scene-wide Drone cap.
 
 - MASSIVE > Enemies > Carrier > Create Prefab creates missing assets and preserves tuning.
 - Place In Player Actions adds the test once and records Undo.
-- Apply Compact Rhombicuboctahedron updates the existing prefab's presentation, dock
-  positions, hitbox and clearance while retaining its GUID and launch tuning.
+- Apply 50-Face Hull updates the existing prefab's presentation, collision mesh and
+  warning outline while retaining its GUID, body scale and launch tuning.
 - Set Up Arrival and Launch Effects creates the warning assets, solid hull, child hurtbox and rotating assembly,
   retaining existing tuning and the Carrier prefab GUID.
 - Validate In Player Actions enters Play Mode, runs real cycle/pause/cap/damage/cleanup
   and hull topology/docking/collision checks, captures warning/reveal/fueling/breakup views, and returns to Edit Mode. It temporarily hides
   players to isolate timing and discards those runtime changes on exit.
-- The latest run passed 53 checks, including six incoming Drones blocked by the rotating
+- The earlier prototype run passed 53 checks, including six incoming Drones blocked by the rotating
   hull at 8 units/second, launch clearance, single sword contact damage, straight fuel,
   pause during warning/reveal/fueling, warning cancellation, re-enable reset, blocked
   launches, two volleys and death cleanup. No runtime Console errors occurred.

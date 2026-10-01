@@ -149,13 +149,13 @@ namespace Massive.Enemies
         private bool Overlaps(FormationMember a, FormationMember b)
         {
             if (a.pose.socket != null && a.pose.socket == b.pose.socket) return true;
-            float r = Mathf.Max(spawnCheckRadiusWorld, a.slot.enemy.spawnRadiusWorld) + Mathf.Max(spawnCheckRadiusWorld, b.slot.enemy.spawnRadiusWorld);
+            float r = Mathf.Max(spawnCheckRadiusWorld, a.slot.enemy.GetSpawnRadiusWorld()) + Mathf.Max(spawnCheckRadiusWorld, b.slot.enemy.GetSpawnRadiusWorld());
             return (a.pose.clearance - b.pose.clearance).sqrMagnitude < r * r;
         }
         private bool MemberClear(FormationMember member, CueStatus ownCue, out string reason)
         {
             var pose = member.pose;
-            float radius = Mathf.Max(spawnCheckRadiusWorld, member.slot.enemy.spawnRadiusWorld);
+            float radius = Mathf.Max(spawnCheckRadiusWorld, member.slot.enemy.GetSpawnRadiusWorld());
             if (!arenaLayout.Clear(pose, radius, borderBufferWorld, out reason)) return false;
             if (pose.socket != null && (!pose.socket.enabled || occupiedSockets.TryGetValue(pose.socket, out var occupant) && occupant && !occupant.IsDead))
             { reason = "Wall socket occupied or disabled"; return false; }
@@ -171,7 +171,7 @@ namespace Massive.Enemies
                 { reason = "Player occupies arrival"; return false; }
             }
             foreach (var enemy in _alive)
-                if (enemy && !enemy.IsDead && (enemy.transform.position - pose.clearance).sqrMagnitude < Mathf.Pow(radius + enemy.Definition.spawnRadiusWorld, 2))
+                if (enemy && !enemy.IsDead && (enemy.transform.position - pose.clearance).sqrMagnitude < Mathf.Pow(radius + enemy.Definition.GetSpawnRadiusWorld(enemy.transform), 2))
                 { reason = "Enemy occupies arrival"; return false; }
             foreach (var other in members)
                 if (other.cue != ownCue && Overlaps(member, other)) { reason = "Another formation reserved this space"; return false; }
@@ -213,7 +213,7 @@ namespace Massive.Enemies
                     // Even a delayed frame must give a newly shown warning its complete lead.
                     m.arrival = Mathf.Max(m.arrival, GameplayAge + Mathf.Max(.1f, cue.formation.warningSeconds));
                     m.warning = Instantiate(m.slot.telegraph, m.pose.position, m.pose.rotation, transform);
-                    m.warning.Begin(Mathf.Max(.1f, cue.formation.warningSeconds), SpawnWorldScale(m.slot.enemy)); _telegraphs.Add(m.warning);
+                    m.warning.Begin(Mathf.Max(.1f, cue.formation.warningSeconds), SpawnWorldScale(m.slot.enemy), SpawnOutline(m.slot.enemy)); _telegraphs.Add(m.warning);
                 }
             float next = float.MaxValue;
             foreach (var m in pending) next = Mathf.Min(next, m.arrival);

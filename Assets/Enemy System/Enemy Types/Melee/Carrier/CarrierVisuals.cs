@@ -7,11 +7,17 @@ namespace Massive.Enemies
 {
     /// <summary>Face tracing, rigid-panel breakup and bounded core/fueling metaballs.</summary>
     [ExecuteAlways, DisallowMultipleComponent]
-    public sealed class CarrierVisuals : ImmediateModeShapeDrawer
+    public sealed partial class CarrierVisuals : ImmediateModeShapeDrawer
     {
         public Transform assembly;
         public MeshFilter shell;
         public Renderer core;
+        [Header("Body dimensions")]
+        [Tooltip("Scales the Carrier shell, core and collision. Bays follow their face centers; docked and launched Drones keep their original size and inset tail depth.")]
+        [Range(.75f, 2.5f)] public float bodyScale = 1f;
+        [Tooltip("Damage trigger radius at Body Scale 1. The effective radius follows Body Scale.")]
+        [Min(.01f)] public float damageRadiusAtUnitScale = .775f;
+        public float BodyScale => Mathf.Clamp(bodyScale, .75f, 2.5f);
         [Min(.001f)] public float outlineWidth = .012f;
         [Header("Arrival and motion")]
         [Min(.05f)] public float spawnSeconds = 1.2f;
@@ -34,19 +40,19 @@ namespace Massive.Enemies
         public float DeathProgress { get; private set; }
         public int ActiveFuelCount { get; private set; }
         public int TotalFuelBursts { get; private set; }
-        public float FacetProgress(int index) => faceProgress[Mathf.Clamp(index, 0, 25)];
+        public float FacetProgress(int index) => faceProgress[Mathf.Clamp(index, 0, FaceCount - 1)];
         public Vector3 FuelPosition(int index) => Frame.TransformPoint(fuelPositions[Mathf.Clamp(index, 0, FuelCapacity - 1)]);
-        public float FaceDisplacement(int index) => faceOffsets[Mathf.Clamp(index, 0, 25)].magnitude;
+        public float FaceDisplacement(int index) => faceOffsets[Mathf.Clamp(index, 0, FaceCount - 1)].magnitude;
 
-        private const int FaceCount = 26, FuelCapacity = 36;
+        private const int FaceCount = CarrierHullGeometry.FaceCount, CornerStride = CarrierHullGeometry.MaxFaceCorners, FuelCapacity = 36;
         private Mesh mesh;
         private Vector3[] hullVertices;
         private int[][] faces;
-        private readonly Vector3[] corners = new Vector3[FaceCount * 4], fillVertices = new Vector3[129];
+        private readonly Vector3[] corners = new Vector3[FaceCount * CornerStride], fillVertices = new Vector3[CarrierHullGeometry.OpenTriangleCount * 3];
         private readonly Vector3[] centers = new Vector3[FaceCount], directions = new Vector3[FaceCount], axes = new Vector3[FaceCount], faceOffsets = new Vector3[FaceCount];
         private readonly float[] faceStart = new float[FaceCount], faceDuration = new float[FaceCount], faceProgress = new float[FaceCount], deathStartProgress = new float[FaceCount];
         private readonly int[] faceCorner = new int[FaceCount];
-        private readonly List<Vector2Int> edges = new(48);
+        private readonly List<Vector2Int> edges = new(144);
         private readonly Vector4[] balls = new Vector4[48];
         private readonly float[] fuelAges = new float[FuelCapacity], fuelSizes = new float[FuelCapacity];
         private readonly Vector3[] fuelSources = new Vector3[FuelCapacity], fuelPositions = new Vector3[FuelCapacity];
@@ -97,7 +103,7 @@ namespace Massive.Enemies
             if (random == null) random = new System.Random(GetInstanceID());
             if (!mesh)
             {
-                mesh = new Mesh { name = "Carrier rhombicuboctahedron (generated)", hideFlags = HideFlags.DontSave };
+                mesh = new Mesh { name = "Carrier truncated rhombicuboctahedron (generated)", hideFlags = HideFlags.DontSave };
                 mesh.MarkDynamic();
             }
             CarrierHullGeometry.Create(out hullVertices, out faces);
@@ -120,6 +126,7 @@ namespace Massive.Enemies
             mesh.Clear(); mesh.vertices = fillVertices;
             var indices = new int[fillVertices.Length]; for (int i = 0; i < indices.Length; i++) indices[i] = i;
             mesh.triangles = indices; shell.sharedMesh = mesh;
+            ApplyBodyScale();
             UpdatePanels(Application.isPlaying ? 0f : 1f);
         }
         private float PartTime(float progress, int face)
@@ -140,7 +147,7 @@ namespace Massive.Enemies
             for (int n = 0; n < Mathf.Clamp(fuelBallsPerLaunch, 1, 5); n++)
             {
                 int i = fuelIndex++ % FuelCapacity;
-                fuelSources[i] = Frame.TransformPoint(coreCenter);
+                fuelSources[i] = Frame.TransformPoint(coreCenter * BodyScale);
                 fuelTargets[i] = drone; fuelAges[i] = -n * Mathf.Max(0f, fuelStaggerSeconds);
                 fuelSizes[i] = fuelRadius * Sample(.85f, 1.15f);
             }
@@ -149,6 +156,7 @@ namespace Massive.Enemies
         {
             if (!mesh) RebuildGeometry();
             if (!mesh || !core) return;
+            ApplyBodyScale();
             if (Application.isPlaying && enemy && enemy.IsPaused && !enemy.IsDead) return;
             float dt = Application.isPlaying ? Time.deltaTime : 0f; age += dt;
             if (deathAge >= 0f) deathAge += dt;
@@ -174,15 +182,15 @@ namespace Massive.Enemies
                 float scale = deathAge < 0f ? 1f : Mathf.Lerp(1f, .05f, u);
                 faceProgress[f] = deathAge < 0f ? PartTime(spawn, f) : deathStartProgress[f];
                 for (int j = 0; j < face.Length; j++)
-                    corners[f * 4 + j] = centers[f] + faceOffsets[f] + tumble * (hullVertices[face[j]] - centers[f]) * scale;
+                    corners[f * CornerStride + j] = centers[f] + faceOffsets[f] + tumble * (hullVertices[face[j]] - centers[f]) * scale;
                 if (CarrierHullGeometry.IsCrown(hullVertices, face)) continue;
                 float fill = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(.35f, 1f, faceProgress[f]));
-                Vector3 anchor = corners[f * 4 + faceCorner[f]];
+                Vector3 anchor = corners[f * CornerStride + faceCorner[f]];
                 for (int j = 1; j < face.Length - 1; j++)
                 {
-                    fillVertices[vertex++] = Vector3.Lerp(anchor, corners[f * 4], fill);
-                    fillVertices[vertex++] = Vector3.Lerp(anchor, corners[f * 4 + j], fill);
-                    fillVertices[vertex++] = Vector3.Lerp(anchor, corners[f * 4 + j + 1], fill);
+                    fillVertices[vertex++] = Vector3.Lerp(anchor, corners[f * CornerStride], fill);
+                    fillVertices[vertex++] = Vector3.Lerp(anchor, corners[f * CornerStride + j], fill);
+                    fillVertices[vertex++] = Vector3.Lerp(anchor, corners[f * CornerStride + j + 1], fill);
                 }
             }
             mesh.vertices = fillVertices; mesh.RecalculateBounds();
@@ -191,12 +199,13 @@ namespace Massive.Enemies
         {
             float intensity = Mathf.SmoothStep(0f, 1f, spawn) * (1f - DeathProgress);
             corePulse = Mathf.MoveTowards(corePulse, 0f, dt * 4f);
-            int count = 0; Bounds volume = new Bounds(coreCenter, Vector3.one * .5f);
+            float body = BodyScale;
+            int count = 0; Bounds volume = new Bounds(coreCenter * body, Vector3.one * (.5f * body));
             for (int i = 0; i < DroneVisuals.CoreBallCount; i++)
             {
                 float phase = age * (2.2f + i * .19f) + i * 2.39996f;
-                Vector3 p = coreCenter + (i == 0 ? Vector3.zero : new Vector3(Mathf.Cos(phase), Mathf.Sin(phase * 1.13f), Mathf.Sin(phase * .83f) * .85f) * coreOrbit);
-                float r = coreRadius * (i == 0 ? .85f : .72f + .18f * Mathf.Sin(phase * 1.37f)) * intensity * (1f + corePulse * .2f);
+                Vector3 p = (coreCenter + (i == 0 ? Vector3.zero : new Vector3(Mathf.Cos(phase), Mathf.Sin(phase * 1.13f), Mathf.Sin(phase * .83f) * .85f) * coreOrbit)) * body;
+                float r = coreRadius * body * (i == 0 ? .85f : .72f + .18f * Mathf.Sin(phase * 1.37f)) * intensity * (1f + corePulse * .2f);
                 AddBall(p, r, ref count, ref volume);
             }
             ActiveFuelCount = 0;
@@ -248,7 +257,7 @@ namespace Massive.Enemies
                     int length = faces[f].Length; float remaining = length * faceProgress[f];
                     for (int j = 0; j < length; j++)
                     {
-                        Vector3 a = corners[f * 4 + (faceCorner[f] + j) % length], b = corners[f * 4 + (faceCorner[f] + j + 1) % length];
+                        Vector3 a = corners[f * CornerStride + (faceCorner[f] + j) % length], b = corners[f * CornerStride + (faceCorner[f] + j + 1) % length];
                         if (remaining > .0001f && (b - a).sqrMagnitude > .000001f) Draw.Line(a, Vector3.Lerp(a, b, Mathf.Clamp01(remaining)));
                         remaining -= 1f;
                     }

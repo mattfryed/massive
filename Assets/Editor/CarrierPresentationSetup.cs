@@ -57,6 +57,13 @@ public static class CarrierPresentationSetup
             var enemy = root.GetComponent<EnemyBase>();
             if (enemy.despawnDelaySeconds <= 0f) enemy.despawnDelaySeconds = .8f;
             visuals.RebuildGeometry();
+            var outline = AssetDatabase.LoadAssetAtPath<Mesh>(CarrierPrototypeSetup.Folder + "/Carrier Spawn Outline.asset");
+            if (outline)
+            {
+                visuals.BuildSpawnOutline(outline);
+                EditorUtility.SetDirty(outline); AssetDatabase.SaveAssetIfDirty(outline);
+            }
+            visuals.shell.name = "Truncated rhombicuboctahedron hull (open hexagonal crown)";
             PrefabUtility.SaveAsPrefabAsset(root, CarrierPrototypeSetup.PrefabPath);
         }
         finally { PrefabUtility.UnloadPrefabContents(root); }
@@ -67,15 +74,17 @@ public static class CarrierPresentationSetup
     {
         string path = CarrierPrototypeSetup.Folder + "/Carrier Collision Hull.asset";
         var mesh = AssetDatabase.LoadAssetAtPath<Mesh>(path);
-        if (mesh) return mesh;
         CarrierHullGeometry.Create(out var vertices, out var faces);
-        var triangles = new List<int>(132);
+        var triangles = new List<int>(564);
         foreach (var face in faces)
             for (int i = 1; i < face.Length - 1; i++)
             { triangles.Add(face[0]); triangles.Add(face[i]); triangles.Add(face[i + 1]); }
-        mesh = new Mesh { name = "Carrier collision hull" };
+        bool created = !mesh;
+        if (!mesh) mesh = new Mesh { name = "Carrier collision hull" };
+        mesh.Clear();
         mesh.vertices = vertices; mesh.SetTriangles(triangles, 0); mesh.RecalculateBounds();
-        AssetDatabase.CreateAsset(mesh, path);
+        if (created) AssetDatabase.CreateAsset(mesh, path);
+        else { EditorUtility.SetDirty(mesh); AssetDatabase.SaveAssetIfDirty(mesh); }
         return mesh;
     }
 

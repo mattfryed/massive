@@ -53,7 +53,7 @@ public static class CarrierPrototypeSetup
                 var controller = root.AddComponent<CarrierController>(); controller.definition = def; controller.droneDefinition = droneDefinition;
                 controller.damageTrigger = hitbox;
                 var visual = root.AddComponent<CarrierVisuals>();
-                var shell = new GameObject("Rhombicuboctahedron hull (open crown)"); shell.layer = root.layer; shell.transform.SetParent(root.transform, false);
+                var shell = new GameObject("Truncated rhombicuboctahedron hull (open hexagonal crown)"); shell.layer = root.layer; shell.transform.SetParent(root.transform, false);
                 visual.shell = shell.AddComponent<MeshFilter>();
                 var renderer = shell.AddComponent<MeshRenderer>(); renderer.sharedMaterial = drone.GetComponent<DroneVisuals>().noseMesh.GetComponent<Renderer>().sharedMaterial;
                 renderer.shadowCastingMode = ShadowCastingMode.Off; renderer.receiveShadows = false;
@@ -96,35 +96,13 @@ public static class CarrierPrototypeSetup
         Debug.Log("[Carrier] Prefab ready. Existing authored tuning is preserved.");
     }
 
-    [MenuItem("MASSIVE/Enemies/Carrier/Apply Compact Rhombicuboctahedron")]
+    [MenuItem("MASSIVE/Enemies/Carrier/Apply 50-Face Hull")]
     public static void ApplyCompactHull()
     {
-        if (EditorApplication.isPlaying) throw new InvalidOperationException("Refine the Carrier prefab in Edit Mode.");
-        var root = PrefabUtility.LoadPrefabContents(PrefabPath);
-        try
-        {
-            var visual = root.GetComponent<CarrierVisuals>();
-            visual.outlineWidth = .012f; visual.coreRadius = .08f; visual.coreOrbit = .09f;
-            visual.shell.name = "Rhombicuboctahedron hull (open crown)";
-            visual.core.transform.localScale = Vector3.one * .8f;
-            visual.core.transform.localPosition = Vector3.up * .55f;
-            var carrier = root.GetComponent<CarrierController>();
-            (carrier.damageTrigger ? carrier.damageTrigger : root.GetComponent<SphereCollider>()).radius = .775f;
-            for (int i = 0; i < carrier.docks.Length; i++)
-            {
-                CarrierHullGeometry.GetDockPose(i, out var position, out var rotation);
-                carrier.docks[i].SetLocalPositionAndRotation(position, rotation);
-            }
-            visual.RebuildGeometry();
-            PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
-        }
-        finally { PrefabUtility.UnloadPrefabContents(root); }
-        var def = AssetDatabase.LoadAssetAtPath<EnemyDefinition>(DefinitionPath);
-        def.spawnRadiusWorld = 1.25f; EditorUtility.SetDirty(def); AssetDatabase.SaveAssetIfDirty(def);
+        CarrierPresentationSetup.Configure();
         SceneView.RepaintAll();
-        Debug.Log("[Carrier] Compact rhombicuboctahedron applied with six inset Drone tails.");
+        Debug.Log("[Carrier] 50-face hull, open hexagonal crown and body-scale docking applied; existing tuning preserved.");
     }
-
     [MenuItem("MASSIVE/Enemies/Carrier/Place In Player Actions")]
     public static void PlaceInScene()
     {

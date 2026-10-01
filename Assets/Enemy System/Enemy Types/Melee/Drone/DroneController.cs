@@ -138,9 +138,7 @@ namespace Massive.Enemies
             if (enemy == null || enemy.IsDead || enemy.IsPaused || enemy.Definition == null || body.isKinematic) return;
             float dt = Time.fixedDeltaTime;
             var owningShell = avoidance.LaunchClearanceCollider;
-            if (owningShell && (launchRemaining <= 0f || !bodyCollider ||
-                !Physics.ComputePenetration(bodyCollider, body.position, body.rotation, owningShell,
-                    owningShell.transform.position, owningShell.transform.rotation, out _, out _)))
+            if (owningShell && (launchRemaining <= 0f || !LaunchGuardOverlaps(owningShell)))
                 avoidance.LaunchClearanceCollider = null;
             age += dt;
             if (!IsReady) { body.linearVelocity = Vector3.zero; return; }
@@ -219,6 +217,16 @@ namespace Massive.Enemies
             Vector3 facing = ranged && Target ? Target.transform.position - body.position : velocity;
             facing.y = 0f;
             TurnSmoothly(facing, dt);
+        }
+
+        private bool LaunchGuardOverlaps(Collider owningShell)
+        {
+            // Release the bay exemption only when the same capsule used by movement sweeps is clear.
+            // The physical trigger can report no penetration while this slightly wider guard still overlaps.
+            Capsule(out Vector3 a, out Vector3 b, out float r);
+            int count = Physics.OverlapCapsuleNonAlloc(a, b, r, overlaps, avoidance.ObstacleMask, QueryTriggerInteraction.Collide);
+            for (int i = 0; i < count; i++) if (overlaps[i] == owningShell) return true;
+            return count == overlaps.Length;
         }
 
         private void Capsule(out Vector3 a, out Vector3 b, out float r)

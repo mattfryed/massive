@@ -5528,7 +5528,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: cd4427472a87a284fa1b98ffdb4bed40, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  mode: 1
+  mode: 0
   timelinePreview: {fileID: 721789521}
   content: {fileID: 1444644962}
   encounters:

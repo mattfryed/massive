@@ -311,6 +311,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a0f139f9db4b147b494b3852a12b07c6, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  registerAsDefault: 1
   size: {x: 28, y: 12}
   gridScale: 1
   simulationSubdivisionsPerCell: 8
@@ -342,8 +343,8 @@ MonoBehaviour:
   crowdStiffness: 0.6
   lineMaterial: {fileID: 2100000, guid: 7c23a1f2d285a4c69878677e684f9457, type: 2}
   lineThickness: 1.3
-  lineColor: {r: 1, g: 1, b: 1, a: 1}
-  displacementBrightness: 2
+  lineColor: {r: 0.16037738, g: 0.16037738, b: 0.16037738, a: 1}
+  displacementBrightness: 6
   vectorCompute: {fileID: 7200000, guid: bad68b3817bf14ef6bbbd72c6fc787ce, type: 3}
   boundary:
     featherCells: 0

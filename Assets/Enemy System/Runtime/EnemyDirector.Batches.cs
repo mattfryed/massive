@@ -88,7 +88,7 @@ namespace Massive.Enemies
                     if (r.telegraphPrefab != null)
                     {
                         state.telegraph = Instantiate(r.telegraphPrefab, state.anchor, r.enemy.prefab.transform.rotation, transform);
-                        state.telegraph.Begin(r.WarningSeconds, SpawnWorldScale(r.enemy)); _telegraphs.Add(state.telegraph);
+                        state.telegraph.Begin(r.WarningSeconds, SpawnWorldScale(r.enemy), SpawnOutline(r.enemy)); _telegraphs.Add(state.telegraph);
                         state.remaining = r.WarningSeconds;
                         if (state.remaining > 0f) continue;
                     }
@@ -170,7 +170,7 @@ namespace Massive.Enemies
         {
             enemy = null;
             if (!isActiveAndEnabled || !CanSpawnEnemy(def, def != null ? def.maxAliveOverride : 0)) return false;
-            if (!arenaBounds.ContainsWorldPoint(position, def.spawnRadiusWorld)) return false;
+            if (!arenaBounds.ContainsWorldPoint(position, def.GetSpawnRadiusWorld())) return false;
             var go = Instantiate(def.prefab, position, rotation, enemyRoot);
             enemy = go.GetComponent<EnemyBase>();
             enemy.Init(def, this);
@@ -205,7 +205,7 @@ namespace Massive.Enemies
         private bool TryFindSpawnPosition(EnemyDefinition def, Vector3? clusterCenter, float clusterRadius, out Vector3 position)
         {
             position = default;
-            float clearance = Mathf.Max(spawnCheckRadiusWorld, def.spawnRadiusWorld);
+            float clearance = Mathf.Max(spawnCheckRadiusWorld, def.GetSpawnRadiusWorld());
             if (placementRegion != null)
                 placementRegion.RefreshPlacementCache(resonanceSpawner != null ? resonanceSpawner.ActivePattern : placementRegion.previewPattern);
             for (int attempt = 0; attempt < Mathf.Max(1, spawnAttemptsPerTick); attempt++)
@@ -234,20 +234,20 @@ namespace Massive.Enemies
 
         private bool IsPlacementClear(EnemyDefinition def, Vector3 p, ReservedSpawn ownReservation)
         {
-            float clearance = Mathf.Max(spawnCheckRadiusWorld, def.spawnRadiusWorld);
+            float clearance = Mathf.Max(spawnCheckRadiusWorld, def.GetSpawnRadiusWorld());
             if (!arenaBounds.ContainsWorldPoint(p, borderBufferWorld + clearance)) return false;
             if (placementRegion != null && !placementRegion.IsValidCached(p, clearance, out _)) return false;
             if (!IsSpawnPointClear(p, clearance) || !IsFarEnoughFromPlayers(p)) return false;
             foreach (var live in _alive)
             {
                 if (live == null) continue;
-                float separation = clearance + (live.Definition != null ? live.Definition.spawnRadiusWorld : clearance);
+                float separation = clearance + (live.Definition != null ? live.Definition.GetSpawnRadiusWorld(live.transform) : clearance);
                 if ((live.transform.position - p).sqrMagnitude < separation * separation) return false;
             }
             foreach (var reservation in _reservedSpawns)
             {
                 if (reservation == ownReservation) continue;
-                float separation = clearance + Mathf.Max(spawnCheckRadiusWorld, reservation.enemy.spawnRadiusWorld);
+                float separation = clearance + Mathf.Max(spawnCheckRadiusWorld, reservation.enemy.GetSpawnRadiusWorld());
                 if ((reservation.position - p).sqrMagnitude < separation * separation) return false;
             }
             return true;

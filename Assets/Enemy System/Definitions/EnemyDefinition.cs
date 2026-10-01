@@ -29,6 +29,15 @@ namespace Massive.Enemies
         [Tooltip("Used by the spawner as a minimum clearance radius so we don't spawn overlapping things.")]
         public float spawnRadiusWorld = 0.8f;
 
+        /// <summary>Retain authored minimum clearance, expanding it for an adjustable Carrier hull and its docked Drones.</summary>
+        public float GetSpawnRadiusWorld(Transform instance = null)
+        {
+            var root = instance ? instance : prefab ? prefab.transform : null;
+            if (!root || !root.TryGetComponent<CarrierVisuals>(out var carrier)) return spawnRadiusWorld;
+            Vector3 scale = root.lossyScale;
+            return Mathf.Max(spawnRadiusWorld, carrier.SpawnRadiusLocal * Mathf.Max(Mathf.Abs(scale.x), Mathf.Abs(scale.z)));
+        }
+
         [Min(0f)]
         [Tooltip("Optional per-enemy cap. 0 = no per-enemy cap (Director caps still apply).")]
         public int maxAliveOverride = 0;

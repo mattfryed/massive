@@ -115,7 +115,7 @@ namespace Massive.Enemies
             if (SpawnAge == 0f && WarningDuration > 0f)
             {
                 warning = Instantiate(spawnTelegraphPrefab, transform.position, transform.rotation, transform);
-                warning.Begin(WarningDuration, transform.lossyScale);
+                warning.Begin(WarningDuration, transform.lossyScale, visuals ? visuals.CreateSpawnOutline() : null);
             }
             SpawnAge += delta;
             if (!IsRevealing && SpawnAge >= WarningDuration)
@@ -133,6 +133,7 @@ namespace Massive.Enemies
         }
         private void Update()
         {
+            if (visuals) visuals.ApplyBodyScale();
             if (!enemy || enemy.IsDead || enemy.IsPaused || !enemy.Definition || !droneDefinition || !droneDefinition.prefab || docks.Length != 6) return;
             if (warning && !warning.Advance(Time.deltaTime)) warning = null;
             if (!IsSpawnReady) { TickSpawn(Time.deltaTime); return; }
