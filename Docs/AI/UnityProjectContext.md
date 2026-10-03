@@ -677,3 +677,246 @@ Awake also upgrades older scene overrides so FreezeAll cannot prevent movement.
 Play Mode checks in Enemy Lab passed all 18 cases with no runtime errors.
 Menu: MASSIVE > Enemies > Validate Carrier Turret Avoidance.
 Report: Library/CarrierLaneAvoidanceValidation/report.txt.
+
+### Drone formation library — 2026-10-02
+
+The Enemy Lab timeline now includes Drone/Ranged Paired Rows (20 each), Center
+Ring (10 each), and Goal Phalanxes (20 each). Rows release center-out at .25s
+per top/bottom pair; rings release opposite pairs at .25s, alternating arcs.
+Phalanxes use simultaneous 1–2–3–4 ranks, centered at x±5 and facing the goals.
+Authored positions normalize against the current 28×12 arena. Ranged positions
+interleave with the matching normal batch (minimum combined clearance 1.15).
+Lab ranged cap is 24; total40/pressure60 allow matching 20+20 arrivals. Actor
+horizontal position defaults to .72 to keep phalanx arrival space free. The
+original six cue times remain; four new cues extend the preview to 181 seconds.
+Validate Drone Formations exercises geometry and live simultaneous release;
+reports are under Library/EnemyDroneFormationValidation.
+
+Validation on 2026-10-02: Unity compiled; 52 Drone formation checks passed,
+including simultaneous matching batches with live AI and full release timing.
+The existing 29-check encounter regression also passed using its original compact
+formation/actor fixture, including all enemy types, wall mounts, looping and
+column isolation. Existing Player match-spawn kinematic velocity warnings remain.
+
+### Encounter Composer — 2026-10-02
+
+Native dockable EditorWindow at MASSIVE > Enemies > Encounter Composer, also
+opened by timeline asset double-click or either Enemy Lab inspector. Editor-only
+files: EnemyEncounterComposer.cs / .Preview.cs and EnemyEncounterAuthoring.cs.
+Reuses EnemyEncounterTimeline/EnemyFormation and the existing Director; there is
+no new runtime scheduler. Supports formation-library drops onto enemy tracks,
+timing drags with snapping, duplicate/remove, Undo/Redo, auto-save, per-cue
+settings, seeded placement previews and authoring diagnostics. Live Enemy Lab
+controls expose all/single-cue playback, pause/restart, cue outcomes, budgets and
+an aligned playhead; editing is locked in Play Mode. Blocks show spawn windows,
+not enemy survival, and the insertion cursor does not scrub runtime state.
+Dragging retains cue indices (seed identity); removal can change later seeds.
+Validation menu: MASSIVE > Enemies > Validate Encounter Composer. Report:
+Library/EnemyEncounterComposerValidation/report.txt. Usage is in the encounters
+README. Existing timeline timings and formation assets are preserved.
+
+Validation: 19 editor checks passed, including 20-seed parity with the Director.
+Native UI verified quick library drops, block dragging, Undo/save and Fit. Live
+single-cue playback spawned all 20 Ranged phalanx members, aligned the playhead
+to the authored 159s cue, paused without clock drift and restarted cleanly.
+Full playback displayed completed Drone rows and a subsequent Ranged batch
+skipped because living enemies occupied its arrival space. No new compile or
+runtime errors; pre-existing player spawn kinematic-velocity warnings remain.
+
+### Flexible encounter arrivals — 2026-10-02
+
+EnemyFormation now owns Strict/Flexible integrity, bounded pre-warning position
+adjustment, per-slot grace, an adjustment pattern, placement groups and optional
+linked release groups. EnemyEncounterTimeline.Cue can override the three policy
+values; existing cues inherit formation defaults. The six Drone/Ranged library
+batches are Flexible with maximum adjustment 1 world unit and grace 3 seconds.
+The user's current 16-cue timeline (pressure120, duration181 and all timings) is
+preserved. Earlier pressure60/ten-cue notes describe the starter preset.
+
+EnemyDirector.Placement prefers coherent row/phalanx translations and ring
+rotations before bounded local corrections. All candidates pass existing
+clearance rules. EnemyDirector.Flexible reserves the whole batch budget but
+releases clear slots independently; blocked slots wait/expire individually.
+Announced locations never move and late-clearing slots still receive a complete
+warning. Linked positive release IDs are atomic and require matching delays.
+Wall sockets never shift. Population and pressure caps still gate full batches.
+Max lateness controls initial reservation; Flexible slot grace controls release
+deadlines relative to each authored arrival, with no indefinite queue.
+
+EnemyDirector.ArrivalAvoidance supplies bounded steering around active warnings.
+Normal Drone, Ranged, Seeker and Dyson movement consumes it through existing
+obstacle steering; committed attack motion bypasses it. Carriers yield through
+their existing collision-checked eased movement, prioritizing turret clearance.
+HoldPosition, pause and simulation scope apply; players/turrets are not moved.
+Composer exposes shared defaults, per-cue overrides, counts and slot reasons;
+its live arena shows adjusted/blocked/spawned footprints. Static previews remain
+authored-position checks. Detailed controls and behavior: encounters README.
+
+Validation menu: MASSIVE > Demonstrations > Validate Flexible Spawning.
+Report: Library/EnemySpawnFlexValidation/report.txt. Runtime-copy fixtures cover
+partial release/expiry, linked groups, late warnings, immutable telegraphs,
+placement shape/bounds, budgets, sockets, pause/restart and live Drone steering.
+Composer regression additionally verifies override inheritance, duplication and
+serialization. The original compact encounter fixture explicitly uses Strict.
+
+Validation: Unity compiled; 37 Flexible spawn checks, 22 Composer editor checks,
+29 existing encounter checks and 52 Drone formation checks passed (140 total).
+Live simultaneous Drone/Ranged rows, rings and phalanxes complete with normal AI;
+clear staggered releases preserve at least .25s despite warning/frame drift.
+Recovered blocked slots do not shift the remaining clear sequence. No runtime
+errors in these suites; existing player spawn kinematic-velocity warnings remain.
+Native Composer UI verified shared defaults and inherited cue policy. In the
+user-authored timeline's live preview, Ranged rows reported Complete with all 20
+spawned and green arrival footprints. Returned to Edit Mode with Composer open.
+The authored timeline remained byte-for-byte identical to the pre-change copy.
+
+
+### Timeline population authority (2026-10-02)
+
+EnemyEncounterTimeline now owns maxAliveTotal, optional populationLimits per definition,
+and maxPressure/pressureCosts. Timeline mode replaces all legacy profile/category,
+definition and rule caps; CanSpawnEnemy returns the timeline decision directly.
+EnemyPopulationBudget supplies shared runtime and Composer admission checks with
+alive/reserved/requested diagnostics. CurrentPressure includes legacy reservations;
+consuming one's own reservation excludes it before counting the requested spawn.
+Carrier launches use the same gate and launched children count once. CarrierController
+also skips its scene-wide maxActiveDrones/definition pre-check in timeline mode;
+standalone and legacy Carriers retain it.
+
+Composer exposes these controls and pressure costs. EnemyEncounterLab owns the
+ignorePopulationLimits preference; Director only bypasses budgets when the active
+Lab points at that Director and owns its current SimulationRoot. It never changes
+timeline limits. HUD and Composer mark UNLIMITED PREVIEW; spatial, telegraph and
+pause gates stay active. Default is off. Timeline asset migrated to explicit total
+40, Drone/Ranged 24 each, Seeker12, Turret8, Carrier2, Dyson0; pressure120 and all
+16 user-authored cues/timings retained. Legacy profile/definition caps unchanged.
+Validation menu/report: Validate Timeline Population / Library/EnemyPopulationValidation.
+
+Validation: Unity compiled and all 176 checks passed (population30, Composer28,
+flexible37, encounter29, formations52). Actual Carrier controller launch was
+exercised beyond both its legacy local and definition ceilings. Lab bypass kept
+warnings, collision checks and pause, restored caps without killing enemies, and
+rejected an unrelated simulation scope. Composer Undo/Redo and save/reload passed.
+No runtime errors in the suites; existing player spawn kinematic-velocity warnings
+remain. Native Composer population UI checked and left open in Edit Mode. The
+16-cue timeline matches its pre-change copy after removing only the new population
+fields. Scene was not saved; existing unsaved scene edits were preserved.
+
+### Thrust steering cone (2026-10-02)
+
+PlayerCombatSettings.thrustMaxTurnDegrees defaults to 15 degrees per side and is exposed in MASSIVE > Player Tuning > Movement > Thrust steering. PlayerAttackController.ConstrainThrustDirectionWS clamps planar aim around stageAttackDirectionWS captured at stage start, after lunge assistance; the center never follows later input. Zero locks aim; 180 removes the bound. Existing shared/local tuning and snapshots include the field.
+
+The controller applies the bound to explicit aim writes and attack visual direction, and establishes the start heading before stage listeners enable damage. PlayerVisualController retains raw desired input but uses bounded facing for the body target and combat root; smoothed combat rotations are bounded too. The child Sword collider therefore obeys the same limit. Lunge displacement remains stage-locked. Completion, cancellation and subsequent stages restore normal facing; old VFX tail handling remains intact.
+
+ThrustSteeringValidation.RunBatch passed 31 checks in an isolated Unity 6000.0.28f1 Editor: real canonical collider/input behavior, rear-target exclusion with a positive damage control, both limits and reversals, no accumulated steering drift, scripted/smoothed facing, wraparound, local/shared tuning, new stage centers, normal exit/cancellation/Sweep, all seven demos for two loops, snapshots and save/reimport persistence. Evidence: Library/ThrustSteeringValidation/report.txt, unity.log and tested-source-sha256.txt. The live scene was not saved or switched.
+
+### Manual timeline preview player (2026-10-02)
+
+Composer's details panel begins with Preview Player > Manual control (P1), also
+available as EnemyEncounterLab.manualPlayerControl in the Inspector. It hands the
+existing left actor to Rewired Player 1 (ID 0); the right actor retains scripted
+movement and attacks. The preview actor remains a pseudo-player in the Lab's own
+simulation scope, uses shared gameplay tuning, and does not join match scoring.
+Current keyboard maps: arrows move, S Sword, D Shield. Normal P1 controller
+assignment is reused; no new input maps or raw keyboard polling were introduced.
+
+EnemyEncounterLab runs before PlayerControllerScript to hand off input without an
+extra frame of scripted commands. Handoffs clear scripted input, cancel outgoing
+attack/shield and velocity, then select Rewired, Scripted or Disabled. Timeline
+pause locks both actors; Application.isFocused gates manual input. The toggle
+does not restart playback, and restart/loop carries the preference to new actors.
+Actors Move/Attack only govern automatic actors. Restore Player Mass still applies.
+
+Validate Timeline Manual Control writes routing, pause, lifecycle and isolation
+results to Library/EnemyManualControlValidation, plus keyboard bindings and scene
+placement context. Physical keyboard/controller gameplay is not covered by this
+automated fixture; native automation key taps did not reliably reach Rewired.
+
+The unsaved scene assigns AmplifierResonance as the timeline director's optional
+placementRegion, unlike the saved scene's null region. This initially caused
+floor formations to fail neutral-territory/height checks; resolved by the Lab
+placement correction below. The scene assignment and its settings were preserved.
+
+Validation: Unity compiled; the initial manual-control run passed all 22 checks,
+and the isolated encounter regression passed all 29. Later native automation could
+not establish Application.isFocused even after clicking/activating the Game view;
+the final focused-input rerun was stopped at that precondition. No physical input
+playthrough is claimed. Existing player-spawn kinematic-velocity warnings remain.
+Unity returned to Edit Mode; no scene or authored timeline settings were saved.
+
+### Timeline placement and Lab roster isolation (2026-10-02)
+
+EnemyArenaLayout.gameplayHeight defaults to world Y=0. World() now uses that height
+for actors, enemy arrivals and wall sockets instead of the decorative grid's
+Y=-.364. Timeline MemberClear uses AmplifierSpawnRegion.IsClearOfExclusionsCached
+for shared no-go volumes, Resonance footprints and solid obstacles. It opts out
+of the Amplifier neutral stripe, spawn height, goal-attraction radius and global
+player-distance policy. EnemyArenaLayout governs territory/height and the Director
+still checks its scoped players, physical blockers, live enemies and reservations.
+Amplifier and legacy random/batch placement retain IsValidCached and all previous
+restrictions. The goal-attraction opt-out is necessary for the authored Ranged and
+Dyson flanks, which are clear of physical goals but inside their 4.5-unit power-up
+attraction radius.
+
+EnemyLab disables both preview children while waiting for match startup. After
+Regulation begins, it suppresses and fully deactivates the same-scene normal
+player roots before starting the selected Lab mode. Root deactivation removes
+P1/P3 from ActivePlayers and input/placement logic. Leaving the Lab reactivates
+only the previously active roster, then releases suppression to restore visuals;
+P2/P4 remain inactive. Re-entering suspends the roster again.
+
+The encounter regression now keeps the actual assigned Amplifier region in its
+integrated run, checks shared exclusions and power-up-specific policies separately,
+and checks Y=0 arrivals plus roster shutdown/restoration/re-entry. It verifies
+the authored timeline and assigned region settings remain unchanged.
+
+Validation: Unity compiled and all 43 encounter checks passed. All six enemy types
+and Carrier children spawned with the assigned shared region; every integration
+cue completed. Looping, the original columns, roster visual restoration and Lab
+re-entry passed with no Unity errors or exceptions. Existing player-spawn
+kinematic-velocity warnings remain. Evidence: Library/EnemyEncounterValidation/
+report.txt and timeline.txt. Scene was not saved and authored settings were retained.
+
+### ORBITAL playable encounter integration (2026-10-02)
+
+S-6_ORBITAL now enables its existing Drone Swarm Spawner instance as
+ORBITAL Enemy Timeline. It references the shared Enemy Lab Timeline.asset directly,
+so Composer edits affect both scenes. A level-owned ORBITAL Encounter Profile.asset
+provides enabled/anomaly policy; timeline population/pressure remains authoritative.
+EnemyArenaLayout adds the Lab's five named regions and four top/bottom turret
+sockets at Y=0. The Director waits for scoring and runs with normal match players;
+there are no Lab actors, automatic player controls or demonstration scope in the
+saved scene. The match schedule runs once, without the Lab's loop/reset behavior.
+
+ORBITAL does not use AmplifierSpawnRegion for enemy placement. Its obstacle,
+NoSpawnZone and PowerUps masks retain ordinary blockers. Per-layout
+allowResonanceAndAmplifierOverlap permits those component hierarchies if they are
+in the query mask, and spawnOverlapRoots includes the Cloud hierarchy (including
+its runtime nuggets). ORBITAL's current Resonance prefab uses Default-layer
+colliders, outside the mask already. Explicit exclusions, player/enemy occupancy,
+reservations and arena boundaries remain enforced. No physics collision layers,
+Cloud behavior, Resonance sludge, power-up placement or spawner timing were changed.
+
+Composer now accepts a scene EnemyDirector as well as a Lab. It discovers the
+active scene's Director, offers Play all / Play cue and reads live status/budgets.
+Restart in a playable level clears that Director's enemies and schedule only;
+normal players, match state and environmental systems remain. Manual-player and
+Unlimited Preview controls remain Lab-only. EnemyDirector's Inspector has an
+Open Encounter Composer button.
+
+OrbitalEncounterSetup installs and saves the wiring through Unity with Undo and
+compares Cloud, spawner, region and timeline serialization before/after. Evidence
+and the pre-install scene backup are in Library/OrbitalEncounterValidation.
+OrbitalEncounterValidation exercises actual generated environmental overlap,
+match gating, normal roster scope, the opening waves and individual later cues.
+The unattended fixture restores player mass and repositions players between
+isolated cues; these are temporary test actions, never saved level behavior.
+
+Final Play Mode validation passed all 39 checks, covering actual telegraphed
+arrivals over live Resonance, Amplifier and dense Cloud positions; all six enemy
+types and Carrier children; normal roster targeting; timeline population limits;
+Composer pause/restart; and match start/end gating. No Unity errors or exceptions
+occurred. Existing player-spawn kinematic-velocity warnings remain. Coverage used
+the opening timeline plus isolated later cues, not a human-played full loop.
+Unity returned to Edit Mode with ORBITAL saved and the Composer bound to its
+Director. Detailed results are in Library/OrbitalEncounterValidation/report.txt.

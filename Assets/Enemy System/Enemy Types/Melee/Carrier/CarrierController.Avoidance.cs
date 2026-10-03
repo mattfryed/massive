@@ -21,6 +21,7 @@ namespace Massive.Enemies
         private ParticleBeamTurretController avoidedTurret;
         private EnemyBase avoidedTurretEnemy;
         private Vector3 avoidanceDestination, avoidanceVelocity;
+        private Vector3 arrivalYieldVelocity;
         private float laneCheckRemaining;
         private readonly RaycastHit[] avoidanceHits = new RaycastHit[64];
         private readonly Collider[] avoidanceOverlaps = new Collider[64];
@@ -30,6 +31,7 @@ namespace Massive.Enemies
             avoidanceBody = GetComponent<Rigidbody>();
             IsClearingTurretLane = false; avoidedTurret = null; avoidedTurretEnemy = null;
             avoidanceVelocity = Vector3.zero; laneCheckRemaining = 0f;
+            arrivalYieldVelocity = Vector3.zero;
         }
         private float AvoidanceRadius
         {
@@ -44,10 +46,16 @@ namespace Massive.Enemies
         private void FixedUpdate()
         {
             if (!enemy || enemy.IsDead || !enemy.Definition || !IsSpawnReady || !avoidanceBody) return;
-            if (enemy.IsPaused) { avoidanceVelocity = Vector3.zero; return; }
-            if (!avoidTurretLanes || enemy.HoldPosition)
+            if (enemy.IsPaused) { avoidanceVelocity = arrivalYieldVelocity = Vector3.zero; return; }
+            if (enemy.HoldPosition)
             { ResetLaneAvoidance(); return; }
             float dt = Time.fixedDeltaTime;
+            if (!avoidTurretLanes)
+            {
+                IsClearingTurretLane = false; avoidedTurret = null; avoidedTurretEnemy = null;
+                avoidanceVelocity = Vector3.zero; laneCheckRemaining = 0f;
+                YieldToArrival(dt); return;
+            }
             laneCheckRemaining -= dt;
             if (IsClearingTurretLane && (!avoidedTurret || !avoidedTurret.isActiveAndEnabled || !avoidedTurretEnemy ||
                 avoidedTurretEnemy.IsDead || avoidedTurretEnemy.IsPaused || !enemy.SharesSimulationWith(avoidedTurretEnemy)))
@@ -57,7 +65,8 @@ namespace Massive.Enemies
                 laneCheckRemaining = Mathf.Max(.05f, turretLaneCheckInterval);
                 FindTurretSidestep();
             }
-            if (!IsClearingTurretLane) return;
+            if (!IsClearingTurretLane) { YieldToArrival(dt); return; }
+            arrivalYieldVelocity = Vector3.zero;
             Vector3 next = Vector3.SmoothDamp(avoidanceBody.position, avoidanceDestination, ref avoidanceVelocity,
                 Mathf.Max(.05f, turretAvoidanceEaseSeconds), Mathf.Max(.05f, turretAvoidanceSpeed) * enemy.ExternalMovementMultiplier, dt);
             next.y = avoidanceBody.position.y;
@@ -70,6 +79,16 @@ namespace Massive.Enemies
                 IsClearingTurretLane = false; avoidanceVelocity = Vector3.zero;
                 laneCheckRemaining = Mathf.Max(.1f, turretLaneCheckInterval);
             }
+        }
+        private void YieldToArrival(float dt)
+        {
+            Vector3 bias = enemy.Director ? enemy.Director.ArrivalAvoidance(enemy, Vector3.zero) : Vector3.zero;
+            if (bias.sqrMagnitude < .0001f) { arrivalYieldVelocity = Vector3.zero; return; }
+            Vector3 destination = avoidanceBody.position + Vector3.ClampMagnitude(bias, 1f);
+            Vector3 next = Vector3.SmoothDamp(avoidanceBody.position, destination, ref arrivalYieldVelocity,
+                Mathf.Max(.05f, turretAvoidanceEaseSeconds), Mathf.Max(.05f, turretAvoidanceSpeed) * enemy.ExternalMovementMultiplier, dt);
+            if (ClearSidestep(next, AvoidanceRadius)) avoidanceBody.MovePosition(next);
+            else arrivalYieldVelocity = Vector3.zero;
         }
         private void FindTurretSidestep()
         {

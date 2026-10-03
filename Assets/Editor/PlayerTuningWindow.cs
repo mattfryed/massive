@@ -296,6 +296,9 @@ namespace Massive.EditorTools
             using (var d = new SerializedObject(tuning))
             {
                 d.Update(); var c = d.FindProperty("combat");
+                EditorGUILayout.LabelField("Thrust steering", EditorStyles.boldLabel);
+                Field(c, "thrustMaxTurnDegrees", "Max turn from start (each side, degrees)");
+                EditorGUILayout.HelpBox("Thrust can aim within this angle on either side of its starting heading. The center stays fixed for the whole stage. The limit includes the damage hitbox and attack visuals; subsequent stages accept a new direction.", MessageType.None);
                 EditorGUILayout.LabelField("Lunge aim assistance", EditorStyles.boldLabel);
                 Field(c, "lockOnEnabled", "Enable aim assistance"); Field(c, "lockOnConeHalfAngleDeg", "Aim cone half-angle");
                 Field(c, "lockOnDirectionBlend", "Aim attraction"); Field(c, "lockOnMaxDistanceOverride", "Target distance (0 = travel)");

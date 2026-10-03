@@ -31,3 +31,9 @@ Repulsor keeps its existing body/grid feedback and has a disabled optional parti
 The old `legacyParticles` group remains under **Legacy fallback (actors without stage prefabs)**. Player-root local fields and external/Time Dilation configuration are retained. Stage-prefab GPU emitters always use their own authored values. Player Tuning snapshots capture prefab assignments; whole prefab contents use their own asset history.
 
 See **Editing these effects.md** beside the three prefabs for the full workflow.
+
+## Thrust steering
+
+**MASSIVE > Player Tuning > Movement > Thrust steering** exposes **Max turn from start (each side, degrees)**. The default is 15 degrees per side (30 degrees total). The heading captured at Thrust start, including initial aim assistance, remains the center for the entire stage; repeated small turns cannot move the center. The constraint applies to the combat-facing root and its damage collider, body-facing target, and attack visual direction. Scripted aim uses the same rule. Thrust displacement keeps its existing stage-start movement direction.
+
+A value of 0 locks facing; 180 restores unrestricted turning. The setting saves during Play Mode through Player Tuning, participates in tuning snapshots, and has the existing per-component local fallback. Sweep, Repulsor, idle movement, and facing after completion/cancellation retain their normal turning.

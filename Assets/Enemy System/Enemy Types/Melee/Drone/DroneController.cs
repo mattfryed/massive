@@ -161,7 +161,14 @@ namespace Massive.Enemies
                 recoilRemaining -= dt;
                 velocity = Vector3.MoveTowards(body.linearVelocity, Vector3.zero, acceleration * dt);
             }
-            else if (ranged && ranged.ShouldHoldPosition(Target)) velocity = Vector3.zero;
+            else if (ranged && ranged.ShouldHoldPosition(Target))
+            {
+                // Charging/bursting stays anchored. Between attacks it can gently yield a warned spawn point.
+                Vector3 yielding = ranged.Phase == RangedDroneController.AttackPhase.Charging || ranged.Phase == RangedDroneController.AttackPhase.Bursting
+                    ? Vector3.zero : avoidance.AdjustDirection(Vector3.zero, out _);
+                velocity = yielding == Vector3.zero ? Vector3.zero : Vector3.MoveTowards(body.linearVelocity,
+                    yielding * idleSpeed * enemy.ExternalMovementMultiplier, acceleration * dt);
+            }
             else
             {
                 Vector3 desired = Target != null ? Target.transform.position - body.position : idleDirection;

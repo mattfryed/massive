@@ -172,7 +172,7 @@ namespace Massive.Enemies
             Vector3 delta = Target ? Target.transform.position - body.position : Vector3.zero; delta.y = 0f;
             if (enemy.AttacksEnabled && Target && delta.magnitude <= attackDistance && Unobstructed(Target.transform.position))
             { if (!body.isKinematic) body.linearVelocity = Vector3.zero; Enter(AttackPhase.Charge); return; }
-            Vector3 direction = delta.sqrMagnitude > .0001f ? avoidance.AdjustDirection(delta.normalized, out _) : Vector3.zero;
+            Vector3 direction = avoidance.AdjustDirection(delta.sqrMagnitude > .0001f ? delta.normalized : Vector3.zero, out _);
             if (arenaBounds && arenaBounds.IsValid)
             {
                 Vector3 ahead = body.position + direction;

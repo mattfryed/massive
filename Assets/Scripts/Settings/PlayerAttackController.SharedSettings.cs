@@ -25,6 +25,7 @@ public partial class PlayerAttackController : ISharedSettingsConsumer
     public bool Effective_comboWindowAfterActivationWindow => SharedPlayerTuning != null ? SharedPlayerTuning.combat.comboWindowAfterActivationWindow : comboWindowAfterActivationWindow;
     public float Effective_comboWindowEndNormalized => SharedPlayerTuning != null ? SharedPlayerTuning.combat.comboWindowEndNormalized : comboWindowEndNormalized;
     public AnimationCurve Effective_swipeArcCurve => SharedPlayerTuning != null ? SharedPlayerTuning.combat.swipeArcCurve : swipeArcCurve;
+    public float Effective_thrustMaxTurnDegrees => SharedPlayerTuning != null ? SharedPlayerTuning.combat.thrustMaxTurnDegrees : thrustMaxTurnDegrees;
     public bool Effective_visualDirectionFollowsCombatFacing => SharedPlayerTuning != null ? SharedPlayerTuning.combat.visualDirectionFollowsCombatFacing : visualDirectionFollowsCombatFacing;
     public bool Effective_lockOnEnabled => SharedPlayerTuning != null ? SharedPlayerTuning.combat.lockOnEnabled : lockOnEnabled;
     public float Effective_lockOnConeHalfAngleDeg => SharedPlayerTuning != null ? SharedPlayerTuning.combat.lockOnConeHalfAngleDeg : lockOnConeHalfAngleDeg;

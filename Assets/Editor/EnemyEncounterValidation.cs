@@ -7,6 +7,7 @@ using System.Linq;
 using System.Reflection;
 using Massive.Demonstrations;
 using Massive.Enemies;
+using Massive.Multiplier;
 using UnityEditor;
 using UnityEngine;
 using Object = UnityEngine.Object;
@@ -89,6 +90,18 @@ public static class EnemyEncounterValidation
         lab.mode = EnemyLab.LabMode.EncounterTimeline;
         var preview = lab.timelinePreview;
         while (!preview.isActiveAndEnabled || preview.Players.Count != 2) yield return null;
+        var authoredTimeline = preview.director.encounterTimeline;
+        string authoredJson = EditorJsonUtility.ToJson(authoredTimeline);
+        var assignedRegion = preview.director.placementRegion;
+        string assignedRegionJson = assignedRegion ? EditorJsonUtility.ToJson(assignedRegion) : null;
+        Check(preview.Players.All(p => Mathf.Abs(p.transform.position.y) < .0001f), "Preview actors start on gameplay Y=0, independently of the decorative grid");
+        var roster = Object.FindFirstObjectByType<PlayerRosterController>();
+        var realPlayers = Object.FindObjectsByType<PlayerControllerScript>(FindObjectsInactive.Include, FindObjectsSortMode.None)
+            .Where(p => p.gameObject.scene == lab.gameObject.scene && !p.IsPseudoPlayer).ToArray();
+        Check(realPlayers.Length > 0 && realPlayers.All(p => !p.gameObject.activeInHierarchy), "Normal match player roots are inactive while the Lab runs: " +
+            string.Join(", ", realPlayers.Select(p => p.name + "=" + p.gameObject.activeInHierarchy)));
+        Check(!PlayerControllerScript.ActivePlayers.Any(p => p && !p.IsPseudoPlayer && p.gameObject.scene == lab.gameObject.scene), "Hidden match players cannot remain in the active registry");
+        preview.manualPlayerControl = false;
         preview.director.timelinePaused = true; preview.actorsMove = preview.actorsAttack = false;
         preview.loop = false; yield return .1f;
         var root = Own(new GameObject("Encounter validation fixture")); root.SetActive(false);
@@ -96,8 +109,40 @@ public static class EnemyEncounterValidation
         d.arenaBounds = preview.layout.arena; d.arenaLayout = preview.layout; d.enemyRoot = root.transform;
         d.spawnProfile = Own(Object.Instantiate(preview.director.spawnProfile)); d.spawnBlockMask = LayerMask.GetMask("Obstacle");
         d.borderBufferWorld = .2f; d.spawnCheckRadiusWorld = .55f; d.ConfigureDemonstration(root.transform);
+        var region = root.AddComponent<AmplifierSpawnRegion>();
+        region.arenaBounds = preview.layout.arena; region.neutralWidthFraction = .3f; region.spawnHeightWorld = 0;
+        region.clearanceWorld = 0; region.noSpawnMask = 0; region.blockingMask = LayerMask.GetMask("Obstacle");
+        d.placementRegion = region;
+        Vector3 flank = preview.layout.World(new Vector2(.6f, .4f));
+        region.RefreshPlacementCache(null);
+        Check(!region.IsValidCached(flank, .55f, out var stripeReason) && stripeReason.Contains("neutral territory"), "Legacy Amplifier placement still enforces its neutral stripe");
+        Check(region.IsClearOfExclusionsCached(flank, .55f, out _), "Authored territory can use a clear flank outside the Amplifier stripe");
+        Vector3 goalFlank = preview.layout.World(new Vector2(.72f, .25f));
+        Check(!region.IsClearOfExclusionsCached(goalFlank, .55f, out var goalReason, excludePlayers: false) &&
+            goalReason == "Inside a goal's attraction exclusion.", "Amplifier exclusion policy retains goal attraction clearance");
+        Check(region.IsClearOfExclusionsCached(goalFlank, .55f, out _, excludePlayers: false, excludeGoalAttraction: false),
+            "Enemy flanks can use clear space inside a goal's power-up attraction range");
+        var exclusion = Own(GameObject.CreatePrimitive(PrimitiveType.Cube)); exclusion.name = "Shared exclusion regression";
+        exclusion.transform.position = flank; exclusion.layer = LayerMask.NameToLayer("Obstacle");
+        region.noGoColliders = new[] { exclusion.GetComponent<Collider>() };
+        Physics.SyncTransforms(); region.RefreshPlacementCache(null);
+        Check(!region.IsClearOfExclusionsCached(flank, .55f, out var zoneReason) && zoneReason.StartsWith("No-go volume"), "Shared no-go volumes still reject authored arrivals");
+        region.noGoColliders = Array.Empty<Collider>(); region.RefreshPlacementCache(null);
+        Check(!region.IsClearOfExclusionsCached(flank, .55f, out var collisionReason) && collisionReason.StartsWith("Blocking object"), "Shared solid obstacle checks still reject authored arrivals");
+        exclusion.SetActive(false);
         var timeline = Own(Object.Instantiate(preview.director.encounterTimeline)); d.encounterTimeline = timeline; d.previewCue = 0;
         root.SetActive(true); d.RestartTimeline();
+        // Keep the reservation regression fixture at six simultaneous members,
+        // independent of the size/timing of the authored demonstration rows.
+        var compact = Own(Object.Instantiate(timeline.cues[0].formation));
+        compact.integrity = EnemyFormation.Integrity.Strict; compact.maxPositionAdjustment = 0;
+        var template = compact.slots[0]; compact.slots.Clear();
+        foreach (float x in new[] { .175f, .5f, .825f })
+            foreach (float y in new[] { .875f, .125f })
+                compact.slots.Add(new EnemyFormation.Slot { enemy = template.enemy, telegraph = template.telegraph,
+                    position = new Vector2(x, y), facing = y > .5f ? Vector2.down : Vector2.up,
+                    entrySeconds = .9f, entrySpeed = 1.4f });
+        timeline.cues[0].formation = compact; d.RestartTimeline();
         var selected = d.ChooseFormation(0, out var mirror);
         Check(d.ChooseFormation(0, out var mirrorAgain) == selected && mirror == mirrorAgain, "Seed repeats the same variant and mirror");
         var slot = selected.slots[0];
@@ -108,10 +153,10 @@ public static class EnemyEncounterValidation
         d.arenaLayout.Resolve(centralSlot, false, out var centerPose, out _);
         Check(!d.arenaLayout.Clear(centerPose, .55f, .2f, out var exclusionReason) && exclusionReason.StartsWith("Exclusion"), "Central exclusion rejects a formation footprint");
         preview.centerObstacle.SetActive(false);
-        d.spawnProfile.maxAliveTotal = 5; Step(d, 7);
+        timeline.maxAliveTotal = 5; Step(d, 7);
         Check(d.TotalSpawned == 0 && d.TimelinePendingCount == 0 && d.CueStates[0].state == "Skipped", "A six-member formation cannot partially reserve a five-enemy cap; it expires");
-        d.spawnProfile.maxAliveTotal = 40; timeline.maxPressure = 5; d.RestartTimeline(); Step(d, 7);
-        Check(d.TotalSpawned == 0 && d.CueStates[0].reason == "Pressure budget", "Pressure limits account for the entire formation");
+        timeline.maxAliveTotal = 40; timeline.maxPressure = 5; d.RestartTimeline(); Step(d, 7);
+        Check(d.TotalSpawned == 0 && d.CueStates[0].reason.StartsWith("Pressure limit 5:"), "Pressure limits account for the entire formation");
         timeline.maxPressure = 60; d.RestartTimeline(); Step(d, 1.1f);
         Check(d.TimelinePendingCount == 6 && d.ActiveTelegraphCount >= 6 && d.TotalSpawned == 0, "Paired rows reserve all six positions before arrival");
         var warning = d.GetComponentInChildren<EnemySpawnTelegraph>(); var announced = warning.transform.position;
@@ -130,6 +175,7 @@ public static class EnemyEncounterValidation
         Check(d.TotalSpawned == 0 && d.TimelinePendingCount == 0 && d.CueStates[0].state == "Expired", "A blocked formation expires without releasing a backlog");
         obstacle.SetActive(false); d.RestartTimeline(); Step(d, 3.1f); yield return .1f;
         Check(d.TotalSpawned == 6 && d.CueStates[0].spawned == 6, "Unblocked paired rows arrive together");
+        Check(root.GetComponentsInChildren<EnemyBase>().All(e => Mathf.Abs(e.transform.position.y) < .0001f), "Enemy arrivals share the players' Y=0 gameplay plane");
         var entered = root.GetComponentsInChildren<EnemyFormationEntry>();
         Check(entered.Length == 6, "Every row member has a coordinated entrance");
         yield return 1.8f;
@@ -162,7 +208,13 @@ public static class EnemyEncounterValidation
         var turrets = actual.enemyRoot.GetComponentsInChildren<ParticleBeamTurretController>();
         Check(turrets.Length == 2 && turrets.All(t => t.mount == ParticleBeamTurretController.WallMount.Authored && Mathf.Abs(Mathf.Abs(t.transform.position.x) - 14) < .05f), "Turrets retain their side-wall mounting poses after Start");
         Check(turrets.All(t => Vector3.Dot(t.transform.forward, -Mathf.Sign(t.transform.position.x) * Vector3.right) > .99f), "Side turrets face inward");
+        var sample = Own(Object.Instantiate(actual.encounterTimeline));
+        sample.cues = sample.cues.Take(6).ToList(); sample.duration = 85;
+        sample.cues[0].formation = compact;
+        sample.cues[1].formation = AssetDatabase.LoadAssetAtPath<EnemyFormation>(EnemyEncounterLabSetup.Folder + "/02 Ranged Flanks.asset");
+        actual.encounterTimeline = sample;
         preview.preset = EnemyEncounterLab.LayoutPreset.BlockedCenter; actual.previewCue = -1;
+        preview.actorHorizontalPosition = .42f; // Original compact integration fixture.
         preview.actorsMove = preview.actorsAttack = true; preview.RestartPreview();
         var seen = new HashSet<string>();
         actual.TimelineEnemySpawned += enemy => seen.Add(enemy.Definition.id);
@@ -178,7 +230,7 @@ public static class EnemyEncounterValidation
         }
         File.WriteAllText(Folder + "/timeline.txt", string.Join("\n", actual.CueStates.Select(c => c.label + ": " + c.state + ", spawned " + c.spawned + ", " + c.reason)));
         Check(seen.Count >= 7, "All six enemy types and Carrier-launched children ran in the shared-arena timeline: " + string.Join(", ", seen));
-        Check(actual.CurrentPressure <= actual.encounterTimeline.maxPressure && actual.AliveCount <= actual.spawnProfile.maxAliveTotal, "Runtime pressure and population stay within limits");
+        Check(actual.CurrentPressure <= actual.encounterTimeline.maxPressure && actual.AliveCount <= actual.encounterTimeline.maxAliveTotal, "Runtime pressure and population stay within limits");
         Check(actual.CueStates.All(c => c.finished), "Every sample cue resolves; none remain queued");
         File.WriteAllText(Folder + "/timeline.txt", string.Join("\n", actual.CueStates.Select(c => c.label + ": " + c.state + ", spawned " + c.spawned + ", " + c.reason)));
         preview.loop = true;
@@ -188,6 +240,13 @@ public static class EnemyEncounterValidation
         lab.mode = EnemyLab.LabMode.Columns; yield return 4f;
         Check(!preview.gameObject.activeSelf && lab.columns.All(c => c.Enemy && c.Player && c.Enemy.SharesSimulationWith(c.Player)), "The original six-column showcase still starts and retains targeting isolation");
         Check(lab.columns.All(c => lab.columns.Where(other => other != c).All(other => !c.Enemy.SharesSimulationWith(other.Player))), "Columns reject every other column's player");
+        lab.enabled = false; yield return .2f;
+        Check(realPlayers.All(p => p.gameObject.activeInHierarchy == roster.IsRostered(p.gameObject)), "Leaving the Lab restores the roster and keeps unused slots inactive");
+        Check(realPlayers.Where(p => p.gameObject.activeInHierarchy).All(p => p.visualsController && p.visualsController.isActiveAndEnabled), "Restored match players are visible again");
+        lab.mode = EnemyLab.LabMode.EncounterTimeline; lab.enabled = true; yield return .2f;
+        Check(realPlayers.All(p => !p.gameObject.activeInHierarchy) && preview.Players.Count == 2, "Re-entering the Lab suspends the roster and creates only its preview actors");
+        Check(EditorJsonUtility.ToJson(authoredTimeline) == authoredJson && preview.director.placementRegion == assignedRegion &&
+            (!assignedRegion || EditorJsonUtility.ToJson(assignedRegion) == assignedRegionJson), "Timeline and shared Amplifier placement settings were not changed");
         Check(errors.Count == 0, "No Unity errors or exceptions during validation");
     }
     private static void CheckScope(EnemyBase enemy, EnemyEncounterLab preview)

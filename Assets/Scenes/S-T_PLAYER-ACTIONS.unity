@@ -540,7 +540,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &66922077
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -553,6 +553,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5e39a35687c2d4b03a30b759316ecd07, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  avoidAnnouncedArrivals: 1
+  arrivalAvoidanceStrength: 1.5
+  arrivalAvoidancePadding: 0.35
+  arrivalAvoidanceLookAhead: 0.6
   waitForScoring: 1
   placementRegion: {fileID: 0}
   resonanceSpawner: {fileID: 0}
@@ -723,6 +727,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5e39a35687c2d4b03a30b759316ecd07, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  avoidAnnouncedArrivals: 1
+  arrivalAvoidanceStrength: 1.5
+  arrivalAvoidancePadding: 0.35
+  arrivalAvoidanceLookAhead: 0.6
   waitForScoring: 1
   placementRegion: {fileID: 0}
   resonanceSpawner: {fileID: 0}
@@ -905,6 +913,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5e39a35687c2d4b03a30b759316ecd07, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  avoidAnnouncedArrivals: 1
+  arrivalAvoidanceStrength: 1.5
+  arrivalAvoidancePadding: 0.35
+  arrivalAvoidanceLookAhead: 0.6
   waitForScoring: 1
   placementRegion: {fileID: 0}
   resonanceSpawner: {fileID: 0}
@@ -1209,7 +1221,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -3293,6 +3305,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5e39a35687c2d4b03a30b759316ecd07, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  avoidAnnouncedArrivals: 1
+  arrivalAvoidanceStrength: 1.5
+  arrivalAvoidancePadding: 0.35
+  arrivalAvoidanceLookAhead: 0.6
   waitForScoring: 1
   placementRegion: {fileID: 0}
   resonanceSpawner: {fileID: 0}
@@ -3784,7 +3800,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!114 &721789521
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3808,6 +3824,9 @@ MonoBehaviour:
   restorePlayerMass: 1
   actorsMove: 1
   actorsAttack: 1
+  manualPlayerControl: 1
+  ignorePopulationLimits: 0
+  actorHorizontalPosition: 0.72
 --- !u!4 &721789522
 Transform:
   m_ObjectHideFlags: 0
@@ -3839,6 +3858,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   arena: {fileID: 956764250401882068}
+  gameplayHeight: 0
   regions:
   - id: Arena
     rectangle:
@@ -3948,9 +3968,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5e39a35687c2d4b03a30b759316ecd07, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  avoidAnnouncedArrivals: 1
+  arrivalAvoidanceStrength: 1.5
+  arrivalAvoidancePadding: 0.35
+  arrivalAvoidanceLookAhead: 0.6
   waitForScoring: 0
-  placementRegion: {fileID: 0}
-  resonanceSpawner: {fileID: 0}
+  placementRegion: {fileID: 1603650342}
+  resonanceSpawner: {fileID: 1603650341}
   spawnProfile: {fileID: 11400000, guid: e8d806f479870834ca15ab30d769a8d1, type: 2}
   arenaBounds: {fileID: 956764250401882068}
   borderBufferWorld: 0.2
@@ -5528,7 +5552,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: cd4427472a87a284fa1b98ffdb4bed40, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  mode: 0
+  mode: 1
   timelinePreview: {fileID: 721789521}
   content: {fileID: 1444644962}
   encounters:
@@ -6127,14 +6151,14 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1236921448}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 85d7e9039c604b742b5ba6ec59cb825e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
   roster: {fileID: 1646689722}
   match: {fileID: 775191733315035133}
-  mode: 0
+  mode: 3
   gallery: {fileID: 1236921451}
   center: {x: 0, y: 0, z: 0}
   spacing: 3
@@ -7640,6 +7664,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5e39a35687c2d4b03a30b759316ecd07, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  avoidAnnouncedArrivals: 1
+  arrivalAvoidanceStrength: 1.5
+  arrivalAvoidancePadding: 0.35
+  arrivalAvoidanceLookAhead: 0.6
   waitForScoring: 1
   placementRegion: {fileID: 0}
   resonanceSpawner: {fileID: 0}
@@ -8846,6 +8874,30 @@ MonoBehaviour:
   m_hasFontAssetChanged: 0
   m_renderer: {fileID: 1596892444}
   m_maskType: 0
+--- !u!114 &1603650341 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 2270707023201678718, guid: 07ce0b7e23dadad458c37b57001b917e,
+    type: 3}
+  m_PrefabInstance: {fileID: 323883850815373645}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6b70cc8d2973b55499800129494dd435, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+--- !u!114 &1603650342 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 4259707095316138270, guid: 07ce0b7e23dadad458c37b57001b917e,
+    type: 3}
+  m_PrefabInstance: {fileID: 323883850815373645}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 88d78da729f167d419bd4a3e258c1bc7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1001 &1621627075
 PrefabInstance:
   m_ObjectHideFlags: 0

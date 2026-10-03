@@ -64,6 +64,8 @@ public static class EnemyEncounterLabSetup
         var timeline = Asset<EnemyEncounterTimeline>("Enemy Lab Timeline", t =>
         {
             t.duration = 85; t.maxPressure = 60;
+            t.maxAliveTotal = 40;
+            foreach (var def in defs) t.populationLimits.Add(new EnemyEncounterTimeline.PopulationLimit { enemy = def, maxAlive = def.maxAliveOverride });
             var forms = new[] { rows, flanks, seekers, dyson, turrets, carrier };
             var names = new[] { "Drone rows", "Ranged flanks", "Seeker stagger", "Dyson flanks", "Wall turrets", "Carrier" };
             for (int i = 0; i < forms.Length; i++) t.cues.Add(new EnemyEncounterTimeline.Cue

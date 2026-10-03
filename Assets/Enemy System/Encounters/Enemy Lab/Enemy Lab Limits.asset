@@ -18,7 +18,7 @@ MonoBehaviour:
   maxSpawnDelaySeconds: 8
   maxAliveTotal: 40
   maxAliveInert: 8
-  maxAliveRanged: 12
+  maxAliveRanged: 24
   maxAliveMelee: 32
   allowSpawningDuringAnomalies: 0
   freezeExistingEnemiesDuringAnomalies: 1

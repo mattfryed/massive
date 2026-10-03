@@ -26,6 +26,10 @@ namespace Massive.Demonstrations
         private void OnEnable() { if (Application.isPlaying) StartCoroutine(Begin()); }
         private IEnumerator Begin()
         {
+            // A serialized active child can otherwise start its preview before the
+            // roster has finished spawning and before the Lab suspends that roster.
+            if (content) content.SetActive(false);
+            if (timelinePreview) timelinePreview.gameObject.SetActive(false);
             actionLab = FindFirstObjectByType<PlayerActionTestArena>();
             if (actionLab) { actionEnabled = actionLab.enabled; actionLab.enabled = false; }
             var gallery = FindFirstObjectByType<PlayerDemoGallery>(); if (gallery) gallery.Stop();
@@ -38,7 +42,11 @@ namespace Massive.Demonstrations
             while (match && match.Phase != MatchRuntimePhase.Regulation) yield return null;
             matchEnabled = match && match.enabled; if (match) match.enabled = false;
             foreach (var player in PlayerControllerScript.ActivePlayers)
-                if (player && !player.IsPseudoPlayer) { player.SetWorldGameplaySuppressed(true); suppressed.Add(player); }
+                if (player && !player.IsPseudoPlayer && player.gameObject.scene == gameObject.scene)
+                { player.SetWorldGameplaySuppressed(true); suppressed.Add(player); }
+            // Hide alone leaves roots registered as live players (including spawn blockers).
+            // Deactivate after collecting: OnDisable removes them from ActivePlayers.
+            foreach (var player in suppressed) player.gameObject.SetActive(false);
             var context = FindFirstObjectByType<Massive.Levels.LevelSceneContext>();
             title = context ? context.stageTitleText : null;
             if (title) { originalTitle = title.text; title.text = "ENEMY LAB"; }
@@ -68,7 +76,8 @@ namespace Massive.Demonstrations
             if (timelinePreview) timelinePreview.gameObject.SetActive(false);
             if (encounterStates != null)
                 for (int i = 0; i < encounters.Length; i++) if (encounters[i]) encounters[i].SetActive(encounterStates[i]);
-            foreach (var player in suppressed) if (player) player.SetWorldGameplaySuppressed(false);
+            foreach (var player in suppressed)
+                if (player) { player.gameObject.SetActive(true); player.SetWorldGameplaySuppressed(false); }
             suppressed.Clear();
             foreach (var spawner in suspendedSpawners) if (spawner) spawner.enabled = true;
             suspendedSpawners.Clear(); if (title) title.text = originalTitle;

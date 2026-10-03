@@ -60,6 +60,8 @@ namespace Massive.Enemies
         // runtime
         private int _sideSign = 1; // +1 = right, -1 = left
         private float _sideLockUntil = -Mathf.Infinity;
+        private EnemyBase movementOwner;
+        private void Awake() => movementOwner = GetComponent<EnemyBase>();
 
         public LayerMask ObstacleMask
         {
@@ -80,6 +82,8 @@ namespace Massive.Enemies
         {
             // Flatten to XZ (top-down plane)
             desiredDirWS.y = 0f;
+            if (movementOwner && movementOwner.Director)
+                desiredDirWS += movementOwner.Director.ArrivalAvoidance(movementOwner, desiredDirWS);
             if (desiredDirWS.sqrMagnitude < 0.000001f)
             {
                 isAvoiding = false;

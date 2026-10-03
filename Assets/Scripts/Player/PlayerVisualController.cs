@@ -358,7 +358,7 @@ public void SetMoveInput(Vector2 stick)
 
     _input = stick;
 
-    // --- GameplayFacing: ALWAYS accept flips (this is for combat/hitboxes) ---
+    // Retain desired facing; the attack controller constrains it when applied during Thrust.
     if (stick.sqrMagnitude > 0.0001f)
     {
         _gameplayFacing = stick.normalized;
@@ -492,8 +492,8 @@ public void SetMoveInput(Vector2 stick)
 
 
 
-        // --- Yaw: follow gameplay-facing (updates even on instant 180 reversals) ---
-        Vector2 yawDir = _gameplayFacing;
+        // Body and damage facing use the same Thrust steering constraint.
+        Vector2 yawDir = GetStageFacing();
         if (yawDir.sqrMagnitude < 0.0001f)
             yawDir = Vector2.right;
 
@@ -1039,11 +1039,18 @@ private void DrawBlob(
     return new Vector3(x, 0f, z) * (0.5f * amp * Massive.Player.PlayerScaleAdjuster.SizeOf(this));
 }
 
+    Vector2 GetStageFacing()
+    {
+        Vector3 direction = new Vector3(_gameplayFacing.x, 0f, -_gameplayFacing.y);
+        if (attackController) direction = attackController.ConstrainThrustDirectionWS(direction);
+        return new Vector2(direction.x, -direction.z);
+    }
+
     void UpdateGameplayFacingRoot()
 {
     if (!gameplayFacing) return;
 
-    Vector2 dir = _gameplayFacing;
+    Vector2 dir = GetStageFacing();
     if (dir.sqrMagnitude < 0.0001f) dir = Vector2.right;
 
     float targetYaw = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
@@ -1065,6 +1072,14 @@ private void DrawBlob(
             nextYaw = _gameplayYawDeg + Mathf.Clamp(delta, -maxStep, +maxStep);
     }
 
+    // A smoothed facing may still be outside the cone when Thrust begins.
+    if (attackController && attackController.IsAttacking &&
+        attackController.CurrentStage.StageType == Massive.Player.AttackStageType.PrimaryLunge)
+    {
+        Vector3 direction = Quaternion.AngleAxis(nextYaw, Vector3.up) * Vector3.right;
+        direction = attackController.ConstrainThrustDirectionWS(direction);
+        nextYaw = Mathf.Atan2(-direction.z, direction.x) * Mathf.Rad2Deg;
+    }
     _gameplayYawDeg = nextYaw;
 
     // IMPORTANT: hitbox root should be a pure yaw (no -90 baseRot stuff)

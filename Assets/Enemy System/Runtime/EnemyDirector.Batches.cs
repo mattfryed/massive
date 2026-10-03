@@ -10,7 +10,7 @@ namespace Massive.Enemies
         [Header("Match and shared placement")]
         [Tooltip("Wait for the scene score service, and freeze when scoring closes or the bonus clock is paused.")]
         public bool waitForScoring;
-        [Tooltip("Optional shared exclusion policy. Give this director its own region with neutral width 1 for full-arena spawning.")]
+        [Tooltip("Optional shared obstacle/exclusion policy. Timelines use EnemyArenaLayout for territory and height; legacy random/batch spawning also uses this region's neutral width and spawn height.")]
         public AmplifierSpawnRegion placementRegion;
         public AmplifierResonanceSpawner resonanceSpawner;
         public float GameplayAge { get; private set; }
@@ -186,7 +186,7 @@ namespace Massive.Enemies
         {
             if (spawnProfile == null || !spawnProfile.enabled || def == null || def.prefab == null || arenaBounds == null) return false;
             if (_matchPaused || (_cachedAnomalyRunning && !spawnProfile.allowSpawningDuringAnomalies)) return false;
-            if (encounterTimeline && (timelinePaused || !TimelineBudgetAllows(null, def, out _))) return false;
+            if (encounterTimeline) return !timelinePaused && TimelineBudgetAllows(null, def, out _, ownReservation);
             int reservedTotal = 0, reservedType = 0, reservedCategory = 0;
             foreach (var reservation in _reservedSpawns)
             {

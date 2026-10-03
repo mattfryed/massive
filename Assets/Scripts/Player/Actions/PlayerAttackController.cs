@@ -101,6 +101,10 @@ namespace Massive.Player
         [Tooltip("Easing for the swipe arc across the stage. X=time(0..1), Y=lerp(0..1).")]
         [SerializeField] private AnimationCurve swipeArcCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
 
+        [Header("Thrust Steering")]
+        [Tooltip("Maximum turn to either side of the heading captured when Thrust starts (after aim assistance). 0 locks aim; 180 allows unrestricted turning.")]
+        [SerializeField, Range(0f, 180f)] private float thrustMaxTurnDegrees = 15f;
+
         [Header("Attack Visual Direction")]
         [Tooltip("If true, visuals (trail direction, sword arc base) follow the current CombatFacingRoot direction (ForwardReference.right).\nIf false, visuals follow the stage-locked direction used for dash motion.")]
         [SerializeField] private bool visualDirectionFollowsCombatFacing = true;
@@ -139,7 +143,7 @@ namespace Massive.Player
             direction.y = 0f;
             if (direction.sqrMagnitude < .0001f) return;
             lastNonZeroMoveDir = new Vector2(direction.x, direction.z).normalized;
-            ForwardReference.right = direction.normalized;
+            ForwardReference.right = ConstrainThrustDirectionWS(direction);
         }
         public bool IsAttacking => isAttacking;
         public PlayerAttackProfile Profile => SharedPlayerTuning && SharedPlayerTuning.attackProfile ? SharedPlayerTuning.attackProfile : attackProfile;
@@ -283,6 +287,21 @@ namespace Massive.Player
     return fwd.normalized;
 }
 
+        /// <summary>Limits Thrust aim around its fixed starting heading, never the previous frame's heading.</summary>
+        public Vector3 ConstrainThrustDirectionWS(Vector3 requestedDirection)
+        {
+            requestedDirection.y = 0f;
+            bool thrust = isAttacking && currentStage != null && currentStage.StageType == AttackStageType.PrimaryLunge;
+            if (requestedDirection.sqrMagnitude < .0001f)
+                return thrust ? stageAttackDirectionWS : Vector3.right;
+            requestedDirection.Normalize();
+            if (!thrust) return requestedDirection;
+
+            float limit = Mathf.Clamp(Effective_thrustMaxTurnDegrees, 0f, 180f);
+            float angle = Vector3.SignedAngle(stageAttackDirectionWS, requestedDirection, Vector3.up);
+            return Quaternion.AngleAxis(Mathf.Clamp(angle, -limit, limit), Vector3.up) * stageAttackDirectionWS;
+        }
+
         private Vector3 GetCombatFacingDirectionWS()
         {
             // NOTE: in MASSIVE, the blob front is local +X, so we use .right as our gameplay "forward".
@@ -322,6 +341,7 @@ private Vector3 GetAttackDirection()
                 Vector3 baseDir = Effective_visualDirectionFollowsCombatFacing
                     ? GetCombatFacingDirectionWS()
                     : GetAttackDirection();
+                baseDir = ConstrainThrustDirectionWS(baseDir);
 
                 // Only apply arc during the swipe stage.
                 if (currentStage != null && currentStage.StageType == AttackStageType.ComboSwipe && Mathf.Abs(currentWeaponYawOffsetDeg) > 0.001f)
@@ -512,6 +532,10 @@ private Vector3 GetAttackDirection()
             {
                 TryApplyLungeLockOn();
             }
+
+            // Establish the actual starting heading before listeners activate the hitbox.
+            if (currentStage.StageType == AttackStageType.PrimaryLunge)
+                ForwardReference.right = stageAttackDirectionWS;
 
             DetermineSwipeDirection();
 

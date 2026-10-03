@@ -34,7 +34,7 @@ namespace Massive.Enemies
         [Tooltip("Initial outward flight before a boundary turn; lets the Drone's tail clear the shell.")]
         [Min(.05f)] public float launchStraightSeconds = .12f;
         [Min(.1f)] public float launchBendSeconds = .55f;
-        [Tooltip("Standalone safety cap. Director-managed Carriers also obey its shared caps.")]
+        [Tooltip("Standalone/legacy safety cap. With an authored timeline, only its Composer population limits apply.")]
         [Min(6)] public int maxActiveDrones = 24;
         public CyclePhase Phase { get; private set; }
         public int NextSlot { get; private set; }
@@ -166,11 +166,14 @@ namespace Massive.Enemies
             if (!enemy.AttacksEnabled) return false;
             Transform dock = docks[slot];
             if (!dock) return false;
-            int count = 0;
-            foreach (var live in EnemyBase.ActiveEnemies)
-                if (live && !live.IsDead && live.gameObject.scene == gameObject.scene && live.Definition == droneDefinition) count++;
-            int cap = droneDefinition.maxAliveOverride > 0 ? Mathf.Min(maxActiveDrones, droneDefinition.maxAliveOverride) : maxActiveDrones;
-            if (count >= cap) return false;
+            if (!enemy.Director || !enemy.Director.encounterTimeline)
+            {
+                int count = 0;
+                foreach (var live in EnemyBase.ActiveEnemies)
+                    if (live && !live.IsDead && live.gameObject.scene == gameObject.scene && live.Definition == droneDefinition) count++;
+                int cap = droneDefinition.maxAliveOverride > 0 ? Mathf.Min(maxActiveDrones, droneDefinition.maxAliveOverride) : maxActiveDrones;
+                if (count >= cap) return false;
+            }
             float clearance = Mathf.Max(.1f, droneDefinition.spawnRadiusWorld);
             if (bounds && !bounds.ContainsWorldPoint(dock.position, clearance)) return false;
             if (!TryPlanLaunch(dock, clearance, out var trajectory)) return false;

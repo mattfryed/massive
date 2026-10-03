@@ -8,9 +8,15 @@ namespace Massive.Enemies
     public sealed class EnemyArenaLayout : MonoBehaviour
     {
         public ArenaBoundsFromVectorGrid arena;
+        [Tooltip("World Y of actors and enemy arrivals. Independent of the decorative grid height.")]
+        public float gameplayHeight;
         public List<Region> regions = new();
         public List<Socket> sockets = new();
         public Collider[] exclusions = Array.Empty<Collider>();
+        [Tooltip("Permit arrivals over Resonance and Amplifier colliders. Does not alter their gameplay collisions or explicitly authored exclusions. Use without an Amplifier placement region when these overlaps are intended.")]
+        public bool allowResonanceAndAmplifierOverlap;
+        [Tooltip("Colliders in these environmental hierarchies do not block timeline arrivals. Players and enemies are still checked separately.")]
+        public Transform[] spawnOverlapRoots = Array.Empty<Transform>();
         [Min(0f)] public float exclusionPadding = .15f;
         public bool showGizmos = true;
         [Serializable] public sealed class Region { public string id; public Rect rectangle = new(-1, -1, 2, 2); }
@@ -34,11 +40,11 @@ namespace Massive.Enemies
         }
         public Vector3 World(Vector2 normalized)
         {
-            if (!arena || !arena.Grid) return transform.position;
+            if (!arena || !arena.Grid) return new Vector3(transform.position.x, gameplayHeight, transform.position.z);
             var half = arena.Current.halfSizeLocal;
             float sign = Vector3.Dot(arena.Current.axisY_WS, Vector3.forward) >= 0 ? 1 : -1;
             var p = arena.Grid.transform.TransformPoint(new Vector3(normalized.x * half.x, normalized.y * half.y * sign, 0));
-            p.y = arena.Grid.transform.position.y; return p;
+            p.y = gameplayHeight; return p;
         }
         public Vector3 Direction(Vector2 direction)
         {
@@ -50,6 +56,16 @@ namespace Massive.Enemies
                 d = arena.Current.axisX_WS * direction.x + arena.Current.axisY_WS * (direction.y * sign);
             }
             d.y = 0f; return d.sqrMagnitude > .0001f ? d.normalized : Vector3.forward;
+        }
+        public bool AllowsSpawnOverlap(Collider shape)
+        {
+            if (!shape) return false;
+            if (allowResonanceAndAmplifierOverlap &&
+                (shape.GetComponentInParent<Massive.Resonance.ResonancePatternController>() ||
+                 shape.GetComponentInParent<Massive.Multiplier.AmplifierCoreGameplay>())) return true;
+            foreach (var root in spawnOverlapRoots)
+                if (root && shape.transform.IsChildOf(root)) return true;
+            return false;
         }
         public bool Resolve(EnemyFormation.Slot slot, bool mirror, out Pose pose, out string reason)
         {

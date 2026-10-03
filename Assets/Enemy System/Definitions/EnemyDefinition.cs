@@ -39,7 +39,7 @@ namespace Massive.Enemies
         }
 
         [Min(0f)]
-        [Tooltip("Optional per-enemy cap. 0 = no per-enemy cap (Director caps still apply).")]
+        [Tooltip("Legacy random/batch per-enemy cap. 0 = unlimited. Authored timelines use their own population limits instead.")]
         public int maxAliveOverride = 0;
 
         [Header("Stats")]

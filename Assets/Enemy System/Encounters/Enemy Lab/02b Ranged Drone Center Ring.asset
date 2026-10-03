@@ -1,0 +1,110 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e0d204bac5ccc9f4985243ab0fa1692f, type: 3}
+  m_Name: 02b Ranged Drone Center Ring
+  m_EditorClassIdentifier:
+  warningSeconds: 2
+  integrity: 1
+  maxPositionAdjustment: 1
+  blockedSlotGrace: 3
+  adjustmentPattern: 2
+  slots:
+  - enemy: {fileID: 11400000, guid: 7a2e65a43b9152044a9f5fd3542cda95, type: 2}
+    telegraph: {fileID: 8608423406655236858, guid: 9bdfe8b86ed5b4f409ed2e0b1bab1ccf, type: 3}
+    region: Arena
+    position: {x: 0.629071956, y: 0.597855382}
+    facing: {x: 0.951056516, y: 0.309016994}
+    socket:
+    releaseDelay: 0
+    entrySeconds: 0.9
+    entrySpeed: 1.4
+  - enemy: {fileID: 11400000, guid: 7a2e65a43b9152044a9f5fd3542cda95, type: 2}
+    telegraph: {fileID: 8608423406655236858, guid: 9bdfe8b86ed5b4f409ed2e0b1bab1ccf, type: 3}
+    region: Arena
+    position: {x: 0.370928044, y: 0.402144618}
+    facing: {x: -0.951056516, y: -0.309016994}
+    socket:
+    releaseDelay: 0
+    entrySeconds: 0.9
+    entrySpeed: 1.4
+  - enemy: {fileID: 11400000, guid: 7a2e65a43b9152044a9f5fd3542cda95, type: 2}
+    telegraph: {fileID: 8608423406655236858, guid: 9bdfe8b86ed5b4f409ed2e0b1bab1ccf, type: 3}
+    region: Arena
+    position: {x: 0.579770856, y: 0.756188715}
+    facing: {x: 0.587785252, y: 0.809016994}
+    socket:
+    releaseDelay: 0.25
+    entrySeconds: 0.9
+    entrySpeed: 1.4
+  - enemy: {fileID: 11400000, guid: 7a2e65a43b9152044a9f5fd3542cda95, type: 2}
+    telegraph: {fileID: 8608423406655236858, guid: 9bdfe8b86ed5b4f409ed2e0b1bab1ccf, type: 3}
+    region: Arena
+    position: {x: 0.420229144, y: 0.243811285}
+    facing: {x: -0.587785252, y: -0.809016994}
+    socket:
+    releaseDelay: 0.25
+    entrySeconds: 0.9
+    entrySpeed: 1.4
+  - enemy: {fileID: 11400000, guid: 7a2e65a43b9152044a9f5fd3542cda95, type: 2}
+    telegraph: {fileID: 8608423406655236858, guid: 9bdfe8b86ed5b4f409ed2e0b1bab1ccf, type: 3}
+    region: Arena
+    position: {x: 0.629071956, y: 0.402144618}
+    facing: {x: 0.951056516, y: -0.309016994}
+    socket:
+    releaseDelay: 0.5
+    entrySeconds: 0.9
+    entrySpeed: 1.4
+  - enemy: {fileID: 11400000, guid: 7a2e65a43b9152044a9f5fd3542cda95, type: 2}
+    telegraph: {fileID: 8608423406655236858, guid: 9bdfe8b86ed5b4f409ed2e0b1bab1ccf, type: 3}
+    region: Arena
+    position: {x: 0.370928044, y: 0.597855382}
+    facing: {x: -0.951056516, y: 0.309016994}
+    socket:
+    releaseDelay: 0.5
+    entrySeconds: 0.9
+    entrySpeed: 1.4
+  - enemy: {fileID: 11400000, guid: 7a2e65a43b9152044a9f5fd3542cda95, type: 2}
+    telegraph: {fileID: 8608423406655236858, guid: 9bdfe8b86ed5b4f409ed2e0b1bab1ccf, type: 3}
+    region: Arena
+    position: {x: 0.500000000, y: 0.816666667}
+    facing: {x: 0.000000000, y: 1.000000000}
+    socket:
+    releaseDelay: 0.75
+    entrySeconds: 0.9
+    entrySpeed: 1.4
+  - enemy: {fileID: 11400000, guid: 7a2e65a43b9152044a9f5fd3542cda95, type: 2}
+    telegraph: {fileID: 8608423406655236858, guid: 9bdfe8b86ed5b4f409ed2e0b1bab1ccf, type: 3}
+    region: Arena
+    position: {x: 0.500000000, y: 0.183333333}
+    facing: {x: -0.000000000, y: -1.000000000}
+    socket:
+    releaseDelay: 0.75
+    entrySeconds: 0.9
+    entrySpeed: 1.4
+  - enemy: {fileID: 11400000, guid: 7a2e65a43b9152044a9f5fd3542cda95, type: 2}
+    telegraph: {fileID: 8608423406655236858, guid: 9bdfe8b86ed5b4f409ed2e0b1bab1ccf, type: 3}
+    region: Arena
+    position: {x: 0.579770856, y: 0.243811285}
+    facing: {x: 0.587785252, y: -0.809016994}
+    socket:
+    releaseDelay: 1
+    entrySeconds: 0.9
+    entrySpeed: 1.4
+  - enemy: {fileID: 11400000, guid: 7a2e65a43b9152044a9f5fd3542cda95, type: 2}
+    telegraph: {fileID: 8608423406655236858, guid: 9bdfe8b86ed5b4f409ed2e0b1bab1ccf, type: 3}
+    region: Arena
+    position: {x: 0.420229144, y: 0.756188715}
+    facing: {x: -0.587785252, y: 0.809016994}
+    socket:
+    releaseDelay: 1
+    entrySeconds: 0.9
+    entrySpeed: 1.4

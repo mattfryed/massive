@@ -185,11 +185,23 @@ namespace Massive.Multiplier
             if (local.x < rect.xMin || local.x > rect.xMax || local.y < rect.yMin || local.y > rect.yMax
                 || Mathf.Abs(point.y - spawnHeightWorld) > .01f)
             { reason = "Outside the safe neutral territory."; return false; }
+            return IsClearOfExclusionsCached(point, objectRadius, out reason, excludePlayers);
+        }
+
+        /// <summary>Shared obstacle/exclusion checks for authored spawners that own their
+        /// placement territory and height. Goal attraction is specific to Amplifier cores;
+        /// other spawners may opt out while retaining physical goal/obstacle checks.
+        /// RefreshPlacementCache must be called first.</summary>
+        public bool IsClearOfExclusionsCached(Vector3 point, float objectRadius, out string reason,
+            bool excludePlayers = true, bool excludeGoalAttraction = true)
+        {
+            if (!Finite(point.x) || !Finite(point.y) || !Finite(point.z) || !Finite(objectRadius) || !Finite(clearanceWorld))
+            { reason = "Placement settings and position must be finite."; return false; }
             float radius = Mathf.Max(0f, objectRadius) + Mathf.Max(0f, clearanceWorld);
             foreach (Collider c in zones)
                 if (c != null && c.enabled && c.gameObject.activeInHierarchy && ShapeIntersects(c, point, radius))
                 { reason = "No-go volume: " + c.name; return false; }
-            foreach (AmplifierGoalCapture goal in goals)
+            if (excludeGoalAttraction) foreach (AmplifierGoalCapture goal in goals)
             {
                 if (goal == null || !goal.isActiveAndEnabled) continue;
                 float distance = radius + Mathf.Max(0f, goalExclusionPadding) + goal.AttractionRadius;

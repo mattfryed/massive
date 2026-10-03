@@ -4,6 +4,17 @@ using Massive.Enemies;
 using UnityEditor;
 using UnityEngine;
 
+[CustomEditor(typeof(EnemyDirector))]
+public sealed class EnemyDirectorInspector : Editor
+{
+    public override void OnInspectorGUI()
+    {
+        var director = (EnemyDirector)target;
+        if (GUILayout.Button("Open Encounter Composer")) EnemyEncounterComposer.ShowForDirector(director);
+        DrawDefaultInspector();
+    }
+}
+
 [CustomEditor(typeof(EnemyLab))]
 public sealed class EnemyLabInspector : Editor
 {
@@ -14,7 +25,7 @@ public sealed class EnemyLabInspector : Editor
         EditorGUILayout.Space();
         EditorGUILayout.HelpBox("Columns: the existing six-enemy showcase. Encounter Timeline: shared-arena formations with authored arrival times. Preview settings live on the child below.", MessageType.Info);
         if (GUILayout.Button("Select timeline preview controls")) Selection.activeGameObject = lab.timelinePreview.gameObject;
-        if (GUILayout.Button("Edit encounter timeline")) Selection.activeObject = lab.timelinePreview.director.encounterTimeline;
+        if (GUILayout.Button("Open Encounter Composer")) EnemyEncounterComposer.Show(lab.timelinePreview.director.encounterTimeline, lab.timelinePreview);
     }
 }
 [CustomEditor(typeof(EnemyEncounterLab))]
@@ -25,6 +36,9 @@ public sealed class EnemyEncounterLabInspector : Editor
         DrawDefaultInspector(); var lab = (EnemyEncounterLab)target;
         if (!lab.director) return;
         var director = lab.director;
+        if (GUILayout.Button("Open Encounter Composer")) EnemyEncounterComposer.Show(director.encounterTimeline, lab);
+        if (lab.manualPlayerControl)
+            EditorGUILayout.HelpBox("Manual P1: click the Game view to control the left actor with normal Player 1 bindings. The other actor stays automated. Toggle off to return to automatic control without restarting.", MessageType.Info);
         EditorGUILayout.HelpBox("Layout presets are fixtures for testing placement, not replicas of the six levels. Changing preset, cue, seed or timeline restarts the preview. Preview players restore lost mass.", MessageType.Info);
         var so = new SerializedObject(director); so.Update();
         EditorGUILayout.PropertyField(so.FindProperty("encounterTimeline"));
@@ -41,7 +55,8 @@ public sealed class EnemyEncounterLabInspector : Editor
         if (Application.isPlaying)
         {
             EditorGUILayout.LabelField($"Clock {director.GameplayAge:0.0}s   Alive {director.AliveCount}   Reserved {director.TimelinePendingCount}   Pressure {director.CurrentPressure:0.0}");
-            foreach (var cue in director.CueStates) EditorGUILayout.LabelField(cue.label + ": " + cue.state, cue.reason ?? "");
+            foreach (var cue in director.CueStates)
+                EditorGUILayout.LabelField(cue.label + ": " + cue.state + " — " + cue.Progress + (string.IsNullOrEmpty(cue.reason) ? "" : "\n" + cue.reason), EditorStyles.wordWrappedLabel);
             Repaint();
         }
     }
@@ -62,6 +77,15 @@ public sealed class EnemyEncounterLabInspector : Editor
                     Handles.Label(pose.position + Vector3.up * .2f, $"{d.encounterTimeline.cues[i].arrivalSeconds + slot.releaseDelay:0.0}s {slot.enemy.name}");
                 }
         }
+    }
+}
+[CustomEditor(typeof(EnemyEncounterTimeline))]
+public sealed class EnemyEncounterTimelineInspector : Editor
+{
+    public override void OnInspectorGUI()
+    {
+        if (GUILayout.Button("Open Encounter Composer")) EnemyEncounterComposer.Show((EnemyEncounterTimeline)target);
+        DrawDefaultInspector();
     }
 }
 #endif

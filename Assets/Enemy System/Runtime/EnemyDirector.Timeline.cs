@@ -20,16 +20,23 @@ namespace Massive.Enemies
         public bool TimelineFinished => encounterTimeline &&
             cueStates.TrueForAll(s => s.finished) && members.Count == 0 &&
             GameplayAge >= (previewCue >= 0 ? PreviewEnd : encounterTimeline.duration);
-        public float CurrentPressure
+        private Massive.Demonstrations.EnemyEncounterLab populationPreview;
+        public bool IgnoreTimelineBudgetsForPreview => Application.isPlaying && populationPreview &&
+            populationPreview.isActiveAndEnabled && populationPreview.director == this &&
+            populationPreview.OwnsSession(SimulationRoot) && populationPreview.ignorePopulationLimits;
+        public float CurrentPressure => encounterTimeline ? CapturePopulationBudget().Pressure : 0;
+        public EnemyPopulationBudget CapturePopulationBudget() => CapturePopulationBudget(null);
+        private EnemyPopulationBudget CapturePopulationBudget(ReservedSpawn consuming)
         {
-            get
-            {
-                if (!encounterTimeline) return 0;
-                float pressure = 0;
-                foreach (var e in _alive) if (e && !e.IsDead) pressure += encounterTimeline.Cost(e.Definition);
-                foreach (var member in members) pressure += encounterTimeline.Cost(member.slot.enemy);
-                return pressure;
-            }
+            var budget = new EnemyPopulationBudget();
+            if (!encounterTimeline) return budget;
+            foreach (var enemy in _alive) if (enemy && !enemy.IsDead)
+                budget.Add(encounterTimeline, enemy.Definition, EnemyPopulationBudget.Kind.Alive);
+            foreach (var member in members)
+                budget.Add(encounterTimeline, member.slot.enemy, EnemyPopulationBudget.Kind.Reserved);
+            foreach (var reservation in _reservedSpawns) if (reservation != consuming)
+                budget.Add(encounterTimeline, reservation.enemy, EnemyPopulationBudget.Kind.Reserved);
+            return budget;
         }
         [Serializable] public sealed class CueStatus
         {
@@ -39,14 +46,38 @@ namespace Massive.Enemies
             public bool mirror, finished;
             public EnemyFormation formation;
             public int spawned;
+            public int skipped;
+            public int WaitingCount => Mathf.Max(0, slots.Count - spawned - skipped);
+            public string Progress => $"{spawned} spawned, {WaitingCount} waiting, {skipped} skipped";
+            public readonly List<SlotStatus> slots = new();
+            internal readonly List<FormationUnit> units = new();
         }
-        private sealed class FormationMember
+        [Serializable] public sealed class SlotStatus
+        {
+            public int index;
+            public Vector3 authored, position, clearance;
+            public Quaternion rotation;
+            public float radius;
+            public string state = "Waiting", reason;
+            public bool adjusted, announced;
+        }
+        internal sealed class FormationMember
         {
             public CueStatus cue;
             public EnemyFormation.Slot slot;
             public EnemyArenaLayout.Pose pose;
             public float arrival, warningAt, deadline;
             public EnemySpawnTelegraph warning;
+            public EnemyArenaLayout.Pose authored;
+            public SlotStatus status;
+            public bool placed;
+        }
+        internal sealed class FormationUnit
+        {
+            public readonly List<FormationMember> members = new();
+            public float arrival, warningAt, deadline, nextAttempt, releaseDelay;
+            public bool announced, finished, blocked, wasBlocked;
+            public string reason;
         }
         private readonly List<CueStatus> cueStates = new();
         private readonly List<FormationMember> members = new();
@@ -54,7 +85,11 @@ namespace Massive.Enemies
         private bool timelineInitialized, appliedTimelinePause;
         private float PreviewEnd => cueStates.Count == 0 ? 0 : cueStates[0].expiry + 20f;
 
-        public void ConfigureDemonstration(Transform scope) => SimulationRoot = scope;
+        public void ConfigureDemonstration(Transform scope)
+        {
+            SimulationRoot = scope;
+            populationPreview = GetComponent<Massive.Demonstrations.EnemyEncounterLab>();
+        }
         public EnemyFormation ChooseFormation(int cueIndex, out bool mirror)
         {
             var cue = encounterTimeline.cues[cueIndex];
@@ -92,9 +127,8 @@ namespace Massive.Enemies
         }
         private void CancelTimeline()
         {
-            foreach (var member in members) if (member.warning) member.warning.Cancel();
+            foreach (var cue in cueStates) if (!cue.finished) FinishCue(cue, "Cancelled", "Preview stopped");
             members.Clear();
-            foreach (var cue in cueStates) if (!cue.finished) { cue.finished = true; cue.state = "Cancelled"; }
         }
         private void TickTimeline(float delta)
         {
@@ -122,7 +156,9 @@ namespace Massive.Enemies
                         { state.state = "Blocked"; state.reason = reason; state.nextAttempt = GameplayAge + .25f; continue; }
                     }
                 }
-                TickFormation(state);
+                if (encounterTimeline.cues[state.index].IntegrityFor(state.formation) == EnemyFormation.Integrity.Flexible)
+                    TickFlexibleFormation(state);
+                else TickFormation(state);
             }
         }
         private bool TryReserveFormation(CueStatus cue, EnemyFormation formation, out string reason)
@@ -130,19 +166,29 @@ namespace Massive.Enemies
             reason = null;
             if (!arenaLayout || formation.slots.Count == 0) { reason = "Missing layout or empty formation"; return false; }
             var proposed = new List<FormationMember>();
+            var policy = encounterTimeline.cues[cue.index];
+            bool flexible = policy.IntegrityFor(formation) == EnemyFormation.Integrity.Flexible;
+            cue.slots.Clear(); cue.units.Clear();
             float arrival = Mathf.Max(cue.arrival, GameplayAge + Mathf.Max(.1f, formation.warningSeconds));
             foreach (var slot in formation.slots)
             {
                 if (!arenaLayout.Resolve(slot, cue.mirror, out var pose, out reason)) return false;
-                var member = new FormationMember { cue = cue, slot = slot, pose = pose,
-                    deadline = cue.expiry + Mathf.Max(0f, slot.releaseDelay),
+                var status = new SlotStatus { index = proposed.Count, authored = pose.position };
+                cue.slots.Add(status);
+                var member = new FormationMember { cue = cue, slot = slot, pose = pose, authored = pose, status = status,
+                    deadline = (flexible ? cue.arrival + policy.GraceFor(formation) : cue.expiry) + Mathf.Max(0f, slot.releaseDelay),
                     arrival = arrival + Mathf.Max(0f, slot.releaseDelay), warningAt = arrival + Mathf.Max(0f, slot.releaseDelay) - formation.warningSeconds };
-                if (!MemberClear(member, null, out reason)) return false;
-                foreach (var prior in proposed)
-                    if (Overlaps(member, prior)) { reason = "Formation footprints overlap"; return false; }
+                UpdateSlotPose(member);
                 proposed.Add(member);
             }
             if (!TimelineBudgetAllows(proposed, null, out reason)) return false;
+            ResolvePlacement(proposed, formation, policy.AdjustmentFor(formation), flexible);
+            if (flexible && policy.fallback && formation != policy.fallback && proposed.TrueForAll(m => !m.placed))
+            { reason = proposed[0].status.reason; return false; }
+            if (!flexible)
+                foreach (var m in proposed) if (!m.placed) { reason = m.status.reason; return false; }
+            // A flexible batch reserves its full budget, but only clear footprints claim space.
+            if (flexible) BuildFlexibleUnits(cue, proposed, formation);
             members.AddRange(proposed); cue.formation = formation; cue.state = "Reserved"; cue.reason = null;
             return true;
         }
@@ -159,9 +205,16 @@ namespace Massive.Enemies
             if (!arenaLayout.Clear(pose, radius, borderBufferWorld, out reason)) return false;
             if (pose.socket != null && (!pose.socket.enabled || occupiedSockets.TryGetValue(pose.socket, out var occupant) && occupant && !occupant.IsDead))
             { reason = "Wall socket occupied or disabled"; return false; }
-            if (pose.socket == null && placementRegion && !placementRegion.IsValidCached(pose.position, radius, out reason)) return false;
-            foreach (var hit in Physics.OverlapSphere(pose.clearance, radius, spawnBlockMask, QueryTriggerInteraction.Collide))
-                if (hit != pose.socket?.support) { reason = "Collider: " + hit.name; return false; }
+            // Authored timeline regions own territory/height. Reuse Amplifier exclusions,
+            // not its power-up-only neutral stripe or goal attraction. Scoped player clearance is checked below.
+            if (pose.socket == null && placementRegion &&
+                !placementRegion.IsClearOfExclusionsCached(pose.position, radius, out reason,
+                    excludePlayers: false, excludeGoalAttraction: false)) return false;
+            int hitCount = Physics.OverlapSphereNonAlloc(pose.clearance, radius, placementHits, spawnBlockMask, QueryTriggerInteraction.Collide);
+            if (hitCount == placementHits.Length) { reason = "Placement query full"; return false; }
+            for (int i = 0; i < hitCount; i++)
+                if (placementHits[i] != pose.socket?.support && !arenaLayout.AllowsSpawnOverlap(placementHits[i]))
+                { reason = "Collider: " + placementHits[i].name; return false; }
             foreach (var player in PlayerControllerScript.ActivePlayers)
             {
                 if (!player || !player.isActiveAndEnabled || player.gameObject.scene != gameObject.scene) continue;
@@ -174,34 +227,18 @@ namespace Massive.Enemies
                 if (enemy && !enemy.IsDead && (enemy.transform.position - pose.clearance).sqrMagnitude < Mathf.Pow(radius + enemy.Definition.GetSpawnRadiusWorld(enemy.transform), 2))
                 { reason = "Enemy occupies arrival"; return false; }
             foreach (var other in members)
-                if (other.cue != ownCue && Overlaps(member, other)) { reason = "Another formation reserved this space"; return false; }
+                if (other.placed && other.cue != ownCue && Overlaps(member, other)) { reason = "Another formation reserved this space"; return false; }
             return true;
         }
-        private bool TimelineBudgetAllows(List<FormationMember> extra, EnemyDefinition additional, out string reason)
+        private bool TimelineBudgetAllows(List<FormationMember> extra, EnemyDefinition additional, out string reason, ReservedSpawn consuming = null)
         {
             reason = null;
-            if (!encounterTimeline) return true;
-            var counts = new Dictionary<EnemyDefinition, int>();
-            int total = 0, inert = 0, ranged = 0, melee = 0; float pressure = 0;
-            void Add(EnemyDefinition def)
-            {
-                if (!def) return;
-                total++; pressure += encounterTimeline.Cost(def); counts.TryGetValue(def, out int n); counts[def] = n + 1;
-                switch (def.category) { case EnemyCategory.Inert: inert++; break; case EnemyCategory.Ranged: ranged++; break; case EnemyCategory.Melee: melee++; break; }
-            }
-            foreach (var enemy in _alive) if (enemy && !enemy.IsDead) Add(enemy.Definition);
-            foreach (var member in members) Add(member.slot.enemy);
-            foreach (var reservation in _reservedSpawns) Add(reservation.enemy);
-            if (extra != null) foreach (var member in extra) Add(member.slot.enemy);
-            Add(additional);
-            bool Over(int value, int limit) => limit > 0 && value > limit;
-            if (Over(total, spawnProfile.maxAliveTotal) || Over(inert, spawnProfile.maxAliveInert) ||
-                Over(ranged, spawnProfile.maxAliveRanged) || Over(melee, spawnProfile.maxAliveMelee))
-            { reason = "Population cap"; return false; }
-            foreach (var count in counts) if (Over(count.Value, count.Key.maxAliveOverride)) { reason = "Type cap: " + count.Key.name; return false; }
-            if (encounterTimeline.maxPressure > 0 && pressure > encounterTimeline.maxPressure + .001f)
-            { reason = "Pressure budget"; return false; }
-            return true;
+            if (!encounterTimeline || IgnoreTimelineBudgetsForPreview) return true;
+            var budget = CapturePopulationBudget(consuming);
+            if (extra != null) foreach (var member in extra)
+                budget.Add(encounterTimeline, member.slot.enemy, EnemyPopulationBudget.Kind.Requested);
+            budget.Add(encounterTimeline, additional, EnemyPopulationBudget.Kind.Requested);
+            return budget.Allows(encounterTimeline, out reason);
         }
         private void TickFormation(CueStatus cue)
         {
@@ -214,6 +251,7 @@ namespace Massive.Enemies
                     m.arrival = Mathf.Max(m.arrival, GameplayAge + Mathf.Max(.1f, cue.formation.warningSeconds));
                     m.warning = Instantiate(m.slot.telegraph, m.pose.position, m.pose.rotation, transform);
                     m.warning.Begin(Mathf.Max(.1f, cue.formation.warningSeconds), SpawnWorldScale(m.slot.enemy), SpawnOutline(m.slot.enemy)); _telegraphs.Add(m.warning);
+                    m.status.announced = true; m.status.state = "Warning";
                 }
             float next = float.MaxValue;
             foreach (var m in pending) next = Mathf.Min(next, m.arrival);
@@ -223,6 +261,7 @@ namespace Massive.Enemies
                 if (!MemberClear(m, cue, out var reason))
                 {
                     cue.state = "Holding"; cue.reason = reason;
+                    m.status.state = "Blocked"; m.status.reason = reason;
                     if (pending.Exists(m => GameplayAge > m.deadline)) FinishCue(cue, "Expired", reason);
                     return;
                 }
@@ -239,6 +278,7 @@ namespace Massive.Enemies
                     m.arrival += drift; m.warningAt += drift; continue;
                 }
                 members.Remove(m); SpawnFormationMember(m); cue.spawned++;
+                m.status.state = "Spawned"; m.status.reason = null;
                 if (m.warning) m.warning.Complete();
             }
             cue.lastRelease = GameplayAge; cue.state = "Releasing"; cue.reason = null;
@@ -247,7 +287,16 @@ namespace Massive.Enemies
         private void FinishCue(CueStatus cue, string state, string reason)
         {
             for (int i = members.Count - 1; i >= 0; i--)
-                if (members[i].cue == cue) { if (members[i].warning) members[i].warning.Cancel(); members.RemoveAt(i); }
+                if (members[i].cue == cue)
+                {
+                    var m = members[i]; if (m.warning) m.warning.Cancel();
+                    m.status.state = state == "Cancelled" ? "Cancelled" : "Skipped"; m.status.reason = reason;
+                    cue.skipped++; members.RemoveAt(i);
+                }
+            foreach (var unit in cue.units) unit.finished = true;
+            foreach (var slot in cue.slots)
+                if (slot.state != "Spawned" && slot.state != "Skipped" && slot.state != "Cancelled")
+                { slot.state = state == "Cancelled" ? "Cancelled" : "Skipped"; slot.reason = reason; cue.skipped++; }
             cue.state = state; cue.reason = reason; cue.finished = true;
         }
         private void SpawnFormationMember(FormationMember member)
