@@ -65,8 +65,15 @@ public static class RangedDroneSetup
                 root.GetComponent<DroneController>().definition = definition;
                 root.AddComponent<RangedDroneController>().projectilePrefab = projectile.GetComponent<RangedDroneProjectile>();
                 root.GetComponent<DroneVisuals>().floatingFrontFaces = true;
+                ConfigureBodyCollision(root);
                 prefab = PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
             }
+            finally { PrefabUtility.UnloadPrefabContents(root); }
+        }
+        else if (prefab.GetComponent<EnemyHurtbox>() || prefab.GetComponent<CapsuleCollider>().isTrigger)
+        {
+            var root = PrefabUtility.LoadPrefabContents(PrefabPath);
+            try { ConfigureBodyCollision(root); PrefabUtility.SaveAsPrefabAsset(root, PrefabPath); }
             finally { PrefabUtility.UnloadPrefabContents(root); }
         }
         // Closing prefab contents may unload the definition created earlier in this import pass.
@@ -81,6 +88,24 @@ public static class RangedDroneSetup
         }
         Selection.activeObject = prefab;
         Debug.Log("[Ranged Drone] Prefab, definition and metaball projectile ready; existing authored tuning preserved.");
+    }
+    private static void ConfigureBodyCollision(GameObject root)
+    {
+        var shell = root.GetComponent<CapsuleCollider>();
+        var oldHurtbox = root.GetComponent<EnemyHurtbox>();
+        if (oldHurtbox)
+        {
+            // EnemyHurtbox forces its own collider to be a trigger in Awake.
+            // Keep it off the physical body, as on the Seeker and Carrier.
+            var damage = new GameObject("Damage trigger"); damage.layer = root.layer;
+            damage.transform.SetParent(root.transform, false);
+            var trigger = damage.AddComponent<CapsuleCollider>();
+            EditorUtility.CopySerialized(shell, trigger); trigger.isTrigger = true;
+            var hurtbox = damage.AddComponent<EnemyHurtbox>();
+            EditorUtility.CopySerialized(oldHurtbox, hurtbox);
+            Object.DestroyImmediate(oldHurtbox);
+        }
+        shell.isTrigger = false;
     }
     private static void EnsureFolder(string path)
     {

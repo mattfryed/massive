@@ -2,6 +2,7 @@
 using System;
 using System.Linq;
 using Massive.Enemies;
+using Massive.Demonstrations;
 using Massive.Multiplier;
 using Massive.Orbital;
 using Massive.Scoring;
@@ -47,7 +48,6 @@ public static class OrbitalLevelSetup
         {
             var nugget = CreateNugglet();
             definition.iconPrefab = CreateIcon(particle);
-            definition.instructionsPanelPrefab = CreateInstructions(particle);
             if (!AssetDatabase.LoadAssetAtPath<GameObject>(Folder + "ORBITAL Cloud.prefab"))
             {
                 var go = CreateCloud(particle, line, nugget);
@@ -115,6 +115,12 @@ public static class OrbitalLevelSetup
             }
             finally { EditorSceneManager.CloseScene(scene, true); SceneManager.SetActiveScene(original); }
         }
+        // The instructions crop copies the saved gameplay visuals, so build it after the scene.
+        var instructionsWork = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Additive);
+        SceneManager.SetActiveScene(instructionsWork);
+        try { definition.instructionsPanelPrefab = CreateInstructions(particle); }
+        finally { EditorSceneManager.CloseScene(instructionsWork, true); SceneManager.SetActiveScene(original); }
+
         var data = new SerializedObject(definition);
         data.FindProperty("gameplayScene").FindPropertyRelative("sceneAsset").objectReferenceValue = AssetDatabase.LoadAssetAtPath<SceneAsset>(ScenePath);
         data.FindProperty("gameplayScene").FindPropertyRelative("sceneName").stringValue = "S-6_ORBITAL";
@@ -201,7 +207,7 @@ public static class OrbitalLevelSetup
         UnityEngine.Object.DestroyImmediate(go.GetComponent<MatterNuggetScript>());
         ConfigurePickup(go.AddComponent<OrbitalMassNugget>());
         var body = go.GetComponent<Rigidbody>();
-        body.useGravity = false; body.linearDamping = .025f;
+        body.useGravity = false; body.linearDamping = .8f;
         body.constraints = RigidbodyConstraints.FreezePositionY | RigidbodyConstraints.FreezeRotation;
         body.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
         go.SetActive(false);
@@ -292,16 +298,124 @@ public static class OrbitalLevelSetup
         foreach (var text in go.GetComponentsInChildren<TMP_Text>(true))
         {
             if (text.name == "Instructions body")
-                text.text = "The cloud cycles through SIX FORMATIONS. Dense regions mean more ELECTRON STRIKES.\n\nStrikes push players, cores and enemies. Collect mass nugglets for a small boost.\n\nCapture amplifier cores in your goal to boost team scoring.";
+                text.text = "The cloud cycles through SIX FORMATIONS. Dense regions mean more ELECTRON STRIKES.\n\nStrikes push players and amplifier cores. Collect mass nugglets for a small boost.\n\nCapture amplifier cores in your goal to boost team scoring.";
             if (text.name == "Instructions title") text.text = "Electron probability";
             if (text.name.Trim() == "Anomaly Type") { text.text = "PROBABILITY CLOUD"; text.fontSize = 45f; }
         }
-        var display = new GameObject("Electron cross section"); display.transform.SetParent(go.transform, false);
-        display.transform.localPosition = new Vector3(10.8f, .2f, 0f);
-        var v = display.AddComponent<OrbitalCloudVisual>(); v.particleMaterial = particle; v.radius = 1.75f;
-        v.pointSize = new Vector2(.012f, .025f);
-        v.particleCount = 14000; v.useUnscaledTime = true; v.Rebuild();
+        ConfigureInstructionDisplays(go, particle);
         existing = PrefabUtility.SaveAsPrefabAsset(go, path); UnityEngine.Object.DestroyImmediate(go); return existing;
+    }
+
+    [MenuItem("MASSIVE/ORBITAL/Refresh instructions displays")]
+    public static void RefreshInstructionsDisplays()
+    {
+        if (EditorApplication.isPlaying) throw new InvalidOperationException("Leave Play Mode before editing instructions.");
+        string path = Folder + "InstructionsPanel-ORBITAL.prefab";
+        var go = PrefabUtility.LoadPrefabContents(path);
+        try
+        {
+            ConfigureInstructionDisplays(go, AssetDatabase.LoadAssetAtPath<Material>(Folder + "Probability Particles.mat"));
+            PrefabUtility.SaveAsPrefabAsset(go, path);
+        }
+        finally { PrefabUtility.UnloadPrefabContents(go); }
+    }
+
+    private static void ConfigureInstructionDisplays(GameObject panel, Material particle)
+    {
+        foreach (string name in new[] { "Electron cross section", "ORBITAL Carousel Icon", "Electron hit demonstration" })
+        {
+            var old = panel.transform.Find(name);
+            if (old) UnityEngine.Object.DestroyImmediate(old.gameObject);
+        }
+        var icon = (GameObject)PrefabUtility.InstantiatePrefab(CreateIcon(particle), panel.transform);
+        icon.name = "ORBITAL Carousel Icon";
+        icon.transform.localPosition = new Vector3(0f, 5f, 0f);
+        icon.transform.localScale = Vector3.one * 5.8f;
+
+        var display = new GameObject("Electron hit demonstration");
+        display.transform.SetParent(panel.transform, false);
+        display.transform.localPosition = new Vector3(1000f, 0f, 1000f);
+        var demo = display.AddComponent<OrbitalInstructionsDemo>();
+        var cloudObject = new GameObject("Probability cloud close-up");
+        cloudObject.transform.SetParent(display.transform, false);
+        var cloud = cloudObject.AddComponent<OrbitalCloudVisual>();
+        ConfigureInstructionsGameplayStage(display, cloud);
+        var impacts = display.AddComponent<OrbitalImpactVisual>();
+        impacts.lineMaterial = AssetDatabase.LoadAssetAtPath<Material>(Folder + "Electron Impacts.mat");
+        impacts.capacity = 4; impacts.flashSeconds = .5f; impacts.useUnscaledTime = true;
+        demo.cloud = cloud; demo.impacts = impacts;
+
+        var cameraObject = new GameObject("Cropped gameplay camera");
+        cameraObject.transform.SetParent(display.transform, false);
+        cameraObject.transform.localPosition = new Vector3(.85f, 25f, 2.05f);
+        cameraObject.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+        var viewCamera = cameraObject.AddComponent<Camera>();
+        viewCamera.enabled = false; viewCamera.orthographic = true; viewCamera.orthographicSize = 2.9f;
+        viewCamera.nearClipPlane = .1f; viewCamera.farClipPlane = 50f;
+        viewCamera.clearFlags = CameraClearFlags.SolidColor; viewCamera.backgroundColor = Color.black;
+        viewCamera.allowHDR = false; viewCamera.allowMSAA = true;
+        demo.viewport = cameraObject.AddComponent<PlayerDemoView>();
+        demo.panelFrame = panel.transform.Find("Mid panel");
+        var frame = new SerializedObject(demo.panelFrame.GetComponent<Shapes.Rectangle>());
+        demo.viewportSize = new Vector2(frame.FindProperty("width").floatValue - .1f, frame.FindProperty("height").floatValue - .1f);
+
+        // Copy the canonical player's rendering rig, without input, physics or match systems.
+        var player = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/PlayerActor.prefab");
+        var sourceVisual = player.GetComponentInChildren<PlayerVisualController>(true);
+        var actor = UnityEngine.Object.Instantiate(sourceVisual.visuals.gameObject, display.transform);
+        actor.name = "Player visual demonstration";
+        actor.transform.localPosition = new Vector3(.35f, .2f, 2.1f);
+        actor.transform.localRotation = Quaternion.identity;
+        actor.transform.localScale = Vector3.one;
+        var visual = actor.GetComponentInChildren<PlayerVisualController>(true);
+        foreach (var arc in actor.GetComponentsInChildren<PlayerArc>(true)) UnityEngine.Object.DestroyImmediate(arc.gameObject);
+        foreach (var component in actor.GetComponentsInChildren<MonoBehaviour>(true))
+            if (!(component is PlayerVisualController) && !(component is PlayerNuggetsGPU)) UnityEngine.Object.DestroyImmediate(component);
+        foreach (var renderer in actor.GetComponentsInChildren<Renderer>(true)) renderer.enabled = false;
+        visual.visuals = actor.transform; visual.attackController = null; visual.gameplayFacing = null; visual.arc = null;
+        var dots = actor.GetComponentInChildren<PlayerNuggetsGPU>(true);
+        visual.nuggetsGPU = dots;
+        if (dots)
+        {
+            var serialized = new SerializedObject(dots);
+            serialized.FindProperty("controller").objectReferenceValue = visual;
+            serialized.FindProperty("playerController").objectReferenceValue = null;
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+            dots.dotCount = 110;
+        }
+        demo.playerDisplay = actor.transform; demo.playerVisual = visual;
+
+        var nugglet = UnityEngine.Object.Instantiate(CreateNugglet().gameObject, display.transform);
+        nugglet.name = "Nugglet visual demonstration";
+        UnityEngine.Object.DestroyImmediate(nugglet.GetComponent<MatterNuggetScript>());
+        foreach (var collider in nugglet.GetComponentsInChildren<Collider>(true)) UnityEngine.Object.DestroyImmediate(collider);
+        UnityEngine.Object.DestroyImmediate(nugglet.GetComponent<Rigidbody>());
+        nugglet.SetActive(false);
+        demo.nuggletDisplay = nugglet.transform;
+    }
+
+    private static void ConfigureInstructionsGameplayStage(GameObject stage, OrbitalCloudVisual cloud)
+    {
+        // Match the saved level's cloud and arena appearance, keeping only rendering components.
+        var scene = EditorSceneManager.OpenPreviewScene(ScenePath);
+        try
+        {
+            var source = InScene<OrbitalProbabilityCloud>(scene);
+            EditorUtility.CopySerialized(source.cloud, cloud);
+            cloud.useUnscaledTime = true;
+            cloud.Rebuild();
+            var sourceGrid = InScene<VectorGridGPU>(scene);
+            var gridObject = new GameObject("Gameplay grid close-up");
+            gridObject.SetActive(false);
+            gridObject.transform.SetParent(stage.transform, false);
+            gridObject.transform.localPosition = sourceGrid.transform.position;
+            gridObject.transform.localRotation = sourceGrid.transform.rotation;
+            var grid = gridObject.AddComponent<VectorGridGPU>();
+            EditorUtility.CopySerialized(sourceGrid, grid);
+            grid.registerAsDefault = false;
+            gridObject.SetActive(true);
+        }
+        finally { EditorSceneManager.ClosePreviewScene(scene); }
     }
 }
 #endif

@@ -9,6 +9,7 @@ namespace Massive.Orbital
         public Material lineMaterial;
         [Range(4, 64)] public int capacity = 24;
         [Min(.05f)] public float flashSeconds = .34f;
+        public bool useUnscaledTime;
         private sealed class Flash
         {
             public GameObject root;
@@ -97,7 +98,7 @@ namespace Massive.Orbital
             foreach (Flash f in pool)
             {
                 if (!f.root.activeSelf) continue;
-                f.age += Time.deltaTime;
+                f.age += useUnscaledTime ? Time.unscaledDeltaTime : Time.deltaTime;
                 float phase = Mathf.Clamp01(f.age / Mathf.Max(.05f, flashSeconds));
                 float size = Mathf.SmoothStep(0f, 1f, phase / .2f) *
                     (1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(.45f, 1f, phase)));

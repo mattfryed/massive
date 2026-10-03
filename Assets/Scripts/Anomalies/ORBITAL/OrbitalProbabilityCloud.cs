@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using Massive.Enemies;
 using Massive.Multiplier;
 using Massive.Scoring;
 using UnityEngine;
@@ -17,6 +16,8 @@ namespace Massive.Orbital
         [Tooltip("Independent encounters/second at maximum density. At 2.4, one-second probability is 91%.")]
         [Min(0f)] public float peakStrikesPerSecond = 2.4f;
         public Vector2 kickSpeed = new Vector2(2.8f, 4.6f);
+        [Tooltip("Electron impulse strength on amplifier cores relative to players. Does not affect other core forces.")]
+        [Range(0f, 1f)] public float coreKickMultiplier = .25f;
         [Min(.1f)] public float maxPlanarSpeed = 10f;
         [Range(8, 128)] public int nuggetCapacity = 64;
         public Vector2 nuggetSpeed = new Vector2(2f, 4f);
@@ -33,7 +34,6 @@ namespace Massive.Orbital
         public int TotalStrikes { get; private set; }
         public int PlayerStrikes { get; private set; }
         public int CoreStrikes { get; private set; }
-        public int EnemyStrikes { get; private set; }
         public int NuggetsReleased { get; private set; }
         public Vector3 LastContact { get; private set; }
         public Vector3 LastDirection { get; private set; }
@@ -72,32 +72,30 @@ namespace Massive.Orbital
                 if (!body || body.isKinematic || body.gameObject.scene != gameObject.scene || visited.Contains(body)) continue;
                 var player = body.GetComponent<PlayerControllerScript>();
                 var core = body.GetComponent<AmplifierCoreGameplay>();
-                var enemy = body.GetComponent<EnemyBase>();
                 if (player && (!player.isActiveAndEnabled || player.IsPseudoPlayer || player.temporarilyEliminated || player.IsMatchInputLocked)) continue;
                 if (core && (!core.isActiveAndEnabled || core.IsPresentationOnly || core.IsCaptured)) continue;
-                if (enemy && (!enemy.isActiveAndEnabled || enemy.IsDead || enemy.IsPaused)) continue;
-                if (!player && !core && !enemy) continue;
-                // Ignore weapon/sensor volumes. Trigger-bodied enemies expose their body through EnemyHurtbox.
-                if (shape.isTrigger && !(enemy && shape.GetComponent<EnemyHurtbox>())) continue;
+                if (!player && !core) continue;
+                // Only solid player/core bodies participate; enemies, weapons and sensors are excluded.
+                if (shape.isTrigger) continue;
                 visited.Add(body);
                 Vector3 direction = OrbitalDensity.SampleDirection(body.worldCenterOfMass - cloud.transform.position, random);
                 Vector3 contact = shape.ClosestPoint(body.worldCenterOfMass - direction * (shape.bounds.extents.magnitude + 1f));
                 float density = DensityAt(contact);
                 if (random.NextDouble() >= OrbitalDensity.StrikeProbability(density, peakStrikesPerSecond, Time.fixedDeltaTime)) continue;
-                ApplyStrike(body, player, core, enemy, contact, direction);
+                ApplyStrike(body, player, core, contact, direction);
             }
         }
 
-        private void ApplyStrike(Rigidbody body, PlayerControllerScript player, AmplifierCoreGameplay core, EnemyBase enemy,
+        private void ApplyStrike(Rigidbody body, PlayerControllerScript player, AmplifierCoreGameplay core,
             Vector3 contact, Vector3 direction)
         {
             float speed = Mathf.Lerp(kickSpeed.x, kickSpeed.y, (float)random.NextDouble());
+            if (core) speed *= coreKickMultiplier;
             Vector3 velocity = body.linearVelocity;
             Vector3 desired = Vector3.ClampMagnitude(new Vector3(velocity.x, 0f, velocity.z) + direction * speed, maxPlanarSpeed);
             body.AddForce(desired - new Vector3(velocity.x, 0f, velocity.z), ForceMode.VelocityChange);
             if (player) { player.ProtectActionMomentum(.2f); player.ExternalStun(.10f); PlayerStrikes++; }
             if (core) { core.SetAttractionExcitement(1f); CoreStrikes++; }
-            if (enemy) EnemyStrikes++;
             impacts.Show(cloud.transform.position, contact, direction, Mathf.Lerp(.65f, 1.1f, (float)random.NextDouble()));
             ReleaseNugget(contact);
             LastContact = contact; LastDirection = direction; TotalStrikes++;

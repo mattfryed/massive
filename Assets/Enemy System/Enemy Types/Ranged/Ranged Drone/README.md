@@ -21,6 +21,15 @@ Each shot emerges from the core toward the target's current position and travels
 straight after launch. Losing the target, firing range or line of sight cancels
 an attack into cooldown. The body never deals contact damage or self-destructs.
 
+The root capsule is a solid physical body, so players collide with it. A separate
+child `Damage trigger` carries the matching capsule and the only EnemyHurtbox;
+keeping these separate prevents EnemyHurtbox.Awake from turning the solid body
+back into a trigger. Both colliders disable immediately on death. Create Prefab
+also upgrades older Ranged Drone prefabs without changing their combat tuning.
+`MASSIVE > Enemies > Ranged Drone > Validate Body Collision` runs isolated Play Mode
+checks with the canonical player, including movement contact, firing, sword credit
+and death cleanup, and restores the previously open scene.
+
 Health, sword damage and reward match ED_Drone: one health, one sword hit and the
 shared ENEMY_DRONE_DEFEAT reward (100 meV base, with normal score multipliers).
 EnemyBase, EnemyHurtbox and EnemyScoreReward retain all damage/death/credit authority.

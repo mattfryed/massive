@@ -10,6 +10,8 @@ public class MatterNuggetScript : MonoBehaviour
     [Min(.01f)] public float despawnSeconds = .16f;
     [Tooltip("Zero leaves scene nuggets alive until collected. Ejected pickups supply their own lifetime.")]
     [Min(0f)] public float lifetimeSeconds;
+    [Tooltip("With Rigidbody linear damping enabled, stop residual drift below this speed (units/second).")]
+    [Min(0f)] public float restSpeed = .03f;
     [Range(0f, 1f)] public float wallRestitution = .85f;
     public PhysicsMaterial glideMaterial;
 
@@ -137,7 +139,16 @@ public class MatterNuggetScript : MonoBehaviour
         }
     }
 
-    protected virtual void FixedUpdate() { incomingVelocity = body.linearVelocity; }
+    protected virtual void FixedUpdate()
+    {
+        incomingVelocity = body.linearVelocity;
+        if (body.linearDamping > 0f && incomingVelocity.sqrMagnitude < restSpeed * restSpeed)
+            body.linearVelocity = incomingVelocity = Vector3.zero;
+
+        // Physics applies damping after FixedUpdate. Match it in the bounce snapshot so
+        // reflecting from a wall cannot restore the velocity lost to drag this step.
+        incomingVelocity *= Mathf.Max(0f, 1f - body.linearDamping * Time.fixedDeltaTime);
+    }
     protected virtual void OnCollisionEnter(Collision collision) { Bounce(collision); }
     protected virtual void OnCollisionStay(Collision collision) { Bounce(collision); }
     private void Bounce(Collision collision)

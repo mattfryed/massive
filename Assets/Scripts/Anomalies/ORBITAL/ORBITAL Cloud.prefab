@@ -98,6 +98,7 @@ MonoBehaviour:
   anomalyManager: {fileID: 0}
   peakStrikesPerSecond: 2.4
   kickSpeed: {x: 2.8, y: 4.6}
+  coreKickMultiplier: 0.25
   maxPlanarSpeed: 10
   nuggetCapacity: 64
   nuggetSpeed: {x: 2, y: 4}

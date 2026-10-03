@@ -95,17 +95,21 @@ namespace Massive.Orbital
                 yield return new WaitForSeconds(.65f);
                 var droneBody = drone.GetComponent<Rigidbody>();
                 droneBody.position = new Vector3(0f, 0f, 2.1f); droneBody.linearVelocity = Vector3.zero;
-                start = droneBody.position; before = hazard.EnemyStrikes; hazard.peakStrikesPerSecond = 1000f;
+                before = hazard.TotalStrikes;
+                int eligibleBefore = hazard.PlayerStrikes + hazard.CoreStrikes;
+                int nuggetsBefore = hazard.NuggetsReleased, flashesBefore = hazard.impacts.FlashesShown;
+                hazard.peakStrikesPerSecond = 1000f;
                 Physics.SyncTransforms();
-                for (int i = 0; i < 30 && hazard.EnemyStrikes == before; i++) yield return new WaitForFixedUpdate();
-                Check(hazard.EnemyStrikes > before, "Real drone prefab receives an electron strike");
+                for (int i = 0; i < 30; i++) yield return new WaitForFixedUpdate();
+                int eligibleHits = hazard.PlayerStrikes + hazard.CoreStrikes - eligibleBefore;
+                Check(hazard.TotalStrikes - before == eligibleHits, "Real drone prefab triggers no electron strikes");
+                Check(hazard.NuggetsReleased - nuggetsBefore == eligibleHits && hazard.impacts.FlashesShown - flashesBefore == eligibleHits,
+                    "Drone exposure produces no extra nugglets or flashes");
                 hazard.peakStrikesPerSecond = 0f;
-                yield return new WaitForFixedUpdate();
-                Check((droneBody.position - start).sqrMagnitude > .0001f && droneBody.linearVelocity.magnitude > 1f, "Drone recoils while its steering is active");
                 Destroy(drone); drone = null;
 
                 Check(hazard.TotalStrikes == hazard.NuggetsReleased && hazard.TotalStrikes == hazard.impacts.FlashesShown,
-                    "Player, core and enemy strikes each release a nugget and flash");
+                    "Player and core strikes each release a nugget and flash");
                 var nugget = hazard.GetComponentsInChildren<OrbitalMassNugget>().First();
                 Check(nugget.GetComponent<Rigidbody>().linearVelocity.sqrMagnitude > .01f, "Mass nugget floats away from contact");
                 foreach (var other in hazard.GetComponentsInChildren<OrbitalMassNugget>())
