@@ -22,5 +22,5 @@ MonoBehaviour:
     type: 3}
   instructionsPanelPrefab: {fileID: 5726339439888128191, guid: 7ffb9519006ad7149aaeb0b7a6114dec,
     type: 3}
-  anomalyTypeName: SPACETIME DISRUPTION
+  anomalyTypeName: RENORMALIZATION
   audioProfile: {fileID: 11400000, guid: 7acbe58a564814946ab33dbd32f1afe0, type: 2}

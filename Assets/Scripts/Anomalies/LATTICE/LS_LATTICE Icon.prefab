@@ -29,7 +29,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0.17310767, y: 0.24390395, z: -0.24390393, w: 0.9225267}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 0.16, y: 0.16, z: 0.16}
+  m_LocalScale: {x: 0.18, y: 0.18, z: 0.18}
   m_ConstrainProportionsScale: 1
   m_Children: []
   m_Father: {fileID: 6874149172975078119}
@@ -102,8 +102,8 @@ MonoBehaviour:
   cellsPerAxis: 4
   strandSegments: 12
   mode: 0
-  noiseFrequency: 0.215
-  threshold: 0.521
+  noiseFrequency: 0.175
+  threshold: 0.5
   drift: {x: 0.09, y: 0.035, z: 0.055}
   evolutionSpeed: 0.075
   noiseSeed: 173
