@@ -78,16 +78,23 @@ namespace Massive.Player
         [Tooltip("Overall Repulsor scale: hit radius, energy volume, detail and grid pulse. Multiplies player size; does not change the player, damage or attack timing.")]
         [Min(.1f), SerializeField] private float repulsorScale = 1f;
 
-        [Tooltip("Flat damage to each NPC enemy once per pulse, in enemy health units. Zero disables NPC damage. Player knockback/mass loss are configured on RepulsorAOE separately.")]
+        [Tooltip("Outer-zone damage to each NPC enemy once per pulse, in enemy health units. The inner zone multiplies this amount. Zero disables NPC damage. Player knockback/mass loss are configured on RepulsorAOE separately.")]
         [Min(0f), SerializeField] private float repulsorEnemyDamage = 1f;
 
         [Tooltip("Final Repulsor radius in world units at player size 1. Starts at the live body outline and scales with the player.")]
         [SerializeField]
         private float repulsorMaxRadius = 3.0f;
 
+        [Tooltip("Inner damage-zone radius relative to the player's physical body radius. 1.5 is 50% larger than the player. Clamped to the outer radius.")]
+        [Min(0f), SerializeField] private float repulsorInnerRadiusPlayerMultiplier = 1.5f;
+        [Tooltip("Damage multiplier inside the red inner zone, for both NPCs and players. Each target is hit only once per pulse.")]
+        [Min(1f), SerializeField] private float repulsorInnerDamageMultiplier = 2f;
+        [Tooltip("Editor-only tuning overlay: dotted red/yellow circles follow the live damage area in Play Mode. Excluded from player builds.")]
+        [SerializeField] private bool repulsorShowDamageRings = true;
+
         [Tooltip("Radius over time (0..1 stage normalized -> 0..1 radius).")]
         [SerializeField]
-        private AnimationCurve repulsorRadiusCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
+        private AnimationCurve repulsorRadiusCurve = AnimationCurve.EaseInOut(0f, 0f, .8f, 1f);
 
         // Note: particle-prefab-based FX have been removed.
         // GPU-based attack trails are driven by AttackTrailGPU,
@@ -134,6 +141,12 @@ namespace Massive.Player
 
         public float GetRepulsorRadius(float playerSize, float outlineRadius = 0f) =>
             Mathf.Max(outlineRadius, RepulsorMaxRadius * RepulsorScale * Mathf.Max(.01f, playerSize));
+
+        public float RepulsorInnerRadiusPlayerMultiplier => Mathf.Max(0f, repulsorInnerRadiusPlayerMultiplier);
+        public float RepulsorInnerDamageMultiplier => Mathf.Max(1f, repulsorInnerDamageMultiplier);
+        public bool RepulsorShowDamageRings => repulsorShowDamageRings;
+        public float GetRepulsorInnerRadius(float bodyRadius, float outerRadius) =>
+            Mathf.Min(Mathf.Max(0f, outerRadius), Mathf.Max(0f, bodyRadius) * RepulsorInnerRadiusPlayerMultiplier);
 
         public AnimationCurve RepulsorRadiusCurve => repulsorRadiusCurve;
 

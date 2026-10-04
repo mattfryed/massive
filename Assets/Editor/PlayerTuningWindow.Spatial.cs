@@ -108,10 +108,17 @@ namespace Massive.EditorTools
             Handles.color = HitColor;
             if (stage.StageType == AttackStageType.FinisherRepulsor)
             {
-                Handles.DrawWireDisc(origin, Vector3.forward, radius * scale);
-                float activeT = Mathf.InverseLerp(stage.ActivationStartNormalized, stage.ActivationEndNormalized, normalized);
-                float r = Mathf.Lerp(body, radius, Mathf.Clamp01(stage.RepulsorRadiusCurve.Evaluate(activeT)));
-                Handles.DrawWireDisc(origin, Vector3.forward, r * scale);
+                var pulse = previewPlayer ? previewPlayer.GetComponentInChildren<PlayerRepulsorAOE>(true) : null;
+                float start = pulse ? pulse.PreviewStartRadiusWorld(stage) : body;
+                float a0 = pulse ? pulse.EffectiveActivationStart(stage) : stage.ActivationStartNormalized;
+                float a1 = pulse ? pulse.EffectiveActivationEnd(stage) : stage.ActivationEndNormalized;
+                if (normalized >= a0 && normalized <= a1)
+                {
+                    float activeT = Mathf.InverseLerp(a0, a1, normalized);
+                    float r = Mathf.Lerp(start, radius, Mathf.Clamp01(stage.RepulsorRadiusCurve.Evaluate(activeT)));
+                    PlayerRepulsorRangeRings.DrawEditorGuides(origin, Vector3.forward,
+                        Mathf.Min(stage.GetRepulsorInnerRadius(body, radius), r) * scale, r * scale, 1.35f);
+                }
             }
             else if (reach > 0)
             {
@@ -129,7 +136,9 @@ namespace Massive.EditorTools
             Handles.DrawAAPolyLine(3, origin, origin + Vector2.right * travel * scale);
             Handles.EndGUI();
             GUI.Label(new Rect(box.x + 10, box.y + 6, box.width - 20, 22), $"Body radius {body:0.##} · Travel {travel:0.##} · " + (stage.StageType == AttackStageType.FinisherRepulsor ? $"Pulse radius {radius:0.##}" : capsule ? $"Weapon reach {reach:0.##}" : "Choose a scene player to inspect weapon reach"), EditorStyles.miniLabel);
-            GUI.Label(new Rect(box.x + 10, box.yMax - 40, box.width - 20, 35), "White: body   Orange: damage reach   Teal: full authored travel\nDiagram assumes open space; collisions and aim assist can shorten travel.", EditorStyles.wordWrappedMiniLabel);
+            GUI.Label(new Rect(box.x + 10, box.yMax - 40, box.width - 20, 35), stage.StageType == AttackStageType.FinisherRepulsor ?
+                $"White: body   Red: {stage.RepulsorInnerDamageMultiplier:0.##}x damage   Yellow: 1x damage\nA target's body touching the red zone takes the inner damage tier." :
+                "White: body   Orange: damage reach   Teal: full authored travel\nDiagram assumes open space; collisions and aim assist can shorten travel.", EditorStyles.wordWrappedMiniLabel);
         }
         private float StageOffset(int index)
         {
@@ -176,7 +185,16 @@ namespace Massive.EditorTools
             Handles.DrawWireDisc(origin, Vector3.up, PlayerScaleAdjuster.BodyRadiusOf(previewPlayer.GetComponent<PlayerControllerScript>()));
             Handles.color = HitColor;
             if (stage.StageType == AttackStageType.FinisherRepulsor)
-                Handles.DrawWireDisc(origin, Vector3.up, stage.GetRepulsorRadius(PlayerScaleAdjuster.SizeOf(previewPlayer)));
+            {
+                var pulse = previewPlayer.GetComponentInChildren<PlayerRepulsorAOE>(true);
+                float outer = pulse ? (pulse.IsPulseActive ? pulse.RadiusWorld : pulse.PreviewEndRadiusWorld(stage)) :
+                    stage.GetRepulsorRadius(PlayerScaleAdjuster.SizeOf(previewPlayer));
+                float inner = pulse ? (pulse.IsPulseActive ? pulse.ActiveInnerRadiusWorld : pulse.PreviewInnerRadiusWorld(stage)) :
+                    stage.GetRepulsorInnerRadius(PlayerScaleAdjuster.BodyRadiusOf(previewPlayer.GetComponent<PlayerControllerScript>()), outer);
+                if (Application.isPlaying && (!pulse || !pulse.IsPulseActive)) return;
+                if (pulse && pulse.IsPulseActive) origin = pulse.OriginWorld;
+                PlayerRepulsorRangeRings.DrawEditorGuides(origin, Vector3.up, inner, outer, HandleUtility.GetHandleSize(origin) * .012f);
+            }
             else
             {
                 var capsule = FindMeleeCapsule();

@@ -233,6 +233,8 @@ namespace Massive.Enemies
         public bool ShouldAvoid(Collider c)
         {
             if (c == null || !c.enabled || c == LaunchClearanceCollider || c.transform.IsChildOf(transform)) return false;
+            // Physics pair exclusions do not filter our explicit movement/sight sweeps.
+            if (c.GetComponentInParent<MatterNuggetScript>()) return false;
             var owner = GetComponent<EnemyBase>(); var otherEnemy = c.GetComponentInParent<EnemyBase>();
             if (owner && otherEnemy && !owner.SharesSimulationWith(otherEnemy)) return false;
             var resonance = c.GetComponentInParent<Massive.Resonance.ResonanceSegment>();

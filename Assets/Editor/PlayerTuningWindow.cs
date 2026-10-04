@@ -318,7 +318,11 @@ namespace Massive.EditorTools
                         var s = stages.GetArrayElementAtIndex(i);
                         EditorGUILayout.LabelField("Repulsor gameplay", EditorStyles.boldLabel);
                         Field(s, "repulsorScale", "Overall attack scale"); Field(s, "repulsorMaxRadius", "Base hit radius");
-                        Field(s, "repulsorEnemyDamage", "NPC damage per pulse"); Field(s, "repulsorRadiusCurve", "Expansion over active window");
+                        Field(s, "repulsorEnemyDamage", "Outer NPC damage");
+                        Field(s, "repulsorInnerRadiusPlayerMultiplier", "Inner radius / player radius");
+                        Field(s, "repulsorInnerDamageMultiplier", "Inner damage multiplier");
+                        Field(s, "repulsorShowDamageRings", "Show live damage guides (Editor only)");
+                        Field(s, "repulsorRadiusCurve", "Expansion over active window");
                     }
                     if (d.ApplyModifiedProperties()) PlayerTuningEditing.Save(tuning.attackProfile);
                 }

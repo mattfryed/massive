@@ -67,6 +67,7 @@ namespace Massive.Enemies
             {
                 var hit = sightHits[i].collider;
                 if (!hit || hit.transform.IsChildOf(transform) || hit.GetComponentInParent<PlayerControllerScript>()) continue;
+                if (hit.GetComponentInParent<MatterNuggetScript>()) continue;
                 var otherEnemy = hit.GetComponentInParent<EnemyBase>();
                 if (otherEnemy && !enemy.SharesSimulationWith(otherEnemy)) continue;
                 if (hit.GetComponentInParent<Massive.Resonance.ResonanceSegment>()) continue;

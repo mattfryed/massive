@@ -20,8 +20,9 @@ namespace Massive.Settings
         [Min(0)] public float maxPlanarSpeedAfterHit = 16f;
         public bool applyStun;
         [Range(0, 1)] public float stunStrength01 = .35f;
-        public bool applyMassLoss;
-        [Range(0, 1)] public float massLossScale01 = .25f;
+        public bool applyMassLoss = true;
+        [Tooltip("Outer-zone player damage as a fraction of a normal hit. The inner-zone multiplier is applied afterward.")]
+        [Range(0, 1)] public float massLossScale01 = 1f;
         public bool giveAttackerMass;
     }
 

@@ -8,6 +8,8 @@ public partial class PlayerControllerScript
 
     public void ProtectActionMomentum(float seconds)
     {
+        latticeMomentumUntil = Mathf.Max(latticeMomentumUntil, Time.time + Mathf.Max(0, seconds));
+        if (LatticeMotor) LatticeMotor.Release();
         if (!movementReversal) TryGetComponent(out movementReversal);
         if (movementReversal) movementReversal.BlockFor(seconds);
     }
@@ -23,7 +25,7 @@ public partial class PlayerControllerScript
             Time.time >= _enemyHitKickTime + enemyHitRecoilSeconds;
     }
 
-    private void ApplyJoystickReversal(ref Vector3 velocity, ref Vector3 planarVelocity)
+    private void ApplyJoystickReversal(ref Vector3 velocity, ref Vector3 planarVelocity, bool applyToBody = true)
     {
         if (!movementReversal) TryGetComponent(out movementReversal);
         if (!movementReversal || !movementReversal.isActiveAndEnabled) return;
@@ -31,7 +33,8 @@ public partial class PlayerControllerScript
         // Brief recovery also protects the first released frame after an action/stun.
         if (!ordinaryMovement) movementReversal.BlockFor(.2f);
         if (!movementReversal.TryApply(velocity, movement, Effective_moveDeadzone, ordinaryMovement, Time.time, out var adjusted)) return;
-        rb.linearVelocity = velocity = adjusted;
+        velocity = adjusted;
+        if (applyToBody) rb.linearVelocity = adjusted;
         planarVelocity = new Vector3(adjusted.x, 0f, adjusted.z);
     }
 }

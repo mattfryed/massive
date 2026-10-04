@@ -88,7 +88,11 @@ namespace Massive.Enemies
         { if (source != null) movementInfluences[source] = Mathf.Clamp(multiplier, .01f, 1f); }
         public void RemoveMovementInfluence(UnityEngine.Object source)
         { if (!ReferenceEquals(source, null)) movementInfluences.Remove(source); }
-        private void OnEnable() { if (!activeEnemies.Contains(this)) activeEnemies.Add(this); }
+        private void OnEnable()
+        {
+            if (!activeEnemies.Contains(this)) activeEnemies.Add(this);
+            MatterNuggetScript.IgnoreEnemyContacts(this);
+        }
         private void OnDisable() { activeEnemies.Remove(this); movementInfluences.Clear(); }
 
         public void Init(EnemyDefinition def, EnemyDirector director)

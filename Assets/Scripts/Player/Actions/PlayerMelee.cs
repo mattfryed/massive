@@ -98,6 +98,11 @@ public class PlayerMelee : MonoBehaviour
         if (gateRoutine != null)
             StopCoroutine(gateRoutine);
 
+        gateRoutine = null;
+        hitbox.enabled = false;
+        // Repulsor owns its radial damage. A sword hit here could consume the
+        // victim's cooldown before the inner-zone amplified hit arrives.
+        if (stage == null || stage.StageType == AttackStageType.FinisherRepulsor) return;
         gateRoutine = StartCoroutine(GateHitboxRoutine(stage));
     }
 
@@ -144,6 +149,8 @@ public class PlayerMelee : MonoBehaviour
     {
         if (owner == null || other == null)
             return;
+        if (attackController && attackController.CurrentStage != null &&
+            attackController.CurrentStage.StageType == AttackStageType.FinisherRepulsor) return;
 
         // Sword-vs-sword remains disabled until the clash system is re-enabled.
         // Keeping the branch in one place prevents the former duplicate player-hit path.

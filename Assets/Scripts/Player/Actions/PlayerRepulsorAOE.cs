@@ -40,7 +40,7 @@ namespace Massive.Player
         [SerializeField] private string playerTag = "Player";
 
         [Header("Scene View")]
-        [Tooltip("Shows the final hit area when this player or hitbox is selected. The live sphere is shown while the pulse is active.")]
+        [Tooltip("Editor tuning guides: shows live damage radii during Play Mode and maximum reach when idle in Edit Mode.")]
         [SerializeField] private bool showHitArea = true;
 
         [Header("Knockback")]
@@ -56,9 +56,9 @@ namespace Massive.Player
         [SerializeField] private float stunStrength01 = 0.35f;
 
         [Header("Optional Mass Loss")]
-        [SerializeField] private bool applyMassLoss = false;
+        [SerializeField] private bool applyMassLoss = true;
         [Range(0f, 1f)]
-        [SerializeField] private float massLossScale01 = 0.25f;
+        [SerializeField] private float massLossScale01 = 1f;
         [Tooltip("If true, attacker gains the same scaled amount the victim loses.")]
         [SerializeField] private bool giveAttackerMass = false;
 
@@ -66,6 +66,13 @@ namespace Massive.Player
         private readonly HashSet<PlayerControllerScript> _hitVictims = new HashSet<PlayerControllerScript>();
         private readonly HashSet<EnemyBase> _hitEnemies = new HashSet<EnemyBase>();
         private float _enemyDamage;
+        private float _innerDamageMultiplier = 1f;
+        private readonly List<Collider> _targetColliders = new List<Collider>(8);
+        public float InnerRadiusWorld { get; private set; }
+        // Only the portion reached by the growing pulse is damaging right now.
+        public float ActiveInnerRadiusWorld => IsPulseActive ? Mathf.Min(InnerRadiusWorld, RadiusWorld) : 0f;
+        public bool ShowDamageRings { get; private set; }
+        public float DamageRingDotRadiusWorld { get; private set; }
         private readonly Collider[] _finalOverlap = new Collider[64];
         private PlayerVisualController _visuals;
         private Vector3 _authoredColliderCenter;
@@ -99,6 +106,10 @@ namespace Massive.Player
             hitbox.enabled = false;
             hitbox.radius = 0f;
             _authoredColliderCenter = hitbox.center;
+#if UNITY_EDITOR
+            if (Application.isPlaying && !GetComponent<PlayerRepulsorRangeRings>())
+                gameObject.AddComponent<PlayerRepulsorRangeRings>();
+#endif
 
             if (!attackController)
                 attackController = GetComponentInParent<PlayerAttackController>();
@@ -243,8 +254,17 @@ namespace Massive.Player
             return null;
         }
 
-        /// <summary>The expected release outline and scaled reach used by edit preview and its hit-area guide.</summary>
-        public float PreviewEndRadiusWorld(AttackStage stage)
+        public float PreviewInnerRadiusWorld(AttackStage stage)
+        {
+            if (!owner) owner = GetComponentInParent<PlayerControllerScript>();
+            return stage != null ? stage.GetRepulsorInnerRadius(PlayerScaleAdjuster.BodyRadiusOf(owner), PreviewEndRadiusWorld(stage)) : 0f;
+        }
+
+        public float PreviewEndRadiusWorld(AttackStage stage) => stage != null ?
+            stage.GetRepulsorRadius(PlayerScaleAdjuster.SizeOf(this), PreviewStartRadiusWorld(stage)) : PreviewStartRadiusWorld(stage);
+
+        /// <summary>The expected release outline before expansion, including the windup contraction.</summary>
+        public float PreviewStartRadiusWorld(AttackStage stage)
         {
             if (!owner) owner = GetComponentInParent<PlayerControllerScript>();
             var visuals = owner ? owner.visualsController : null;
@@ -258,30 +278,29 @@ namespace Massive.Player
             var feedback = owner ? owner.GetComponent<PlayerRepulsorFeedback>() : null;
             if (feedback && feedback.isActiveAndEnabled && feedback.bodyPulseEnabled && EffectiveActivationStart(stage) > 0f)
                 outline *= 1f - feedback.contraction;
-            return stage != null ? stage.GetRepulsorRadius(PlayerScaleAdjuster.SizeOf(owner), outline) : outline;
+            return outline;
         }
 
 #if UNITY_EDITOR
         private void OnDrawGizmos()
         {
-            if (!showHitArea) return;
+            if (!showHitArea || (Application.isPlaying && !IsPulseActive)) return;
             var player = owner ? owner : GetComponentInParent<PlayerControllerScript>();
             if (!UnityEditor.Selection.Contains(gameObject) && (!player || !UnityEditor.Selection.Contains(player.gameObject))) return;
             var attack = attackController ? attackController : GetComponentInParent<PlayerAttackController>();
             var stage = FindRepulsorStage(attack ? attack.Profile : null);
             if (stage == null) return;
             Vector3 center = IsPulseActive ? OriginWorld : player ? player.transform.position : transform.position;
-            float radius = IsPulseActive ? EndRadiusWorld : PreviewEndRadiusWorld(stage);
+            float radius = IsPulseActive ? RadiusWorld : PreviewEndRadiusWorld(stage);
             var previousColor = UnityEditor.Handles.color;
-            UnityEditor.Handles.color = new Color(.2f, .85f, 1f, .85f);
-            UnityEditor.Handles.DrawWireDisc(center, Vector3.up, radius);
-            UnityEditor.Handles.Label(center + Vector3.right * radius,
-                "Repulsor hit radius " + radius.ToString("0.##") + " | enemy damage " + stage.RepulsorEnemyDamage.ToString("0.##"));
-            if (IsPulseActive)
-            {
-                UnityEditor.Handles.color = new Color(1f, .75f, .15f, 1f);
-                UnityEditor.Handles.DrawWireDisc(center, Vector3.up, RadiusWorld);
-            }
+            float inner = IsPulseActive ? ActiveInnerRadiusWorld : PreviewInnerRadiusWorld(stage);
+            PlayerRepulsorRangeRings.DrawEditorGuides(center, Vector3.up, inner, radius,
+                UnityEditor.HandleUtility.GetHandleSize(center) * .012f);
+            UnityEditor.Handles.color = Color.yellow;
+            UnityEditor.Handles.Label(center + Vector3.right * radius, (IsPulseActive ? "Live outer: 1x | radius " : "Maximum outer: 1x | radius ") + radius.ToString("0.##"));
+            UnityEditor.Handles.color = Color.red;
+            UnityEditor.Handles.Label(center + Vector3.left * inner,
+                "Inner: " + stage.RepulsorInnerDamageMultiplier.ToString("0.##") + "x | radius " + inner.ToString("0.##"));
             UnityEditor.Handles.color = previousColor;
         }
 #endif
@@ -324,6 +343,10 @@ namespace Massive.Player
             if (_visuals) OriginWorld += _visuals.RepulsorVisualOffsetWS;
             StartRadiusWorld = GetOutlineRadiusWorld();
             EndRadiusWorld = stage.GetRepulsorRadius(PlayerScaleAdjuster.SizeOf(owner), StartRadiusWorld);
+            InnerRadiusWorld = stage.GetRepulsorInnerRadius(PlayerScaleAdjuster.BodyRadiusOf(owner), EndRadiusWorld);
+            _innerDamageMultiplier = stage.RepulsorInnerDamageMultiplier;
+            ShowDamageRings = stage.RepulsorShowDamageRings;
+            DamageRingDotRadiusWorld = Mathf.Max(.005f, PlayerScaleAdjuster.BodyRadiusOf(owner) * .055f);
             SetWorldRadius(StartRadiusWorld);
             hitbox.enabled = true;
             IsPulseActive = true;
@@ -402,6 +425,32 @@ namespace Massive.Player
             TryHit(other);
         }
 
+        // Use body contact, not root distance: a target touching the red ring is
+        // in the inner tier. Scan all eligible body colliders so callback order
+        // on a multi-hurtbox target cannot change its one hit for this pulse.
+        private float DamageMultiplierFor(EnemyBase enemy, PlayerControllerScript player)
+        {
+            if (InnerRadiusWorld <= 0f) return 1f;
+            Component target = enemy ? (Component)enemy : player;
+            target.GetComponentsInChildren(false, _targetColliders);
+            float threshold = InnerRadiusWorld * InnerRadiusWorld;
+            bool inner = false;
+            foreach (var candidate in _targetColliders)
+            {
+                if (!candidate.enabled) continue;
+                if (enemy)
+                {
+                    var hurtbox = candidate.GetComponent<EnemyHurtbox>();
+                    if (!hurtbox || !hurtbox.isActiveAndEnabled || hurtbox.Enemy != enemy) continue;
+                }
+                else if (!candidate.CompareTag(playerTag) || candidate.GetComponentInParent<PlayerControllerScript>() != player) continue;
+                if ((candidate.ClosestPoint(OriginWorld) - OriginWorld).sqrMagnitude <= threshold + .000001f)
+                { inner = true; break; }
+            }
+            _targetColliders.Clear();
+            return inner ? _innerDamageMultiplier : 1f;
+        }
+
         private void TryHit(Collider other)
         {
             if (!IsPulseActive || !hitbox || !hitbox.enabled)
@@ -418,7 +467,7 @@ namespace Massive.Player
             {
                 if (_enemyDamage <= 0f || !enemy.isActiveAndEnabled || enemy.IsDead || enemy.IsPaused || !enemy.Definition ||
                     (ignoreTeamMates && enemy.OwnerTeamId == owner.teamID) || !_hitEnemies.Add(enemy)) return;
-                enemy.TakeDamage(_enemyDamage, EnemyDamageSource.Repulsor, owner);
+                enemy.TakeDamage(_enemyDamage * DamageMultiplierFor(enemy, null), EnemyDamageSource.Repulsor, owner);
                 return;
             }
 
@@ -441,7 +490,9 @@ namespace Massive.Player
 
             _hitVictims.Add(victim);
 
-            // Strength based on distance from owner, clamped.
+            float damageMultiplier = DamageMultiplierFor(null, victim);
+
+            // Knockback/stun falloff is independent of the two flat damage tiers.
             Vector3 dir = victim.transform.position - OriginWorld;
             dir.y = 0f;
             float dist = dir.magnitude;
@@ -478,8 +529,8 @@ namespace Massive.Player
             // the optional stun below can cancel an active shield.
             if (Effective_applyMassLoss)
             {
-                float s = Mathf.Clamp01(Effective_massLossScale01 * strength01);
-                PlayerHitResult hit = victim.TryApplyHit(owner.gameObject, s);
+                PlayerHitResult hit = victim.TryApplyHit(owner.gameObject,
+                    Effective_massLossScale01, damageMultiplier);
                 if (hit.accepted && Effective_giveAttackerMass)
                     owner.GrowScaled(hit.appliedScale01);
             }

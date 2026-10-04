@@ -142,6 +142,7 @@ namespace Massive.Enemies
         private bool CanHit(Collider other)
         {
             if (!other || !other.enabled || other.transform.IsChildOf(transform)) return false;
+            if (other.GetComponentInParent<MatterNuggetScript>()) return false;
             if (IsResonance(other)) return false;
             var player = other.GetComponentInParent<PlayerControllerScript>();
             if (player)

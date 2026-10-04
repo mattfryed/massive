@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5fbe94a6bd03940b9a5a78c567bc6665, type: 3}
   m_Name: LevelDefinition-SINGULARITY
   m_EditorClassIdentifier: 
-  levelNumber: 6
+  levelNumber: 7
   levelTitle: SINGULARITY
   scaleExponent: 14
   gameplayScene:

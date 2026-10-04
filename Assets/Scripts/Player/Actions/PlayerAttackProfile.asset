@@ -148,6 +148,9 @@ MonoBehaviour:
       m_PostInfinity: 2
       m_RotationOrder: 4
   - stageName: Repulsor
+    repulsorInnerRadiusPlayerMultiplier: 1.5
+    repulsorInnerDamageMultiplier: 2
+    repulsorShowDamageRings: 1
     stageType: 2
     duration: 0.6
     activationFrameStart: 10
@@ -203,7 +206,7 @@ MonoBehaviour:
         inWeight: 0
         outWeight: 0
       - serializedVersion: 3
-        time: 1
+        time: 0.8
         value: 1
         inSlope: 0
         outSlope: 0

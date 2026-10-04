@@ -6010,6 +6010,7 @@ GameObject:
   m_Component:
   - component: {fileID: 7887805293616064368}
   - component: {fileID: 2926591844152805485}
+  - component: {fileID: 4372759978449700865}
   m_Layer: 0
   m_Name: HIGGSExcitationKnotManager
   m_TagString: Untagged
@@ -6048,88 +6049,52 @@ MonoBehaviour:
   knotPrefab: {fileID: 785276665162863248, guid: 9be3f5a5d224fcb48a3a54c368acb395,
     type: 3}
   knotsParent: {fileID: 0}
-  driveHiggsSpawnRateFromManager: 1
-  initialNoSpawnSeconds: 66
-  spawnsPerSecondEarly: 0.18
-  spawnsPerSecondLate: 0.55
-  spawnRateRampSeconds: 90
-  spawnRateCurve01:
-    serializedVersion: 2
-    m_Curve:
-    - serializedVersion: 3
-      time: 0
-      value: 0
-      inSlope: 0
-      outSlope: 0
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0
-    - serializedVersion: 3
-      time: 1
-      value: 1
-      inSlope: 0
-      outSlope: 0
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0
-    m_PreInfinity: 2
-    m_PostInfinity: 2
-    m_RotationOrder: 4
-  readbackInterval: 0.1
-  exciteTThreshold: 0.01
-  arenaY: 0
-  swapUV: 0
-  invertU: 0
-  invertV: 0
-  borderPaddingWorld: 0.25
-  borderOverrideWorld: -1
-  knotCaptureRadiusForBounds: 1.15
-  followExcitationPosition: 0
-  followSmoothing: 10
+  spawnRegion: {fileID: 0}
+  amplifierEncounter: {fileID: 0}
   initialKnotSpawnDelaySeconds: 6
-  minKnotSpacing: 5
-  minDistanceFromGoalMouths: 7
-  goalMouths:
-  - {fileID: 7656024781950377561}
-  - {fileID: 0}
-  autoFindGoalMouthsIfEmpty: 1
+  telegraphSeconds: 1.5
   respawnCooldownSeconds: 2
-  suppressRespawnUntilExcitationEnds: 1
-  rampSeconds: 90
-  maxKnotsEarly: 1
-  maxKnotsLate: 6
-  concurrencyCurve01:
-    serializedVersion: 2
-    m_Curve:
-    - serializedVersion: 3
-      time: 0
-      value: 0
-      inSlope: 0
-      outSlope: 0
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0
-    - serializedVersion: 3
-      time: 1
-      value: 1
-      inSlope: 0
-      outSlope: 0
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0
-    m_PreInfinity: 2
-    m_PostInfinity: 2
-    m_RotationOrder: 4
-  maxSpawnsPerReadbackTick: 2
-  unclaimedSeconds: 4
-  claimedSeconds: 10
+  respawnVariation: {x: -2, y: 2}
+  placementRetrySeconds: 0.5
   excitationTailSeconds: 0.25
-  logSpawnEvents: 0
-  prewarmOnStart: 1
+  introductionSeparationSeconds: 3
+  fixedRandomSeed: 0
+  randomSeed: 912
+--- !u!114 &4372759978449700865
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5007233298553265750}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 88d78da729f167d419bd4a3e258c1bc7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  arenaBounds: {fileID: 0}
+  explicitPlane: {fileID: 0}
+  explicitPlaneSize: {x: 28, y: 12}
+  neutralWidthFraction: 0.3
+  borderMarginWorld: 0.75
+  spawnHeightWorld: 0
+  clearanceWorld: 0.5
+  minDistanceFromPlayers: 1.75
+  goalExclusionPadding: 0.5
+  noSpawnMask:
+    serializedVersion: 2
+    m_Bits: 512
+  blockingMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  noGoColliders: []
+  ignoredColliders: []
+  attemptsPerSpawn: 48
+  drawZones: 1
+  previewObjectRadius: 0.75
+  previewPattern: {fileID: 0}
+  previewColumns: 21
+  previewRows: 13
 --- !u!1 &5798250813326163876
 GameObject:
   m_ObjectHideFlags: 0
@@ -6530,8 +6495,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   teamID: 1
-  scoreSphere: {fileID: 0}
-  autoFindScoreSphere: 1
+  flowAnchor: {fileID: 0}
+  receiptToastPrefab: {fileID: 0}
+  receiptIntervalSeconds: 1
 --- !u!1 &7536409628337575457
 GameObject:
   m_ObjectHideFlags: 0
@@ -7216,6 +7182,9 @@ MonoBehaviour:
   stretchY: 1
   teardropK1: 1.1
   teardropK2: 0.6
+  stunShudderAmplitude: 0.035
+  parryRimPadding: 0.055
+  parryVibrationAmplitude: 0.018
 --- !u!1 &8372818820684658251
 GameObject:
   m_ObjectHideFlags: 0
@@ -8383,6 +8352,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   controlMode: 0
   isPseudoPlayer: 0
+  tuningMode: 0
   playerID: 2
   teamID: 1
   gameplayRigRoot: {fileID: 0}

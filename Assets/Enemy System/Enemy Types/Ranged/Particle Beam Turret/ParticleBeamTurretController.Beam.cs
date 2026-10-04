@@ -12,6 +12,7 @@ namespace Massive.Enemies
         private bool CanBlock(Collider c)
         {
             if (!c || !c.enabled || c.transform.IsChildOf(transform)) return false;
+            if (c.GetComponentInParent<MatterNuggetScript>()) return false;
             var p = c.GetComponentInParent<PlayerControllerScript>();
             if (p)
             {

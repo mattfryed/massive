@@ -50,5 +50,8 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/S-7_SINGULARITY.unity
     guid: 4bef542724edb0244a300cf42cb8ff61
+  - enabled: 1
+    path: Assets/Scenes/S-1_LATTICE.unity
+    guid: 943117e8f52abe2489b83a85be5f5fbf
   m_configObjects: {}
   m_UseUCBPForAssetBundles: 0

@@ -1,4 +1,5 @@
 using Massive.Enemies;
+using System.Collections.Generic;
 using UnityEngine;
 
 [RequireComponent(typeof(Rigidbody))]
@@ -30,6 +31,24 @@ public class MatterNuggetScript : MonoBehaviour
     public float LastMassRestored { get; private set; }
     public bool IsDespawning => ending;
 
+    private static readonly HashSet<MatterNuggetScript> activePickups = new();
+
+    // Match by component, not layer: the Dyson prefabs also have Default-layer colliders.
+    // Register from both ends so pickups and enemies can spawn in either order.
+    internal static void IgnoreEnemyContacts(EnemyBase enemy)
+    {
+        if (activePickups.Count == 0) return;
+        var shapes = enemy.GetComponentsInChildren<Collider>(true);
+        foreach (var pickup in activePickups)
+            if (pickup && pickup.gameObject.scene == enemy.gameObject.scene) pickup.IgnoreContacts(shapes);
+    }
+    private void IgnoreContacts(Collider[] enemyShapes)
+    {
+        foreach (var pickupShape in colliders)
+            foreach (var enemyShape in enemyShapes)
+                if (pickupShape && enemyShape) Physics.IgnoreCollision(pickupShape, enemyShape);
+    }
+
     protected virtual void Awake() { Initialize(); }
     private void Initialize()
     {
@@ -54,11 +73,15 @@ public class MatterNuggetScript : MonoBehaviour
         }
     }
 
-    protected virtual void OnEnable() { Initialize(); BeginLife(lifetimeSeconds); }
+    protected virtual void OnEnable() { Initialize(); activePickups.Add(this); BeginLife(lifetimeSeconds); }
+    protected virtual void OnDisable() { activePickups.Remove(this); }
     private void BeginLife(float seconds)
     {
         age = exitAge = 0f; lifetime = seconds; ending = queuedEjection = false; LastMassRestored = 0f;
         for (int i = 0; i < colliders.Length; i++) colliders[i].enabled = colliderEnabled[i];
+        foreach (var enemy in EnemyBase.ActiveEnemies)
+            if (enemy && enemy.gameObject.scene == gameObject.scene)
+                IgnoreContacts(enemy.GetComponentsInChildren<Collider>(true));
         SetVisualSize(0f);
         foreach (var p in particles) { p.Clear(); p.Play(); }
         body.WakeUp();

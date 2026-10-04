@@ -782,12 +782,14 @@ if (showPlayerIdToastOnMatchStart)
         if (_worldGameplaySuppressed || _matchInputLocked || IsSingularityTransitControlled)
         {
             ProtectActionMomentum(.2f);
+            if (LatticeMotor) LatticeMotor.Release();
             return;
         }
 
         if (temporarilyEliminated || isStunned || IsExternallyStunned)
         {
             ProtectActionMomentum(.2f);
+            if (LatticeMotor) LatticeMotor.Release();
             return;
         }
         if (!rb) return;
@@ -810,6 +812,10 @@ if (showPlayerIdToastOnMatchStart)
         // if (movement.sqrMagnitude > dz2)
         //     rb.AddForce(movement * Effective_movePower * moveMul, ForceMode.Force);
 
+        // The optional LATTICE adapter owns ordinary locomotion only while a
+        // disconnected patch is active. Shield/facing still update below.
+        if (!TickLatticeMovement(moveMul))
+        {
         // --- Movement (arcade traction) ---
         Vector3 input = movement;
         input.y = 0f;
@@ -819,69 +825,9 @@ if (showPlayerIdToastOnMatchStart)
         Vector3 velXZ = new Vector3(vel.x, 0f, vel.z);
         ApplyJoystickReversal(ref vel, ref velXZ);
 
-        // Deadzone + rescale so you still get full strength at the rim
-        float inputMag = input.magnitude;
-        float dz = Effective_moveDeadzone;
-
-        bool hasInput = inputMag > dz;
-        Vector3 inputDir = Vector3.zero;
-        float input01 = 0f;
-
-        if (hasInput)
-        {
-            inputDir = input / Mathf.Max(0.0001f, inputMag);
-            input01  = Mathf.InverseLerp(dz, 1f, Mathf.Clamp01(inputMag));
+        rb.AddForce(CalculateJoystickAcceleration(input, velXZ, moveMul), ForceMode.Acceleration);
+        if (Effective_clampSpeed) rb.linearVelocity = ClampJoystickVelocity(rb.linearVelocity, moveMul);
         }
-
-        // 1) Traction: kill sideways velocity relative to desired input direction
-        if (hasInput && velXZ.sqrMagnitude > 0.0001f)
-        {
-            // velocity component NOT aligned with stick direction
-            Vector3 lateralVel = velXZ - Vector3.Project(velXZ, inputDir);
-
-            // Acceleration mode = consistent “feel” regardless of mass changes
-            rb.AddForce(EnemyHitBraking(-lateralVel * Effective_lateralFriction), ForceMode.Acceleration);
-
-            // 2) Extra brake when reversing direction
-            float speed = velXZ.magnitude;
-            if (speed > 0.001f)
-            {
-                float dot = Vector3.Dot(velXZ / speed, inputDir); // -1..1
-                if (dot < Effective_reverseDotThreshold)
-                    rb.AddForce(EnemyHitBraking(-velXZ * Effective_reverseBrake), ForceMode.Acceleration);
-            }
-        }
-        else
-        {
-            // 3) Brake when no input (optional)
-            rb.AddForce(EnemyHitBraking(-velXZ * Effective_idleBrake), ForceMode.Acceleration);
-        }
-
-        // 4) Your existing propulsion (keeps “heavy blob” mass effect)
-        if (hasInput)
-        {
-            // Use direction * input01, so tiny-stick still moves but with controlled ramp
-            Vector3 drive = inputDir * (input01 * Effective_movePower * moveMul);
-            rb.AddForce(drive, ForceMode.Force);
-        }
-
-        // 5) Clamp XZ speed so you can crank responsiveness without raising top speed
-        if (Effective_clampSpeed)
-        {
-            Vector3 v2 = rb.linearVelocity;
-            Vector3 v2xz = new Vector3(v2.x, 0f, v2.z);
-
-            float max = Mathf.Max(0.1f, Effective_maxMoveSpeed * moveMul);
-            float max2 = max * max;
-
-            if (v2xz.sqrMagnitude > max2)
-            {
-                v2xz = v2xz.normalized * max;
-                rb.linearVelocity = new Vector3(v2xz.x, v2.y, v2xz.z);
-            }
-        }
-
-
         // Shield visuals + drain
         if (shield != null)
         {
@@ -993,9 +939,10 @@ if (showPlayerIdToastOnMatchStart)
     /// Resolves a combat hit transaction. No attacker benefit should be granted
     /// until this method returns accepted=true.
     /// </summary>
-    public PlayerHitResult TryApplyHit(GameObject hitSource, float scale01 = 1f)
+    public PlayerHitResult TryApplyHit(GameObject hitSource, float scale01 = 1f, float damageMultiplier = 1f)
     {
-        float scale = Mathf.Clamp01(scale01);
+        // Apply amplified damage in one transaction, preserving shield, cooldown and death handling.
+        float scale = Mathf.Clamp01(scale01) * Mathf.Max(0f, damageMultiplier);
         return ApplyMassLoss(
             requestedLoss01: massLossPerHit * scale,
             hitSource: hitSource,
@@ -1666,6 +1613,7 @@ public void SetWorldGameplaySuppressed(bool suppressed)
 
 private void OnDisable()
 {
+    if (LatticeMotor) LatticeMotor.Release();
     ReleaseSingularityTransitOnDisable();
     ResetEnemyHitFeedback();
     activePlayers.Remove(this);

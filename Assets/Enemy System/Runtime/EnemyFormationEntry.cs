@@ -28,7 +28,8 @@ namespace Massive.Enemies
             var delta = direction.normalized * (speed * Time.fixedDeltaTime);
             float radius = Mathf.Max(.1f, enemy.Definition.spawnRadiusWorld * .5f);
             foreach (var hit in Physics.SphereCastAll(body.position, radius, direction.normalized, delta.magnitude, ~0, QueryTriggerInteraction.Ignore))
-                if (!hit.collider.transform.IsChildOf(transform)) { enabled = false; return; }
+                if (!hit.collider.transform.IsChildOf(transform) && !hit.collider.GetComponentInParent<MatterNuggetScript>())
+                { enabled = false; return; }
             var next = body.position + delta;
             if (enemy.Director && !enemy.Director.arenaBounds.ContainsWorldPoint(next, radius)) { enabled = false; return; }
             body.MovePosition(next); body.MoveRotation(Quaternion.LookRotation(direction, Vector3.up));

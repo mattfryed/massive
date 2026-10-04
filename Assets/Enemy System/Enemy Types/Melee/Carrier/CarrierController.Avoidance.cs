@@ -121,6 +121,7 @@ namespace Massive.Enemies
         private bool BlocksSidestep(Collider collider, Vector3 center, float radius)
         {
             if (!collider || !collider.enabled || collider.isTrigger || collider.transform.IsChildOf(transform)) return false;
+            if (collider.GetComponentInParent<MatterNuggetScript>()) return false;
             if (collider.GetComponent<VectorGridGPU>() || collider.bounds.max.y < center.y - radius + .02f) return false;
             if (collider.GetComponentInParent<EnemyProjectileBase>()) return false;
             var other = collider.GetComponentInParent<EnemyBase>();

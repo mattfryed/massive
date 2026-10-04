@@ -171,8 +171,8 @@ MonoBehaviour:
   maxPlanarSpeedAfterHit: 16
   applyStun: 0
   stunStrength01: 0.35
-  applyMassLoss: 0
-  massLossScale01: 0.25
+  applyMassLoss: 1
+  massLossScale01: 1
   giveAttackerMass: 0
   useSharedSettings: 1
 --- !u!1 &1217324283134338247

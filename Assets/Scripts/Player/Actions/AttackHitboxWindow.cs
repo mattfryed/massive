@@ -38,6 +38,10 @@ public class AttackHitboxWindow : MonoBehaviour
     void OnStageStart(AttackStage stage)
     {
         if (gateRoutine != null) StopCoroutine(gateRoutine);
+        gateRoutine = null;
+        if (hitbox) hitbox.enabled = false;
+        // Stage 3 uses PlayerRepulsorAOE, never the Thrust/Sweep sword collider.
+        if (stage == null || stage.StageType == AttackStageType.FinisherRepulsor) return;
         gateRoutine = StartCoroutine(GateHitbox(stage));
     }
 

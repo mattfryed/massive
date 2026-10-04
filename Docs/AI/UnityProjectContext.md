@@ -920,3 +920,282 @@ occurred. Existing player-spawn kinematic-velocity warnings remain. Coverage use
 the opening timeline plus isolated later cues, not a human-played full loop.
 Unity returned to Edit Mode with ORBITAL saved and the Composer bound to its
 Director. Detailed results are in Library/OrbitalEncounterValidation/report.txt.
+
+### Enemy passage through mass pickups (2026-10-03)
+
+Nuggets/nugglets were solid obstacles to enemy physics and explicit movement
+queries. Reproduced with the actual enemy and pickup prefabs in a local physics
+scene: Ranged Drone and other solid shells reflected pickups, while the normal
+Drone's trigger body passed physically but its avoidance still rejected them.
+Baseline: 144 failures across 156 contact/query/lifecycle checks.
+
+MatterNuggetScript now registers active pickups and ignores their collider pairs
+with EnemyBase instances on pickup birth/reuse and enemy enable. Component-based
+pairs cover both Enemy-layer bodies and Default-layer Dyson prefabs, including
+disabled spawn colliders. EnemyObstacleAvoidance, formation entrances, Carrier
+sidesteps, ranged sight/projectile queries and turret beam queries also filter
+MatterNuggetScript hierarchies. Player contacts, wall bounce, collision layers,
+scene/prefab settings and environmental spawn settings are unchanged.
+
+MASSIVE > Enemies > Validate Nugget Passage runs the retained editor regression.
+All 159 final checks passed in Play Mode: six current enemy types plus legacy
+Dyson against all three pickup prefabs; physical passage with unchanged velocity;
+spawn collider toggles; pooled pickup and enemy reactivation; query filtering;
+player contact preservation; and actual wall bounce. The two interim shot-test
+failures came from testing authored-inactive pooled pickups before Eject; the
+fixture now activates them through their normal lifecycle. Unity compiled with
+no new errors; pre-existing compiler/player-spawn warnings remain. Tests used an
+isolated physics scene, discarded all fixtures and returned ORBITAL to Edit Mode
+without saving or modifying the level. Reports: Library/EnemyNuggetCollisionValidation/
+baseline.txt and report.txt. No standalone build was run.
+
+
+### Repulsor damage zones (2026-10-03)
+
+Repulsor now has two flat damage tiers for NPCs and players. The yellow outer
+zone retains the configured maximum radius and deals one normal hit. The red
+inner zone defaults to 1.5 times the physical player body radius and deals 2x
+damage. Inner reach is clamped to outer reach. Radius, multiplier and the gameplay
+circle toggle are persistent AttackStage settings, exposed in MASSIVE > Player
+Tuning > Impact & recovery and the Repulsor appearance/preview controls.
+
+The active pulse captures both radii and its release origin. A target whose
+closest eligible body surface touches the inner sphere gets the inner tier;
+compound hurtboxes are checked together so callback order cannot choose a lower
+tier. Each target still receives at most one hit per pulse. Player mass damage
+is enabled at normal-hit strength in the shared settings and canonical PlayerActor.
+Only knockback/stun retain distance falloff. TryApplyHit accepts an optional damage
+multiplier and resolves amplified damage as one transaction, retaining cooldown,
+held-shield protection, invulnerability and death attribution. Existing transfer
+VFX/reward fractions remain capped at their previous one-hit limit.
+
+PlayerRepulsorRangeRings is attached automatically at runtime to existing AOEs and
+draws dotted red/yellow boundaries only during the active pulse. Scene selection
+guides and the Player Tuning diagram/overlay show matching boundaries. The
+renderer uses the existing Shapes package and supports the Singularity surface
+adapter; it creates no colliders or saved scene objects.
+
+Validation found both sword-gating components also enabled the sword during
+Repulsor. A forward opponent could receive a normal sword hit first, consuming
+the damage cooldown and rejecting the radial 2x hit. PlayerMelee and
+AttackHitboxWindow now keep the sword off for FinisherRepulsor; the radial AOE
+owns that stage's hits. Actual contact changed from 0.08 to 0.16 player mass loss.
+
+Unity 6000.0.28f1 compiled and passed 42 new runtime/render/persistence checks
+plus the 19 existing Repulsor combat checks in an isolated project copy. Coverage
+includes actual player/NPC trigger contacts, inner-boundary overlap, compound
+hurtbox ordering, cancellation, held shields, invulnerability, same-team filtering,
+death attribution, all seven demos completing two loops, and saved tuning reload.
+The red/yellow dotted circles were rendered and visually inspected. No Unity
+errors or exceptions occurred in the final run; pre-existing compiler and
+player-spawn warnings remain. The saved scene currently disables the action
+arena for Enemy Lab; validation enabled it only in its unsaved test copy.
+The live scene/settings for Enemy Lab were preserved. Reports, PNG and validated
+source hashes: Library/RepulsorZonesValidation. No standalone build was run.
+
+
+### Repulsor expanding damage guides (2026-10-03)
+
+The original dotted guides showed final reach from the moment the pulse released,
+although the physical damage collider already grew from the live player outline.
+Game-view tuning dots now use RadiusWorld and min(InnerRadiusWorld, RadiusWorld).
+The inner boundary stops at its configured limit while the outer front continues.
+Scene-view live guides and the attack timeline diagram use the same expanding
+reach, and Play Mode guides disappear with the active hit window. Idle Edit Mode
+selection still shows explicitly labelled maximum reach for static tuning.
+
+The radius curve reaches 1 at 80% of the active window: with current settings,
+0.20s expansion followed by 0.05s at full size. The stage duration, activation
+start/end and damage tiers are unchanged. The curve remains editable under
+Player Tuning > Impact & recovery > Expansion over active window. The renderer
+and its automatic attachment are now UNITY_EDITOR-only; the toggle reads
+Show live damage guides (Editor only). These are tuning overlays, excluded from
+standalone player builds.
+
+Unity compiled and all 57 expanded runtime/render/persistence checks plus the
+19 existing combat checks passed in an isolated copy. New temporal checks prove
+outline-sized release, an intermediate radius, no early damage to distant players
+or NPCs, full reach before expiration, and immediate removal at the end. Start,
+middle and full-size frames were rendered and inspected; all seven demos passed
+two loops. Live changed files match the tested copies. Reports, captures and
+hashes: Library/RepulsorExpansionValidation. No standalone build was run.
+
+
+### LATTICE disruption and quantized locomotion prototype (2026-10-03)
+
+The new S-1_LATTICE scene has a scene-local LatticeDisruptionField on VectorGridGPU
+and LatticePlayerMotor overrides on its four canonical player actors. The common
+player and playing-field prefabs are not modified by this feature. The scene is
+not yet added to the release level catalog or Build Settings. Design context is
+the Notion MASSIVE GDD (11e617c6-d8ae-4eed-a7f0-424645db5203), read October 3,
+last edited September 28, plus the user's Planck-scale LATTICE brief.
+
+Domain-warped, evolving noise disconnects grid edges into fluttering, retracting
+strands and intersection dots. Reconnection grows and straightens the strands.
+Transient GPU geometry retains the shared grid simulation, responsive attraction,
+Amplifier/Repulsor deformation and arena border. The renderer and locomotion use
+the same connection state; disrupted nodes settle to fixed lattice coordinates.
+Disabling the field restores the original renderer and releases its resources.
+
+The optional motor runs inside canonical player traction, using existing input,
+deadzone, speed and movement modifiers. Disrupted regions use actual discrete
+eight-direction node steps with no interpolation, diagonal distance-based timing,
+swept body queries, occupied-destination checks and arena clearance. Normal grid
+restores continuous locomotion. Joystick movement, including shielding, is
+quantized; attacks, movement abilities, stun and protected knockback keep their
+existing motion. Aim, enemies, projectiles and objectives remain continuous.
+Pause freezes both noise and movement. No alternate player prefab was introduced.
+
+Tuning is on PLAYING FIELD / GRID / VectorGridGPU, Lattice Disruption Field.
+MASSIVE > LATTICE contains idempotent scene installation and prototype validation.
+The saved scene is already installed and left in Edit Mode. Implementation and
+tuning notes are in Assets/Scripts/Anomalies/LATTICE/README.md.
+
+Unity 6000.0.28f1 / DX11 compiled and passed all 59 Play Mode checks, including
+all eight directions, transitions, diagonal timing, collision/edge blocking,
+match locks, attacks, knockback, pause and disable/re-enable behavior. Actual
+gameplay and field-state renders were visually inspected. The completed run had
+no errors or exceptions; existing kinematic player-spawn velocity warnings remain.
+An earlier run was interrupted by script reload and was repeated after imports
+settled. Reports, renders and source hashes are in Library/LatticeValidation.
+No standalone build or controller feel playtest was performed.
+
+LATTICE refinement: endpoint cuts now detach a single whole tether from the
+disrupted point, anchored at its intact neighbor. Interior cuts between intact
+points can still produce two strands. Hold Tips At Boundary on the field keeps
+free tips on the actual moving noise contour; it defaults off. Show Noise
+Boundary defaults on and draws a faint dashed guide in the Editor's Scene/Game
+views without enabling general Gizmos. The guide renderer is UNITY_EDITOR-only,
+its shader is under Editor, and its transient mesh/material are disposed with
+the field.
+
+The distance clock now shares canonical joystick traction via
+PlayerControllerScript.Locomotion.cs, including analog input, mass, acceleration,
+braking, speed cap and Rigidbody damping. Each hop subtracts its actual distance
+and retains the fractional remainder; multiple adjacent hops can be consumed in
+one tick with individual collision checks. This replaces the original max-speed
+approximation and discarded remainder. Ordinary locomotion uses the same
+extracted calculation with its original force/clamp order.
+
+The expanded suite passed all 73 Play Mode checks on DX11. Four simultaneous
+ordinary-player comparisons (cardinal, diagonal, partial stick, heavier body
+with more drag) matched accumulated distance to three decimals, including pending
+fractional travel. Endpoint/interior cuts, exact contour tracking, toggle behavior
+and both shaders passed. Final guide and boundary-held renders were inspected.
+No new runtime errors occurred; existing spawn warnings remain. No player build
+or physical controller feel playtest was run. Reports/renders/hashes remain in
+Library/LatticeValidation; RefinementBaseline preserves the preceding version.
+
+LATTICE breeze refinement: the strand shader now uses cubic curves driven by
+smooth aperiodic noise. Each strand end has independent bend timing, resting
+lean and slack. Held tips remain at the contour while the interiors drift.
+Thread Looseness and Breeze Speed retain the existing serialized flutter
+settings. Strand Variation defaults to 1; Strand Motion Seed and the Inspector's
+Randomize Strand Motion button alter only thread shapes and motion. Randomize
+and Undo were verified in the native Inspector. The scene retains the user's
+held tips, 18 strand segments and hidden editor boundary guide.
+
+Unity compiled the refinement on DX11 and all 74 Play Mode checks passed.
+Successive close-up breeze renders and an alternate seed were visually reviewed.
+No new runtime errors occurred; the existing player-spawn warnings remain.
+Reports, captures and source hashes are in Library/LatticeValidation;
+BreezeBaseline preserves the preceding implementation and user-tuned scene.
+
+LATTICE strand-root refinement: the shader multiplies its drifting bend by the
+squared normalized distance along each strand. The connected root has zero
+bend and zero bend tangent; looseness increases toward the disconnected end.
+The existing boundary-held tip constraint is preserved.
+The 74-check Play Mode suite passed again on DX11, including shader compilation;
+successive close-up renders confirmed straight roots and bending outer portions.
+
+LATTICE RGB dot jitter: each dot now combines independent red, green and blue
+circles in the existing shader. Two overlapping channels produce secondary
+colors; three produce white, with no underlying white sprite. Jitter amplitude
+increases with geometric distance inside the disruption contour. Radius, speed,
+full-strength depth (grid cells), independent seed and an enable toggle are in
+the field Inspector. The shared contour is sampled at up to 20 Hz and includes
+padding outside the arena; the editor guide clips to the arena. The node
+texture's green channel carries depth, while red remains the locomotion state.
+The effect uses the paused field clock and independent per-node/channel timing.
+
+Unity 6000.0.28f1 / DX11 passed all 85 checks. New checks compare depth against
+an independent radial contour search and inspect rendered pixels for RGB layers,
+white and secondary-color overlaps, animation, pause and the disabled effect.
+Normal-scale and enlarged diagnostic captures were visually reviewed. No new
+runtime errors occurred; existing spawn warnings remain. No player build was run.
+Library/LatticeValidation/DotJitterBaseline preserves the preceding sources.
+
+LATTICE RGB ghost trails: the existing dot shader samples six prior positions
+per color channel from the seeded jitter motion. Older echoes shrink and fade;
+maximum coverage per channel preserves the current dot and prevents stationary
+brightness buildup. Dot Ghost Trails, Dot Trail Duration and Dot Trail Opacity
+are on the field. History uses the paused field clock and current disruption
+depth, with no persistent history textures or extra scene objects. The user's
+jitter-radius tuning is preserved. DotTrailBaseline stores the previous sources.
+
+The expanded suite passed all 92 checks on DX11. Rendered-pixel comparisons
+confirm visible ghosts, preserved dot heads, frozen trails on pause, opacity and
+duration behavior, and no halo at zero jitter. On/off and longer-history captures
+were visually reviewed. No runtime errors occurred in the completed run; existing
+spawn warnings remain. No standalone player build was run.
+
+LATTICE blue visibility refinement: the blue dot layer and its ghosts now include
+30% green, shifting them slightly toward cyan against black. Maximum channel
+coverage preserves white three-way overlaps and zero-jitter dots. Existing pixel
+assertions were updated for the tint; all 92 Play Mode checks passed on DX11,
+and dot/ghost captures were visually reviewed. User trail tuning (duration 0.6,
+opacity 0.75) was saved and preserved. CyanDotBaseline stores preceding sources.
+
+LATTICE Level Select icon (2026-10-03): LS_LATTICE Icon.prefab is a standalone
+presentation prefab with the existing LevelIcon selection hook. Ten cells along
+each axis fill the volume with 1,331 nodes and 3,630 connections. LatticeLevelIcon
+owns a transient mesh and edge/node buffers; its shader adapts the accepted
+strand curves into two bending planes and retains RGB jitter, cyan-blue tint and
+six ghost samples. A coherent warped volume combines two oblique native Perlin
+projections. Boundary tips, reconnect growth and geometric interior jitter depth
+are sampled at up to 20 Hz; nearby contour buckets bound the distance search.
+The menu clock is unscaled. Skin/frame wires are emphasized for readability.
+
+Create and Preview Level Icon (Ctrl+Shift+Alt+I) opens an isolated animated Editor
+window; prefab edits reload the preview. Validate Level Icon (Ctrl+Shift+Alt+J)
+passed 24 geometry/render/lifecycle checks, and Validate Icon in Play Mode
+(Ctrl+Shift+Alt+K) passed 10 runtime checks including selection scaling, unscaled
+time and multiple-instance cleanup. Large/menu-size/runtime renders were reviewed.
+Evidence: Library/LatticeIconValidation. Full CPU field/state refresh averaged
+10.95 ms in 20 Editor samples; rendering is excluded. No standalone build or GPU
+target profile was run. Gameplay grid sources, release catalog, Build Settings
+and existing level definitions are unchanged. See LATTICE/Level Icon.md.
+
+### LATTICE playable registration and icon rotation (2026-10-03)
+
+LevelDefinition-LATTICE now leads LevelCatalog as STAGE_001 at exponent -35.
+The six existing definitions retain their order and become stages 002 through 007.
+EditorBuildSettings appends enabled S-1_LATTICE, preserving every prior build index.
+The existing gameplay scene now binds a standard LevelSceneContext, its own empty
+StageProfile-LATTICE (the grid effect is continuous), explicit match/anomaly links,
+and corrected stage labels. Its accepted field and player adapters are preserved.
+The definition references the shared gameplay audio profile and a dedicated
+InstructionsPanel-LATTICE derived from the established instruction layout.
+
+The user reduced the icon to four cells per axis (125 nodes / 300 connections)
+and tuned its size, noise and dots. Those values are preserved. Slow Tumble adds
+smooth independently seeded angular velocity on three axes, default limit 8 deg/s
+and direction timescale 8 s. A transient quaternion rotates shader geometry using
+a property block; authored transforms and carousel placement are untouched. Bounds
+include every rotated orientation. Menu animation uses unscaled time, and the
+preview caption reads the actual authored size. The original ten-cell validator
+now explicitly builds a dense fixture without changing the four-cell prefab.
+
+LatticePlayableSetup.Register Playable Level is idempotent for catalog/build
+registration and creates missing definitions/instructions/stage assets. The normal
+carousel and SceneFlow code require no changes. LatticePlayableValidation exercises
+the real Level Select -> Instructions -> LATTICE -> PostGame -> Level Select path,
+shortening only the runtime fixture's remaining clock for match expiry. Twenty-five
+flow checks passed, including all actors, standard regulation/economy, the scale
+ruler, navigation wrap, paused-time rotation and authored tuning. Twenty-four dense
+volume rendering/geometry checks also passed after adding rotation. Evidence is in
+Library/LatticePlayableValidation and Library/LatticeIconValidation. No standalone
+player build or target GPU profile was run.
+
+Final screen captures verify centered LATTICE, STAGE_001, the -35 ruler marker and readable instructions. Unity's existing SceneReference.OnValidate also synchronized DYNAMO's stale serialized sceneName from S-8_MAGNETOSPHERE to its already assigned S-8_DYNAMO SceneAsset. Validation logged kinematic-velocity warnings in the shared player spawn routine and duplicate EventSystem warnings during return to Level Select; no runtime errors occurred. These shared components were not edited.
+

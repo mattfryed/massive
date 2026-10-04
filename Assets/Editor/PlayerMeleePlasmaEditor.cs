@@ -554,8 +554,13 @@ internal static class PlayerMeleePlasmaPreviewGUI
             "Multiplies the Repulsor's visual dimensions, maximum hit radius and grid response. Also inherits Player Size. Does not resize the player or change timing or damage.");
         DrawClampedFloat(stageProperty, "repulsorMaxRadius", "Base hit radius", 0f,
             "Maximum radius in world units at Player Size 1 and Overall Scale 1. The pulse begins at the body outline and cannot end inside it.");
-        DrawClampedFloat(stageProperty, "repulsorEnemyDamage", "Enemy damage", 0f,
-            "Flat health damage, once per enemy NPC per pulse. Zero disables NPC damage; it does not change opponent-player knockback or mass-loss settings.");
+        DrawClampedFloat(stageProperty, "repulsorEnemyDamage", "Outer NPC damage", 0f,
+            "Outer-zone health damage, once per NPC per pulse. The inner zone multiplies this amount.");
+        DrawClampedFloat(stageProperty, "repulsorInnerRadiusPlayerMultiplier", "Inner radius / player radius", 0f,
+            "1.5 makes the red zone 50% larger than the player's body. Capped at the outer radius.");
+        DrawClampedFloat(stageProperty, "repulsorInnerDamageMultiplier", "Inner damage multiplier", 1f,
+            "Damage multiplier inside the red zone for both NPCs and players.");
+        EditorGUILayout.PropertyField(stageProperty.FindPropertyRelative("repulsorShowDamageRings"), new GUIContent("Show live damage guides (Editor only)"));
         bool profileChanged = profileSerialized.ApplyModifiedProperties();
 
         var repulsor = plasma.GetComponentInChildren<PlayerRepulsorAOE>(true);
@@ -564,11 +569,14 @@ internal static class PlayerMeleePlasmaPreviewGUI
             stage.GetRepulsorRadius(PlayerScaleAdjuster.SizeOf(plasma),
                 PlayerScaleAdjuster.BodyRadiusOf(plasma.GetComponent<PlayerControllerScript>()));
         EditorGUILayout.LabelField("This player's max hit radius", maximumRadius.ToString("0.###") + " world units");
+        float innerRadius = repulsor ? repulsor.PreviewInnerRadiusWorld(stage) :
+            stage.GetRepulsorInnerRadius(PlayerScaleAdjuster.BodyRadiusOf(plasma.GetComponent<PlayerControllerScript>()), maximumRadius);
+        EditorGUILayout.LabelField("This player's inner hit radius", innerRadius.ToString("0.###") + " world units");
         var hitAreaSerialized = bindings.HitArea(repulsor);
         if (hitAreaSerialized != null)
         {
             hitAreaSerialized.Update();
-            DrawField(hitAreaSerialized, "showHitArea", "Show hit area", "Show the maximum hit radius in the Scene view when the player or Repulsor hitbox is selected. Enable Scene-view Gizmos to see it.");
+            DrawField(hitAreaSerialized, "showHitArea", "Show hit area", "Show live expanding damage radii in Play Mode, or maximum reach in Edit Mode, when the player or Repulsor hitbox is selected. Enable Scene-view Gizmos to see it.");
             if (hitAreaSerialized.ApplyModifiedProperties()) RefreshViews();
             if (GUILayout.Button("Select Repulsor hitbox"))
             {

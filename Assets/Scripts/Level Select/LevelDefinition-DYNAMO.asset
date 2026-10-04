@@ -12,11 +12,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5fbe94a6bd03940b9a5a78c567bc6665, type: 3}
   m_Name: LevelDefinition-DYNAMO
   m_EditorClassIdentifier: 
-  levelNumber: 4
+  levelNumber: 5
   levelTitle: DYNAMO
   scaleExponent: 8
   gameplayScene:
-    sceneName: S-8_MAGNETOSPHERE
+    sceneName: S-8_DYNAMO
     sceneAsset: {fileID: 102900000, guid: 042e78f8522eeb045b414fcf7ec1b63c, type: 3}
   iconPrefab: {fileID: 6718998717813906176, guid: d39a1d411809e4c66ba3a34f1d9f9fa8,
     type: 3}
