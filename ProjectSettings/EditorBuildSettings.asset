@@ -53,5 +53,8 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/S-1_LATTICE.unity
     guid: 943117e8f52abe2489b83a85be5f5fbf
+  - enabled: 1
+    path: Assets/Scenes/S-9_COSMOS.unity
+    guid: b95ef716fc162064ba31640a197b636a
   m_configObjects: {}
   m_UseUCBPForAssetBundles: 0

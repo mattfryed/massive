@@ -72,16 +72,28 @@ created. The buffer/material are transient and released on disable or scene unlo
 Changing the seed, particle count or Organic Strength rebuilds the distribution;
 dimensions, padding, colors, brightness, evolution variation, edge condensation and
 preview age only update shader parameters.
+`Drift Strength` changes continuous motion without rebuilding the distribution.
+`Cluster Turbulence` and `Turbulence Strength` also update shader parameters only.
+`Early Heat` and `Early Heat Brightness` change only early color and light.
+All appearance controls below update live without regenerating the topology.
 
 - The existing regulation clock owns age: start/countdown = 0, half of regulation =
   0.5, regulation end = 1. Paused regulation, including bonus phases, holds age.
 - Early matter is nearly uniform. It gathers onto interconnected filaments and
-  pink cluster junctions by the midpoint; late matter gathers more tightly at
-  junctions, leaving only a tenuous filament population and dominant black voids.
-- The web follows the current oval with a **0.25 world-unit padding** default.
+  pink cluster junctions around the midpoint. Formation and accretion overlap
+  through regional timing windows; there is no shared stop/switch at age 0.5.
+  Nearby clusters travel toward shared centers of mass in staggered mergers,
+  while the entire web is transported by a continuous, coherent flow. Late
+  accretion approaches its targets gradually without snapping into a fixed final
+  pose. A tenuous filament population and dominant black voids remain.
+- The web follows the current oval with a **0.25 world-unit padding** default
+  (the user has currently authored **0.05**).
   Outer filament ends are paired with curved return paths on the model's enclosing
-  ellipsoid. A smooth compact projection condenses the outer network progressively;
-  a second smooth compression keeps the far sides before the goal separators.
+  ellipsoid. A smooth compact projection condenses the outer network progressively
+  toward the **full ellipse, including both goal caps**. The background ignores
+  the playable goal separators: neither its projection nor its fragment mask
+  squeezes or clips the left and right sides at those borders. Goals continue to
+  occlude the web through the existing depth test; gameplay bounds are separate.
   Projection includes the inset plus a small glow allowance; the fragment mask is
   a final safety boundary for glow, rather than cutting off filament centerlines.
   Its thin depth slab sits behind the grid and
@@ -90,19 +102,88 @@ preview age only update shader parameters.
   actual match clock. Palette, density, galaxy size, brightness and padding remain
   Inspector controls. **Organic Strength** controls multiscale curvature and branch
   spread; **Evolution Variation** controls regional collapse timing and infall drift;
-  **Edge Condensation** controls the gradual lens-like compression. Save scene edits
-  to keep them.
+  **Edge Condensation** controls the gradual lens-like compression.
+  **Lensing Transition Smoothness** changes the geometric transition between the
+  middle and condensed rim: **0** tightens compression near the rim, **0.5** retains
+  the previous profile, and **1** spreads it into a broader, smoother transition
+  inward. It reshapes radial spacing after the existing lens calculation, with a
+  monotonic curve that preserves the centre and the full-oval boundary. It changes
+  particle placement, independently of edge darkening, without rebuilding the web.
+  **Edge Vignette** (previously **Edge Condensation Feathering**) controls the glow fade inward from the padded
+  oval boundary in world units: **0.05** retains the original edge, larger values
+  soften the condensed rim, and zero gives a crisp edge. This changes the visual
+  falloff, not the oval projection or gameplay boundary. Existing feathering values
+  migrate to the renamed field. **Brightness Variance**
+  controls base emission contrast between tracers: **0** is uniform, **1** retains
+  the original variation, and **2** increases contrast. Haze and evolution dimming
+  remain applied separately. Save scene edits to keep them.
+- **Animate Preview** keeps the selected age flowing in Edit Mode, including 0
+  and 1. Turn it off to freeze the current preview. Scrubbing age resets the
+  preview flow clock for repeatable comparison. **Drift Strength** controls the
+  shared flow amplitude. Play Mode has its own scaled-time flow clock; paused
+  regulation bonus phases hold that clock along with evolution. No use is made
+  of the global shader `_Time`, so those pauses hold the actual geometry.
+- **Early Heat** (default **1**, range 0–1) gives the initial soup a mottled
+  cyan/blue, gold, orange and red palette inspired by the supplied microwave-sky
+  reference. **Early Heat Brightness** (default **1.55**) multiplies the existing
+  brightness only during that early phase. **Early Heat Transition Point** is the
+  age at which heat finishes fading (default **0.45**). **Early Heat Transition
+  Duration** sets the fade length (default **0.43**, so fading starts at **0.02**).
+  The start is clamped to Age 0; a zero duration switches at the transition point.
+  The defaults preserve the midpoint and late palette, while later transition
+  points can deliberately carry heat further into the timeline.
+  Setting Early Heat to zero restores the original early appearance. Three scales
+  of coherent noise provide patches and fine grain without making density clumps;
+  overlapping depths share a color field, and its slow evolution follows the
+  existing motion clock. The existing haze gets a softer early glow within the
+  same particle footprint to retain the luminous soup between pinpoints.
+  Positions, sizes, particle count, formation, mergers and
+  turbulence are unaffected. These are artistic heat-map colors, not calibrated
+  temperatures or a change to the evolution model. No new textures, buffers or
+  draw calls are used; the heat noise is bypassed after it fades out.
+- **Early Heat colors and distribution** exposes the four heat colors and
+  **Cyan Coverage**, **Gold Coverage**, and **Red Coverage**. Higher coverage lets
+  that color reach further into cooler patches; these control relative temperature
+  ranges, not exact screen percentages. Blue is the base; cyan, then gold, then red
+  blend over it. Zero excludes a band and one fully applies it before later bands.
+  Defaults (**0.78 / 0.525 / 0.23**) retain the original color balance. Color and
+  coverage changes affect the heat overlay only, not the filament/cluster palette.
+- **Cluster Turbulence** enables irregular local flow and gentle attraction around the
+  moving cluster centers (enabled by default). **Turbulence Strength** defaults to
+  **0.7**, with a 0–2 range. Turn the toggle off, or set strength to zero, to bypass
+  the local turbulence calculations and compare the previous flow. The same seeded
+  structure is retained, and changing these controls does not rebuild the buffer.
+  Three coupled noise-driven shears at different scales stretch and fold streams,
+  with a different flow orientation and rate per cluster and stronger stirring
+  during mergers. Smoothly changing noise replaces the shared circular rotation;
+  there are no accumulating orbital angles or repeating sine-driven orbit paths.
+  Influence fades smoothly with distance from
+  the cluster and with early formation; residual filaments remain unaffected.
+  Attraction is bounded to retain finite cores, and motion continues at age 1.
+  It shares the preview/match motion clock, so **Animate Preview** and bonus pauses
+  freeze it along with the existing drift. This is a visual approximation with one
+  assigned attractor per tracer, not a galaxy-to-galaxy force simulation.
 
 ### Scientific basis and artistic interpretation
 
 This is a seeded geometric model of structure formation, not a downloaded JWST
 catalogue, an N-body gravity calculation or an exact reconstruction of our sky.
 Irregularly seeded three-dimensional Voronoi void cells define a coarse connected
-skeleton. Several octaves of coherent spatial noise curve that skeleton; thinner
-offshoots leave and rejoin parent filaments, and filament width varies spatially.
+skeleton. Several octaves of coherent spatial noise curve that skeleton. Each
+filament has six sampled routes: a main strand and finer tributaries that leave
+and rejoin from either end. Correlated density changes trunk thickness and light;
+small galaxy groups punctuate longer filaments between the main junctions. A
+faint particle population spans neighboring routes as diffuse ribbons/sheets.
+Cluster sizes vary coherently at shared junctions, with a mildly elongated profile
+and fewer large concentrations. This hierarchy retains open voids at the existing
+56,000-particle budget and does not add draw calls or per-frame uploads.
 Continuous trajectories carry the same particles from a homogeneous distribution
 to filaments and knots. Coherent regional timing differences, curved infall and
-curved accretion paths make evolution uneven, with exact anchors at 0, 0.5 and 1.
+curved accretion paths make evolution uneven. Age 0.5 remains a close structural
+reference, rather than a mandatory stationary anchor. Neighboring junctions are
+paired by proximity and richness for local mergers; both members move. Their
+shared center is also carried by the flow. This is an illustrative kinematic
+model, not gravitational integration.
 No time-varying random reseeding or particle respawning is involved.
 
 The closed outer return paths and lens-like oval projection are arena presentation
@@ -121,6 +202,7 @@ or a prediction of future cosmic evolution.
 
 References:
 - https://svs.gsfc.nasa.gov/14598/
+- https://science.nasa.gov/universe/galaxies/large-scale-structures/
 - https://science.nasa.gov/missions/hubble/slime-mold-simulations-used-to-map-dark-matter-holding-universe-together/
 - https://www.nasa.gov/missions/webb/nasa-reveals-new-details-about-dark-matters-influence-on-universe/
 - https://www.nasa.gov/universe/nasas-webb-identifies-the-earliest-strands-of-the-cosmic-web/
@@ -130,8 +212,179 @@ References:
 adds/wires this scene-local component while preserving existing transforms and
 the user's oval dimensions. Reinstallation preserves authored web settings.
 **Validate evolution in Play Mode** (`Ctrl+Shift+Alt+F12`) verifies topology,
-boundary reconnection, CPU/GPU trajectory agreement, padded projection, nonlinear
+boundary reconnection, CPU/GPU trajectory agreement, padded full-ellipse projection,
+coverage behind both goals, independence from separator positions, nonlinear
 regional timing, occupancy progression, clock binding, paused-clock behavior and
 resource lifecycle. It captures five eras including both transitions and returns to
 Edit Mode. Reports and captures
 are in `Library/CosmosWeb`; the pre-install scene backup is `BeforeWeb.unity` there.
+
+Earlier full-oval/structure revision validated in Unity 6000.0.28f1 / Direct3D11 on
+2026-10-04: **32 checks passed**, with no runtime errors or exceptions. The GPU
+probe covers nine ages, stays inside the padded ellipse, populates both goal caps,
+and produces identical positions when only the gameplay separators change.
+The CPU/GPU position difference was at most 0.000005 local units. All five era
+captures were visually reviewed. The 636-filament network includes 265 secondary
+galaxy groups; sampled empty-cell fractions progress from 0.1% to 18.1% to 68.7%.
+The saved scene is byte-identical, retaining the 36 x 13 oval and camera size 9.
+No standalone build or cabinet performance qualification was run.
+
+Fluid-motion revision (2026-10-04): 41 Play Mode checks passed in the same Editor
+and graphics backend, with no runtime errors/exceptions. The current seed has
+203 local merger pairs. 99.8% of sampled tracers keep moving across age 0.5;
+maximum sampled velocity change across that boundary is 0.00048 model units/sec.
+Mean midpoint displacement from the previous authored structure is 0.128 model
+units. At fixed ages 0, 0.5 and 1, eight seconds of flow produces approximately
+0.2 model units of mean drift. CPU/GPU disagreement is at most 0.000006 local
+units. Full-oval coverage, bonus-clock pause, buffer reuse/cleanup, deterministic
+seeding and the saved scene's byte preservation pass. The persistent particle
+buffer now uses 96 bytes per tracer (one extra vector for the merger), retaining
+the existing single draw and particle count. Live Edit Mode also advances the
+shader motion clock without regenerating topology or dirtying the scene.
+Standalone builds and cabinet performance remain untested.
+
+Optional cluster-turbulence revision: the persistent buffer now uses **128 bytes
+per tracer** for a shared attractor position/radius and seeded flow orientation/rate.
+At 56,000 tracers that adds 1,792,000 bytes (about 1.71 MiB), with the existing
+single draw, particle count and no per-frame buffer uploads. Disabling turbulence
+bypasses its shader math; the buffer layout and memory remain the same. Tests and
+performance profiling for this addition are deferred at the user's request for
+evaluation on the target machine. The earlier validation results above predate
+this effect; the existing CPU/GPU baseline probes default to turbulence disabled.
+
+The irregular-flow revision (2026-10-05) replaces radial rotation with coupled
+spatial noise in a seeded local frame. Successive shears act on the preceding
+pass's displaced coordinates, producing changing asymmetric clumps and streams.
+Smaller flow scales emerge as the clusters condense; the finite displacement and
+gentle inward pull keep the effect local. Its three noise samples have fixed cost
+per affected tracer. Particle count, buffer stride, draw count, clock behavior and
+the existing toggle/strength controls are unchanged. Visual and performance
+testing remain deferred to the user's machine; earlier test results do not qualify
+this revision. Visual reference: the 20:24–20:35 segment of
+https://www.youtube.com/watch?v=UCgVlHlNWpA&t=1224s (used for appearance only).
+
+## Supernovae and mass nugglets
+
+`VectorGridGPU` in `S-9_COSMOS.unity` now has **Cosmic Supernovae**, referencing
+the existing web and `ORBITAL/Mass Nugglet.prefab`. Its **Frequency Over Age**
+curve maps normalized simulation Age (X, 0–1) to a frequency multiplier (Y).
+The default bell curve starts/ends at zero and peaks at Age 0.5. **Peak Explosions
+Per Second** defaults to 1 and sets the rate when the curve is at 1. Random
+exponential waiting intervals are integrated against the advancing regulation
+clock, giving irregular timing instead of synchronized or evenly spaced pulses.
+Countdown, stopped regulation time and completed matches do not generate bursts.
+Timeline rewinds reset the event schedule and clear owned pickups/flashes.
+Warning glows are scheduled ahead by their buildup duration so explosion peaks
+still follow the authored Age curve. Warnings too close to the match's end are
+skipped.
+
+**Cluster Bias** defaults to 0.92. Sampling uses a compact set of 2,048 actual
+web tracers and their current formation/accretion weights, with the same CPU
+motion, turbulence and oval lensing as the rendered web. This follows drifting
+and merging clusters without a GPU readback or another topology generation.
+Early unformed matter stays dispersed; occasional filament events remain possible.
+Candidates beyond the playable goal separators or within **Wall Clearance** are
+rejected rather than moved away from their source galaxy.
+
+Each event begins with a subtle localized glow that follows its source galaxy.
+**Build Up Seconds** defaults to 1.8, with **Build Up Brightness** at 0.12 of
+flash brightness. **Flicker Strength** (0.35) and **Flicker Speed** (7) control
+smooth, irregular noise during the rise. Setting buildup time to zero restores
+an immediate burst. At the peak, a white/warm flash with a small expanding ring
+releases exactly one existing mass nugglet directly above that point on the XZ
+gameplay plane. Its direction is uniform around the plane, with **Ejection Speed**
+randomized between 2 and 5 world units/second by default. The existing pickup
+handles collection rewards, damping, wall bounces and despawn; its fractional
+reward remains 0.1 of the standard pickup reward. **Nugglet Lifetime** defaults
+to 20 seconds. Up to 32 pickups are pooled; each warning reserves a slot until
+its explosion. When all slots are occupied or reserved, new events are skipped
+without removing a collectible. Capacity is allocated at level start. If the
+source galaxy leaves the playable area during buildup, its warning fades away
+and releases the reservation without spawning a pickup.
+
+**Die Off Seconds** defaults to 0.3 for a quick, smooth glow fade after the peak.
+Flash color, emission, radius and ring duration remain Inspector controls (default
+duration 0.4 seconds and radius 0.75 world units). The glow shares the existing
+flash quad/material; up to 32 warnings/flashes can coexist. Flash storage and catch-up
+bursts are bounded. Disabling the component clears its effects; destruction
+releases the pool and generated mesh/material. A fixed random seed is optional.
+
+Validation: scripts/shader imported with no Console errors or warnings; scene
+references and default curve values were checked. Isolated renders of buildup,
+peak and die-off were inspected over the live web. This glow revision does not
+save the scene or overwrite its existing Inspector tuning. Play Mode timing,
+collection, balance, automated tests, standalone builds and target-machine
+profiling remain deferred.
+
+## Level Select icon
+
+`LS_COSMOS Icon.prefab` is assigned to `LevelDefinition-COSMOS.asset`. It displays
+the same seeded web at **Age 0.5**, in a fully 3D ovoid with no grid, goals
+or flattened background depth. Its independent unscaled motion clock drives the
+existing shared flow and irregular cluster turbulence without advancing Age.
+Smooth 3D radial compression shapes the cloud in its own local frame. Its default
+length:height:depth proportions are 1.8:1:1, giving a rounded cross-section.
+A slow optional tumble rotates the complete ovoid about an oblique axis, revealing
+its sides and ends with natural foreshortening. The filaments also move internally;
+the ovoid contains a volume of tracers, including its interior, rather than a shell.
+
+The default **8,000 tracers** are about 86% fewer than the 56,000-tracer background.
+`Cosmic Web Icon Data.asset` bakes the source topology once in the Editor, avoiding
+Voronoi generation when entering the menu. One mesh renderer draws GPU-animated
+billboards; there is no runtime capture camera/render texture, particle simulation
+on the CPU, or per-frame particle-buffer upload. The particle buffer uses 1,024,000
+bytes, with an additional quad mesh and the baked source asset. These are budget
+reductions, not measured target-machine performance results.
+
+The icon uses crisp, solid circular particles with full unlit emission. Each
+surviving fragment outputs its palette color times **Brightness**, with alpha 1.
+Binary circular cutouts, blending disabled, and depth writes/testing enabled
+give the dots the same opaque rendering approach as NOVA's particles. The gaps
+between particles remain open. There is no diffuse halo, haze, radial brightness
+falloff or artificial depth dimming. This replaces the former two-pass coverage
+and glow technique with one pass using the same 8,000 tracers and mesh/buffer.
+
+**Size Variance** replaces the icon's former Brightness Variance control, preserving
+its saved value through `FormerlySerializedAs`. The existing baked density weights
+and stable particle seeds produce smaller dust points and larger knots. Zero
+gives uniform sizes; increasing it widens the size distribution. Sizes remain
+stable during motion, and **Point Size** scales the full distribution. The palette
+and global Brightness still control emitted color; no lights are required.
+The obsolete Core Opacity and Haze Opacity material controls have been removed.
+
+Solid-particle revision (2026-10-05): Unity scripts and the shader compiled with
+no errors or warnings. Isolated previews using the actual NOVA, SINGULARITY and
+COSMOS prefabs checked carousel overlap, the standalone cloud, uniform sizes,
+and a later motion pose. The icon retains its fixed Age 0.5, 3D ovoid and existing
+motion tuning. Automated tests, Play Mode navigation, standalone builds and
+target-machine profiling remain deferred.
+
+On the prefab's **Cosmic Web Cloud** child, tune Particle Count (256–8,000), Cloud
+Scale, Oval Aspect, Depth Ratio, Point Size, Size Variance, the palette/brightness controls, Motion Speed, Drift Strength
+and Cluster Turbulence. **Animate** freezes all motion; setting **Turn Degrees Per
+Second** to zero stops only the overall turn. Age is fixed inside the icon shader.
+The runtime mesh and buffer are released when the component is disabled/destroyed.
+
+**MASSIVE > COSMOS > Create and Preview Level Icon** opens an isolated animated
+preview and creates only missing assets. It preserves existing prefab tuning and
+does not save or replace open scenes. The current icon was baked with seed 90210,
+Organic Strength 1 and the source's blue/pink palette, brightness 1.5 and turbulence
+strength 2. New icons initialize Size Variance from the source's brightness variance;
+the current prefab retains its authored variation value of 1.826. The icon creation menu only creates
+missing icon assets and assigns the LevelDefinition icon reference.
+
+COSMOS is registered after SINGULARITY in the main `LevelCatalog`, retaining its
+authored **STAGE_009** identity and scale exponent 26. Its definition references
+`InstructionsPanel-COSMOS.prefab`, which uses the existing instructions layout and
+a nested instance of the animated ovoid icon. The panel describes the evolving
+cosmic web and the shared amplifier-core scoring objective. The saved
+`Assets/Scenes/S-9_COSMOS.unity` is enabled in Build Settings for the existing
+Level Select -> Instructions -> selected-gameplay flow. Other catalog entries,
+build entries and the gameplay scene are preserved.
+Registration was checked against the saved catalog, definition, instructions
+prefab and build list. The COSMOS gameplay scene remains byte-identical; a full
+Play Mode navigation run and target-machine testing have not been performed.
+
+Icon revision (2026-10-05): Editor scripts/shader imported without errors and an
+isolated still preview was reviewed. Automated tests, Play Mode, standalone builds
+and target-machine profiling remain deferred to the user.

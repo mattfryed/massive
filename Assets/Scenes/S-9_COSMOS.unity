@@ -215,7 +215,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 45943354}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: a1c3862d52f0142dba3ccf29a76cc414, type: 3}
   m_Name: 
@@ -1092,7 +1092,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &277358975
 Transform:
   m_ObjectHideFlags: 0
@@ -2006,7 +2006,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &641442411
 Transform:
   m_ObjectHideFlags: 0
@@ -3063,7 +3063,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &974775268
 Transform:
   m_ObjectHideFlags: 0
@@ -3346,7 +3346,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &1118500389
 Transform:
   m_ObjectHideFlags: 0
@@ -5724,7 +5724,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &1509144055
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -14206,6 +14206,7 @@ GameObject:
   - component: {fileID: 1513023695}
   - component: {fileID: 8455266651050621218}
   - component: {fileID: 8455266651050621219}
+  - component: {fileID: 8455266651050621220}
   m_Layer: 0
   m_Name: VectorGridGPU
   m_TagString: Untagged
@@ -29810,18 +29811,156 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   match: {fileID: 1341292505}
   particleShader: {fileID: 4800000, guid: dd3b292095d961248bf9d9a7d2d23d5e, type: 3}
-  padding: 0.25
+  padding: 0.05
   backgroundDepth: 1.7
   seed: 90210
   particleCount: 56000
   organicStrength: 1
   evolutionVariation: 1
-  edgeCondensation: 0.6
+  edgeCondensation: 0.686
+  lensingTransitionSmoothness: 0.772
+  edgeVignette: 0.386
+  driftStrength: 1
+  clusterTurbulence: 1
+  turbulenceStrength: 2
   filamentColor: {r: 0.035, g: 0.32, b: 0.85, a: 1}
   clusterColor: {r: 1, g: 0.24, b: 0.61, a: 1}
-  brightness: 1
+  brightness: 1.5
+  brightnessVariance: 1.449
   galaxySize: 0.025
-  previewAge: 0.5
+  earlyHeat: 1
+  earlyHeatBrightness: 1.55
+  earlyHeatTransitionPoint: 0.257
+  earlyHeatTransitionDuration: 0.43
+  earlyHeatBlueColor: {r: 0.015, g: 0.12, b: 0.65, a: 1}
+  earlyHeatCyanColor: {r: 0.025, g: 0.66, b: 1, a: 1}
+  earlyHeatCyanCoverage: 0.78
+  earlyHeatGoldColor: {r: 1, g: 0.86, b: 0.12, a: 1}
+  earlyHeatGoldCoverage: 0.525
+  earlyHeatRedColor: {r: 1, g: 0.12, b: 0.012, a: 1}
+  earlyHeatRedCoverage: 0.23
+  previewAge: 1
+  animatePreview: 1
+--- !u!114 &8455266651050621220
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 405120828900279794}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 287a4c181791a98439f04e424921452e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  web: {fileID: 8455266651050621219}
+  nuggletPrefab: {fileID: 7525906451072600638, guid: 1018c5973353f8d44ba27b035f53c907,
+    type: 3}
+  flashShader: {fileID: 4800000, guid: f061c8a7daf1ce94ca644945b46a16b6, type: 3}
+  frequencyOverAge:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.125
+      value: 0.09505877
+      inSlope: 1.3498107
+      outSlope: 1.3498107
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.25
+      value: 0.36782643
+      inSlope: 3.0045626
+      outSlope: 3.0045626
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.375
+      value: 0.7811218
+      inSlope: 3.0967848
+      outSlope: 3.0967848
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.5
+      value: 1
+      inSlope: -0
+      outSlope: -0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.625
+      value: 0.7811218
+      inSlope: -3.0967848
+      outSlope: -3.0967848
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.75
+      value: 0.36782643
+      inSlope: -3.0045626
+      outSlope: -3.0045626
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.875
+      value: 0.09505877
+      inSlope: -1.3498107
+      outSlope: -1.3498107
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  peakExplosionsPerSecond: 3
+  clusterBias: 0.92
+  wallClearance: 0.35
+  ejectionSpeed: {x: 2, y: 5}
+  nuggletLifetime: 20
+  nuggletCapacity: 32
+  flashColor: {r: 1, g: 0.67, b: 0.25, a: 1}
+  flashBrightness: 4
+  flashRadius: 0.75
+  flashSeconds: 0.4
+  buildUpSeconds: 1.8
+  buildUpBrightness: 0.12
+  flickerStrength: 0.35
+  flickerSpeed: 7
+  dieOffSeconds: 0.3
+  fixedRandomSeed: 0
+  randomSeed: 90211
 --- !u!4 &8495005746540136009
 Transform:
   m_ObjectHideFlags: 0

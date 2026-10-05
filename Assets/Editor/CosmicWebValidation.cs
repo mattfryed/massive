@@ -28,6 +28,7 @@ public static class CosmicWebValidation
             throw new InvalidOperationException("Open saved COSMOS in Edit Mode.");
         Directory.CreateDirectory(CosmicWebSetup.Output);
         File.WriteAllText(CosmicWebSetup.Output + "/validation.txt", "STARTING\n");
+        SessionState.SetString(Key + ".SceneHash", Hash128.Compute(File.ReadAllText(SceneManager.GetActiveScene().path)).ToString());
         SessionState.SetBool(Key, true); EditorApplication.isPlaying = true;
     }
     static void State(PlayModeStateChange state)
@@ -71,8 +72,8 @@ public static class CosmicWebValidation
         var match = web.match;
         Check(web.RenderedParticleCount == web.particleCount && web.FilamentCount > 50, "GPU particles and three-dimensional filament topology initialized");
         Check(!ShaderUtil.ShaderHasError(web.particleShader), "Cosmic web shader compiles on the active graphics device");
-        Check(Mathf.Abs(web.padding - .25f) < .0001f, "0.25 world-unit inset configured");
-        Check(File.ReadAllText(CosmicWebSetup.Output + "/preservation.txt").StartsWith("PASS"), "Installation preserves chosen oval, camera and all existing transforms");
+        Check(web.padding >= 0, $"Authored {web.padding:F2} world-unit inset retained");
+        Check(match != null, "Web is bound to the scene's regulation clock");
         Check(web.Age == 0, "Preparing/countdown begins in the homogeneous era");
         int generation = web.Generation;
         var randomBefore = UnityEngine.Random.state;
@@ -82,6 +83,8 @@ public static class CosmicWebValidation
         Check(data.Take(12).SequenceEqual(repeat), "Particle paths are deterministic for the same seed");
         Check(statistics.boundaryEnds > 0 && statistics.boundaryEnds == statistics.reconnectedEnds, $"All {statistics.boundaryEnds} outer filament ends have return connections");
         Check(statistics.meanBend > .15f, $"Filament paths have spatial curvature (mean midpoint bend {statistics.meanBend:F3} model units)");
+        Check(statistics.galaxyGroups > 30, $"Secondary galaxy groups punctuate the strands ({statistics.galaxyGroups} groups)");
+        Check(statistics.mergingPairs > 30, $"Neighboring clusters have staggered local mergers ({statistics.mergingPairs} pairs)");
         CheckMotion(data, web, arena);
         float startEmpty = EmptyFraction(data, arena, web, 0), midEmpty = EmptyFraction(data, arena, web, .5f), endEmpty = EmptyFraction(data, arena, web, 1);
         Check(startEmpty < .08f, $"Initial distribution fills the oval evenly (empty cells {startEmpty:P1})");
@@ -97,8 +100,11 @@ public static class CosmicWebValidation
         Check(Mathf.Abs(web.Age - .5f) < .015f, "Midpoint follows the authoritative regulation clock");
         Check(match.BeginBonusRound(true), "Paused-clock bonus phase can be entered");
         float pausedAge = web.Age;
+        yield return null; yield return null;
+        float pausedMotion = web.MotionTime;
         for (int i = 0; i < 12; i++) yield return null;
         Check(web.Age == pausedAge, "Paused regulation does not advance cosmic evolution");
+        Check(web.MotionTime == pausedMotion, "Paused-clock bonus phase also holds the continuous flow");
         Capture("middle");
         SetRemaining(match, match.RegulationDurationSeconds * .25f);
         yield return null; yield return null; Capture("evacuating");
@@ -111,6 +117,8 @@ public static class CosmicWebValidation
         Check(web.RenderedParticleCount == 0, "Disabling releases GPU resources");
         web.enabled = true; yield return null; yield return null;
         Check(web.RenderedParticleCount == web.particleCount, "Re-enabling safely reconstructs the web");
+        Check(Hash128.Compute(File.ReadAllText(CosmosLayoutSetup.ScenePath)).ToString() == SessionState.GetString(Key + ".SceneHash", ""),
+            "Validation leaves the authored COSMOS scene unchanged");
         Check(errors.Count == 0, "No runtime errors or exceptions");
     }
     static void SetRemaining(GameManagerScript match, float value) =>
@@ -122,8 +130,8 @@ public static class CosmicWebValidation
         var cells = new bool[nx * ny];
         foreach (var particle in data)
         {
-            Vector3 raw = CosmicWebTopology.Position(particle, age, web.evolutionVariation);
-            Vector2 projected = CosmicWebTopology.Project(raw, arena.OutlineShaderParameters, WorldScale(web), web.padding + .06f, web.edgeCondensation);
+            Vector3 raw = CosmicWebTopology.Position(particle, age, web.evolutionVariation, age * 120, web.driftStrength);
+            Vector2 projected = CosmicWebTopology.Project(raw, arena.OutlineShaderParameters, WorldScale(web), web.padding + .06f, web.edgeCondensation, web.lensingTransitionSmoothness);
             Vector3 p = new Vector3(projected.x / arena.OvalHalfWidthLocal, projected.y / (arena.Grid.size.y * .5f), 0);
             int x = Mathf.FloorToInt((p.x + 1) * .5f * nx), y = Mathf.FloorToInt((p.y + 1) * .5f * ny);
             if (x >= 0 && x < nx && y >= 0 && y < ny) cells[x + y * nx] = true;
@@ -134,50 +142,108 @@ public static class CosmicWebValidation
             {
                 Vector3 local = new Vector3(((x + .5f) / nx * 2 - 1) * arena.OvalHalfWidthLocal,
                     ((y + .5f) / ny * 2 - 1) * arena.Grid.size.y * .5f, 0);
-                if (!arena.ContainsWorldPoint(arena.transform.TransformPoint(local), web.padding)) continue;
+                if (!InsideBackdrop(local, arena.OutlineShaderParameters, WorldScale(web), web.padding)) continue;
                 total++; if (!cells[x + y * nx]) empty++;
             }
         return (float)empty / Mathf.Max(1, total);
     }
     static Vector2 WorldScale(CosmicWebBackground web) => new Vector2(Mathf.Abs(web.transform.lossyScale.x), Mathf.Abs(web.transform.lossyScale.y));
+
+    // Independently test a small world-space disc against the entire ellipse. Playable
+    // containment intentionally excludes goal caps, so it is not a backdrop boundary test.
+    static bool InsideBackdrop(Vector2 local, Vector4 oval, Vector2 scale, float padding)
+    {
+        Vector2 p = Vector2.Scale(local, scale), ab = Vector2.Scale(new Vector2(oval.z, oval.y), scale);
+        for (int i = 0; i < 32; i++)
+        {
+            float angle = i * Mathf.PI * 2 / 32;
+            Vector2 q = p + new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * padding;
+            if (q.x * q.x / (ab.x * ab.x) + q.y * q.y / (ab.y * ab.y) > 1.00001f) return false;
+        }
+        return true;
+    }
+
     static void CheckMotion(CosmicWebTopology.Particle[] data, CosmicWebBackground web, ArenaBoundsFromVectorGrid arena)
     {
         const int count = 512;
         var probe = AssetDatabase.LoadAssetAtPath<ComputeShader>("Assets/Editor/CosmicWebProbe.compute");
         Check(probe, "Production trajectory/projection shader probe loads");
         var sample = data.Take(count).ToArray();
-        using var input = new ComputeBuffer(count, 80);
+        using var input = new ComputeBuffer(count, CosmicWebTopology.ParticleStride);
         using var output = new ComputeBuffer(count, 16);
         input.SetData(sample);
         int kernel = probe.FindKernel("Evaluate");
         probe.SetBuffer(kernel, "_Particles", input); probe.SetBuffer(kernel, "_Projected", output);
         probe.SetInt("_Count", count); probe.SetFloat("_Variation", web.evolutionVariation);
         probe.SetFloat("_Padding", web.padding); probe.SetFloat("_Condensation", web.edgeCondensation);
+        probe.SetFloat("_LensingTransitionSmoothness", web.lensingTransitionSmoothness);
+        probe.SetFloat("_DriftStrength", web.driftStrength);
         probe.SetVector("_Oval", arena.OutlineShaderParameters);
         var scale = WorldScale(web); probe.SetVector("_Scale", new Vector4(scale.x, scale.y, 0, 0));
         var actual = new Vector4[count]; float maxError = 0, minPhase = 1, maxPhase = 0;
-        bool inside = true, continuous = true;
+        bool inside = true, continuous = true, fillsBothCaps = true;
         foreach (float age in new[] { 0f, .15f, .25f, .4f, .5f, .6f, .75f, .9f, 1f })
         {
-            probe.SetFloat("_Age", age); probe.Dispatch(kernel, count / 64, 1, 1); output.GetData(actual);
+            probe.SetFloat("_Age", age); probe.SetFloat("_MotionTime", age * 120);
+            probe.Dispatch(kernel, count / 64, 1, 1); output.GetData(actual);
+            int leftCap = 0, rightCap = 0;
             for (int i = 0; i < count; i++)
             {
-                Vector3 raw = CosmicWebTopology.Position(sample[i], age, web.evolutionVariation);
-                Vector2 expected = CosmicWebTopology.Project(raw, arena.OutlineShaderParameters, scale, web.padding + .06f, web.edgeCondensation);
+                Vector3 raw = CosmicWebTopology.Position(sample[i], age, web.evolutionVariation, age * 120, web.driftStrength);
+                Vector2 expected = CosmicWebTopology.Project(raw, arena.OutlineShaderParameters, scale, web.padding + .06f, web.edgeCondensation, web.lensingTransitionSmoothness);
                 maxError = Mathf.Max(maxError, Vector2.Distance(expected, actual[i]));
-                inside &= !float.IsNaN(actual[i].x) && arena.ContainsWorldPoint(web.transform.TransformPoint(new Vector3(actual[i].x, actual[i].y, 0)), web.padding - .002f);
+                inside &= !float.IsNaN(actual[i].x) && !float.IsNaN(actual[i].y) &&
+                    InsideBackdrop(actual[i], arena.OutlineShaderParameters, scale, web.padding - .002f);
+                if (actual[i].x < -arena.Grid.size.x * .5f) leftCap++;
+                if (actual[i].x > arena.Grid.size.x * .5f) rightCap++;
                 if (age == .25f) { minPhase = Mathf.Min(minPhase, actual[i].z); maxPhase = Mathf.Max(maxPhase, actual[i].z); }
                 continuous &= Vector3.Distance(CosmicWebTopology.Position(sample[i], age, web.evolutionVariation),
                     CosmicWebTopology.Position(sample[i], Mathf.Min(1, age + .0001f), web.evolutionVariation)) < .02f;
             }
+            fillsBothCaps &= leftCap > 0 && rightCap > 0;
         }
         Check(maxError < .001f, $"GPU trajectory/projection agrees with CPU reference (max error {maxError:F6})");
-        Check(inside, "Projected particles stay inside the padded oval and outside goals throughout evolution");
+        Check(inside, "Projected particles stay inside the padded full ellipse throughout evolution");
+        Check(fillsBothCaps, "GPU particles extend behind both goal separators at all nine sampled ages");
+        var baseline = (Vector4[])actual.Clone();
+        var changedSeparator = arena.OutlineShaderParameters; changedSeparator.x *= .55f;
+        probe.SetVector("_Oval", changedSeparator); probe.Dispatch(kernel, count / 64, 1, 1); output.GetData(actual);
+        Check(actual.SequenceEqual(baseline), "Moving gameplay separators cannot squeeze the GPU backdrop");
+        Vector2 cap = CosmicWebTopology.Project(new Vector3(1.3f, 0, 0), arena.OutlineShaderParameters, scale, web.padding + .06f, web.edgeCondensation, web.lensingTransitionSmoothness);
+        Check(cap.x > arena.Grid.size.x * .5f &&
+            !arena.ContainsWorldPoint(web.transform.TransformPoint(new Vector3(cap.x, cap.y, 0))),
+            "Backdrop occupies the goal cap while gameplay still excludes it");
         Check(continuous, "No trajectory jumps at epoch transitions");
         Check(maxPhase - minPhase > .3f, $"Regions collapse at different rates (quarter-match phase range {minPhase:F2}–{maxPhase:F2})");
-        Check(sample.All(p => Vector3.Distance(CosmicWebTopology.Position(p, 0), p.initial) < .00001f &&
-            Vector3.Distance(CosmicWebTopology.Position(p, .5f), p.filament) < .00001f &&
-            Vector3.Distance(CosmicWebTopology.Position(p, 1), p.cluster) < .00001f), "Early, midpoint and late anchors remain exact");
+        CheckFluidMotion(sample, web);
+    }
+    static void CheckFluidMotion(CosmicWebTopology.Particle[] sample, CosmicWebBackground web)
+    {
+        Vector3 At(CosmicWebTopology.Particle p, float age, float time) =>
+            Vector3.Scale(CosmicWebTopology.Position(p, age, web.evolutionVariation, time, web.driftStrength), CosmicWebTopology.ModelHalfSize);
+        float midDifference = sample.Average(p => Vector3.Distance(At(p, .5f, 60), Vector3.Scale(p.filament, CosmicWebTopology.ModelHalfSize)));
+        Check(midDifference < .3f, $"Midpoint retains its authored structure (mean displacement {midDifference:F3} model units)");
+        float movingFraction = sample.Count(p => Vector3.Distance(At(p, .499f, 59.88f), At(p, .501f, 60.12f)) > .001f) / (float)sample.Length;
+        Check(movingFraction > .9f, $"Motion carries through age 0.5 without a shared stop ({movingFraction:P1} moving)");
+        float maxVelocityChange = 0;
+        foreach (var p in sample)
+        {
+            Vector3 center = At(p, .5f, 60);
+            Vector3 before = (center - At(p, .4999f, 59.988f)) / .012f;
+            Vector3 after = (At(p, .5001f, 60.012f) - center) / .012f;
+            maxVelocityChange = Mathf.Max(maxVelocityChange, (after - before).magnitude);
+        }
+        Check(maxVelocityChange < .03f, $"Velocity is continuous across the midpoint (max change {maxVelocityChange:F5})");
+        foreach (float age in new[] { 0f, .5f, 1f })
+        {
+            float drift = sample.Average(p => Vector3.Distance(At(p, age, age * 120), At(p, age, age * 120 + 8)));
+            Check(drift > .08f, $"Fixed age {age:F1} stays fluid over eight seconds (mean drift {drift:F3})");
+        }
+        var knots = sample.Where(p => p.filament.w > .99f && ((Vector3)p.merger).sqrMagnitude > .0001f).ToArray();
+        Check(knots.Length > 10 && knots.Average(p => Vector3.Distance(At(p, .6f, 72), At(p, .95f, 114))) > .25f,
+            "Existing dense clusters travel during late evolution instead of waiting at fixed endpoints");
+        Check(sample.Count(p => CosmicWebTopology.Accretion(.5f, p.bend.w, web.evolutionVariation) > .005f) > 40,
+            "Regional accretion overlaps formation before the midpoint");
     }
     static void Capture(string stage)
     {

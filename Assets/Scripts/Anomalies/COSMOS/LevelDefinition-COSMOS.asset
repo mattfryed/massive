@@ -18,7 +18,9 @@ MonoBehaviour:
   gameplayScene:
     sceneName: S-9_COSMOS
     sceneAsset: {fileID: 102900000, guid: b95ef716fc162064ba31640a197b636a, type: 3}
-  iconPrefab: {fileID: 0}
-  instructionsPanelPrefab: {fileID: 0}
+  iconPrefab: {fileID: 8878219789938180870, guid: efd0841de596ccc4cbb7754de5700526,
+    type: 3}
+  instructionsPanelPrefab: {fileID: 8901065532301380049, guid: 3b0f6f9726f044e468e0306125e587b7,
+    type: 3}
   anomalyTypeName: COSMIC WEB
   audioProfile: {fileID: 11400000, guid: 7acbe58a564814946ab33dbd32f1afe0, type: 2}
