@@ -197,6 +197,9 @@ namespace Massive.EditorTools
             }
             else
             {
+                // The live Swipe guide already draws the exact current capsule in
+                // both Game and Scene views; a full arc here would imply a larger live hitbox.
+                if (Application.isPlaying && stage.StageType == AttackStageType.ComboSwipe) return;
                 var capsule = FindMeleeCapsule();
                 if (capsule)
                 {

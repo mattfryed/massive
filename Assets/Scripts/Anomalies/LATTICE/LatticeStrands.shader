@@ -16,6 +16,7 @@ Shader "MASSIVE/Lattice/Strands"
             #include "../../../VectorGridNu/ResponsiveGridAttraction.hlsl"
             #include "../../../VectorGridNu/AmplifierGridTreatment.hlsl"
             #include "../../../VectorGridNu/RepulsorGridPulse.hlsl"
+            #include "LatticeResonance.hlsl"
             StructuredBuffer<float4> _LatticeEdges;
             sampler2D _LatticeNodes;
             float4 _LatticeLayout, _LatticeCounts, _LatticeStyle, _LatticeFlutter;
@@ -44,6 +45,7 @@ Shader "MASSIVE/Lattice/Strands"
                 v = ResponsiveAttractionDisplace(v, p);
                 v = AmpDisplace(v, p);
                 v = RepulsorDisplace(v, p);
+                v.xy += LatticeResonanceOffset(p);
                 // Fully disconnected points are the actual locomotion coordinates.
                 return lerp(v, float3(p,0), smoothstep(.25,.7,Missing(p)));
             }

@@ -50,6 +50,7 @@ float _FeatherExpK;     // >0 steeper ramp near wall (try 4..8)
 int  _ProjectAtEdge;     // project/bounce after integration
 float _EdgeAllowance;     // small allowed overshoot distance
 float _Restitution;       // 0=stick, 1=perfect bounce
+float4 _ArenaOval;
 
 // ---------- helpers ----------
 
@@ -263,6 +264,12 @@ if (_ProjectAtEdge != 0)
     float xMax = _OrigPos[y * gx + (gx - 1)].x;
     float yMin = _OrigPos[0 * gx + x].y;
     float yMax = _OrigPos[(gy - 1) * gx + x].y;
+    if (_ArenaOval.w > .5)
+    {
+        // Use the displaced X, not its original column, for the curved wall.
+        float h = _ArenaOval.y * sqrt(max(0, 1 - pos.x * pos.x / (_ArenaOval.z * _ArenaOval.z)));
+        yMin = -h; yMax = h;
+    }
 
     float allow = _EdgeAllowance;
 

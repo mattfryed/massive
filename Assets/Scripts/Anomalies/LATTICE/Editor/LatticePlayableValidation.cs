@@ -82,7 +82,10 @@ namespace Massive.Lattice.Editor
             float readyUntil = Time.realtimeSinceStartup + 3;
             while (icon && !icon.IsReady && Time.realtimeSinceStartup < readyUntil) yield return null;
             Check(icon && icon.IsReady && icon.cellsPerAxis == 4 && icon.NodeCount == 125 && icon.EdgeCount == 300, $"Carousel instantiates the user's saved 4-cubed volume (icon={icon}, ready={icon?.IsReady}, cells={icon?.cellsPerAxis}, nodes={icon?.NodeCount}, edges={icon?.EdgeCount}; all icons={string.Join(",", Object.FindObjectsByType<LatticeLevelIcon>(FindObjectsInactive.Include, FindObjectsSortMode.None).Select(i => i.name + ":" + i.gameObject.scene.name + ":" + i.gameObject.activeInHierarchy))})");
-            Check(Mathf.Approximately(icon.noiseFrequency, .215f) && Mathf.Approximately(icon.threshold, .521f) && icon.dotJitterRadius == 6 && icon.dotDiameterPixels == 4, "User-authored noise and dot tuning is preserved");
+            var authoredIcon = definition.iconPrefab.GetComponentInChildren<LatticeLevelIcon>(true);
+            Check(authoredIcon && Mathf.Approximately(icon.noiseFrequency, authoredIcon.noiseFrequency) &&
+                Mathf.Approximately(icon.threshold, authoredIcon.threshold) && icon.dotJitterRadius == authoredIcon.dotJitterRadius &&
+                icon.dotDiameterPixels == authoredIcon.dotDiameterPixels, "Current user-authored noise and dot tuning is preserved");
             var ruler = Object.FindFirstObjectByType<LevelScaleRuler>();
             Check(ruler && ruler.SelectedLevel == definition, "Ruler selection follows the new Planck-scale stage");
             carousel.StepPrevStage(); Check(carousel.SelectedLevel == catalog.Get(6), "Previous wraps from LATTICE to the last stage");
@@ -124,6 +127,9 @@ namespace Massive.Lattice.Editor
             var match = Object.FindFirstObjectByType<GameManagerScript>();
             while (match && !match.IsStartupBlocked && match.Phase != MatchRuntimePhase.Regulation) yield return null;
             Check(match && !match.IsStartupBlocked && match.Phase == MatchRuntimePhase.Regulation, "Roster and countdown reach normal playable regulation");
+            Check(context.spawners && context.spawners.activeInHierarchy, "Standard spawner group is bound and enabled in regulation");
+            Check(context.stageTitleText.gameObject.activeInHierarchy && context.stageTitleText.text == "LATTICE" &&
+                context.stageNumberText.gameObject.activeInHierarchy && context.stageNumberText.text == "STAGE_001", "Visible stage HUD receives the selected level identity");
             Check(match.ScoreService && match.RegulationDurationSeconds == match.ScoreService.Profile.RegulationDurationSeconds, "Match uses the shared scoring economy and regulation duration");
             var field = Object.FindFirstObjectByType<LatticeDisruptionField>();
             Check(field && field.IsReady && field.EdgeCount > 0, "Gameplay disruption starts after a real carousel launch");
@@ -134,6 +140,9 @@ namespace Massive.Lattice.Editor
             ScreenCapture.CaptureScreenshot(Output + "/gameplay.png"); yield return null; yield return null;
             // Shorten only the live fixture's remaining clock, then exercise normal expiry.
             typeof(GameManagerScript).GetField("_regulationRemainingSeconds", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).SetValue(match, .1f);
+            while (match && match.Phase == MatchRuntimePhase.Regulation) yield return null;
+            Check(match && match.Phase == MatchRuntimePhase.Resolving && !context.spawners.activeSelf && !match.ScoreService.IsScoringOpen,
+                "Match resolution stops spawners and closes scoring before the existing end transition");
             while (SceneManager.GetActiveScene().name != SceneFlow.PostGameScene) yield return null;
             yield return null;
             Check(GameFlowContext.Instance.HasLastMatchResult, "Standard match ending reaches PostGame with results");

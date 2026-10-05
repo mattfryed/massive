@@ -6,13 +6,17 @@
 StructuredBuffer<float3> _Pos;
 int _SimGridX, _SimGridY;
 float2 _GridSize;
+float4 _ArenaOval; // playable half-width, central half-height, ellipse half-width, enabled
 int _CurveInterpolation; // 0 = legacy bilinear, 1 = smooth Hermite
 float _CurveTension;
 int _CurveOvershootProtection;
 
 float3 FlatPositionFromUV(float2 uv)
 {
-    return float3((uv - 0.5) * _GridSize, 0.0);
+    float2 p = (uv - 0.5) * _GridSize;
+    if (_ArenaOval.w > .5)
+        p.y *= sqrt(max(0, 1 - p.x * p.x / (_ArenaOval.z * _ArenaOval.z)));
+    return float3(p, 0.0);
 }
 
 float3 GridNodeDisplacement(int2 node)

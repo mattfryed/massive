@@ -98,7 +98,7 @@ namespace Massive.Player
         [SerializeField, Range(0f, 1f)] private float comboWindowEndNormalized = 1f;
 
         [Header("Combo Swipe")]
-        [Tooltip("Easing for the swipe arc across the stage. X=time(0..1), Y=lerp(0..1).")]
+        [Tooltip("Easing for the swipe arc across the active damage window. X=active time(0..1), Y=lerp(0..1).")]
         [SerializeField] private AnimationCurve swipeArcCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
 
         [Header("Thrust Steering")]
@@ -250,6 +250,10 @@ namespace Massive.Player
             float nextTime = Mathf.Min(currentStage.Duration, frameEndTime);
             UpdateComboQueue(previousTime, nextTime, frameEndTime);
             float handoffTime = Mathf.Max(currentStage.ComboHandoffSeconds, comboQueuedAtSeconds);
+            // A LATTICE Thrust must reach its captured neighbor before handing
+            // off to an anchored Swipe, even with an early-combo profile.
+            if (IsLatticeAttack && currentStage.StageType == AttackStageType.PrimaryLunge)
+                handoffTime = Mathf.Max(handoffTime, currentStage.Duration);
 
             bool handoff = comboQueued && currentStage.AllowComboCancel &&
                 Profile.GetStage(currentStageIndex + 1) != null &&
@@ -261,6 +265,7 @@ namespace Massive.Player
             float deltaNormalized = Mathf.Clamp01(normalized - previousNormalizedTime);
             previousNormalizedTime = normalized;
             ApplyStageMotion(normalized, deltaNormalized);
+            if (!isAttacking || currentStage == null) return; // Collision/cancellation during motion.
 
             if (handoff || stageTimer >= currentStage.Duration) CompleteStage();
         }
@@ -296,6 +301,7 @@ namespace Massive.Player
                 return thrust ? stageAttackDirectionWS : Vector3.right;
             requestedDirection.Normalize();
             if (!thrust) return requestedDirection;
+            if (IsLatticeAttack) return stageAttackDirectionWS;
 
             float limit = Mathf.Clamp(Effective_thrustMaxTurnDegrees, 0f, 180f);
             float angle = Vector3.SignedAngle(stageAttackDirectionWS, requestedDirection, Vector3.up);
@@ -366,6 +372,12 @@ private Vector3 GetAttackDirection()
 
         private void ApplyStageMotion(float normalized, float deltaNormalized)
         {
+            if (IsLatticeAttack)
+            {
+                ApplyLatticeAttackMotion(normalized);
+                UpdateSwipeArc(normalized);
+                return;
+            }
     float targetDistance = stageTravelDistanceWS * currentStage.DistanceCurve.Evaluate(normalized);
 
     // If we locked a target closer than the full travel, stop exactly at that initial distance.
@@ -430,7 +442,7 @@ private Vector3 GetAttackDirection()
             // Drive a symmetric arc around the base attack direction.
             // Example: RotationArc=60 => starts at -30 and ends at +30 degrees.
             float arcHalf = currentStage.RotationArc * 0.5f;
-            float t = Mathf.Clamp01(stageNormalized);
+            float t = currentStage.SwipeArcProgress(stageNormalized);
 
             float eased = Effective_swipeArcCurve != null ? Effective_swipeArcCurve.Evaluate(t) : t;
             float baseOffset = Mathf.Lerp(-arcHalf, +arcHalf, eased);
@@ -471,6 +483,7 @@ private Vector3 GetAttackDirection()
         private void CompleteStage()
         {
             AttackStage finishedStage = currentStage;
+            FinishLatticeAttack(true);
             onStageCompleted.Invoke(finishedStage);
 
             if (!isAttacking || currentStage != finishedStage)
@@ -526,9 +539,10 @@ private Vector3 GetAttackDirection()
                 : currentStage.TravelDistance * PlayerScaleAdjuster.ActionReachOf(this);
             stageStopDistanceWS = stageTravelDistanceWS;
             lockedTarget = null;
+            PrepareLatticeAttack();
 
             // Only apply lock-on to the primary lunge (stage 0)
-            if (Effective_lockOnEnabled && stageIndex == 0)
+            if (!IsLatticeAttack && Effective_lockOnEnabled && stageIndex == 0)
             {
                 TryApplyLungeLockOn();
             }
@@ -538,6 +552,7 @@ private Vector3 GetAttackDirection()
                 ForwardReference.right = stageAttackDirectionWS;
 
             DetermineSwipeDirection();
+            UpdateSwipeArc(0f); // Windup and zero-delay activation start at the left edge.
 
             // GPU VFX (AttackTrailGPU) are driven by OnStageStarted
             onStageStarted.Invoke(stage);
@@ -591,6 +606,7 @@ private Vector3 GetAttackDirection()
 
         private void EndAttackSequence()
         {
+            FinishLatticeAttack(false);
             currentStage = null;
             currentStageIndex = -1;
             stageTimer = 0f;

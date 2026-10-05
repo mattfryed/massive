@@ -11,7 +11,7 @@ namespace Massive.Player
     ///        └─ SwordHitbox (offset outward, has BoxCollider + PlayerMelee)
     ///        └─ EnergyCrackleFX (optional ParticleSystem)
     /// </summary>
-    [DisallowMultipleComponent]
+    [DisallowMultipleComponent, DefaultExecutionOrder(9000)]
     public class AttackSwordArcDriver : MonoBehaviour
     {
         [Header("References")]
@@ -54,15 +54,39 @@ namespace Massive.Player
 
             CacheBase();
 
-            // Start disabled/neutral
-            ApplyYawOffset(0f);
+            if (attackController)
+            {
+                attackController.OnStageStarted.AddListener(StageStarted);
+                attackController.OnStageCompleted.AddListener(StageEnded);
+                attackController.StageCancelled += StageEnded;
+            }
+            ApplyStagePose();
             StopCrackle(clear: true);
         }
 
         private void OnDisable()
         {
+            if (attackController)
+            {
+                attackController.OnStageStarted.RemoveListener(StageStarted);
+                attackController.OnStageCompleted.RemoveListener(StageEnded);
+                attackController.StageCancelled -= StageEnded;
+            }
             ApplyYawOffset(0f);
             StopCrackle(clear: true);
+        }
+
+        private void StageStarted(AttackStage _) => ApplyStagePose();
+        private void StageEnded(AttackStage _)
+        {
+            ApplyYawOffset(0f);
+            StopCrackle(clear: false);
+        }
+        private void ApplyStagePose()
+        {
+            bool swipe = attackController && attackController.isActiveAndEnabled && attackController.IsAttacking &&
+                attackController.CurrentStage != null && attackController.CurrentStage.StageType == AttackStageType.ComboSwipe;
+            ApplyYawOffset(swipe ? attackController.CurrentWeaponYawOffsetDeg : 0f);
         }
 
         private void LateUpdate()
@@ -79,13 +103,8 @@ namespace Massive.Player
             bool attacking = attackController.IsAttacking && stage != null;
 
             bool isComboSwipe = attacking && stage.StageType == AttackStageType.ComboSwipe;
-            bool shouldDriveRotation = attacking && (!driveDuringComboSwipeOnly || isComboSwipe);
-
-            float yawOffsetDeg = (shouldDriveRotation && isComboSwipe)
-                ? attackController.CurrentWeaponYawOffsetDeg
-                : 0f;
-
-            ApplyYawOffset(yawOffsetDeg);
+            // Run after combat-facing updates, before attack presentation samples the pose.
+            ApplyStagePose();
 
             // Optional crackle particles
             if (energyCrackle)

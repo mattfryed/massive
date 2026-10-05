@@ -1,6 +1,7 @@
 #pragma kernel ValidateAttraction
 
 float2 _GridSize;
+float4 _ArenaOval;
 #include "../ResponsiveGridAttraction.hlsl"
 
 struct Query { float3 position; float2 flat; };

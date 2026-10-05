@@ -126,6 +126,7 @@ namespace Massive.Lattice
             if (!EnsureResources()) { RestoreRenderer(); return; }
             // Copy the grid's current GPU simulation and response layers after its LateUpdate.
             originalRenderer.GetPropertyBlock(block);
+            BindResonanceAttraction();
             block.SetBuffer("_LatticeEdges", stateBuffer);
             block.SetTexture("_LatticeNodes", nodeTexture);
             block.SetVector("_LatticeLayout", new Vector4(origin.x, origin.y, Spacing, clock));
@@ -325,6 +326,7 @@ namespace Massive.Lattice
         { if (ownsRenderer && originalRenderer) originalRenderer.forceRenderingOff = previousForceOff; ownsRenderer = false; }
         void Release()
         {
+            ResetResonanceAttraction();
 #if UNITY_EDITOR
             Dispose(boundaryMesh); Dispose(boundaryMaterial); boundaryMesh = null; boundaryMaterial = null;
 #endif

@@ -74,6 +74,11 @@ namespace Massive.Player
         [SerializeField]
         private float animationTransitionDuration = 0.05f;
 
+        [Header("Swipe tuning")]
+        [Tooltip("Editor-only yellow dotted outline of the live Swipe/Sweep capsule while it can deal damage. Excluded from player builds.")]
+        [SerializeField] private bool showSwipeHitboxGuide = true;
+        public bool ShowSwipeHitboxGuide => showSwipeHitboxGuide;
+
         [Header("Repulsor (Finisher)")]
         [Tooltip("Overall Repulsor scale: hit radius, energy volume, detail and grid pulse. Multiplies player size; does not change the player, damage or attack timing.")]
         [Min(.1f), SerializeField] private float repulsorScale = 1f;
@@ -149,6 +154,10 @@ namespace Massive.Player
             Mathf.Min(Mathf.Max(0f, outerRadius), Mathf.Max(0f, bodyRadius) * RepulsorInnerRadiusPlayerMultiplier);
 
         public AnimationCurve RepulsorRadiusCurve => repulsorRadiusCurve;
+
+        /// <summary>The full Swipe arc runs from left to right during its damage window.</summary>
+        public float SwipeArcProgress(float stageNormalized) =>
+            Mathf.InverseLerp(ActivationStartNormalized, ActivationEndNormalized, stageNormalized);
 
         public float ActivationFrameStart => activationFrameStart;
 

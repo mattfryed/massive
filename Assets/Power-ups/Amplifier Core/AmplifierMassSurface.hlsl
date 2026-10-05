@@ -10,6 +10,7 @@
             int _MaxSteps;
             float _ContainerClipEnabled;
             float4 _ContainerCenterRadius;
+            float4 _CosmosGoalProfile; // seam/ellipse half-width ratio, unused, unused, enabled
 
             #include "AmplifierGoalSurface.hlsl"
 
@@ -47,6 +48,16 @@
             float sceneSDF(float3 pOS)
             {
                 pOS = AmpGoalWarp(pOS);
+                if (_CosmosGoalProfile.w > .5)
+                {
+                    // Inverse of the cap map used by the COSMOS promotion rings.
+                    // The score animation remains in its normal half-disc coordinates.
+                    float k = _CosmosGoalProfile.x;
+                    float t = (pOS.z - _ContainerCenterRadius.y) * 2;
+                    float stretch = (sqrt(max(0, 1 - (1 - k*k)*t*t)) + k) /
+                        ((1 + k) * sqrt(max(1e-6, 1 - t*t)));
+                    pOS.x = _ContainerCenterRadius.x + (pOS.x - _ContainerCenterRadius.x) * stretch;
+                }
                 float d = 1e9;
                 [loop]
                 for (int i = 0; i < 48; i++)
@@ -101,6 +112,18 @@
 
             FragOut frag(v2f i)
             {
+                if (_CosmosGoalProfile.w > .5)
+                {
+                    // Both the mass and its corona share the exact physical cap.
+                    // Prevent the flattened renderer's box rim showing at the narrow tips.
+                    float3 capOS = mul(unity_WorldToObject, float4(i.worldPos,1)).xyz;
+                    float outward = -_ContainerCenterRadius.w * (capOS.x - _ContainerCenterRadius.x) * 2;
+                    float y = (capOS.z - _ContainerCenterRadius.y) * 2;
+                    float k = _CosmosGoalProfile.x;
+                    float x = k + (1-k)*outward;
+                    clip(outward);
+                    clip(1 - x*x - (1-k*k)*y*y);
+                }
                 // Dynamo uses an orthographic top-down camera: XZ is constant
                 // along the ray, so compute the grid inverse once per pixel.
                 ampGridCorrectionOS=0;

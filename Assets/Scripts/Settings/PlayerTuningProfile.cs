@@ -51,6 +51,7 @@ namespace Massive.Settings
         [Min(0)] public float sharedComboWindowSeconds = .15f;
         public bool comboWindowAfterActivationWindow = true;
         [Range(0, 1)] public float comboWindowEndNormalized = 1f;
+        [Tooltip("Easing across the Swipe damage window: 0 is the left edge, 1 is the right edge.")]
         public AnimationCurve swipeArcCurve = AnimationCurve.EaseInOut(0, 0, 1, 1);
         [Tooltip("Maximum turn to either side of Thrust's starting heading, after aim assistance. 0 locks aim; 180 removes the limit.")]
         [Range(0f, 180f)] public float thrustMaxTurnDegrees = 15f;

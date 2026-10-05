@@ -86,6 +86,9 @@ private void TrySpawnOne()
 
         private bool IsSpawnPointValid(Vector3 p)
         {
+            var bounds = vectorGrid ? vectorGrid.GetComponent<ArenaBoundsFromVectorGrid>() : null;
+            if (bounds && bounds.ovalOutline && !bounds.ContainsWorldPoint(p, Mathf.Max(borderMarginWorld, spawnCheckRadius)))
+                return false;
             // 1) reject inside no-spawn colliders
             if (Physics.CheckSphere(p, spawnCheckRadius, noSpawnMask, QueryTriggerInteraction.Collide))
                 return false;

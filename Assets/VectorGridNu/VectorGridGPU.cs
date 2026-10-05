@@ -207,6 +207,9 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
     MeshRenderer _mr;
     MaterialPropertyBlock _mpb;
     MaterialPropertyBlock _mpbBorder;
+    ArenaBoundsFromVectorGrid _arenaBounds;
+    Vector4 _currArenaProfile;
+    Vector4 ArenaProfile => _arenaBounds ? _arenaBounds.OutlineShaderParameters : Vector4.zero;
 
     bool _needsRebuild;
 
@@ -231,6 +234,7 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
     static readonly int _LineColorID = Shader.PropertyToID("_LineColor");
     static readonly int _DispBrightID = Shader.PropertyToID("_DispBrightness");
     static readonly int _GridSizeID = Shader.PropertyToID("_GridSize");
+    static readonly int _ArenaOvalID = Shader.PropertyToID("_ArenaOval");
     static readonly int _PresentationScaleID = Shader.PropertyToID("_PresentationScale");
     static readonly int _ClipToGridBoundsID = Shader.PropertyToID("_ClipToGridBounds");
     static readonly int _SimGridXID = Shader.PropertyToID("_SimGridX");
@@ -277,6 +281,7 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
 
     void OnEnable()
     {
+        _arenaBounds = GetComponent<ArenaBoundsFromVectorGrid>();
         if (registerAsDefault)
         {
             if (Instance != null && Instance != this)
@@ -391,6 +396,7 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
         vectorCompute.SetFloat(_MaxSpeedID, maxSpeed);
         vectorCompute.SetFloat(_WeightCapID, weightCap);
         vectorCompute.SetFloat(_CrowdStiffID, crowdStiffness);
+        vectorCompute.SetVector(_ArenaOvalID, ArenaProfile);
 
         ApplyBoundaryUniforms();
 
@@ -411,6 +417,7 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
             _mpb.SetColor(_LineColorID, lineColor);
             _mpb.SetFloat(_DispBrightID, displacementBrightness);
             _mpb.SetVector(_GridSizeID, size);
+            _mpb.SetVector(_ArenaOvalID, ArenaProfile);
             _mpb.SetFloat(_PresentationScaleID, presentationScale);
             _mpb.SetFloat(
                 _ClipToGridBoundsID,
@@ -431,6 +438,7 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
             _mpbBorder.SetInt(_SimGridXID, gridX);
             _mpbBorder.SetInt(_SimGridYID, gridY);
             _mpbBorder.SetVector(_GridSizeID, size);
+            _mpbBorder.SetVector(_ArenaOvalID, ArenaProfile);
             ApplyCurveUniforms(_mpbBorder);
 
             float halfW = 0.5f * Mathf.Max(0f, boundary.borderWidthWorld) *
@@ -556,7 +564,7 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
 
     bool HasLayoutChanged()
     {
-        return gridX != _currGridX ||
+        return ArenaProfile != _currArenaProfile || gridX != _currGridX ||
                gridY != _currGridY ||
                visibleX != _currVisibleX ||
                visibleY != _currVisibleY ||
@@ -574,6 +582,7 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
 
     void CaptureLayoutState()
     {
+        _currArenaProfile = ArenaProfile;
         _currGridX = gridX;
         _currGridY = gridY;
         _currVisibleX = visibleX;
@@ -595,6 +604,14 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
         UploadStaticData();
         ApplyMaterialBindings();
         CaptureLayoutState();
+    }
+
+    // Editor layout tools use this after changing dimensions, before saving the scene.
+    public void RefreshLayout()
+    {
+        if (!isActiveAndEnabled || !vectorCompute) return;
+        RebuildAll();
+        _needsRebuild = false;
     }
 
     public void SetForces(ReadOnlySpan<Force> forces)
@@ -676,6 +693,7 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
         _mpb.SetColor(_LineColorID, lineColor);
         _mpb.SetFloat(_DispBrightID, displacementBrightness);
         _mpb.SetVector(_GridSizeID, size);
+        _mpb.SetVector(_ArenaOvalID, ArenaProfile);
         _mpb.SetFloat(_PresentationScaleID, presentationScale);
         _mpb.SetFloat(
             _ClipToGridBoundsID,
@@ -979,7 +997,9 @@ public class VectorGridGPU : MonoBehaviour, IVectorGrid
                 float fy = gridY == 1 ? 0f : (float)y / (gridY - 1);
                 float px = Mathf.Lerp(-half.x, half.x, fx);
                 float py = Mathf.Lerp(-half.y, half.y, fy);
-                sim[i] = new Vector3(px, py, 0f);
+                sim[i] = _arenaBounds && _arenaBounds.ovalOutline
+                    ? _arenaBounds.GridRestPosition(new Vector2(fx, fy))
+                    : new Vector3(px, py, 0f);
             }
         }
 

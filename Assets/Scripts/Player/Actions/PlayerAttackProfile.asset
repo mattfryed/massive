@@ -15,13 +15,13 @@ MonoBehaviour:
   stages:
   - stageName: 0
     stageType: 0
-    duration: 0.3
-    activationFrameStart: 3
-    activationFrameEnd: 36
+    duration: 0.22467777
+    activationFrameStart: 1.1999999
+    activationFrameEnd: 18
     animationFrameRate: 60
     allowComboCancel: 1
     customComboWindow: 1
-    comboWindowStartSeconds: 0.15
+    comboWindowStartSeconds: 0.12338062
     comboWindowEndSeconds: 0.3
     earlyComboHandoff: 1
     comboHandoffSeconds: 0.3
@@ -53,9 +53,13 @@ MonoBehaviour:
     rotationArc: 0
     animationStateName: Thrust
     animationTransitionDuration: 0
+    showSwipeHitboxGuide: 1
     repulsorScale: 1
     repulsorEnemyDamage: 1
     repulsorMaxRadius: 3
+    repulsorInnerRadiusPlayerMultiplier: 1.5
+    repulsorInnerDamageMultiplier: 2
+    repulsorShowDamageRings: 1
     repulsorRadiusCurve:
       serializedVersion: 2
       m_Curve:
@@ -82,9 +86,9 @@ MonoBehaviour:
       m_RotationOrder: 4
   - stageName: 1
     stageType: 1
-    duration: 0.4
-    activationFrameStart: 4
-    activationFrameEnd: 10
+    duration: 0.34710252
+    activationFrameStart: 2.0524192
+    activationFrameEnd: 13.210917
     animationFrameRate: 60
     allowComboCancel: 1
     customComboWindow: 0
@@ -120,9 +124,13 @@ MonoBehaviour:
     rotationArc: 120
     animationStateName: 
     animationTransitionDuration: 0.1
+    showSwipeHitboxGuide: 1
     repulsorScale: 1
     repulsorEnemyDamage: 1
     repulsorMaxRadius: 3
+    repulsorInnerRadiusPlayerMultiplier: 1.5
+    repulsorInnerDamageMultiplier: 2
+    repulsorShowDamageRings: 1
     repulsorRadiusCurve:
       serializedVersion: 2
       m_Curve:
@@ -148,12 +156,9 @@ MonoBehaviour:
       m_PostInfinity: 2
       m_RotationOrder: 4
   - stageName: Repulsor
-    repulsorInnerRadiusPlayerMultiplier: 1.5
-    repulsorInnerDamageMultiplier: 2
-    repulsorShowDamageRings: 1
     stageType: 2
     duration: 0.6
-    activationFrameStart: 10
+    activationFrameStart: 5.359094
     activationFrameEnd: 25
     animationFrameRate: 60
     allowComboCancel: 0
@@ -190,9 +195,13 @@ MonoBehaviour:
     rotationArc: 180
     animationStateName: 
     animationTransitionDuration: 0
+    showSwipeHitboxGuide: 1
     repulsorScale: 1
     repulsorEnemyDamage: 1
-    repulsorMaxRadius: 3
+    repulsorMaxRadius: 2.75
+    repulsorInnerRadiusPlayerMultiplier: 1.5
+    repulsorInnerDamageMultiplier: 2
+    repulsorShowDamageRings: 1
     repulsorRadiusCurve:
       serializedVersion: 2
       m_Curve:

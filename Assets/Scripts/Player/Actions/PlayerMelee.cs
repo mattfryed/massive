@@ -32,6 +32,10 @@ public class PlayerMelee : MonoBehaviour
     private readonly System.Collections.Generic.HashSet<PlayerControllerScript> shieldContacts = new();
 
     public PlayerControllerScript Owner => owner;
+#if UNITY_EDITOR
+    public Collider TuningHitbox => hitbox;
+    public PlayerAttackController TuningAttackController => attackController;
+#endif
     public event System.Action<PlayerControllerScript> ShieldContact;
 
     private bool IsFriendly(PlayerControllerScript otherPlayer)
@@ -61,6 +65,10 @@ public class PlayerMelee : MonoBehaviour
 
     private void OnEnable()
     {
+#if UNITY_EDITOR
+        if (Application.isPlaying && !GetComponent<PlayerSwipeHitboxGuide>())
+            gameObject.AddComponent<PlayerSwipeHitboxGuide>();
+#endif
         if (gateHitboxToActivationWindow && hitbox != null)
             hitbox.enabled = false;
 

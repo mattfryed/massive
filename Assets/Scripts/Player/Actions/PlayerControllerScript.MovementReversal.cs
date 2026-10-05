@@ -8,6 +8,7 @@ public partial class PlayerControllerScript
 
     public void ProtectActionMomentum(float seconds)
     {
+        if (attackController && attackController.IsLatticeAttack) attackController.CancelAttack();
         latticeMomentumUntil = Mathf.Max(latticeMomentumUntil, Time.time + Mathf.Max(0, seconds));
         if (LatticeMotor) LatticeMotor.Release();
         if (!movementReversal) TryGetComponent(out movementReversal);

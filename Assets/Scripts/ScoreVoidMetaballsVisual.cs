@@ -148,6 +148,8 @@ public class ScoreVoidMetaballsVisual : MonoBehaviour
     [Header("Authored Container Boundary")]
     [Tooltip("The Shapes Disc/Arc that visually defines this score mass boundary.")]
     [SerializeField] private Disc containerBoundary;
+    [Tooltip("Optional COSMOS ellipse-cap adapter. Other levels keep their authored half-disc.")]
+    [SerializeField] private Massive.Cosmos.CosmosGoalShape ellipticalContainer;
 
     [Tooltip("Derive the metaball center and radius from the referenced container.")]
     [SerializeField] private bool driveRegionFromContainer = true;
@@ -310,12 +312,13 @@ public class ScoreVoidMetaballsVisual : MonoBehaviour
     public bool IsPromoting => _promotionRoutine != null;
     public float SpatialCoverageScale => EvaluateSpatialCoverage(_displayScore01);
     public Disc ContainerBoundary => containerBoundary;
+    public Massive.Cosmos.CosmosGoalShape EllipticalContainer => ellipticalContainer;
     public float ContainerRadiusOS => _containerRadiusOS;
 
     private void OnEnable()
     {
         if (!sdf) sdf = GetComponent<MetaballSDFInstance>();
-        if (Application.isPlaying && fitRendererToContainerAtRuntime)
+        if ((Application.isPlaying || ellipticalContainer) && fitRendererToContainerAtRuntime)
             FitRendererToContainer();
         SyncContainerBoundary(force: true);
         EnsureBaseCache();
@@ -889,6 +892,7 @@ public class ScoreVoidMetaballsVisual : MonoBehaviour
 
     private void FitRendererToContainer()
     {
+        if (ellipticalContainer) { ellipticalContainer.FitRenderer(transform); return; }
         if (containerBoundary == null)
             return;
 
@@ -923,6 +927,7 @@ public class ScoreVoidMetaballsVisual : MonoBehaviour
 
     private float GetBoundaryInnerRadiusWorld()
     {
+        if (ellipticalContainer) return Mathf.Max(.001f, ellipticalContainer.HalfHeightWorld - containerInsetWorld - .03f);
         if (containerBoundary == null || containerBoundary.Radius <= 0.0001f)
             return 0f;
 
@@ -965,6 +970,19 @@ public class ScoreVoidMetaballsVisual : MonoBehaviour
     {
         if (!sdf)
             return;
+
+        sdf.SetEllipticalGoalProfile(ellipticalContainer
+            ? new Vector4(ellipticalContainer.SeamRatio, 0, 0, 1) : Vector4.zero);
+        if (ellipticalContainer)
+        {
+            Vector2 center = new Vector2(ellipticalContainer.side < 0 ? .5f : -.5f, 0);
+            float radius = .5f - (containerInsetWorld + .03f) / (2 * ellipticalContainer.HalfHeightWorld);
+            if (centerOS_XZ != center || !Mathf.Approximately(regionRadiusOS, radius)) _cachedForMaxBalls = -1;
+            centerOS_XZ = center; regionRadiusOS = radius; _containerRadiusOS = radius;
+            _containerInnerRadiusWorld = GetBoundaryInnerRadiusWorld();
+            sdf.SetContainerClip(center, radius, -ellipticalContainer.side, clipToContainer);
+            return;
+        }
 
         if (containerBoundary == null)
         {
@@ -1025,6 +1043,7 @@ public class ScoreVoidMetaballsVisual : MonoBehaviour
 
     private void EnsureCompressionRing()
     {
+        if (ellipticalContainer) return;
         if (!Application.isPlaying || !enableCompressionRing ||
             containerBoundary == null || _compressionRing != null)
         {
@@ -1046,6 +1065,15 @@ public class ScoreVoidMetaballsVisual : MonoBehaviour
 
     private void SetCompressionRingVisual(float normalizedRadius, float alpha)
     {
+        if (ellipticalContainer)
+        {
+            Color tint = TeamID == 2 ? team2Outline : team1Outline;
+            tint.a *= Mathf.Clamp01(alpha) * compressionRingMaxAlpha;
+            float thickness = containerBoundary.Thickness * containerBoundary.transform.lossyScale.x * compressionRingThicknessMultiplier;
+            float radius = Mathf.Lerp(compressionRingMinRadius01, .98f, Mathf.Clamp01(normalizedRadius));
+            ellipticalContainer.SetPromotion(radius, tint, thickness);
+            return;
+        }
         EnsureCompressionRing();
         if (_compressionRing == null)
             return;
@@ -1080,6 +1108,7 @@ public class ScoreVoidMetaballsVisual : MonoBehaviour
 
     private void HideCompressionRing()
     {
+        if (ellipticalContainer) ellipticalContainer.HidePromotion();
         if (_compressionRing != null)
             _compressionRing.gameObject.SetActive(false);
     }

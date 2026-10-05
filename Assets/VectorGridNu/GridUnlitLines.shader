@@ -49,6 +49,7 @@ Shader "MASSIVE/GridUnlitLines"
               float4 pos : SV_POSITION;
               float  dispMag : TEXCOORD0;
               float2 uv      : TEXCOORD1;
+              float2 arenaXY : TEXCOORD2;
           };
 
           v2f vert (appdata v)
@@ -68,6 +69,7 @@ Shader "MASSIVE/GridUnlitLines"
               o.dispMag = length(displaced - flat);
               o.pos = UnityObjectToClipPos(float4(displaced, 1));
               o.uv = presentedUV;
+              o.arenaXY = displaced.xy;
               return o;
           }
 
@@ -75,6 +77,12 @@ Shader "MASSIVE/GridUnlitLines"
           {
               // Graphics.DrawMesh runs both passes; the strip owns border draws.
               if (_BorderOnly == 1) discard;
+              if (_ArenaOval.w > .5)
+              {
+                  float h = _ArenaOval.y * sqrt(max(0, 1 - i.arenaXY.x * i.arenaXY.x / (_ArenaOval.z * _ArenaOval.z)));
+                  clip(h - abs(i.arenaXY.y));
+                  clip(_ArenaOval.x - abs(i.arenaXY.x));
+              }
               const float eps = 1e-4;
 
               bool outsideArena =
@@ -115,7 +123,7 @@ Shader "MASSIVE/GridUnlitLines"
             #pragma target 4.5
             #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
-            
+
 
             #include "GridCurveSampling.hlsl"
             #include "AmplifierGridTreatment.hlsl"

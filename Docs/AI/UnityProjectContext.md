@@ -1199,3 +1199,324 @@ player build or target GPU profile was run.
 
 Final screen captures verify centered LATTICE, STAGE_001, the -35 ruler marker and readable instructions. Unity's existing SceneReference.OnValidate also synchronized DYNAMO's stale serialized sceneName from S-8_MAGNETOSPHERE to its already assigned S-8_DYNAMO SceneAsset. Validation logged kinematic-velocity warnings in the shared player spawn routine and duplicate EventSystem warnings during return to Level Select; no runtime errors occurred. These shared components were not edited.
 
+
+### Swipe live hitbox tuning outline (2026-10-04)
+
+PlayerSwipeHitboxGuide adds an Editor-only yellow dotted XZ capsule outline to
+PlayerMelee during the actual enabled Swipe/ComboSwipe damage window. It reads
+that component's real collider at render time, including center, width, length,
+scale and rotation. The outline appears in Game and Scene views, uses the same
+body-relative dot sizing as Repulsor, and maps through the Singularity adapter
+when present. Thrust, recovery, cancellation and idle do not show it. No damage
+or attack motion logic changed; no scene or prefab wiring is required.
+
+The default-on persistent toggle is MASSIVE > Player Tuning > Attack timeline >
+Sweep > Show live hitbox outline (Editor only). The Play Mode Scene overlay no
+longer duplicates Swipe with a full-sector arc; its Edit Mode planning overlay
+is retained. Rendering and automatic guide attachment are excluded from builds.
+
+An existing discrepancy became visible during validation: PlayerActor.prefab,
+used by the demonstration actors, has no AttackSwordArcDriver. Its damage
+capsule follows combat facing while its VFX follows the Swipe arc. The guide
+intentionally reports the current physical shape. This request did not change
+that behavior. The initial validator assumed natural arc movement and failed;
+the corrected transform-following check explicitly rotates the fixture collider.
+The initial failure and successful run are both retained as evidence.
+
+Unity 6000.0.28f1 / DX11 compiled and passed 28 runtime/render/persistence
+checks in an isolated copy, including 64 PhysX surface comparisons per tested
+geometry, altered size/rotation/dimensions, active-window gating, cancellation,
+toggle persistence after Play Mode/reimport, and all seven demos for two loops.
+Windup, active, rotated-fixture and recovery captures were inspected. No runtime
+errors occurred; existing kinematic-body spawn warnings remain. The test scene
+now resolves by GUID after its move to Assets/Scenes/EXPERIMENTS. Evidence,
+validated-source hashes and pre-edit backups: Library/SwipeOutlineValidation.
+No standalone build was run. SwipeOutlineValidation.RunBatch is the repeatable
+isolated-copy harness.
+
+### Swipe physical sweep repair (2026-10-04)
+
+The user confirmed that the new capsule guide flashed without sweeping. The
+canonical PlayerActor Sword was missing AttackSwordArcDriver, and the controller
+spread its arc across the whole 0.4-second stage while damage was enabled only
+from frame 4 through 10 at 60 fps (0.1 seconds). This let the old arc finish after
+the damage window. The preceding outline validation already reproduced the
+stationary capsule; its failing rotation report remains in SwipeOutlineValidation.
+
+PlayerActor now attaches the existing driver to its centered Sword transform.
+AttackStage.SwipeArcProgress maps the full authored arc to the damage window;
+controller/VFX and Edit Mode preview share this timing and curve. Windup holds
+the starting edge, recovery holds the ending edge, and stage completion,
+cancellation or disabling the driver restores the neutral sword pose. The driver
+runs after combat-facing updates and before attack presentation. The attack's
+existing duration, active frames, arc degrees, damage and user VFX assets remain
+unchanged. Tuning labels now describe rotation during the hit window. Restart
+Play Mode to recreate any actors instantiated before the prefab change.
+
+SwipeOutlineValidation.RunBatch now tests natural motion instead of manually
+rotating the fixture. Unity 6000.0.28f1 / DX11 passed 47 checks, including left,
+front and right PhysX overlaps; hitbox/VFX heading agreement; reverse sweeps;
+rotated player aim; cancellation, completion and disable reset; straight Thrust
+and separate Repulsor; guide geometry/visibility/persistence; and all seven demos
+for two loops. At the authored timings, 10 active samples covered -59.6 to +58.5
+degrees. Early/middle/late rendered captures were visually reviewed. No runtime
+errors occurred; existing kinematic spawn warnings remain. No standalone build
+was run. Evidence and pre-edit backups: Library/SwipeMotionValidation.
+
+### Thrust launch-frame experiment reverted (2026-10-04)
+
+The user preferred the original effect traveling with the character and requested
+undoing the launch-frame freeze because it left the particles too far behind.
+Restored the six affected source/editor/prefab files byte-for-byte from the
+pre-experiment backups. Removed the freeze toggle, detached-instance ownership
+changes and GPU tail-direction change. The experiment's harness is retained under
+Library/ThrustLaunchValidation/retired-harness, outside Unity's imported sources.
+Particle settings and earlier Swipe hitbox/motion fixes are preserved. The small
+visual quirk on abrupt turns at the end of Thrust is accepted for now. No new
+motion treatment was introduced. Reversion verified against the saved originals;
+no new runtime test run was needed for the exact restoration.
+
+### LATTICE smooth Resonance deformation (2026-10-04)
+
+LatticeDisruptionField now presents Resonance using SINGULARITY's continuous
+quintic attraction profile and soft displacement limit. The saved LATTICE scene
+uses the same gain 0.06, maximum 0.65 and boundary feather 0.8. Its Inspector toggle
+restores the original simulated response. An optional IResonanceGridPresentation
+on the target VectorGrid consumes the live arc samples before spring forces are
+submitted; other standard grids retain their existing behavior. No shared grid
+prefab or SINGULARITY assets changed. Existing noise, strand-root/tip constraints,
+RGB trails and hop coordinates remain authoritative.
+
+Unity 6000.0.28f1 / DX11 validation: 107 checks passed, including 405 GPU samples
+against the SINGULARITY reference, no duplicate spring forces, interaction gate
+and destruction cleanup, legacy fallback, and byte-identical isolated RGB dot
+renders with Resonance off/on. Connected and disrupted captures were inspected.
+The first new pixel comparison included other scene draws; isolating the field
+mesh and property block resolved that test-fixture issue. Evidence is in
+Library/LatticeValidation/report.txt and resonance-*.png. No runtime errors or
+exceptions in the final run; existing shared player-spawn kinematic warnings
+remain. No standalone build was run.
+
+### LATTICE grid attacks (2026-10-04)
+
+Attacks starting inside disruption now capture their grid movement per combo
+stage. Thrust follows its existing animation curve to one neighboring dot in the
+nearest eight-way input direction; diagonals travel farther in the same authored
+duration, as requested. Swipe and Repulsor hold their starting dot while their
+weapon/effect animations continue. Thrust heading and endpoint survive changing
+input and leaving the disruption. Stages starting outside use normal movement.
+Held-stick locomotion is suppressed while the attack owns the body, with immediate
+grid locomotion after successful completion. Blocked cell routes hold the starting
+dot; dynamic obstruction uses the existing impact cancellation. Stun, disabling,
+movement abilities and protected knockback release the captured path.
+
+The implementation is isolated in PlayerAttackController.Lattice.cs plus small
+hooks in the attack controller, LatticePlayerMotor and player movement ownership.
+No attack profile, scene or prefab tuning changed for this feature. Existing Swipe
+and Thrust presentation edits from other work are preserved.
+
+Unity 6000.0.28f1 / DX11: focused attack validation passed 85 checks; the subsequent
+full LATTICE regression passed 185 checks, including existing movement, rendering
+and Resonance coverage. Counts include repeated frame assertions. Intermediate
+Thrust streaks/particles were visually reviewed. No runtime errors or exceptions;
+existing shared player-spawn kinematic warnings remain. Evidence:
+Library/LatticeValidation/report.txt and attack-thrust-mid.png. Repeat via
+MASSIVE > LATTICE > Validate grid attacks (Ctrl+Shift+Alt+T), or Validate prototype
+(Ctrl+Shift+Alt+L) for the full suite. No standalone build or controller feel
+playtest was run.
+
+### LATTICE standard scene organization (2026-10-04)
+
+S-1_LATTICE follows NOVA's six-root layout: 00_Systems, 01_Presentation,
+02_Arena, GameplayObjects, 04_UI and 90_EditorOnly. The existing field now lives
+at 02_Arena/Surface/GRID/VectorGridGPU; its shader, noise, RGB trails, smooth
+Resonance and movement/attack adapters remain unchanged. Existing players and
+respawn references, two encounters, camera stack, goals, HUD and end effect are
+retained. The enemy timeline is in GameplayObjects/LevelContent/LATTICE, and the
+paired Amplifier/Resonance encounter is in GameplayObjects/Encounters.
+
+Added the standard TeamAmplifierToastPresenter using NOVA's shared settings.
+Bound LevelSceneContext.spawners to GameplayObjects/Spawners (power-up spawning),
+replaced its inactive legacy title/number references with the visible labels,
+bound the match's shared score economy explicitly, and bound the timer's phase
+label. Existing enemy and Amplifier encounters retain their own score gates.
+LevelSceneContext owns input startup: the redundant Rewired Initializer was
+removed because it persists its whole root, which would incorrectly move the
+grouped match/roster into DontDestroyOnLoad. Global session/music/audio continue
+using their existing bootstraps; no runtime manager implementation changed.
+
+The outer legacy PLAYING FIELD prefab instance was unpacked to move its existing
+children into standard groups. Shared prefab assets were not edited. Migration
+checks compared original instance references, world poses/activation, and
+serialized component settings before saving. Evidence and the original scene
+backup are under Library/LatticeSceneLayout. Editor entry points are Apply
+standard scene layout (Ctrl+Shift+Alt+B), Validate saved scene layout, and Validate
+standard level flow (Ctrl+Shift+Alt+N); the latter returns the editor to LATTICE
+after the carousel/instructions/match/results/return test.
+
+Validation in Unity 6000.0.28f1 / DX11: saved-scene structural/reference checks
+passed, then 187 full LATTICE Play Mode checks and 28 complete launch/return
+checks passed. This includes single input ownership, scene-local roster startup,
+live HUD identity, amplifier feedback, spawner preparation/resolution gating,
+existing disruption/Resonance presentation and quantized locomotion/attacks.
+Gameplay capture visually reviewed; no runtime errors or exceptions in final
+runs. Existing shared kinematic-spawn and menu EventSystem warnings remain.
+No standalone build was run. Flow validation now compares noise/dot tuning to
+the current icon prefab, preserving the user's authored values. Reports:
+Library/LatticeSceneLayout, Library/LatticeValidation/report.txt and
+Library/LatticePlayableValidation/report.txt.
+
+### COSMOS custom oval layout (2026-10-04)
+
+S-9_COSMOS is the user's duplicated LATTICE scene. Reviewed the Notion MASSIVE
+GDD and the recent LATTICE/PLAYER cabinet chats before this pass. COSMOS now has
+its own LevelDefinition and empty StageProfile, stage 009 / exponent 26, and the
+visible COSMOS identity. The current pass is the layout only, with inherited
+encounters retained for testing. Catalog, icon and instructions are still pending.
+
+The field is 28 units wide and 12 high at the centre. Broad circular top/bottom
+arcs join the round outer goal caps tangentially to form one convex oval. Goal
+score containers shrink from 12 to 8.4 units high; separators are about 8.66 high.
+The complete outline is 36.4 units wide. Main-camera orthographic size 10.8 frames
+both caps at the cabinet's 16:9 aspect, with the existing HUD clear of the field.
+This is an authored oval silhouette, not an exact astronomical map projection.
+
+ArenaBoundsFromVectorGrid has an opt-in oval profile, enabled only in COSMOS.
+CosmosArenaLayout clips the grid, draws the complete outline and generates 194
+transient solid wall segments around the playable field. Goal caps remain outside
+that field and have no outer-cap colliders. The original rectangular wall builder
+and its old wall objects are disabled in this scene. Padded bounds queries,
+recovery, spawn anchors, power-up and Amplifier Core placement follow the curve.
+Generated geometry is not serialized into scene assets.
+
+Goal transforms, Core capture/attraction distances, local capture VFX and legacy
+score size limits scale with the shorter containers. Score voids and promotion
+rings derive their dimensions from the resized Disc templates. The original
+Discs are transparent because the layout draws the tangent caps; promotion clones
+receive visible colors as before. ScoreSphereScript now targets its separate
+visual child, preventing score growth from resizing its capture collider. Shared
+score authority, tier thresholds and promotion timing are unchanged.
+
+Unity 6000.0.28f1 / DX11: the final Play Mode run passed 82 checks. Coverage includes
+convex shoulders, complete camera framing, padded bounds, four spawn anchors and
+four respawns, all 194 physical walls, six moving-rigidbody contacts, regulation
+startup, score/tier previews through 999999999999999, visible promotion rings,
+fixed capture volumes and real Core captures by both teams. Gameplay and high-score
+captures were visually reviewed. No runtime errors or exceptions; existing shared
+kinematic-spawn warnings remain. No standalone build or cabinet-controller feel
+playtest was run. COSMOS is saved and left open in Edit Mode.
+
+Tools: MASSIVE > COSMOS > Apply oval layout (Ctrl+Shift+Alt+F10), Validate layout
+in Play Mode (Ctrl+Shift+Alt+F11), Inspect current layout (Ctrl+Shift+Alt+F9).
+Evidence and the pre-install scene backup are in Library/CosmosLayout. Layout
+source and tuning notes are in Assets/Scripts/Anomalies/COSMOS/README.md. Reapply
+the layout after changing the bounds ratio to reconcile goal scaling.
+
+Future visual brief from the user: blue/white/pink cosmic-web filaments on black
+voids, initially near-uniform distribution, clumping toward present-day structure
+around mid-match, then void dominance by regulation end. Research/source selection
+and cosmic-web simulation have not started in this layout pass.
+
+### COSMOS true ellipse refinement (2026-10-04)
+
+This supersedes the first COSMOS outline/camera geometry above. The user restored
+camera size 9 and explicitly requested that only grid/goal geometry change, with
+permission for a taller field to overlap the timer. COSMOS now uses a single exact
+ellipse, 31.2 wide by 14 high, with a 24-wide playable field. The goal separators
+are at X = +/-12; each elliptical cap is 3.6 deep and approximately 8.95 high.
+Both cameras and all HUD/player poses are retained. The three unused spawn markers
+clamped by the first pass were restored to their original authored positions;
+actual player Respawn references remain unchanged. The setup checks all 277
+non-grid/goal transforms and both camera configurations before saving, and no
+longer adjusts the camera or clamps marker transforms on reapplication.
+
+ArenaBoundsFromVectorGrid now describes the exact ellipse. VectorGridGPU creates
+curved simulation rest rows, and GridCurveSampling.hlsl applies the same map in
+production GPU sampling. Row spacing is widest at the centre, decreasing to about
+64% at the goal separators. Thus force sampling, rendering and the physical field
+share coordinates. Grid fragments and displaced simulation nodes use the ellipse
+boundary; rectangular scenes leave this opt-in profile disabled. The original mask
+planes retain their poses/depth but use a COSMOS mask material that opens the taller
+ellipse, preventing the old rectangular aperture from hiding its upper/lower rows.
+
+CosmosGoalShape maps the existing half-disc score animation into the elliptical
+cap. ScoreVoidMetaballsVisual uses the adapter only when assigned in COSMOS; its
+normal Disc path remains the default elsewhere. Score-fill inverse mapping and
+promotion-ring forward mapping agree. Both the mass and corona are clipped to the
+same cap, avoiding renderer-box rim artifacts at the narrow tips. Capture ranges,
+local VFX dimensions and legacy size limits still track goal height, while score
+renderer width and height fit the cap independently. Scoring authority is unchanged.
+
+The editor migration is revision 3. Backups from the start of this refinement are
+under Library/CosmosLayout/EllipseBefore; the initial duplicate is also preserved
+as Library/CosmosLayout/COSMOS-before.unity. Runtime meshes remain transient.
+Detailed settings and editor commands are in Assets/Scripts/Anomalies/COSMOS/README.md.
+
+Final refinement validation in Unity 6000.0.28f1 / DX11 passed 89 Play Mode checks:
+production GPU curved-row sampling, row compression, rectangular fallback, exact
+elliptical goal mapping, original camera framing, padded bounds, actual respawn
+references, all 194 walls, six physical contact probes, score growth, visible
+elliptical promotions, fixed capture volumes and Core capture by both teams.
+Gameplay and high-score captures were visually reviewed, including removal of the
+right goal's renderer-box rim artifact. No runtime errors or exceptions occurred;
+existing shared kinematic-spawn warnings remain. No standalone build or controller
+feel playtest was run. Report: Library/CosmosLayout/report.txt. COSMOS is saved and
+left open in Edit Mode with the user's camera size 9.
+
+COSMOS Inspector sizing (2026-10-04): `CosmosArenaLayoutEditor` adds overall
+width (16-48 world units, including both caps) and height (6-24) sliders to the
+layout component. `MASSIVE > COSMOS > Select layout controls` selects it (F8 with
+Ctrl+Shift+Alt). Grid size remains the source of truth; the bounds' separator
+proportion stays fixed. The Editor shares `CosmosLayoutSetup.FitGoals` for score,
+capture and local VFX scaling, previews immediately, and supports complete-object
+Undo for legacy RectTransforms. Sliders are Edit Mode only; save the scene to
+retain changes. Camera/HUD poses and current 31.2 x 14 dimensions were preserved.
+Manual Inspector resize, linked-scaling and Undo/Redo checks plus compilation
+passed; details in `Library/CosmosLayout/sliders-validation.txt`. No additional
+Play Mode run was needed for this Editor-only addition.
+COSMOS cosmic web (2026-10-04): the user chose a 36 x 13 overall oval (grid
+27.692307 x 12.999997). `CosmicWebBackground` is now installed on VectorGridGPU
+with its scene-local GameManagerScript and serialized shader reference. It draws
+56,000 persistent GPU matter tracers across a deterministic 3-D Voronoi filament
+network, evolving from uniform initial positions to
+filaments/clusters at regulation midpoint and concentrated knots at regulation end.
+2% of late particles remain in narrow filaments. No gameplay forces or collisions
+are added. This is an observationally inspired geometric approximation, not actual
+JWST catalogue data or an N-body simulation; science sources and limitations are in
+the COSMOS README. The latest NASA JWST/COSMOS weak-lensing map was reviewed.
+
+The component reads the actual regulation clock, holds at age 0 through preparation
+and countdown, and respects paused regulation. Its shader follows the live oval
+profile with 0.25-world-unit padding. The organic revision reconnects outer
+filaments through an enclosing ellipsoid and smoothly condenses the projection
+before the oval edge and goal separators. The fragment mask is a glow safety
+boundary. It renders behind the grid, above the ground.
+Existing live transforms, camera settings and the user's oval proportions were
+verified unchanged during installation. Inspector controls: Padding, seed, particle
+count, filament/cluster palette, brightness, galaxy size and Edit Mode Preview Age
+(0 early, 0.5 current-style web, 1 late voids). Play Mode ignores the preview age.
+
+Organic revision (2026-10-04): replaced regular site spacing and weak sine warps
+with density-modulated irregular sites, three scales of coherent noise, curved
+filaments and fine offshoots that rejoin their parents. Local noise controls
+nonlinear formation/accretion timing and curved infall. Same particles and exact
+age 0/0.5/1 anchors are retained. Added Organic Strength (rebuilds), Evolution
+Variation and Edge Condensation (GPU parameters) to the Inspector; authored defaults
+are 1, 1 and 0.6. All 182 clipped outer endpoints have continuous return connections.
+The return topology/lens-like projection is an arena presentation choice, not literal
+cosmic geometry or a physical gravitational lensing calculation.
+
+Validation: 27 Play Mode checks passed, including deterministic paths, actual
+production HLSL trajectory/projection comparison (max CPU/GPU error 0.000004),
+padded bounds at nine sampled ages, regional collapse variation, exact era anchors,
+unchanged gameplay random state, clock/bonus-pause behavior, GPU buffer reuse and
+release/re-enable. At 120 x 44 sampling resolution, empty cell fractions were 0.7%
+early, 17.9% at midpoint and 65.9% late. All five 1920 x 1080 gameplay captures were
+visually reviewed. No runtime errors/exceptions; existing shared startup warnings
+remain. No standalone build or cabinet frame-rate qualification was performed.
+Reports/captures: Library/CosmosWeb/validation.txt and early.png, forming.png,
+middle.png, evacuating.png, late.png. Before/after scene comparison contains only
+the three added web controls; camera, oval, HUD and existing element poses are unchanged.
+Backups: Library/CosmosWeb/BeforeWeb.unity and OrganicBefore (previous source/captures
+and the user's saved scene). Install shortcut Ctrl+Shift+Alt+F7;
+validation shortcut Ctrl+Shift+Alt+F12. Scene is saved with midpoint Edit Mode preview.

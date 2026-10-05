@@ -312,6 +312,8 @@ MonoBehaviour:
   breatheAmplitude: 0.025
   breatheFrequency: 0.85
   spawnOrganicRibbonScale: 1.5
+  timeoutInstability: 1
+  useSharedSettings: 1
 --- !u!114 &4806869977781991097
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -329,6 +331,13 @@ MonoBehaviour:
   collisionShape: {fileID: 1793747921132704728}
   visual: {fileID: 331714189033462270}
   visualRoot: {fileID: 7448502518396540079}
+  coreScale: 1
+  appliedCoreScale: 1
+  mass: 3
+  linearDrag: 0.42
+  angularDrag: 0.6
+  maximumPlanarSpeed: 25
+  wallRestitution: 0.85
   playSpawnAnimationOnEnable: 1
   spawnScaleSeconds: 0.38
   spawnShellMorphSeconds: 0.62
@@ -368,3 +377,4 @@ MonoBehaviour:
   playerPlanarVelocityRetention: 0.03
   playerImpactStopSeconds: 0.12
   repeatImpactLockoutSeconds: 0.12
+  useSharedSettings: 1

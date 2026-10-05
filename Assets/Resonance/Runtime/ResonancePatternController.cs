@@ -727,6 +727,8 @@ namespace Massive.Resonance
             if (!Application.isPlaying || !interactionEnabled || !attractGrid || gridAttractionStrength <= 0f) return;
             var target = grid != null ? grid : VectorGridGPU.Instance;
             if (target == null || !target.isActiveAndEnabled) return;
+            if (target.TryGetComponent<IResonanceGridPresentation>(out var presentation)
+                && presentation.TryPresentResonance(this)) return;
             Vector3 s = target.transform.lossyScale;
             float gridScale = Mathf.Max(.001f, (Mathf.Abs(s.x) + Mathf.Abs(s.y)) * .5f);
             float patternScaleWS = Mathf.Max(.001f, (Mathf.Abs(transform.lossyScale.x) + Mathf.Abs(transform.lossyScale.z)) * .5f);

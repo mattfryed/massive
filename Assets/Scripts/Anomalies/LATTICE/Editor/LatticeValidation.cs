@@ -13,7 +13,7 @@ using Object = UnityEngine.Object;
 namespace Massive.Lattice.EditorTools
 {
     [InitializeOnLoad]
-    public static class LatticeValidation
+    public static partial class LatticeValidation
     {
         const string Key = "MASSIVE.LatticeValidation", Output = "Library/LatticeValidation";
         static readonly List<string> results = new(), errors = new();
@@ -33,8 +33,11 @@ namespace Massive.Lattice.EditorTools
             if (EditorApplication.isCompiling || EditorApplication.isUpdating || EditorApplication.isPlayingOrWillChangePlaymode || SceneManager.GetActiveScene().path != LatticeSetup.ScenePath)
                 throw new InvalidOperationException("Open LATTICE in Edit Mode.");
             Directory.CreateDirectory(Output); File.WriteAllText(Output + "/report.txt", "RUNNING\n");
+            SessionState.SetBool(Key + ".AttacksOnly", false);
             SessionState.SetBool(Key, true); EditorApplication.isPlaying = true;
         }
+        [MenuItem("MASSIVE/LATTICE/Validate grid attacks %#&t")]
+        public static void RunAttacks() { Run(); SessionState.SetBool(Key + ".AttacksOnly", true); }
         static void State(PlayModeStateChange state)
         {
             if (!SessionState.GetBool(Key, false)) return;
@@ -98,6 +101,7 @@ namespace Massive.Lattice.EditorTools
             Check(installed.strandShader && installed.strandShader.isSupported && !ShaderUtil.ShaderHasError(installed.strandShader), "LATTICE shader compiles for the current DX11 renderer");
             yield return Until(() => installed.IsReady && installed.EdgeCount > 0, "Saved scene starts with a live connection field");
             Check(installed.Grid.size == new Vector2(28,12), "Existing 28 by 12 arena footprint retained");
+            yield return SceneSystemChecks(scene);
             yield return Seconds(1);
             Capture(Camera.main, "lattice-gameplay.png");
 
@@ -116,6 +120,7 @@ namespace Massive.Lattice.EditorTools
             root.SetActive(true);
             yield return Until(() => field.IsReady, "Independent fixture binds the canonical player and existing grid renderer");
             Check(VectorGridGPU.Instance == installed.Grid, "Secondary fixture does not replace the gameplay grid singleton");
+            if (SessionState.GetBool(Key + ".AttacksOnly", false)) { yield return AttackChecks(); yield break; }
             yield return BoundaryChecks(gridObject.transform);
             field.mode = LatticeDisruptionField.FieldMode.Connected; yield return Seconds(1.25f);
             Check(field.DisconnectedEdgeCount == 0 && field.DisruptionAt(origin) < .001f, "Connected control has all threads and no quantized region");
@@ -185,6 +190,8 @@ namespace Massive.Lattice.EditorTools
             field.enabled=false; yield return null;
             Check(!grid.GetComponent<MeshRenderer>().forceRenderingOff && !motor.IsQuantized, "Disabling the field restores the original renderer and locomotion");
             field.enabled=true; yield return Until(()=>field.IsReady,"Field rebuilds after disable and enable");
+            yield return ResonanceChecks();
+            yield return AttackChecks();
             motor.enabled=false; yield return null;
             Check(body.interpolation != RigidbodyInterpolation.None || !motor.IsQuantized,"Motor releases its interpolation ownership on disable");
             Check(!ShaderUtil.ShaderHasError(installed.strandShader),"Rendered strand and node shader has no compilation errors");

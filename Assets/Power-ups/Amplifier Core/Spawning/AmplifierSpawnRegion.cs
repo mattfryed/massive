@@ -185,6 +185,9 @@ namespace Massive.Multiplier
             if (local.x < rect.xMin || local.x > rect.xMax || local.y < rect.yMin || local.y > rect.yMax
                 || Mathf.Abs(point.y - spawnHeightWorld) > .01f)
             { reason = "Outside the safe neutral territory."; return false; }
+            if (explicitPlane == null && arenaBounds != null && arenaBounds.ovalOutline &&
+                !arenaBounds.ContainsWorldPoint(point, Mathf.Max(0, objectRadius) + Mathf.Max(0, clearanceWorld)))
+            { reason = "Outside the curved arena boundary."; return false; }
             return IsClearOfExclusionsCached(point, objectRadius, out reason, excludePlayers);
         }
 

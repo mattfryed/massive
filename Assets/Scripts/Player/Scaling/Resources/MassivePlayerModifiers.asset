@@ -22,7 +22,7 @@ MonoBehaviour:
     reversalEnabled: 1
     backwardConeDegrees: 100
     retainedMomentum: 0.75
-  - size: 1
+  - size: 0.66
     scaleActionReach: 1
     scaleMovement: 0
     scaleProjectileRange: 0
@@ -36,7 +36,7 @@ MonoBehaviour:
     reversalEnabled: 1
     backwardConeDegrees: 100
     retainedMomentum: 0
-  - size: 1
+  - size: 0.66
     scaleActionReach: 1
     scaleMovement: 0
     scaleProjectileRange: 0

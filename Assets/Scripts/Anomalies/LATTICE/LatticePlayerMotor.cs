@@ -46,6 +46,36 @@ namespace Massive.Lattice
             return new Vector2Int(Mathf.RoundToInt(Mathf.Cos(sector * Mathf.PI * .25f)), Mathf.RoundToInt(Mathf.Sin(sector * Mathf.PI * .25f)));
         }
 
+        // The attack controller owns motion after this handoff. A stage captures
+        // its two nodes once, so drifting noise cannot change its travel midway.
+        internal bool TryPlanAttack(Vector3 aim, bool advance, out Vector3 start, out Vector3 end, out Vector3 direction)
+        {
+            start = end = default; direction = aim;
+            if (!isActiveAndEnabled || !field || !field.isActiveAndEnabled || !field.IsReady
+                || !field.quantizeMovement || !body || body.isKinematic) return false;
+            if (field.DisruptionAt(body.position) < (IsQuantized ? field.exitDisruption : field.enterDisruption)) return false;
+            float radius = Massive.Player.PlayerScaleAdjuster.BodyRadiusOf(player);
+            Vector2Int node = field.NearestValidNode(body.position, radius);
+            start = field.NodeWorld(node, body.position.y);
+            if (!field.NodeFits(node, radius) || !ClearPath(body.position, start, radius)) return false;
+            Vector3 local = field.transform.InverseTransformVector(aim);
+            Vector2Int step = Direction8(new Vector2(local.x, local.y));
+            if (step == Vector2Int.zero) step = Vector2Int.right;
+            Vector3 next = field.NodeWorld(node + step, body.position.y);
+            direction = (next - start).normalized;
+            end = advance && field.NodeFits(node + step, radius) && ClearPath(start, next, radius) ? next : start;
+            Release(); // Restore normal interpolation for the smooth attack travel.
+            body.position = start;
+            body.linearVelocity = new Vector3(0, body.linearVelocity.y, 0);
+            return true;
+        }
+
+        internal bool AttackPathClear(Vector3 destination)
+        {
+            if (!isActiveAndEnabled || !field || !field.isActiveAndEnabled || !body || body.isKinematic) return false;
+            return ClearPath(body.position, destination, Massive.Player.PlayerScaleAdjuster.BodyRadiusOf(player));
+        }
+
         public bool Tick(Vector3 input, float movementMultiplier, float deadzone, float dt)
         {
             if (!isActiveAndEnabled || !field || !field.isActiveAndEnabled || !field.IsReady || !field.quantizeMovement || !body || body.isKinematic)

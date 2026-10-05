@@ -1,0 +1,11 @@
+#pragma kernel CSMain
+float2 _GridSize;
+#include "../LatticeResonance.hlsl"
+StructuredBuffer<float2> _Queries;
+RWStructuredBuffer<float2> _Results;
+int _QueryCount;
+[numthreads(64, 1, 1)]
+void CSMain(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x < (uint)_QueryCount) _Results[id.x] = LatticeResonanceOffset(_Queries[id.x]);
+}

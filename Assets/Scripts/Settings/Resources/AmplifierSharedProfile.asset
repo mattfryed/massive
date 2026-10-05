@@ -21,7 +21,7 @@ MonoBehaviour:
     seamCaptureIntensity: 1.3
     seamHeldIntensity: 0.35
     seamWidth: 0.055
-    seamReach: 0.1
+    seamReach: 0.27
     seamModeCount: 5
     seamModeMix: 0.6
     seamBeatFrequency: 0.18
@@ -37,9 +37,9 @@ MonoBehaviour:
     particleCloud: 1
     flareCorona: 1
     atmosphereWisps: 1
-    cloudIntensity: 1.6
-    cloudExtent: 0.16
-    cloudDensity: 0.75
+    cloudIntensity: 2.54
+    cloudExtent: 0.341
+    cloudDensity: 0.765
     cloudShimmer:
       enabled: 0
       scale: 1
@@ -47,15 +47,15 @@ MonoBehaviour:
       curl: 1
       driftSpeed: 1
     flareIntensity: 2.04
-    flareExtent: 0.085
+    flareExtent: 0.3
     flareShimmer:
-      enabled: 0
-      scale: 1
+      enabled: 1
+      scale: 3.58
       contrast: 0.138
       curl: 1
       driftSpeed: 1
-    atmosphereIntensity: 0.424
-    atmosphereExtent: 0.3
+    atmosphereIntensity: 1.736
+    atmosphereExtent: 0.54
     wispShimmer:
       enabled: 0
       scale: 1

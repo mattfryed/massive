@@ -17,6 +17,8 @@ float3 ResponsiveAttractionDisplace(float3 position, float2 flat)
 {
     float2 metric = max(_ResponsiveGridMetric.xy, float2(.0001, .0001));
     float2 toEdge = (_GridSize * .5 - abs(flat)) * metric;
+    if (_ArenaOval.w > .5)
+        toEdge.y = (_ArenaOval.y * sqrt(max(0, 1 - flat.x * flat.x / (_ArenaOval.z * _ArenaOval.z))) - abs(flat.y)) * metric.y;
     float edgeDistance = min(toEdge.x, toEdge.y);
     if (edgeDistance <= 0.0) return position;
     float2 sum = 0.0;

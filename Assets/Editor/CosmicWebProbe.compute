@@ -1,0 +1,15 @@
+#pragma kernel Evaluate
+#include "../Scripts/Anomalies/COSMOS/CosmicWebMotion.hlsl"
+StructuredBuffer<Particle> _Particles;
+RWStructuredBuffer<float4> _Projected;
+float _Age, _Variation, _Padding, _Condensation;
+float4 _Oval, _Scale;
+uint _Count;
+[numthreads(64,1,1)]
+void Evaluate(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _Count) return;
+    float f, e;
+    float3 p = WebPosition(_Particles[id.x], _Age, _Variation, f, e);
+    _Projected[id.x] = float4(WebProject(p, _Oval, _Scale.xy, _Padding + .06, _Condensation), f, e);
+}

@@ -37,7 +37,7 @@ MonoBehaviour:
     ignoreAllMultipliers: 0
     bonusOnly: 0
     chainEffect: 0
-    chainCharge: 0
+    chainCharge: 1
     repeatPolicy: 0
     feedbackId: HIGGS_CONTROL
     expectedOccurrencesPerRound: 100
@@ -121,7 +121,7 @@ MonoBehaviour:
     ignoreAllMultipliers: 0
     bonusOnly: 0
     chainEffect: 2
-    chainCharge: 0.25
+    chainCharge: 1
     repeatPolicy: 1
     feedbackId: ENEMY_DEFEAT
     expectedOccurrencesPerRound: 60
@@ -133,7 +133,7 @@ MonoBehaviour:
     ignoreAllMultipliers: 1
     bonusOnly: 1
     chainEffect: 0
-    chainCharge: 0
+    chainCharge: 1
     repeatPolicy: 1
     feedbackId: NOVA_CAPTURE
     expectedOccurrencesPerRound: 20

@@ -34,6 +34,9 @@ public class MetaballSDFInstance : MonoBehaviour
     private MaterialPropertyBlock _mpb;
     private bool _containerClipEnabled;
     private Vector4 _containerCenterRadius;
+    private Vector4 _ellipticalGoalProfile;
+    static readonly int EllipticalGoalID = Shader.PropertyToID("_CosmosGoalProfile");
+    public void SetEllipticalGoalProfile(Vector4 profile) { _ellipticalGoalProfile = profile; }
 
     public int Count => _count;
 
@@ -115,6 +118,7 @@ public class MetaballSDFInstance : MonoBehaviour
 
         _mpb.SetInt(ballCountProperty, _count);
         _mpb.SetVectorArray(ballsProperty, _balls);
+        _mpb.SetVector(EllipticalGoalID, _ellipticalGoalProfile);
 
         if (!string.IsNullOrEmpty(containerClipEnabledProperty))
             _mpb.SetFloat(containerClipEnabledProperty, _containerClipEnabled ? 1f : 0f);

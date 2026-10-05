@@ -238,6 +238,8 @@ namespace Massive.EditorTools
                 Field(s, "travelDistance", "Travel distance (size 1)");
                 Field(s, "distanceCurve", "Travel over stage");
                 Field(s, "rotationArc", "Sweep arc (degrees)");
+                if (stage.StageType == AttackStageType.ComboSwipe)
+                    Field(s, "showSwipeHitboxGuide", "Show live hitbox outline (Editor only)");
                 EditorGUILayout.LabelField(stage.StageType == AttackStageType.FinisherRepulsor ? "Repulsor is stationary; travel distance is ignored." : $"Average authored travel speed: {stage.TravelDistance / stage.Duration:0.##} units/s. Curve and player size affect actual motion.", EditorStyles.wordWrappedMiniLabel);
                 EditorGUILayout.Space(5);
                 bool hasNext = selectedStage + 1 < profile.Stages.Count;
@@ -302,7 +304,7 @@ namespace Massive.EditorTools
                 EditorGUILayout.LabelField("Lunge aim assistance", EditorStyles.boldLabel);
                 Field(c, "lockOnEnabled", "Enable aim assistance"); Field(c, "lockOnConeHalfAngleDeg", "Aim cone half-angle");
                 Field(c, "lockOnDirectionBlend", "Aim attraction"); Field(c, "lockOnMaxDistanceOverride", "Target distance (0 = travel)");
-                Field(c, "swipeArcCurve", "Swipe rotation over stage"); Field(c, "visualDirectionFollowsCombatFacing", "Aim visuals with live facing");
+                Field(c, "swipeArcCurve", "Swipe rotation during hit window"); Field(c, "visualDirectionFollowsCombatFacing", "Aim visuals with live facing");
                 if (d.ApplyModifiedProperties()) PlayerTuningEditing.Save(tuning);
             }
         }

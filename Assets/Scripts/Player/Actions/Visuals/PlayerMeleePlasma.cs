@@ -421,8 +421,13 @@ namespace Massive.Player
             var stage = PreviewAttackStage;
             PreviewRepulsorBody(stage);
             if (stage != null && stage.StageType == AttackStageType.ComboSwipe)
+            {
+                float t = stage.SwipeArcProgress(PreviewNormalizedTime);
+                var curve = attackController ? attackController.Effective_swipeArcCurve : null;
+                float eased = curve != null ? curve.Evaluate(t) : Mathf.SmoothStep(0, 1, t);
                 direction = Quaternion.AngleAxis(Mathf.Lerp(-stage.RotationArc * .5f, stage.RotationArc * .5f,
-                    Mathf.SmoothStep(0, 1, PreviewNormalizedTime)), Vector3.up) * direction;
+                    eased), Vector3.up) * direction;
+            }
             RenderStage(stage, PreviewNormalizedTime, direction, 1, previewClock, true);
             PreviewRepulsorGrid(stage);
         }

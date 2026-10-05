@@ -127,7 +127,7 @@ MonoBehaviour:
   volumeCrackleAmount: 0.35
   volumeCrackleScale: 12
   volumeCrackleRate: 9
-  thrustLingerSeconds: 0.4
+  thrustLingerSeconds: 0.0874923
   thrustFadeCurve: 1.3
   thrustWorldEmission: 1
   thrustEmissionPasses: 3
@@ -174,18 +174,18 @@ MonoBehaviour:
   body:
     bodyPulseEnabled: 1
     contraction: 0.1
-    expansion: 0.15
+    expansion: 0.2998
     reboundRiseTime: 0.055
     settleTime: 0.3
-    vibrationAmount: 0.018
-    vibrationFrequency: 28
+    vibrationAmount: 0.0546
+    vibrationFrequency: 18.9
     recoveryEnabled: 1
     recoveryMovement: 0.55
     recoveryDuration: 0.35
   grid:
     pulseEnabled: 1
-    intensity: 0.12
-    travelRadius: 2.5
+    intensity: 0.436
+    travelRadius: 4
     duration: 0.45
-    packetWidth: 0.55
-    curl: 0.2
+    packetWidth: 3
+    curl: 0.464
