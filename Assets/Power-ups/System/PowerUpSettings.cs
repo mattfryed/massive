@@ -108,7 +108,7 @@ namespace Massive.PowerUps
         [Min(0)] public float innerStagger = .03f;
         [Min(0)] public float innerJitter = .015f;
         [Range(0,2)] public float innerOvershoot = 1.15f;
-        [Header("Inner particle icon (Mass Node)")]
+        [Header("Inner particle icons (Mass / Amplifier Node)")]
         [Min(.01f)] public float particleSpawnSeconds = .25f;
         [Min(.01f)] public float particleAcquireSeconds = .18f;
         [Header("Acquire / separated face outlines")]
@@ -132,7 +132,7 @@ namespace Massive.PowerUps
         [Min(0)] public float cleanupDelaySeconds = 1;
         [Tooltip("Use each shared definition's world lifetime instead of the uniform lifetime above.")]
         public bool useDefinitionLifetimes;
-        [Tooltip("Scales each shared definition's equipped duration. Does not affect instant Mass Node grants or explicit demo overrides.")]
+        [Tooltip("Scales each shared definition's equipped duration. Does not affect instant Mass / Amplifier Node grants or explicit demo overrides.")]
         [Min(.01f)] public float effectDurationMultiplier = 1;
     }
     [Serializable]

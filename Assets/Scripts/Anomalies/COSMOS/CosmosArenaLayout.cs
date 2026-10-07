@@ -17,6 +17,8 @@ namespace Massive.Cosmos
         [Tooltip("Black cutout across the full camera view, including curved corners missed by the original rectangular mask strips.")]
         public Shader outsideMaskShader;
         public bool maskOutsideOval = true;
+        [Tooltip("World-space Y offset for the continuous oval mask. Positive raises it, negative lowers it. Zero keeps the automatic height in front of the cosmic background. Does not move the arena, border, or web.")]
+        public float maskYOffset;
         [HideInInspector] public int layoutRevision;
         ArenaBoundsFromVectorGrid bounds;
         CosmicWebBackground background;
@@ -74,6 +76,8 @@ namespace Massive.Cosmos
                 maskBlock.SetMatrix("_CosmosWorldToGrid", transform.worldToLocalMatrix);
                 var maskMatrix = transform.localToWorldMatrix * Matrix4x4.TRS(new Vector3(0,0,depth), Quaternion.identity,
                     new Vector3(Mathf.Max(100, builtProfile.z * 4), Mathf.Max(100, builtProfile.y * 4), 1));
+                // Offset world Y after the grid's rotation and scale have been applied.
+                maskMatrix.m13 += maskYOffset;
                 Graphics.DrawMesh(outsideMaskMesh, maskMatrix, outsideMaskMaterial, gameObject.layer,
                     null, 0, maskBlock, ShadowCastingMode.Off, false, null, LightProbeUsage.Off);
             }

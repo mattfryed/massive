@@ -11,6 +11,14 @@ Use **Edit Core Size / Physics (spawn prefab)**. Changing the prefab affects sub
 - Defaults preserve the previous mass 3, linear drag 0.42 and angular drag 0.6. Maximum speed starts at 25, and wall restitution at 0.85.
 - Wall response is frictionless and reflects incoming motion even below Unity's normal bounce threshold, preserving travel along the wall.
 
+## Attack and Particle Accelerator contact
+
+- Thrust and Sweep move the Core through their live melee hitboxes. Thrust also retains its body-contact launch and solid-impact stop. Sweep uses the current arcing weapon direction and continues its attack after contact.
+- Repulsor pushes outward from its released pulse origin, including Cores behind the player. Each Sweep or Repulsor can launch a given Core once; lingering visuals do not keep applying force. **Attack impulse** and Core **Mass** determine the melee launch.
+- The sustained Particle Accelerator pushes along the local beam direction while its collision trace touches the Core. Walls and nearer blockers stop that force; the fading/retracting beam does not push. Tune **Amplifier Push Force** in **MASSIVE → Power-up Settings → Particle Accelerator** (or its shared definition). This is independent of damage; zero disables beam pushing. Core mass, drag and maximum speed still apply.
+- Spawn/despawn, captured, disabled, presentation-only and external-transit Cores reject attack force.
+- **MASSIVE → Amplifier → Validate Attack and Beam Contacts** runs isolated Play Mode contact/force regression checks and returns to Edit Mode. It uses temporary fixture profiles and direct stage entry to exercise hit delivery; it is not a normal-input competitive match test.
+
 ## Sequence lifetime
 
 The scene starts with **Time-out = 30 seconds** and **Warning before expiry = 5 seconds**. Time begins after the Core finishes appearing, uses gameplay time, and pauses with the game. Zero time-out disables expiry.

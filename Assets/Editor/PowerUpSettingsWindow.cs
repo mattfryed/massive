@@ -22,7 +22,7 @@ namespace Massive.EditorTools
             if (!AssetDatabase.IsValidFolder("Assets/Power-ups/Resources"))
                 AssetDatabase.CreateFolder("Assets/Power-ups", "Resources");
             asset = ScriptableObject.CreateInstance<PowerUpSettings>();
-            string[] paths = { "Time Dilation/PU_TimeDilation", "Particle Accelerator/PU_ParticleAccelerator", "Decoherence/PU_Decoherence", "Mass Node/PU_MassNode" };
+            string[] paths = { "Time Dilation/PU_TimeDilation", "Particle Accelerator/PU_ParticleAccelerator", "Decoherence/PU_Decoherence", "Mass Node/PU_MassNode", "Amplifier Node/PU_AmplifierNode" };
             asset.definitions = paths.Select(p=>AssetDatabase.LoadAssetAtPath<PowerUpDefinition>("Assets/Power-ups/"+p+".asset")).ToList();
             asset.toasts.prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Power-ups/PU_PickupToast.prefab").GetComponent<PowerUpPickupToast>();
             AssetDatabase.CreateAsset(asset, Path); AssetDatabase.SaveAssetIfDirty(asset);
@@ -114,6 +114,8 @@ namespace Massive.EditorTools
             if (definitions.Select(d=>d.Type).Distinct().Count()!=definitions.Length) issues.Add("The catalogue contains duplicate power-up types.");
             foreach (var def in definitions)
             {
+                if (def is AmplifierNodePowerUpDefinition amplifier && !amplifier.massNode)
+                    issues.Add(def.name + ": assign the shared Mass Node grant.");
                 if (!def.pickupPrefab) { issues.Add(def.name+": missing pickup prefab."); continue; }
                 var pickup = def.pickupPrefab.GetComponent<PowerUpPickup>();
                 if (!pickup || pickup.definition != def) issues.Add(def.name+": pickup prefab must reference this definition.");
@@ -244,6 +246,17 @@ namespace Massive.EditorTools
                 if(GUILayout.Button("Select",GUILayout.Width(65))) Selection.activeObject=definition;
             }
             EditorGUILayout.HelpBox("These are the actual shared gameplay definitions. Changes apply anywhere this power-up is used. Spawn chance is managed in Global > Spawning.",MessageType.Info);
+            if (definition is AmplifierNodePowerUpDefinition amplifierNode)
+            {
+                EditorGUILayout.HelpBox("Instant: Mass Node's mass gain plus the next personal multiplier milestone (for example, ×1.5 → ×2, or ×2 → ×4). At the cap it still grants mass. It leaves your equipped ability and team amplification unchanged.", MessageType.Info);
+                if (amplifierNode.massNode && GUILayout.Button("Edit shared Mass Node grant"))
+                {
+                    var definitions = settings.definitions.Where(d => d).Distinct().ToArray();
+                    int index = Array.IndexOf(definitions, amplifierNode.massNode);
+                    if (index >= 0) { tab = index + 1; scroll = Vector2.zero; }
+                    else Selection.activeObject = amplifierNode.massNode;
+                }
+            }
             if (definition is ParticleAcceleratorPowerUpDefinition)
                 EditorGUILayout.HelpBox("Acquisition fills the energy ring. Sword fires instantly; hold to drain, release to refill after the minimum burst. Low energy caps that burst. After emptying the ring, press again to fire any recovered energy. Turn Propagation Speed controls how quickly aim travels along the beam; Max Turn Delay = 0 gives instant aim.", MessageType.None);
             if (definition is ParticleAcceleratorPowerUpDefinition energySettings)

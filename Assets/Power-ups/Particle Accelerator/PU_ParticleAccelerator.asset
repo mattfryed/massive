@@ -13,8 +13,7 @@ MonoBehaviour:
   m_Name: PU_ParticleAccelerator
   m_EditorClassIdentifier: 
   displayName: Particle Accelerator
-  description: Fire instantly with Sword. Hold to drain the energy ring; release
-    to refill. Taps fire for at least one second while energy lasts.
+  description: Ranged, sustained beam attack
   spawnWeight: 1
   pickupPrefab: {fileID: 1305589374316551868, guid: b8be357cf873d46ebadf8060e1559a61,
     type: 3}
@@ -43,6 +42,7 @@ MonoBehaviour:
   massRemovedMax: 0.26
   playerDamagePerSecond: 0.4
   enemyDamagePerSecond: 6
+  amplifierPushForce: 30
   transferMassToShooter: 1
   beamProjectilePrefab: {fileID: 2729370454382667784, guid: 4d8350eed08b3db479d57c1aa9c52f24,
     type: 3}

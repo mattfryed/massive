@@ -2,6 +2,7 @@ using System.Collections;
 using UnityEngine;
 using Massive.Player;
 using Massive.PowerUps;
+using Massive.Multiplier;
 
 /// <summary>
 /// Event-driven melee hitbox for the player's weapon.
@@ -30,6 +31,7 @@ public class PlayerMelee : MonoBehaviour
 
     private Coroutine gateRoutine;
     private readonly System.Collections.Generic.HashSet<PlayerControllerScript> shieldContacts = new();
+    private readonly System.Collections.Generic.HashSet<AmplifierCoreGameplay> coreContacts = new();
 
     public PlayerControllerScript Owner => owner;
 #if UNITY_EDITOR
@@ -100,6 +102,7 @@ public class PlayerMelee : MonoBehaviour
     private void OnStageStarted(AttackStage stage)
     {
         shieldContacts.Clear();
+        coreContacts.Clear();
         if (!gateHitboxToActivationWindow || hitbox == null)
             return;
 
@@ -160,6 +163,8 @@ public class PlayerMelee : MonoBehaviour
         if (attackController && attackController.CurrentStage != null &&
             attackController.CurrentStage.StageType == AttackStageType.FinisherRepulsor) return;
 
+        if (TryResolveCoreImpact(other)) return;
+
         // Sword-vs-sword remains disabled until the clash system is re-enabled.
         // Keeping the branch in one place prevents the former duplicate player-hit path.
         if (other.CompareTag(swordTag))
@@ -177,6 +182,23 @@ public class PlayerMelee : MonoBehaviour
 
         if (other.CompareTag(playerTag))
             ResolvePlayerImpact(other);
+    }
+
+    private void OnTriggerStay(Collider other)
+    {
+        // Catch an already-overlapping Core when the hit window opens, or when
+        // its short impact lockout expires. Never repeat a hit within this stage.
+        TryResolveCoreImpact(other);
+    }
+
+    private bool TryResolveCoreImpact(Collider other)
+    {
+        if (!isActiveAndEnabled || !owner || !other || !hitbox || !hitbox.enabled) return false;
+        var core = other.GetComponentInParent<AmplifierCoreGameplay>();
+        if (!core) return false;
+        if (!coreContacts.Contains(core) && core.TryApplyAttackImpact(attackController))
+            coreContacts.Add(core);
+        return true;
     }
 
     private void ResolveShieldImpact(Collider shieldCollider)

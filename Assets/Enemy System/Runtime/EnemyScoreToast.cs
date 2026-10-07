@@ -27,10 +27,7 @@ namespace Massive.Enemies
         public static EnemyScoreToast Show(EnemyScoreToast prefab, ScoreAwardResult award, Scene scene)
         {
             if (prefab == null || prefab.label == null || !award.accepted || award.finalMilliElectronVolts <= 0) return null;
-            var display = EnergyScoreFormatter.GetDisplayValue(award.finalMilliElectronVolts);
-            string amount = EnergyScoreFormatter.FormatValue(award.finalMilliElectronVolts, 1, display.fractionalThousandths == 0 ? 0 : 3);
-            if (display.fractionalThousandths != 0) amount = amount.TrimEnd('0').TrimEnd('.');
-            return ShowValue(prefab, "+" + amount + " " + display.unitLabel, award.finalMilliElectronVolts, 0f, award.worldPosition, scene);
+            return ShowValue(prefab, ScoreText(award.finalMilliElectronVolts), award.finalMilliElectronVolts, 0f, award.worldPosition, scene);
         }
 
         public static EnemyScoreToast ShowMass(EnemyScoreToast prefab, float restored, float range, Vector3 position, Scene scene)
@@ -38,6 +35,29 @@ namespace Massive.Enemies
             if (restored <= 0f || range <= 0f) return null;
             string percent = (restored / range * 100f).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
             return ShowValue(prefab, "+" + percent + "% MASS", 0L, restored, position, scene);
+        }
+
+        public static EnemyScoreToast ShowPickup(EnemyScoreToast prefab, ScoreAwardResult award,
+            float restored, float range, Vector3 position, Scene scene)
+        {
+            if (!award.accepted || award.finalMilliElectronVolts <= 0)
+                return ShowMass(prefab, restored, range, position, scene);
+
+            string text = ScoreText(award.finalMilliElectronVolts) + " SCORE";
+            if (restored > 0f && range > 0f)
+            {
+                string percent = (restored / range * 100f).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+                text += "\n<size=80%>+" + percent + "% MASS</size>";
+            }
+            return ShowValue(prefab, text, award.finalMilliElectronVolts, restored, position, scene);
+        }
+
+        private static string ScoreText(long value)
+        {
+            var display = EnergyScoreFormatter.GetDisplayValue(value);
+            string amount = EnergyScoreFormatter.FormatValue(value, 1, display.fractionalThousandths == 0 ? 0 : 3);
+            if (display.fractionalThousandths != 0) amount = amount.TrimEnd('0').TrimEnd('.');
+            return "+" + amount + " " + display.unitLabel;
         }
 
         private static EnemyScoreToast ShowValue(EnemyScoreToast prefab, string text, long score, float mass, Vector3 position, Scene scene)

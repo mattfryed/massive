@@ -61,6 +61,8 @@ namespace Massive.PowerUps
         [Min(0f)] public float playerDamagePerSecond = .08f;
         [Tooltip("Enemy health removed per second of full-strength beam contact. Independent of player damage and mass transfer.")]
         [Min(0f)] public float enemyDamagePerSecond = .08f;
+        [Tooltip("Force applied to an Amplifier Core during sustained beam contact. Independent of damage; zero disables Core pushing.")]
+        [Min(0f)] public float amplifierPushForce = 30f;
         [Tooltip("If true, mass removed from another player is added to the shooter. Enemy damage does not transfer mass.")]
         public bool transferMassToShooter = true;
 

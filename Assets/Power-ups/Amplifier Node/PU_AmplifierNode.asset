@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 263a56a057993014995ecc44be06bb9b, type: 3}
+  m_Name: PU_AmplifierNode
+  m_EditorClassIdentifier: 
+  displayName: Amplifier Node
+  description: "+MASS \u2022 PERSONAL MULTIPLIER +1 STEP"
+  spawnWeight: 1
+  pickupPrefab: {fileID: 6571644053019481192, guid: af8851654950483459e20d662701905b,
+    type: 3}
+  worldLifetimeSeconds: 12
+  effectDurationSeconds: 8
+  massNode: {fileID: 11400000, guid: 77d7a5bf81436fd4e8d26722664ec489, type: 2}

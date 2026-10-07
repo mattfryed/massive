@@ -7,6 +7,14 @@ using UnityEngine;
 [CustomEditor(typeof(ScoreEconomyProfile))]
 public sealed class ScoreEconomyProfileEditor : Editor
 {
+    [MenuItem("MASSIVE/Scoring/Score Economy Settings")]
+    private static void OpenSettings()
+    {
+        var profile = AssetDatabase.LoadAssetAtPath<ScoreEconomyProfile>("Assets/Scripts/Scoring/ScoreEconomyProfile.asset");
+        Selection.activeObject = profile;
+        EditorGUIUtility.PingObject(profile);
+    }
+
     private List<Massive.Enemies.EnemyDefinition> _enemies;
     private void OnEnable()
     {
@@ -26,6 +34,9 @@ public sealed class ScoreEconomyProfileEditor : Editor
         DrawPropertiesExcluding(serializedObject, "m_Script", "rewards");
 
         EditorGUILayout.Space(8f);
+        EditorGUILayout.HelpBox("MASS_NUGGET and MASS_NUGGLET grant fixed collection score, even at full player mass. " +
+            "Multiplier Eligible applies the personal multiplier; Ignore All Multipliers also bypasses the team Amplifier. " +
+            "To add personal multiplier growth, choose a Chain Effect and set Chain Charge above zero. Mass restoration is tuned on the pickup.", MessageType.Info);
         SerializedProperty rewards = serializedObject.FindProperty("rewards");
         EditorGUILayout.PropertyField(rewards, includeChildren: true);
 

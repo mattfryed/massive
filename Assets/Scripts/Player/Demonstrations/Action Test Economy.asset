@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Action Test Economy
   m_EditorClassIdentifier: 
   rulesetId: MASSIVE_SCORE_V1
-  rulesetVersion: 4
+  rulesetVersion: 5
   regulationDurationSeconds: 1200
   chainSettings:
     multiplierSteps: 0100000002000000040000000800000010000000
@@ -137,3 +137,27 @@ MonoBehaviour:
     repeatPolicy: 1
     feedbackId: NOVA_CAPTURE
     expectedOccurrencesPerRound: 20
+  - key: MASS_NUGGET
+    enabled: 1
+    amount: 100
+    unit: 0
+    multiplierEligible: 1
+    ignoreAllMultipliers: 0
+    bonusOnly: 0
+    chainEffect: 0
+    chainCharge: 0
+    repeatPolicy: 1
+    feedbackId: MASS_PICKUP
+    expectedOccurrencesPerRound: 0
+  - key: MASS_NUGGLET
+    enabled: 1
+    amount: 10
+    unit: 0
+    multiplierEligible: 1
+    ignoreAllMultipliers: 0
+    bonusOnly: 0
+    chainEffect: 0
+    chainCharge: 0
+    repeatPolicy: 1
+    feedbackId: MASS_PICKUP
+    expectedOccurrencesPerRound: 0

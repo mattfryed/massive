@@ -37,7 +37,11 @@ public sealed class CosmosArenaLayoutEditor : Editor
             EditorGUILayout.HelpBox("Includes both goals. Adjust in Edit Mode; changes preview immediately and support Undo.", MessageType.None);
             EditorGUILayout.Space();
         }
-        DrawDefaultInspector();
+        if (DrawDefaultInspector())
+        {
+            EditorApplication.QueuePlayerLoopUpdate();
+            SceneView.RepaintAll();
+        }
     }
 
     internal static void Resize(CosmosArenaLayout layout, float width, float height)

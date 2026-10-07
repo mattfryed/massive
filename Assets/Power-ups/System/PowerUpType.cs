@@ -5,6 +5,7 @@ namespace Massive.PowerUps
         Decoherence,
         ParticleAccelerator,
         TimeDilation,
-        MassNode
+        MassNode,
+        AmplifierNode
     }
 }

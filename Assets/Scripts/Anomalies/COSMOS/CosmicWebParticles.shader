@@ -1,12 +1,19 @@
 Shader "MASSIVE/Cosmos/CosmicWebParticles"
 {
+    Properties
+    {
+        [HideInInspector] _OpaqueParticles ("Opaque particles", Float) = 0
+        [HideInInspector] _SrcBlend ("Source blend", Float) = 1
+        [HideInInspector] _DstBlend ("Destination blend", Float) = 1
+        [HideInInspector] _ZWrite ("Depth write", Float) = 0
+    }
     SubShader
     {
         Tags { "Queue"="Transparent-100" "RenderType"="Transparent" }
         Pass
         {
-            Blend One One
-            ZWrite Off ZTest LEqual Cull Off
+            Blend [_SrcBlend] [_DstBlend]
+            ZWrite [_ZWrite] ZTest LEqual Cull Off
             HLSLPROGRAM
             #pragma target 4.5
             #pragma vertex vert
@@ -17,9 +24,13 @@ Shader "MASSIVE/Cosmos/CosmicWebParticles"
             float4x4 _GridToWorld;
             float4 _Oval, _WorldScale, _Blue, _Pink, _EarlyHeat;
             float4 _HeatTransition, _HeatCoverage, _HeatBlue, _HeatCyan, _HeatGold, _HeatRed;
+            float4 _OpaqueSize, _PaletteInterpolation;
             float _Age, _Padding, _Depth, _Brightness, _GalaxySize, _EvolutionVariation, _EdgeCondensation;
             float _MotionTime, _DriftStrength, _ClusterTurbulence;
             float _BrightnessVariance, _EdgeVignette, _LensingTransitionSmoothness;
+            float _OpaqueParticles;
+            sampler2D _ColorMixers;
+            float _UseColorMixers;
             struct v2f
             {
                 float4 position : SV_POSITION;
@@ -28,13 +39,20 @@ Shader "MASSIVE/Cosmos/CosmicWebParticles"
                 float4 light : TEXCOORD2;
             };
             float Hash(float x) { return frac(sin(x * 12.9898 + 78.233) * 43758.5453); }
+            float ColorSample(uint id)
+            {
+                // Stable choices, independent of motion, particle size and glow seeds.
+                id ^= id >> 16; id *= 2246822519u;
+                id ^= id >> 13; id *= 3266489917u; id ^= id >> 16;
+                return (id & 0x00ffffffu) * (1.0 / 16777216.0);
+            }
             float HeatColorCoverage(float temperature, float coverage, float feather)
             {
                 if (coverage <= 0) return 0;
                 if (coverage >= 1) return 1;
                 return smoothstep(1 - coverage - feather, 1 - coverage + feather, temperature);
             }
-            float3 EarlyHeatColor(Particle p)
+            float3 EarlyHeatColor(Particle p, uint instance, out float3 unmixed)
             {
                 // Color follows the original matter parcels. Depth-independent sampling
                 // keeps overlapping tracers in the same patch from washing out to white.
@@ -46,9 +64,30 @@ Shader "MASSIVE/Cosmos/CosmicWebParticles"
                     + .28 * WebTurbulenceNoise(q * 2.6 + 17.3)
                     + .12 * WebTurbulenceNoise(q * 8.2 - 11.7);
                 float temperature = saturate(.5 + mottling * 1.4);
-                float3 color = lerp(_HeatBlue.rgb, _HeatCyan.rgb, HeatColorCoverage(temperature, _HeatCoverage.x, .14));
-                color = lerp(color, _HeatGold.rgb, HeatColorCoverage(temperature, _HeatCoverage.y, .095));
-                return lerp(color, _HeatRed.rgb, HeatColorCoverage(temperature, _HeatCoverage.z, .13));
+                // Beyond 100%, broaden the actual temperature intervals that mix colors.
+                // Keep 0–100% and the additive mode's original narrow bands unchanged.
+                float featherScale = _OpaqueParticles > .5 ? clamp(_EarlyHeat.w, 1, 4) : 1;
+                float cyan = HeatColorCoverage(temperature, _HeatCoverage.x, .14 * featherScale);
+                float gold = HeatColorCoverage(temperature, _HeatCoverage.y, .095 * featherScale);
+                float red = HeatColorCoverage(temperature, _HeatCoverage.z, .13 * featherScale);
+                // Blue is the residual base. Transfer its removed share to cyan;
+                // keep the default path and the warmer bands unchanged.
+                if (_HeatCoverage.w < 1) cyan = 1 - (1 - cyan) * saturate(_HeatCoverage.w);
+                float3 color = lerp(_HeatBlue.rgb, _HeatCyan.rgb, cyan);
+                color = lerp(color, _HeatGold.rgb, gold);
+                color = lerp(color, _HeatRed.rgb, red);
+                unmixed = color;
+                [branch] if (_OpaqueParticles > .5 && _EarlyHeat.w < 1)
+                {
+                    // The same coverage weights choose exact swatches at zero mixing.
+                    // Stable samples keep the spatial heat pattern without random flicker.
+                    float sample = ColorSample(instance + 2437u);
+                    float goldEnd = red + (1 - red) * gold;
+                    float cyanEnd = goldEnd + (1 - red) * (1 - gold) * cyan;
+                    unmixed = sample < red ? _HeatRed.rgb : sample < goldEnd ? _HeatGold.rgb :
+                        sample < cyanEnd ? _HeatCyan.rgb : _HeatBlue.rgb;
+                }
+                return color;
             }
             v2f vert(uint vertex : SV_VertexID, uint instance : SV_InstanceID)
             {
@@ -58,9 +97,20 @@ Shader "MASSIVE/Cosmos/CosmicWebParticles"
                 float3 center = WebPosition(p, _Age, _EvolutionVariation, _MotionTime, _DriftStrength,
                     _ClusterTurbulence, formation, evacuation);
                 float knot = lerp(p.filament.w, p.cluster.w, evacuation) * formation;
-                float haze = step(.83, Hash(instance + 1));
-                float radius = _GalaxySize * lerp(.65, 1.8, Hash(instance + 7)) * lerp(1, 5.2, haze);
-                radius *= lerp(1, .6, evacuation) * lerp(.8, 1.15, saturate(center.z * .5 + .5));
+                float haze = 0;
+                float radius;
+                [branch] if (_OpaqueParticles > .5)
+                {
+                    // Independent, persistent diameter samples; no former haze population,
+                    // brightness weighting, depth scaling or age-driven size changes.
+                    radius = .5 * lerp(_OpaqueSize.x, _OpaqueSize.y, Hash(instance + 71));
+                }
+                else
+                {
+                    haze = step(.83, Hash(instance + 1));
+                    radius = _GalaxySize * lerp(.65, 1.8, Hash(instance + 7)) * lerp(1, 5.2, haze);
+                    radius *= lerp(1, .6, evacuation) * lerp(.8, 1.15, saturate(center.z * .5 + .5));
+                }
                 float2 corner = corners[vertex];
                 float2 projected = WebProject(center, _Oval, _WorldScale.xy, _Padding + .06, _EdgeCondensation, _LensingTransitionSmoothness);
                 float2 arenaPosition = projected + corner * radius / _WorldScale.xy;
@@ -71,12 +121,53 @@ Shader "MASSIVE/Cosmos/CosmicWebParticles"
                 o.uv = corner;
                 o.arenaPosition = arenaPosition * _WorldScale.xy;
                 float3 color = lerp(_Blue.rgb, _Pink.rgb, knot * .85);
-                color = lerp(color, float3(.7,.88,1), step(.985, Hash(instance + 17)) * .65);
+                [branch] if (_OpaqueParticles > .5)
+                {
+                    float4 filament = float4(_Blue.rgb, _PaletteInterpolation.x);
+                    float4 cluster = float4(_Pink.rgb, _PaletteInterpolation.y);
+                    [branch] if (_UseColorMixers > .5)
+                    {
+                        filament = tex2Dlod(_ColorMixers, float4(ColorSample(instance + 307u), .25, 0, 0));
+                        cluster = tex2Dlod(_ColorMixers, float4(ColorSample(instance + 911u), .75, 0, 0));
+                    }
+                    float transition = knot * .85;
+                    color = lerp(filament.rgb, cluster.rgb, transition);
+                    float interpolation = min(saturate(filament.a), saturate(cluster.a));
+                    [branch] if (interpolation < 1)
+                    {
+                        // At zero, select one exact swatch rather than inventing a hue.
+                        // Stable per-particle choices spread the handoff across a region.
+                        float3 unmixed = ColorSample(instance + 1619u) < transition ? cluster.rgb : filament.rgb;
+                        color = lerp(unmixed, color, interpolation);
+                    }
+                }
+                [branch] if (_OpaqueParticles < .5)
+                    color = lerp(color, float3(.7,.88,1), step(.985, Hash(instance + 17)) * .65);
                 float cooling = _HeatTransition.y <= _HeatTransition.x
                     ? step(_HeatTransition.y, _Age) : smoothstep(_HeatTransition.x, _HeatTransition.y, _Age);
                 float heat = saturate(_EarlyHeat.x) * (1 - cooling);
                 // Color/light only; topology and motion do not depend on these controls.
-                [branch] if (heat > 0) color = lerp(color, EarlyHeatColor(p), heat);
+                [branch] if (heat > 0)
+                {
+                    float3 unmixedHeat;
+                    float3 heatColor = EarlyHeatColor(p, instance, unmixedHeat);
+                    float3 mixed = lerp(color, heatColor, heat);
+                    [branch] if (_OpaqueParticles > .5 && _EarlyHeat.w < 1)
+                    {
+                        // Preserve the authored fade interval at zero interpolation by
+                        // handing particles back to the normal web palette individually.
+                        float3 distinct = ColorSample(instance + 3571u) < heat ? unmixedHeat : color;
+                        color = lerp(distinct, mixed, saturate(_EarlyHeat.w));
+                    }
+                    else color = mixed;
+                }
+                [branch] if (_OpaqueParticles > .5)
+                {
+                    // Use only the authored palettes and global brightness. The additive
+                    // glow's white highlights and per-particle dimming do not carry over.
+                    o.light = float4(color * _Brightness, 0);
+                    return o;
+                }
                 float baseBrightness = max(0, lerp(.625, p.initial.w, _BrightnessVariance));
                 float intensity = baseBrightness * lerp(.7, 1, formation) * lerp(1, .17, haze);
                 intensity *= lerp(1, _EarlyHeat.y, heat);
@@ -99,6 +190,12 @@ Shader "MASSIVE/Cosmos/CosmicWebParticles"
                 clip(edge);
                 float r2 = dot(i.uv, i.uv);
                 clip(1 - r2);
+                [branch] if (_OpaqueParticles > .5)
+                {
+                    // Binary circle/oval coverage, with full opacity across each disk.
+                    // No radial falloff or edge darkening changes the chosen colors.
+                    return float4(i.light.rgb, 1);
+                }
                 float glow = (exp(-r2 * 5.5) - exp(-5.5)) * .7 + exp(-r2 * 28) * .6;
                 // Soften only the existing early haze within its unchanged footprint.
                 // This adds a luminous soup between pinpoints without increasing overdraw.

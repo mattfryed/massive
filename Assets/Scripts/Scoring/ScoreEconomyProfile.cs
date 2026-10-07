@@ -156,6 +156,8 @@ namespace Massive.Scoring
         public const string DroneDefeat = "ENEMY_DRONE_DEFEAT";
         public const string PowerUpClaim = "POWER_UP_CLAIM";
         public const string EnergyPickupSmall = "ENERGY_PICKUP_SMALL";
+        public const string MassNugget = "MASS_NUGGET";
+        public const string MassNugglet = "MASS_NUGGLET";
         public const string ObjectiveTick = "OBJECTIVE_TICK";
         public const string NovaCoreCapture = "NOVA_CORE_CAPTURE";
         public const string HiggsControlTick = "HIGGS_CONTROL_TICK";
@@ -166,7 +168,7 @@ namespace Massive.Scoring
     {
         [Header("Ruleset Identity")]
         [SerializeField] private string rulesetId = "MASSIVE_SCORE_V1";
-        [SerializeField, Min(1)] private int rulesetVersion = 4;
+        [SerializeField, Min(1)] private int rulesetVersion = 5;
 
         [Header("Round")]
         [SerializeField, Min(1f)] private float regulationDurationSeconds = 120f;
@@ -234,7 +236,7 @@ namespace Massive.Scoring
         public void ResetToRecommendedDefaults()
         {
             rulesetId = "MASSIVE_SCORE_V1";
-            rulesetVersion = 4;
+            rulesetVersion = 5;
             regulationDurationSeconds = 120f;
             chainSettings = ScoreChainSettings.RecommendedDefaults();
             teamAmplifierSettings = TeamAmplifierSettings.RecommendedDefaults();
@@ -332,6 +334,18 @@ namespace Massive.Scoring
                 }
             };
 
+            rewards.Add(new ScoreRewardRule
+            {
+                key = ScoreRewardKeys.MassNugget, amount = 100, unit = EnergyUnit.MilliElectronVolt,
+                multiplierEligible = true, chainEffect = ScoreChainAwardMode.None, chainCharge = 0f,
+                repeatPolicy = ScoreRepeatPolicy.OncePerSourceToken, feedbackId = "MASS_PICKUP", expectedOccurrencesPerRound = 0
+            });
+            rewards.Add(new ScoreRewardRule
+            {
+                key = ScoreRewardKeys.MassNugglet, amount = 10, unit = EnergyUnit.MilliElectronVolt,
+                multiplierEligible = true, chainEffect = ScoreChainAwardMode.None, chainCharge = 0f,
+                repeatPolicy = ScoreRepeatPolicy.OncePerSourceToken, feedbackId = "MASS_PICKUP", expectedOccurrencesPerRound = 0
+            });
             rewards.Add(new ScoreRewardRule
             {
                 key = ScoreRewardKeys.HiggsControlTick, amount = 25, unit = EnergyUnit.MilliElectronVolt,

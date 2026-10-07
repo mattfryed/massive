@@ -3,10 +3,12 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using UnityEngine;
 using UnityEngine.Rendering;
+using Unity.Profiling;
 
 [DisallowMultipleComponent]
 public class MagnetosphereFieldLinesGPU2D : MonoBehaviour
 {
+    private static readonly ProfilerMarker UpdateMarker = new ProfilerMarker("Dynamo.OrganicField.Update");
     // ============================================================
     // Compute + Material
     // ============================================================
@@ -14,6 +16,47 @@ public class MagnetosphereFieldLinesGPU2D : MonoBehaviour
     public ComputeShader fieldCS;
     public Material lineMaterial;
     private MaterialPropertyBlock _mpb;
+
+    [Header("Scientific field presentation (optional)")]
+    [Tooltip("Replaces only the line drawing when ready. This component still owns the gameplay envelope and storm inputs.")]
+    public Massive.Dynamo.DynamoScientificFieldRenderer scientificRenderer;
+
+    public Vector3 EffectiveWindDirection => _effectiveWindDir;
+    public bool CanRecordBloom => isActiveAndEnabled && _segBuf != null && _argsBuf != null && lineMaterial &&
+        (!scientificRenderer || !scientificRenderer.CanRenderFor(this));
+
+    public void RecordBloomSource(CommandBuffer commands)
+    {
+        if (CanRecordBloom)
+            commands.DrawProceduralIndirect(Matrix4x4.identity, lineMaterial, 0, MeshTopology.Lines, _argsBuf, 0, _mpb);
+    }
+    public float EffectiveWindStrength => solarWindStrength + stormIntensity * stormWarpScale * Mathf.Clamp01(_stormEnvelope);
+
+    public void GetGameplayEnvelopeScales(float along, out float alongScale, out float perpendicularScale)
+    {
+        GetLocalEnvelope(EffectiveWindStrength, along, out _, out _, out alongScale, out perpendicularScale);
+    }
+
+    // Shared CPU authority for storm flow and gameplay; GPU consumers sample these same scales.
+    public float GetGameplayEnvelopeQ(Vector3 worldPosition)
+    {
+        Vector3 r = worldPosition - dipolePosition;
+        r.y = 0f;
+        Vector3 wind = NormalizeXZ(_effectiveWindDir);
+        float along = Vector3.Dot(r, wind);
+        float across = (r - wind * along).magnitude;
+        GetLocalEnvelope(EffectiveWindStrength, along, out float a, out float b, out _, out _);
+        return new Vector2(along / Mathf.Max(.001f, a), across / Mathf.Max(.001f, b)).magnitude;
+    }
+
+    public float GetGameplayEnvelopeRadius(Vector3 direction) =>
+        SolveEnvelopeRadiusAlongDirection(NormalizeXZ(direction), EffectiveWindStrength);
+
+    public void SetExternalStorm(Vector3 downstream, float pressure)
+    {
+        solarWindDirection = _baseWindDir = _effectiveWindDir = NormalizeXZ(downstream);
+        pressureGain = Mathf.Max(0f, pressure);
+    }
 
     [Header("Rendering")]
     [Range(0f, 1f)] public float alpha = 1.0f;
@@ -154,6 +197,13 @@ public class MagnetosphereFieldLinesGPU2D : MonoBehaviour
     public float pseudo3DSpeed = 0.35f;
     public float pseudo3DTwist = 1.0f;
 
+    [Header("Coherent loop depth")]
+    [Tooltip("Revolves complete loops around the magnetic axis. Retains the original planar tracing and storm envelope; requires Pseudo 3D Enabled.")]
+    public bool coherentLoopDepth = false;
+    [Range(0f, 75f)] public float loopSpreadDegrees = 45f;
+    [Tooltip("Compresses the revolved loops vertically for the top-down arena.")]
+    [Range(0f, 1f)] public float loopDepthScale = 0.18f;
+
     [Tooltip("If enabled, dim arcs when they are on the 'back' side.")]
     public bool pseudo3DDimBackSide = true;
 
@@ -253,6 +303,10 @@ public bool useProceduralSeeds = true;
     private readonly uint[] _segCountReadback = new uint[1];
 
     private int _kIntegrate;
+    private int _kBuildDrawArgs;
+    private int _allocatedSeeds, _allocatedSteps;
+    private readonly uint[] _initialDrawArgs = { 0, 1, 0, 0 };
+    public int BufferAllocationCount { get; private set; }
     private bool _inited;
     private int _frame;
 
@@ -314,6 +368,11 @@ public bool useProceduralSeeds = true;
     static readonly int _Pseudo3DAmplitudeID = Shader.PropertyToID("_Pseudo3DAmplitude");
     static readonly int _Pseudo3DSpeedID = Shader.PropertyToID("_Pseudo3DSpeed");
     static readonly int _Pseudo3DTwistID = Shader.PropertyToID("_Pseudo3DTwist");
+    static readonly int _CoherentLoopDepthID = Shader.PropertyToID("_CoherentLoopDepth");
+    static readonly int _LoopSpreadID = Shader.PropertyToID("_LoopSpreadRadians");
+    static readonly int _LoopDepthScaleID = Shader.PropertyToID("_LoopDepthScale");
+    static readonly int _SegmentCountID = Shader.PropertyToID("_SegmentCount");
+    static readonly int _DrawArgsID = Shader.PropertyToID("_DrawArgs");
 
     static readonly int _WarpAmountID      = Shader.PropertyToID("_WarpAmount");
     static readonly int _WarpAlongAmountID = Shader.PropertyToID("_WarpAlongAmount");
@@ -425,6 +484,7 @@ public bool useProceduralSeeds = true;
         if (!fieldCS || !lineMaterial) return;
 
         _kIntegrate = fieldCS.FindKernel("IntegrateCS");
+        _kBuildDrawArgs = fieldCS.FindKernel("BuildDrawArgs");
         Allocate();
         if (_mpb == null) _mpb = new MaterialPropertyBlock();
 
@@ -442,21 +502,24 @@ public bool useProceduralSeeds = true;
 void Allocate()
 {
     ReleaseBuffersOnly();
+    _allocatedSeeds = Mathf.Max(16, seedCount);
+    _allocatedSteps = EffectiveMaxSteps;
 
     // NEW: allocate dummy seeds (seedCount elements)
-    _seedsBuf = new ComputeBuffer(Mathf.Max(1, seedCount), Marshal.SizeOf<Vector3>());
+    _seedsBuf = new ComputeBuffer(_allocatedSeeds, Marshal.SizeOf<Vector3>());
     // fill with something harmless (center)
-    var tmp = new Vector3[Mathf.Max(1, seedCount)];
+    var tmp = new Vector3[_allocatedSeeds];
     for (int i = 0; i < tmp.Length; i++) tmp[i] = dipolePosition;
     _seedsBuf.SetData(tmp);
 
-    int cap = Mathf.Max(1, seedCount * Mathf.Max(1, maxSteps) * 2);
-    _segBuf = new ComputeBuffer(cap, 48, ComputeBufferType.Append);
+    int cap = _allocatedSeeds * _allocatedSteps * 2;
+    _segBuf = new ComputeBuffer(cap, Marshal.SizeOf<Segment>(), ComputeBufferType.Append);
     _segBuf.SetCounterValue(0);
 
     _segCountBuf = new ComputeBuffer(1, sizeof(uint), ComputeBufferType.IndirectArguments);
     _argsBuf = new ComputeBuffer(4, sizeof(uint), ComputeBufferType.IndirectArguments);
-    _argsBuf.SetData(new uint[4] { 0, 1, 0, 0 });
+    _argsBuf.SetData(_initialDrawArgs);
+    BufferAllocationCount++;
 
     // NEW: bind both buffers
     fieldCS.SetBuffer(_kIntegrate, _SeedsID, _seedsBuf);
@@ -483,36 +546,60 @@ void Allocate()
         _segBuf?.Release(); _segBuf = null;
         _segCountBuf?.Release(); _segCountBuf = null;
         _argsBuf?.Release(); _argsBuf = null;
+        _allocatedSeeds = _allocatedSteps = 0;
     }
 
+    private int EffectiveMaxSteps => Mathf.Max(16, forceReturnToPoles ? Mathf.Max(maxSteps, forceMinSteps) : maxSteps);
+
     void Update()
+    {
+        if (ExternalPresentation) return;
+        using (UpdateMarker.Auto()) UpdateField();
+    }
+
+    // A presentation-only owner supplies its own clock and camera submission.
+    public bool ExternalPresentation { get; set; }
+
+    // The editor calls this only on a temporary copy with its own material.
+    public void BuildVisualPreview(float sampleTime) => UpdateField(sampleTime, false, false);
+    public void ReleaseVisualPreview() => Release();
+
+    void UpdateField(float sampleTime = -1f, bool simulate = true, bool submitDraw = true)
     {
         if (!_inited) Init();
         if (!_inited || !fieldCS || !lineMaterial) return;
 
-        _t += Time.deltaTime;
-        UpdateWindAndStorm();
+        if (simulate)
+        {
+            _t += Time.deltaTime;
+            UpdateWindAndStorm();
+        }
 
         float stormEnv = Mathf.Clamp01(_stormEnvelope);
         float globalWindStrength = solarWindStrength + (stormIntensity * stormWarpScale * stormEnv);
 
+        if (scientificRenderer && scientificRenderer.CanRenderFor(this))
+        {
+            // Keep the original controller/particle/hazard bindings alive, without tracing a second field.
+            if (_segBuf != null) ReleaseBuffersOnly();
+            if (showDebugEnvelope)
+            {
+                EnsureDebugObjects();
+                UpdateDebugEnvelopes(globalWindStrength);
+            }
+            else if (_debugRoot) _debugRoot.SetActive(false);
+            return;
+        }
+        if (_segBuf == null || _allocatedSeeds != Mathf.Max(16, seedCount) || _allocatedSteps != EffectiveMaxSteps)
+            Allocate(); // Only allocate on fallback/re-enable or a trace-capacity change.
+
         // Assist for “always return to poles”
-        int stepsNow = maxSteps;
+        int stepsNow = EffectiveMaxSteps;
         float minMagNow = minFieldMag;
         if (forceReturnToPoles)
         {
             stepsNow = Mathf.Max(stepsNow, forceMinSteps);
             minMagNow = Mathf.Min(minMagNow, forceMinFieldMag);
-        }
-
-        // If stepsNow > maxSteps we should have a big enough buffer cap.
-        // Simple safe behavior: if stepsNow is larger, reallocate.
-        if (stepsNow > maxSteps)
-        {
-            int original = maxSteps;
-            maxSteps = stepsNow;
-            Allocate();
-            maxSteps = original; // keep inspector stable
         }
 
         _segBuf.SetCounterValue(0);
@@ -521,7 +608,7 @@ void Allocate()
         Vector3 wind = NormalizeXZ(_effectiveWindDir);
 
         // ---------- compute params ----------
-        fieldCS.SetInt(_SeedCountID, seedCount);
+        fieldCS.SetInt(_SeedCountID, _allocatedSeeds);
         fieldCS.SetInt(_MaxStepsID, stepsNow);
         fieldCS.SetFloat(_StepID, step);
         fieldCS.SetFloat(_MinMagID, Mathf.Max(0f, minMagNow));
@@ -532,7 +619,7 @@ void Allocate()
         fieldCS.SetFloat(_SeedJitterID, seedJitter);
         fieldCS.SetInt(_RandomSeedID, unchecked((int)randomSeed));
 
-        fieldCS.SetFloat(_TimeNowID, Time.time);
+        fieldCS.SetFloat(_TimeNowID, sampleTime >= 0f ? sampleTime : Time.time);
         fieldCS.SetFloat(_SpinStrengthID, spinStrength);
         fieldCS.SetFloat(_SpinSpeedID, spinSpeed);
         fieldCS.SetFloat(_WarbleStrengthID, warbleStrength);
@@ -547,6 +634,9 @@ void Allocate()
         fieldCS.SetFloat(_Pseudo3DAmplitudeID, pseudo3DAmplitude);
         fieldCS.SetFloat(_Pseudo3DSpeedID, pseudo3DSpeed);
         fieldCS.SetFloat(_Pseudo3DTwistID, pseudo3DTwist);
+        fieldCS.SetFloat(_CoherentLoopDepthID, coherentLoopDepth ? 1f : 0f);
+        fieldCS.SetFloat(_LoopSpreadID, Mathf.Clamp(loopSpreadDegrees, 0, 75) * Mathf.Deg2Rad);
+        fieldCS.SetFloat(_LoopDepthScaleID, Mathf.Clamp01(loopDepthScale));
 
         fieldCS.SetFloat(_WarpAmountID, warpAmount);
         fieldCS.SetFloat(_WarpAlongAmountID, warpAlongAmount);
@@ -609,7 +699,7 @@ void Allocate()
         fieldCS.SetFloat(_UseProceduralSeedsID, useProceduralSeeds ? 1f : 0f);
 
         // Metal/Unity requires _Seeds to be bound even when procedural seeding is enabled.
-        int seedsN = Mathf.Max(1, seedCount);
+        int seedsN = _allocatedSeeds;
         if (_seedsBuf == null || !_seedsBuf.IsValid() || _seedsBuf.count != seedsN)
         {
             _seedsBuf?.Release();
@@ -626,18 +716,21 @@ void Allocate()
         fieldCS.SetBuffer(_kIntegrate, _SegmentsID, _segBuf);
 
         // Dispatch
-        int groups = Mathf.Max(1, Mathf.CeilToInt(seedCount / 64.0f));
+        int groups = Mathf.Max(1, Mathf.CeilToInt(_allocatedSeeds / 64.0f));
         fieldCS.Dispatch(_kIntegrate, groups, 1, 1);
 
-        // Indirect args via CPU (reliable)
+        // Keep the append count and draw arguments on the GPU. No per-frame synchronization.
         ComputeBuffer.CopyCount(_segBuf, _segCountBuf, 0);
-        _segCountBuf.GetData(_segCountReadback);
-        uint segCount = _segCountReadback[0];
-        uint vtxCount = segCount * 2u;
-        _argsBuf.SetData(new uint[4] { vtxCount, 1, 0, 0 });
+        fieldCS.SetBuffer(_kBuildDrawArgs, _SegmentCountID, _segCountBuf);
+        fieldCS.SetBuffer(_kBuildDrawArgs, _DrawArgsID, _argsBuf);
+        fieldCS.Dispatch(_kBuildDrawArgs, 1, 1, 1);
 
         if (debugLogSegmentCount && (++_frame % Mathf.Max(1, debugLogEveryNFrames) == 0))
-            Debug.Log($"[{nameof(MagnetosphereFieldLinesGPU2D)}] Segments: {segCount} (vtx {vtxCount})");
+        {
+            // Explicit diagnostics only; normal rendering never reads the GPU count on the CPU.
+            _segCountBuf.GetData(_segCountReadback);
+            Debug.Log($"[{nameof(MagnetosphereFieldLinesGPU2D)}] Segments: {_segCountReadback[0]}");
+        }
 
         // ---------- material params ----------
         lineMaterial.SetBuffer(_SegmentsID, _segBuf);
@@ -678,7 +771,7 @@ void Allocate()
         }
 
         // Draw
-        if (vtxCount > 0)
+        if (submitDraw && _argsBuf != null)
         {
             var bounds = new Bounds(dipolePosition, Vector3.one * 99999f);
             Graphics.DrawProceduralIndirect(

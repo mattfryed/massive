@@ -90,6 +90,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8411381529477278133, guid: 2a7cf2d5a680c8a4589a00ff81aca229,
         type: 3}
+      propertyPath: scoreRewardKey
+      value: MASS_NUGGLET
+      objectReference: {fileID: 0}
+    - target: {fileID: 8411381529477278133, guid: 2a7cf2d5a680c8a4589a00ff81aca229,
+        type: 3}
       propertyPath: rewardMultiplier
       value: 0.1
       objectReference: {fileID: 0}

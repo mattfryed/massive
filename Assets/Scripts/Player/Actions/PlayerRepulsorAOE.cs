@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using Massive.Enemies;
 using Massive.PowerUps;
+using Massive.Multiplier;
 
 namespace Massive.Player
 {
@@ -66,6 +67,7 @@ namespace Massive.Player
         private Coroutine _routine;
         private readonly HashSet<PlayerControllerScript> _hitVictims = new HashSet<PlayerControllerScript>();
         private readonly HashSet<EnemyBase> _hitEnemies = new HashSet<EnemyBase>();
+        private readonly HashSet<AmplifierCoreGameplay> _hitCores = new HashSet<AmplifierCoreGameplay>();
         private float _enemyDamage;
         private float _innerDamageMultiplier = 1f;
         private readonly List<Collider> _targetColliders = new List<Collider>(8);
@@ -195,6 +197,7 @@ namespace Massive.Player
             }
             _hitVictims.Clear();
             _hitEnemies.Clear();
+            _hitCores.Clear();
             _enemyDamage = 0f;
             if (repulsorFX)
                 repulsorFX.Stop(true, ParticleSystemStopBehavior.StopEmitting);
@@ -337,6 +340,7 @@ namespace Massive.Player
 
             _hitVictims.Clear();
             _hitEnemies.Clear();
+            _hitCores.Clear();
             _enemyDamage = stage.RepulsorEnemyDamage;
             PulseScale = stage.RepulsorScale;
             ActiveProgress01 = 0f;
@@ -461,6 +465,15 @@ namespace Massive.Player
                 return;
 
             if (!other) return;
+
+            var core = other.GetComponentInParent<AmplifierCoreGameplay>();
+            if (core)
+            {
+                if (!_hitCores.Contains(core) && core.TryApplyRepulsorImpact(OriginWorld,
+                    attackController ? attackController.CurrentAttackDirectionWS : owner.transform.right))
+                    _hitCores.Add(core);
+                return;
+            }
 
             var pickup = other.GetComponentInParent<PowerUpPickup>();
             if (pickup) { pickup.TryActivate(hitbox); return; }

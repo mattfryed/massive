@@ -1,9 +1,21 @@
 #pragma kernel IntegrateCS
+#pragma kernel BuildDrawArgs
 
 struct Segment { float3 a; float3 b; float mag; };
 
 StructuredBuffer<float3> _Seeds;                  // MUST be bound on Metal (even if procedural)
 AppendStructuredBuffer<Segment> _Segments;
+StructuredBuffer<uint> _SegmentCount;
+RWStructuredBuffer<uint> _DrawArgs;
+
+[numthreads(1,1,1)]
+void BuildDrawArgs(uint3 id : SV_DispatchThreadID)
+{
+    _DrawArgs[0] = _SegmentCount[0] * 2;
+    _DrawArgs[1] = 1;
+    _DrawArgs[2] = 0;
+    _DrawArgs[3] = 0;
+}
 
 // Integration params
 int   _SeedCount;
@@ -35,6 +47,9 @@ float _Pseudo3DEnabled;
 float _Pseudo3DAmplitude;
 float _Pseudo3DSpeed;
 float _Pseudo3DTwist;
+float _CoherentLoopDepth;
+float _LoopSpreadRadians;
+float _LoopDepthScale;
 
 // Warp blending
 float _WarpAmount;
@@ -269,7 +284,16 @@ float3 EnvelopeNormalApprox(float3 p, float windStrength)
     float a, b, sa, sp;
     GetLocalEnvelope(windStrength, along, a, b, sa, sp);
 
-    float3 n = w * (along / (a*a)) + perp * (1.0 / (b*b));
+    // a and b vary along the wind axis. An ellipse normal that treats them
+    // as constants points across the actual boundary and produces stair steps.
+    float h = max(0.0001, _MagnetosphereRadius * 0.001);
+    float ap, bp, am, bm, unusedA, unusedB;
+    GetLocalEnvelope(windStrength, along + h, ap, bp, unusedA, unusedB);
+    GetLocalEnvelope(windStrength, along - h, am, bm, unusedA, unusedB);
+    float da = (ap - am) / (2.0 * h);
+    float db = (bp - bm) / (2.0 * h);
+    float alongGradient = along / (a*a) - along*along*da / (a*a*a) - dot(perp,perp)*db / (b*b*b);
+    float3 n = w * alongGradient + perp * (1.0 / (b*b));
     return NormalizeXZ(n);
 }
 
@@ -389,8 +413,31 @@ float3 ApplyVisualOffsets(float3 p, float windStrength, float h)
         }
     }
 
-    // Pseudo3D Y
-    if (_Pseudo3DEnabled > 0.5 && _Pseudo3DAmplitude > 1e-6)
+    // A fixed meridian per complete line supplies coherent depth at the same trace budget.
+    // Revolving an undeformed planar dipole around its axis gives a 3D dipole meridian.
+    // Storm deformation and path warble remain the existing artistic presentation.
+    if (_Pseudo3DEnabled > 0.5 && _CoherentLoopDepth > 0.5)
+    {
+        float3 axis = NormalizeXZ(_DipoleAxis);
+        float3 side = float3(axis.z, 0, -axis.x);
+        float3 r = p - _Center; r.y = 0;
+        float along = dot(r, axis);
+        float across = dot(r, side);
+        float angle = (h * 2 - 1) * _LoopSpreadRadians;
+        p = _Center + axis * along + side * (across * cos(angle)) +
+            float3(0, across * sin(angle) * _LoopDepthScale, 0);
+        // Rotation changes the projected position; keep visible lines inside the unchanged
+        // particle/hazard envelope, particularly when wind is oblique to the magnetic axis.
+        // The envelope varies with position, so a single radial division is insufficient.
+        if (EnvelopeQ(p, windStrength) > 1.0)
+        {
+            float height = p.y;
+            p = _Center + (ClipToEnvelopeWorld(_Center, p, windStrength) - _Center) * .9995;
+            p.y = height;
+        }
+    }
+    // Original independent depth waves remain available for direct comparison.
+    else if (_Pseudo3DEnabled > 0.5 && _Pseudo3DAmplitude > 1e-6)
     {
         float2 r2 = p.xz - _Center.xz;
         float ang = atan2(r2.y, r2.x);
@@ -548,6 +595,8 @@ void IntegrateCS(uint3 tid : SV_DispatchThreadID)
     {
         float dirSign = (traceDirIdx == 0) ? -1.0 : 1.0;
         float3 p = seed;
+        float3 previousVisual = WarpVisual(p, strength, hLine);
+        float3 previousMove = NormalizeXZ(DipoleField(p)) * dirSign;
 
         for (int s = 0; s < _MaxSteps; s++)
         {
@@ -558,7 +607,7 @@ void IntegrateCS(uint3 tid : SV_DispatchThreadID)
             {
                 float3 foot = SnapToPlanetPole(p);
                 Segment segF;
-                segF.a = WarpVisual(p, strength, hLine);
+                segF.a = previousVisual;
                 segF.b = WarpVisual(foot, strength, hLine);
                 segF.mag = 1.0;
                 _Segments.Append(segF);
@@ -585,6 +634,8 @@ void IntegrateCS(uint3 tid : SV_DispatchThreadID)
 
             // Step damping near boundary
             float ds = _Step * lerp(1.0, 0.35, ease);
+            // Resolve the pole region even when the artist's step exceeds the planet radius.
+            ds = min(ds, 0.25 * sqrt(r2));
 
             // Compute envelope-space direction for conformity (independent of warpAmount)
             float3 pEnv = MapToEnvelopeSpace(p, strength);
@@ -596,61 +647,55 @@ void IntegrateCS(uint3 tid : SV_DispatchThreadID)
             // Lean base direction toward envelope-space direction
             float3 leanDir = NormalizeXZ(lerp(baseDir, envDir0, conformW));
 
-            // Re-evaluate envelope-space direction using leanDir for stability
-            float3 nextCand1 = p + leanDir * ds; nextCand1.y = _Center.y;
-            float3 nextEnv1 = MapToEnvelopeSpace(nextCand1, strength);
-            float3 envDir = NormalizeXZ(nextEnv1 - pEnv);
-
             // Boundary tangent (WORLD normal)
-            float3 n = EnvelopeNormalApprox(p, strength);
-            float3 tanDir = envDir - n * dot(envDir, n);
-            tanDir = NormalizeXZ(tanDir);
-            if (dot(tanDir, tanDir) < 1e-8) tanDir = envDir;
+            float3 tanDir = leanDir;
+            if (ease > 1e-5)
+            {
+                float3 n = EnvelopeNormalApprox(p, strength);
+                tanDir = float3(-n.z, 0, n.x);
+                // Keep the direction of travel through a radial/tangent degeneracy.
+                // Normalizing a near-zero projection otherwise flips entire arcs.
+                if (dot(tanDir, previousMove) < 0.0) tanDir = -tanDir;
+            }
 
             // Final move direction: conform early, drape late
             float3 moveDir = NormalizeXZ(lerp(leanDir, tanDir, ease));
             if (dot(moveDir, moveDir) < 1e-8) moveDir = baseDir;
+            previousMove = moveDir;
 
             float3 next = p + moveDir * ds;
             next.y = _Center.y;
 
             float q1 = EnvelopeQ(next, strength);
 
-            // Visual endpoints (color/warble/pseudo3D happen inside WarpVisual)
-            float3 aW = WarpVisual(p, strength, hLine);
+            float3 visualEnd;
 
             // Boundary crossing: clip, append, then continue along boundary
             if (q0 <= 1.0 && q1 > 1.0)
             {
                 float3 hitBase = ClipToEnvelopeWorld(p, next, strength);
-                float3 bW = WarpVisual(hitBase, strength, hLine);
+                visualEnd = WarpVisual(hitBase, strength, hLine);
 
-                Segment segC;
-                segC.a = aW;
-                segC.b = bW;
-                segC.mag = mag;
-                _Segments.Append(segC);
-
-                // Continue from just inside boundary
+                // The numerical trace restarts inside, but the visible strand stays connected.
                 float3 nHit = EnvelopeNormalApprox(hitBase, strength);
                 float eps = max(0.001, 0.002 * _MagnetosphereRadius);
-
                 float3 pNext = hitBase - nHit * eps;
                 pNext.y = _Center.y;
-                p = ClampToEnvelopePreserveY(pNext, strength);
-                p.y = _Center.y;
-                continue;
+                next = ClampToEnvelopePreserveY(pNext, strength);
+                next.y = _Center.y;
+            }
+            else
+            {
+                if (q0 > 1.0) break;
+                visualEnd = WarpVisual(next, strength, hLine);
             }
 
-            if (q0 > 1.0) break;
-
-            float3 bW2 = WarpVisual(next, strength, hLine);
-
             Segment seg;
-            seg.a = aW;
-            seg.b = bW2;
+            seg.a = previousVisual;
+            seg.b = visualEnd;
             seg.mag = mag;
             _Segments.Append(seg);
+            previousVisual = visualEnd;
 
             p = next;
         }

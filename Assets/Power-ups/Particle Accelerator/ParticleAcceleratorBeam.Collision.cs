@@ -8,7 +8,7 @@ namespace Massive.PowerUps
     {
         readonly RaycastHit[] hits = new RaycastHit[64];
         readonly Collider[] overlaps = new Collider[32];
-        Vector3 tracePoint, traceNormal;
+        Vector3 tracePoint, traceNormal, traceDirection;
         bool CanBlock(Collider c) => CanBlock(c, origin);
         bool CanBlock(Collider c, Vector3 sampleOrigin)
         {
@@ -70,6 +70,7 @@ namespace Massive.PowerUps
             contact = null;
             Sample(0, out var previous, out float previousRadius);
             tracePoint = previous; traceNormal = -direction;
+            traceDirection = direction;
             if (limit <= .02f || radius <= .00001f) return 0;
             // A muzzle offset must never put the start of a shot through a nearby wall.
             Vector3 body = owner.transform.position; body.y = origin.y;
@@ -81,7 +82,7 @@ namespace Massive.PowerUps
             for (int i = 0; i < muzzleCount; i++)
                 if (hits[i].distance < muzzleNearest && CanBlock(hits[i].collider))
                 { muzzleNearest = hits[i].distance; contact = hits[i].collider; tracePoint = hits[i].point; traceNormal = hits[i].normal; }
-            if (contact) return 0;
+            if (contact) { traceDirection = muzzle.sqrMagnitude > .0001f ? muzzle.normalized : direction; return 0; }
             int steps = Mathf.Clamp(Mathf.CeilToInt(limit / .12f), 2, 256);
             float step = limit / steps;
             for (int n = 1; n <= steps; n++)
@@ -89,6 +90,9 @@ namespace Massive.PowerUps
                 Sample(n * step, out var next, out float nextRadius);
                 float width = Mathf.Max(.001f, Mathf.Max(previousRadius, nextRadius));
                 Vector3 segment = next - previous; float length = segment.magnitude, nearest = length;
+                // Curved shots push along the local arriving beam, not the
+                // shooter's newer muzzle heading or the target surface normal.
+                traceDirection = length > .0001f ? segment / length : direction;
                 int count = Physics.OverlapSphereNonAlloc(previous, width, overlaps, definition.beamCollisionMask, QueryTriggerInteraction.Collide);
                 if (count == overlaps.Length) return (n - 1) * step;
                 for (int i = 0; i < count; i++)

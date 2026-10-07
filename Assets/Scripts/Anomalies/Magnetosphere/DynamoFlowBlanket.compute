@@ -1,0 +1,121 @@
+#pragma kernel BuildPaths
+#pragma kernel BuildStreaks
+#pragma kernel BuildArguments
+
+// Each path stores its world position and cumulative VISIBLE arc length.
+// Flat runs in w are outside the viewport and receive no droplets.
+RWStructuredBuffer<float4> _Paths;
+StructuredBuffer<float2> _Envelope;
+struct Streak { float3 a; float3 b; float brightness; };
+AppendStructuredBuffer<Streak> _Streaks;
+RWStructuredBuffer<uint> _Arguments;
+StructuredBuffer<uint> _Count;
+int _LaneCount, _NodeCount, _SlotsPerLane;
+float3 _Flow, _Across, _Center;
+float4 _Domain; // along min/max, across min/max relative to center
+float4 _Corners[4];
+float4 _ProfileRange; // along min/max, sample count, unused
+float _Travel, _MotionTime, _Spacing, _StreakLength, _Clearance, _Jitter;
+
+uint Hash(uint x) { x ^= x >> 16; x *= 0x7feb352d; x ^= x >> 15; x *= 0x846ca68b; return x ^ (x >> 16); }
+float Random(uint x) { return (Hash(x) & 0xffffff) / 16777216.0; }
+
+float2 Axes(float along)
+{
+    float u = saturate((along - _ProfileRange.x) / max(.001, _ProfileRange.y - _ProfileRange.x)) * (_ProfileRange.z - 1);
+    uint i = min((uint)u, (uint)_ProfileRange.z - 2);
+    return lerp(_Envelope[i], _Envelope[i + 1], u - i);
+}
+
+bool InView(float3 p)
+{
+    float lo = 1e20, hi = -1e20;
+    for (int i = 0; i < 4; i++)
+    {
+        float2 a = _Corners[i].xz, b = _Corners[(i + 1) & 3].xz;
+        float2 e = b - a, d = p.xz - a;
+        float c = e.x * d.y - e.y * d.x;
+        lo = min(lo, c); hi = max(hi, c);
+    }
+    return lo >= 0 || hi <= 0;
+}
+
+[numthreads(32,1,1)]
+void BuildPaths(uint lane : SV_DispatchThreadID)
+{
+    if (lane >= (uint)_LaneCount) return;
+    float seed = Random(lane * 17 + 91);
+    float laneU = (lane + .2 + .6 * seed) / _LaneCount;
+    float offset = lerp(_Domain.z, _Domain.w, laneU);
+    float side = offset < 0 ? -1 : 1;
+    float baseline = max(.006, abs(offset));
+    float3 previous = 0;
+    float arc = 0;
+    for (uint node = 0; node < (uint)_NodeCount; node++)
+    {
+        float along = lerp(_Domain.x, _Domain.y, node / (float)(_NodeCount - 1));
+        float2 axes = max(.001, Axes(along) + _Clearance);
+        // A body-fitted streamfunction. Solving y*(1-1/Q^2)=incoming offset
+        // gives smooth, non-crossing paths outside this exact envelope section.
+        float a2 = along * along / (axes.x * axes.x);
+        float lo = axes.y * sqrt(max(0, 1 - a2));
+        float hi = baseline + axes.y * 2 + .1;
+        float target = baseline * (1 + _Jitter * .22 * sin(along * .65 + seed * 31 + _MotionTime * .65));
+        for (int k = 0; k < 16; k++)
+        {
+            float y = (lo + hi) * .5;
+            float q2 = a2 + y * y / (axes.y * axes.y);
+            float psi = y * (1 - rcp(max(1, q2)));
+            if (psi < target) lo = y; else hi = y;
+        }
+        float3 position = _Center + _Flow * along + _Across * (side * hi);
+        position.y += (seed - .5) * .16;
+        if (node > 0 && InView((position + previous) * .5)) arc += distance(position, previous);
+        _Paths[lane * _NodeCount + node] = float4(position, arc);
+        previous = position;
+    }
+}
+
+float3 AtDistance(uint lane, float s)
+{
+    uint start = lane * _NodeCount;
+    uint lo = 0, hi = _NodeCount - 1;
+    for (int k = 0; k < 10; k++)
+    {
+        if (hi <= lo + 1) break;
+        uint mid = (lo + hi) / 2;
+        if (_Paths[start + mid].w < s) lo = mid; else hi = mid;
+    }
+    float4 a = _Paths[start + lo], b = _Paths[start + hi];
+    return lerp(a.xyz, b.xyz, saturate((s - a.w) / max(.00001, b.w - a.w)));
+}
+
+[numthreads(64,1,1)]
+void BuildStreaks(uint id : SV_DispatchThreadID)
+{
+    uint lane = id / _SlotsPerLane, slot = id % _SlotsPerLane;
+    if (lane >= (uint)_LaneCount) return;
+    float total = _Paths[(lane + 1) * _NodeCount - 1].w;
+    if (total < .05) return;
+    uint count = min((uint)_SlotsPerLane, max(1u, (uint)ceil(total / max(.05, _Spacing))));
+    if (slot >= count) return;
+    float speed = lerp(.8, 1.2, Random(lane * 37 + 7));
+    float phase = frac((slot + Random(id * 13 + 71) * .85) / count + _Travel * speed / total);
+    float s = phase * total;
+    float length = _StreakLength * lerp(.45, 1.5, Random(id * 19 + 29));
+    float3 head = AtDistance(lane, s);
+    float3 tail = AtDistance(lane, max(.00001, s - length));
+    // A viewport may intersect a curved path in disjoint spans. Never bridge an invisible gap.
+    if (distance(head, tail) > length * 1.5 + .1 || !InView(head)) return;
+    Streak streak; streak.a = tail; streak.b = head;
+    streak.brightness = lerp(.35, 1, Random(id * 5 + 83));
+    _Streaks.Append(streak);
+}
+
+[numthreads(1,1,1)]
+void BuildArguments(uint id : SV_DispatchThreadID)
+{
+    _Arguments[0] = _Count[0] * 6;
+    _Arguments[1] = 1;
+    _Arguments[2] = _Arguments[3] = 0;
+}

@@ -118,6 +118,17 @@ namespace Massive.Scoring
                 NotifyChanged("award");
         }
 
+        /// <summary>Complete the current interval to its next authored multiplier milestone.</summary>
+        public bool AdvanceToNextStep()
+        {
+            if (!_configured || IsAtMaxTier) return false;
+
+            _tierIndex++;
+            _charge = 0f;
+            NotifyChanged("amplifier-node");
+            return true;
+        }
+
         public void ResetChain()
         {
             bool changed = _tierIndex != 0 || _charge > 0f;

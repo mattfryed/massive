@@ -108,6 +108,61 @@ preview age only update shader parameters.
 `Early Heat` and `Early Heat Brightness` change only early color and light.
 All appearance controls below update live without regenerating the topology.
 
+- **Particle rendering > Opaque Particles** toggles an alternate solid, unlit
+  appearance. Off is the original additive web and remains the default. On uses
+  full-opacity circular cutouts, replacement color (One/Zero), depth writes and
+  the cutout render queue; it bypasses the soft radial glow and early plasma halo.
+  Circle/oval boundaries discard pixels outright rather than fading alpha.
+  **Opaque Min Particle Size** and **Opaque Max Particle Size** set world-space
+  diameters (defaults **0.015–0.05**). Each particle keeps a stable random size
+  within this range, independent of former haze/glow, brightness, depth or Age.
+  Equal limits give uniform dots; reversed limits are sorted for rendering.
+  Opaque mode uses only the chosen filament/cluster and Early Heat palettes,
+  including their existing color transitions, multiplied by overall Brightness.
+  It omits the additive mode's white highlights, brightness variance, early heat
+  brightness boost, formation/crowding dimming, vignette and radial falloff.
+  **Galaxy Size**, **Brightness Variance**, **Early Heat Brightness** and
+  **Edge Vignette** continue to control additive mode only. Particle positions,
+  early heat timing and evolving motion stay shared.
+  Switching updates only the owned material and does not reset age, motion,
+  topology, supernova sources or the particle buffer. No extra draw or buffer is
+  added. The Level Select icon and supernova effects keep their own rendering.
+  Validation: Unity compilation and shader diagnostics are clean; isolated
+  renders at ages 0, 0.5 and 1 were inspected in both modes. The additive output
+  matched the preceding shader's renders byte-for-byte at all three ages. Live
+  Edit Mode switching preserved the buffer and generation. Play Mode and target
+  performance checks remain deferred.
+- **Filament Color Subsets** and **Cluster Color Subsets**, immediately below
+  their respective main colors, add independently weighted palettes in opaque
+  mode. Expand a list, add an element, choose its HDR **Color**, and set its
+  **Percentage**. For example, 20% gold + 10% violet leaves 70% of that palette
+  using the main color. Zero disables an entry; totals above 100 normalize the
+  subsets to 100%, leaving no base-color share. Empty lists preserve the previous
+  appearance. Percentages describe approximate shares of persistent particle
+  choices, not a single averaged paint color. The existing filament-to-cluster
+  color transition and Early Heat overlay still apply. Choices stay stable as
+  particles move and are independent of size; editing palette weights can
+  reassign choices. Additive mode and the Level Select icon are unaffected.
+  Each main color has a **Color Interpolation** slider, and every subset has an
+  **Interpolation (%)** slider, separate from its population **Percentage (%)**.
+  **100%** retains the previous continuous filament/cluster mix, **0%** uses only
+  exact palette swatches, and intermediate values reduce the tint toward the
+  other palette. The selected pair uses its lower interpolation setting, so a
+  protected color is never tinted by a more permissive counterpart. At reduced
+  interpolation, a stable per-particle choice selects the exact filament or
+  cluster swatch according to the existing cluster influence, then blends toward
+  the original mixed result by the allowed amount. Lower values therefore make
+  color handoffs more distinct as matter becomes clustered; geometry stays fluid.
+  Early Heat remains a separate overlay, and overall Brightness still applies.
+  Existing and new entries default to 100% without changing their colors or
+  population shares. The lookup's alpha channel stores this interpolation amount;
+  the rendered particles remain fully opaque. Changing a slider refreshes the
+  lookup without regenerating topology. Inspector edits support standard Undo.
+  A transient 1024-by-2 point-sampled color lookup (32 KiB GPU pixel data) supports
+  the lists without adding draw calls or rebuilding topology. It is created only
+  when weighted subsets are used and uploaded only when their settings change;
+  palette shares have approximately 0.1-percentage-point lookup resolution.
+  The lookup is released with the web on disable, rebuild or scene unload.
 - The existing regulation clock owns age: start/countdown = 0, half of regulation =
   0.5, regulation end = 1. Paused regulation, including bonus phases, holds age.
 - Early matter is nearly uniform. It gathers onto interconnected filaments and
@@ -172,13 +227,35 @@ All appearance controls below update live without regenerating the topology.
   turbulence are unaffected. These are artistic heat-map colors, not calibrated
   temperatures or a change to the evolution model. No new textures, buffers or
   draw calls are used; the heat noise is bypassed after it fades out.
-- **Early Heat colors and distribution** exposes the four heat colors and
-  **Cyan Coverage**, **Gold Coverage**, and **Red Coverage**. Higher coverage lets
-  that color reach further into cooler patches; these control relative temperature
-  ranges, not exact screen percentages. Blue is the base; cyan, then gold, then red
-  blend over it. Zero excludes a band and one fully applies it before later bands.
-  Defaults (**0.78 / 0.525 / 0.23**) retain the original color balance. Color and
-  coverage changes affect the heat overlay only, not the filament/cluster palette.
+- **Early Heat colors and distribution** exposes the four heat colors and a
+  coverage slider beneath each. **Blue Coverage** (default **1**, range 0–1)
+  controls how much of the remaining coolest color stays blue. Lowering it
+  replaces that share with cyan; **0** removes blue entirely, and **1** preserves
+  the original balance. Gold and red retain their temperature ranges. This works
+  with both render modes and with distinct or interpolated heat colors.
+  **Cyan Coverage**, **Gold Coverage**, and **Red Coverage** let each color reach
+  further into cooler patches. These are relative ranges and weights, not exact
+  screen percentages. Blue is the base; cyan, then gold, then red blend over it.
+  Zero excludes an additional band and one fully applies it before later bands;
+  cyan also fills any blue removed by Blue Coverage. Cyan/gold/red defaults
+  (**0.78 / 0.525 / 0.23**) retain the original balance. Color and coverage changes
+  affect the heat overlay only, not the filament/cluster palette.
+- **Early Heat Interpolation** is one **0–400%** slider under **Early universe
+  heat**, for opaque mode. **100%** (the default) preserves the original smooth
+  mixing of heat colors and their fade into the normal web. **0%** chooses exact
+  heat swatches using the same spatial coverage weights, and transfers particles
+  individually back to the normal web palette during the authored fade interval.
+  Settings between 0 and 100 blend between these distinct and smoothly mixed
+  results. Above 100, the slider broadens the temperature bands where adjacent
+  heat colors mix: **200% = twice the original band widths**, **400% = four times**.
+  Try **200–300%** for more intermediate hues across the cloud rather than only
+  at narrow boundaries. Coverage centers remain in place, while wider overlap
+  naturally reduces areas of pure color; coverage at 0 or 1 still excludes or
+  fully applies a band. The fade interval does not stretch with band width.
+  Particle choices use stable seeds, so lowering interpolation does not introduce
+  random frame-to-frame flicker. Overall Brightness still applies. Early Heat
+  strength, timing, color coverage, geometry and motion retain their existing
+  controls; additive mode is unaffected. No new textures or draws are added.
 - **Cluster Turbulence** enables irregular local flow and gentle attraction around the
   moving cluster centers (enabled by default). **Turbulence Strength** defaults to
   **0.7**, with a 0–2 range. Turn the toggle off, or set strength to zero, to bypass
@@ -383,9 +460,14 @@ cameras, web and normal-layer settings stay unchanged.
 and installs a continuous black cutout through **Cosmos Arena Layout > Mask
 Outside Oval**. It reuses `CosmosArenaMask.shader` and the live full-oval dimensions,
 including goal caps. One transient quad spans the cabinet view and covers corners
-the original rectangular mask strips missed. Its depth sits just in front of the
-cosmic background slab, behind gameplay and world-space HUD; no camera, HUD or
-goal transforms change. The quad/material are released with the layout. The
+the original rectangular mask strips missed. Its default depth sits just in front
+of the cosmic background slab, behind gameplay and world-space HUD. **Mask Y
+Offset** on **Cosmos Arena Layout** raises (positive) or lowers (negative) this
+continuous mask in world units relative to that automatic height. **0** preserves
+the existing position; edits preview immediately and support Undo. The offset
+does not resize the oval or move the web, border, walls, cameras, goals or HUD.
+It does not reposition the inactive legacy mask strips. The quad/material are
+released with the layout. The
 previous saved scene is backed up as `Library/CosmosSupernovae/BeforeCloudRevision.unity`.
 
 Validation (2026-10-05, Unity 6000.0.28f1 / DX11): scripts and shader compiled;

@@ -5787,7 +5787,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!114 &1509144055
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -16629,7 +16629,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &2256780233805774261
 RectTransform:
   m_ObjectHideFlags: 0
@@ -29875,6 +29875,7 @@ MonoBehaviour:
   - {fileID: 6476386583107515554}
   outsideMaskShader: {fileID: 4800000, guid: 80f7998ead3a2ab4389843151145cffa, type: 3}
   maskOutsideOval: 1
+  maskYOffset: 3.25
   layoutRevision: 3
 --- !u!114 &8455266651050621219
 MonoBehaviour:
@@ -29890,35 +29891,65 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   match: {fileID: 1341292505}
   particleShader: {fileID: 4800000, guid: dd3b292095d961248bf9d9a7d2d23d5e, type: 3}
+  opaqueParticles: 1
+  opaqueMinParticleSize: 0.01
+  opaqueMaxParticleSize: 0.04
   padding: 0.05
   backgroundDepth: 1.7
   seed: 90210
   particleCount: 56000
-  organicStrength: 1
+  organicStrength: 0.802
   evolutionVariation: 1
-  edgeCondensation: 0.686
-  lensingTransitionSmoothness: 0.772
-  edgeVignette: 0.386
+  edgeCondensation: 0.844
+  lensingTransitionSmoothness: 0.147
+  edgeVignette: 0.269
   driftStrength: 1
   clusterTurbulence: 1
   turbulenceStrength: 2
   filamentColor: {r: 0.035, g: 0.32, b: 0.85, a: 1}
+  filamentColorInterpolation: 100
+  filamentColorSubsets:
+  - color: {r: 0, g: 0.7493696, b: 1, a: 0}
+    percentage: 15
+    interpolationReduction: 0
+  - color: {r: 1, g: 1, b: 1, a: 0}
+    percentage: 5
+    interpolationReduction: 100
+  - color: {r: 0, g: 1, b: 0.37680292, a: 0}
+    percentage: 1
+    interpolationReduction: 0
   clusterColor: {r: 1, g: 0.24, b: 0.61, a: 1}
-  brightness: 1.5
-  brightnessVariance: 1.449
-  galaxySize: 0.025
+  clusterColorInterpolation: 97.6
+  clusterColorSubsets:
+  - color: {r: 1, g: 0, b: 0, a: 0}
+    percentage: 10
+    interpolationReduction: 0
+  - color: {r: 1, g: 0, b: 0.86742973, a: 0}
+    percentage: 20.2
+    interpolationReduction: 71
+  - color: {r: 1, g: 0.796458, b: 0, a: 0}
+    percentage: 15.3
+    interpolationReduction: 0
+  - color: {r: 1, g: 1, b: 1, a: 0}
+    percentage: 20.2
+    interpolationReduction: 17.099998
+  brightness: 1
+  brightnessVariance: 0.982
+  galaxySize: 0.0321
   earlyHeat: 1
-  earlyHeatBrightness: 1.55
+  earlyHeatInterpolation: 250
+  earlyHeatBrightness: 1
   earlyHeatTransitionPoint: 0.257
   earlyHeatTransitionDuration: 0.43
   earlyHeatBlueColor: {r: 0.015, g: 0.12, b: 0.65, a: 1}
+  earlyHeatBlueCoverage: 0.584
   earlyHeatCyanColor: {r: 0.025, g: 0.66, b: 1, a: 1}
-  earlyHeatCyanCoverage: 0.78
+  earlyHeatCyanCoverage: 0.841
   earlyHeatGoldColor: {r: 1, g: 0.86, b: 0.12, a: 1}
-  earlyHeatGoldCoverage: 0.525
-  earlyHeatRedColor: {r: 1, g: 0.12, b: 0.012, a: 1}
-  earlyHeatRedCoverage: 0.23
-  previewAge: 1
+  earlyHeatGoldCoverage: 0.952
+  earlyHeatRedColor: {r: 1, g: 0.052992634, b: 0.011764705, a: 1}
+  earlyHeatRedCoverage: 0.512
+  previewAge: 0.56
   animatePreview: 1
 --- !u!114 &8455266651050621220
 MonoBehaviour:

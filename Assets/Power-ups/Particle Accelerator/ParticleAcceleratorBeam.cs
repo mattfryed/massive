@@ -1,6 +1,7 @@
 using UnityEngine;
 using Massive.Enemies;
 using Massive.Player;
+using Massive.Multiplier;
 
 namespace Massive.PowerUps
 {
@@ -167,6 +168,12 @@ namespace Massive.PowerUps
 
         void ApplyContact(Collider contact, float dt)
         {
+            var core = contact.GetComponentInParent<AmplifierCoreGameplay>();
+            if (core)
+            {
+                core.TryApplyBeamPush(traceDirection, definition.amplifierPushForce, dt);
+                return;
+            }
             var victim = contact.GetComponentInParent<PlayerControllerScript>();
             if (victim)
             {

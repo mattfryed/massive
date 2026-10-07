@@ -2,8 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
+using Massive.Dynamo;
 
 [DisallowMultipleComponent]
+[DefaultExecutionOrder(-100)] // Publish storm inputs before the field's Update and flow's LateUpdate.
 public class DynamoStormController : MonoBehaviour
 {
     // ============================================================
@@ -13,6 +15,29 @@ public class DynamoStormController : MonoBehaviour
     [Header("Scene References")]
     [SerializeField] private MonoBehaviour magnetosphere;            // MagnetosphereFieldLinesGPU2D
     [SerializeField] private StormWindFlowVisualizer stormFlow;
+
+    [Header("Flow Blanket")]
+    [SerializeField] private bool useFlowBlanket;
+    [SerializeField] private DynamoFlowBlanketRenderer flowBlanket;
+    [SerializeField] private Camera stormCamera;
+    [SerializeField, Min(0f)] private float arrivalDelay = .08f;
+    [SerializeField, Min(.05f)] private float frontCrossingSeconds = 1.2f;
+    [SerializeField, Min(.01f)] private float frontFeather = .5f;
+    [SerializeField, Min(.05f)] private float departureSeconds = .65f;
+    [SerializeField] private Vector2 blanketSpeedRange = new Vector2(8f, 16f);
+    [Tooltip("Screen direction the storm COMES FROM: left=(-1,0), top=(0,1). Used when randomization is off.")]
+    [SerializeField] private Vector2 sourceScreenDirection = Vector2.left;
+
+    public bool UseFlowBlanket => useFlowBlanket;
+    public Camera StormCamera => stormCamera;
+    public MagnetosphereFieldLinesGPU2D GameplayField => magnetosphere as MagnetosphereFieldLinesGPU2D;
+    public float StormElapsed => _stormTimer;
+    public float StormDuration => _stormTotal;
+    public float FrontContactSeconds => _frontContactSeconds;
+    public DynamoStormState CurrentState { get; private set; }
+    private int _flowRevision;
+    private float _directionStarted, _flowTravel, _frontContactSeconds;
+    private bool _presentationInitialized, _lastUseBlanket;
 
     [Header("Players")]
     [SerializeField] private List<Transform> playerTargets = new List<Transform>(4);
@@ -60,10 +85,10 @@ public class DynamoStormController : MonoBehaviour
     [SerializeField] private float maxPressureGain = 1.0f;
 
     [Header("Magnetosphere Response Timing")]
-    [Tooltip("If true, magnetosphere pressure gain stays calm briefly so the particle storm arrives first.")]
+    [Tooltip("Keep pressure calm until the flow front reaches the boundary; legacy particles use the delay below.")]
     [SerializeField] private bool delayMagnetosphereResponse = true;
 
-    [Tooltip("Seconds after storm start before magnetosphere begins deforming.")]
+    [Tooltip("Legacy particle delay only. Flow blanket contact is calculated from the visible front.")]
     [SerializeField, Min(0f)] private float magResponseDelaySeconds = 1.25f;
 
     [Tooltip("Seconds to ease magnetosphere response from 0 to 1 once delay has elapsed.")]
@@ -168,6 +193,7 @@ public class DynamoStormController : MonoBehaviour
     private Vector2 _stormFlowBaseSpeedRange;
     private float _stormFlowBaseJitter;
     private float _stormFlowBaseJitterAlong;
+    private MaterialPropertyBlock _legacyFlowProperties;
 
     // Magnetosphere fields
     private FieldInfo _fiMagPressureGain;
@@ -200,6 +226,9 @@ public class DynamoStormController : MonoBehaviour
             // If players were assigned manually (or tag find ran), ensure effects cache is populated.
         RebuildEffectsCacheFromTargets();
 
+        if (!stormCamera) stormCamera = Camera.main;
+        ConfigurePresentation();
+
     }
 
     private void Update()
@@ -210,41 +239,8 @@ public class DynamoStormController : MonoBehaviour
         if (autoFindPlayersByTag && (playerTargets == null || playerTargets.Count == 0))
             RefreshPlayersByTag();
 
-        float now = Time.time;
-
-        if (!_stormActive)
-        {
-            if (now >= _nextStormStartTime)
-                StartStorm(now);
-        }
-        else
-        {
-            _stormTimer += Time.deltaTime;
-            UpdateEnvelopeAndStrength();
-            ApplyStormToSystems(_stormStrength01);
-
-            if (_stormTimer >= _stormTotal)
-                EndStorm(now);
-        }
-
-        if (!_stormActive)
-        {
-            _stormEnvelope01 = 0f;
-            _stormStrength01 = 0f;
-            ApplyStormToSystems(0f);
-        }
-
-        if (_stormActive)
-        {
-            _stormTimer += Time.deltaTime;
-            UpdateEnvelopeAndStrength();
-            ApplyStormToSystems(_stormStrength01);
-
-            UpdatePlayerStormFactors(); // <-- add this
-
-            if (_stormTimer >= _stormTotal)
-                EndStorm(now);
-        }
+        ConfigurePresentation();
+        AdvanceStorm(Time.deltaTime, Time.time);
 
 
         // Damage tick (cheap perf win)
@@ -265,14 +261,153 @@ public class DynamoStormController : MonoBehaviour
         }
     }
 
+    private void AdvanceStorm(float dt, float now)
+    {
+        if (!_stormActive && now >= _nextStormStartTime) StartStorm(now);
+        if (_stormActive)
+        {
+            // Exactly one advance per frame. Rendering and hazards consume this state.
+            _stormTimer += Mathf.Max(0f, dt);
+            _flowTravel += Mathf.Lerp(blanketSpeedRange.x, blanketSpeedRange.y, _stormStrength01) * Mathf.Max(0f, dt);
+            if (_stormTimer >= _stormTotal) EndStorm(now);
+        }
+        UpdateEnvelopeAndStrength();
+        if (!_stormActive) _stormEnvelope01 = _stormStrength01 = 0f;
+        ApplyStormToSystems(_stormStrength01);
+        PublishFlowState();
+        UpdatePlayerStormFactors();
+    }
+
+    private DynamoStormFootprint ViewFootprint() => DynamoStormFootprint.FromCamera(stormCamera,
+        GameplayField ? GameplayField.dipolePosition.y : 0f, playfieldCenter, playfieldSizeXZ);
+
+    public float PreviewDuration => Mathf.Max(.5f, (stormTotalDurationRange.x + stormTotalDurationRange.y) * .5f);
+    public float PreviewPeak => Mathf.Clamp01(Mathf.Min(basePeak01, maxPeak01));
+
+    /// <summary>Sample one authored storm without scheduling, random state, players or damage.
+    /// The supplied field must be an isolated visual copy; only that copy is driven.</summary>
+    public DynamoStormState SampleVisualStorm(MagnetosphereFieldLinesGPU2D visualField, Camera camera,
+        Vector2 source, float elapsed, float duration, float peak, float motionOffset = 0f)
+    {
+        if (!visualField || visualField == GameplayField)
+            throw new ArgumentException("Visual preview requires an isolated field copy.", nameof(visualField));
+        float total = Mathf.Max(.5f, duration), t = Mathf.Clamp(elapsed, 0f, total);
+        float easeIn = total * Mathf.Clamp01(easeInFrac), easeOut = total * Mathf.Clamp01(easeOutFrac);
+        float hold = Mathf.Max(.01f, total - easeIn - easeOut);
+        var footprint = DynamoStormFootprint.FromCamera(camera, visualField.dipolePosition.y, playfieldCenter, playfieldSizeXZ);
+        Vector3 direction = footprint.FlowFromScreenSource(source);
+        if (suppressInternalMagStorms)
+        {
+            visualField.stormInterval = visualField.stormIntensity = visualField.stormWarpScale = 0f;
+            visualField.randomizeWindOnStormStart = visualField.driftWindWhenCalm = false;
+        }
+        visualField.SetExternalStorm(direction, calmPressureGain);
+        if (scaleDaysideCompression) visualField.daysideCompression = calmDaysideCompression;
+        if (scaleNightsideStretch) visualField.nightsideStretch = calmNightsideStretch;
+        footprint.Project(direction, out float min, out float max);
+        float nose = Vector3.Dot(visualField.dipolePosition, direction) - visualField.GetGameplayEnvelopeRadius(-direction);
+        float contact = arrivalDelay + Mathf.Clamp01((nose - min + frontFeather) /
+            Mathf.Max(.001f, max - min + 2f * frontFeather)) * frontCrossingSeconds;
+        float strength = EvaluateEnvelope(t, easeIn, hold, easeOut) * Mathf.Clamp01(peak);
+        float response = !delayMagnetosphereResponse ? 1f : Smooth01((t - contact) / Mathf.Max(.0001f, magResponseRampSeconds));
+        float deformation = strength * response;
+        visualField.SetExternalStorm(direction, Mathf.Lerp(calmPressureGain, maxPressureGain, deformation));
+        if (scaleDaysideCompression) visualField.daysideCompression = Mathf.Lerp(calmDaysideCompression, maxDaysideCompression, deformation);
+        if (scaleNightsideStretch) visualField.nightsideStretch = Mathf.Lerp(calmNightsideStretch, maxNightsideStretch, deformation);
+
+        // Integral of the same smoothstep envelope: arbitrary scrubbing needs no warm-up.
+        float rampInArea = easeIn > .0001f ? easeIn * SmoothIntegral(t / easeIn) : 0f;
+        float holdArea = Mathf.Clamp(t - easeIn, 0, hold);
+        float tailTime = Mathf.Clamp(t - easeIn - hold, 0, easeOut);
+        float rampOutArea = easeOut > .0001f ? tailTime - easeOut * SmoothIntegral(tailTime / easeOut) : 0f;
+        float travel = blanketSpeedRange.x * t + (blanketSpeedRange.y - blanketSpeedRange.x) *
+            Mathf.Clamp01(peak) * (rampInArea + holdArea + rampOutArea);
+        travel += Mathf.Max(0f, motionOffset) * Mathf.Lerp(blanketSpeedRange.x, blanketSpeedRange.y, strength);
+        var state = CreateFlowState(t < total, 0, direction, t, t, strength, travel, total, footprint);
+        state.Elapsed += Mathf.Max(0f, motionOffset);
+        return state;
+    }
+
+    private static float SmoothIntegral(float value)
+    {
+        float u = Mathf.Clamp01(value);
+        return u * u * u * (1f - .5f * u);
+    }
+
+    private void PublishFlowState()
+    {
+        var footprint = ViewFootprint();
+        CurrentState = CreateFlowState(_stormActive, _flowRevision, _downstreamDir, _stormTimer,
+            _stormTimer - _directionStarted, _stormStrength01, _flowTravel, _stormTotal, footprint);
+    }
+
+    private DynamoStormState CreateFlowState(bool active, int revision, Vector3 direction, float elapsed,
+        float age, float strength, float travel, float duration, DynamoStormFootprint footprint)
+    {
+        footprint.Project(direction, out float min, out float max);
+        float front = Mathf.Lerp(min - frontFeather, max + frontFeather,
+            Mathf.Clamp01((age - arrivalDelay) / Mathf.Max(.05f, frontCrossingSeconds)));
+        float depart = Smooth01((duration - elapsed) / Mathf.Max(.05f, departureSeconds));
+        return new DynamoStormState
+        {
+            Active = active, Revision = revision, Flow = direction,
+            Elapsed = elapsed, DirectionAge = age, Strength = strength, Travel = travel,
+            Front = front, Feather = frontFeather, Footprint = footprint,
+            Opacity = active ? Smooth01(elapsed / .18f) * depart * Mathf.Lerp(.4f, 1f, Mathf.Sqrt(strength)) : 0f
+        };
+    }
+
+    public void SetScreenSourceDirection(Vector2 source)
+    {
+        sourceScreenDirection = source.sqrMagnitude > .0001f ? source.normalized : Vector2.left;
+        _downstreamDir = ViewFootprint().FlowFromScreenSource(sourceScreenDirection);
+        _directionStarted = _stormTimer;
+        _flowRevision++;
+        ApplyStormToSystems(_stormStrength01);
+        PublishFlowState();
+    }
+
+    public void SetFlowPresentation(bool blanket)
+    {
+        useFlowBlanket = blanket;
+        ConfigurePresentation();
+    }
+
+    private void ConfigurePresentation()
+    {
+        if (_presentationInitialized && _lastUseBlanket == useFlowBlanket) return;
+        _presentationInitialized = true; _lastUseBlanket = useFlowBlanket;
+        if (flowBlanket) flowBlanket.enabled = useFlowBlanket;
+        if (stormFlow)
+        {
+            stormFlow.enabled = !useFlowBlanket;
+            var renderer = stormFlow.GetComponent<ParticleSystemRenderer>();
+            if (renderer) renderer.enabled = !useFlowBlanket;
+            ClearStormFlowNow();
+            if (!useFlowBlanket && _stormActive)
+            {
+                ForceStormFlowDirectionOverride(_downstreamDir); ForceStormFlowSyncNow(); TryInvokeStormFlowInit();
+                stormFlow.GetComponent<ParticleSystem>().Play(true);
+            }
+        }
+    }
+
+    private void OnDisable()
+    {
+        CurrentState = default;
+        _stormActive = false;
+        _stormStrength01 = _stormEnvelope01 = 0f;
+        ClearStormFlowNow();
+    }
+
     // ============================================================
     // Scheduling
     // ============================================================
 
     private void ScheduleNextStorm(float now)
     {
-        float min = Mathf.Max(0.01f, timeBetweenStormsRange.x);
-        float max = Mathf.Max(min, timeBetweenStormsRange.y);
+        float min = Mathf.Max(0.01f, Mathf.Min(timeBetweenStormsRange.x, timeBetweenStormsRange.y));
+        float max = Mathf.Max(min, Mathf.Max(timeBetweenStormsRange.x, timeBetweenStormsRange.y));
         _nextStormStartTime = now + UnityEngine.Random.Range(min, max);
     }
 
@@ -280,14 +415,16 @@ public class DynamoStormController : MonoBehaviour
     {
         _stormActive = true;
         _stormTimer = 0f;
+        _directionStarted = _flowTravel = 0f;
+        _flowRevision++;
 
         StormCount++;
 
         _stormPeak01 = Mathf.Clamp01(basePeak01 + perStormIncrement01 * (StormCount - 1));
         _stormPeak01 = Mathf.Min(_stormPeak01, maxPeak01);
 
-        float tMin = Mathf.Max(0.5f, stormTotalDurationRange.x);
-        float tMax = Mathf.Max(tMin, stormTotalDurationRange.y);
+        float tMin = Mathf.Max(0.5f, Mathf.Min(stormTotalDurationRange.x, stormTotalDurationRange.y));
+        float tMax = Mathf.Max(tMin, Mathf.Max(stormTotalDurationRange.x, stormTotalDurationRange.y));
         _stormTotal = UnityEngine.Random.Range(tMin, tMax);
 
         _easeIn = _stormTotal * Mathf.Clamp01(easeInFrac);
@@ -302,10 +439,23 @@ public class DynamoStormController : MonoBehaviour
         }
         else
         {
-            _downstreamDir = fallbackDownstreamDir;
+            _downstreamDir = useFlowBlanket ? ViewFootprint().FlowFromScreenSource(sourceScreenDirection) : fallbackDownstreamDir;
             _downstreamDir.y = 0f;
             if (_downstreamDir.sqrMagnitude < 1e-6f) _downstreamDir = Vector3.right;
             _downstreamDir.Normalize();
+        }
+
+        if (useFlowBlanket)
+        {
+            if (GameplayField) GameplayField.SetExternalStorm(_downstreamDir, calmPressureGain);
+            var footprint = ViewFootprint();
+            footprint.Project(_downstreamDir, out float min, out float max);
+            float nose = GameplayField ? Vector3.Dot(GameplayField.dipolePosition, _downstreamDir) -
+                GameplayField.GetGameplayEnvelopeRadius(-_downstreamDir) : min;
+            _frontContactSeconds = arrivalDelay + Mathf.Clamp01((nose - min + frontFeather) /
+                Mathf.Max(.001f, max - min + 2f * frontFeather)) * frontCrossingSeconds;
+            UpdateEnvelopeAndStrength(); ApplyStormToSystems(_stormStrength01); PublishFlowState();
+            return;
         }
 
         // Apply a “spawn strength” so the storm is visible immediately (particles),
@@ -355,20 +505,23 @@ public class DynamoStormController : MonoBehaviour
 
     private void UpdateEnvelopeAndStrength()
     {
-        float t = _stormTimer;
+        _stormEnvelope01 = EvaluateEnvelope(_stormTimer, _easeIn, _hold, _easeOut);
+        _stormStrength01 = _stormEnvelope01 * _stormPeak01;
+    }
 
+    private static float EvaluateEnvelope(float t, float easeIn, float hold, float easeOut)
+    {
         float env;
-        if (_easeIn > 1e-4f && t < _easeIn)
-            env = Smooth01(t / _easeIn);
-        else if (t < _easeIn + _hold)
+        if (easeIn > 1e-4f && t < easeIn)
+            env = Smooth01(t / easeIn);
+        else if (t < easeIn + hold)
             env = 1f;
-        else if (_easeOut > 1e-4f && t < _easeIn + _hold + _easeOut)
-            env = 1f - Smooth01((t - _easeIn - _hold) / _easeOut);
+        else if (easeOut > 1e-4f && t < easeIn + hold + easeOut)
+            env = 1f - Smooth01((t - easeIn - hold) / easeOut);
         else
             env = 0f;
 
-        _stormEnvelope01 = Mathf.Clamp01(env);
-        _stormStrength01 = _stormEnvelope01 * _stormPeak01;
+        return Mathf.Clamp01(env);
     }
 
     // ============================================================
@@ -380,7 +533,7 @@ public class DynamoStormController : MonoBehaviour
         if (!delayMagnetosphereResponse) return 1f;
         if (!_stormActive) return 0f;
 
-        float t = _stormTimer - magResponseDelaySeconds;
+        float t = _stormTimer - (useFlowBlanket ? _frontContactSeconds : magResponseDelaySeconds);
         if (t <= 0f) return 0f;
 
         float u = Mathf.Clamp01(t / Mathf.Max(0.0001f, magResponseRampSeconds));
@@ -408,6 +561,7 @@ public class DynamoStormController : MonoBehaviour
 
             float pg = Mathf.Lerp(calmPressureGain, maxPressureGain, magS);
             TrySetField(_fiMagPressureGain, pg);
+            if (useFlowBlanket && GameplayField) GameplayField.SetExternalStorm(_downstreamDir, pg);
 
             if (scaleDaysideCompression && _fiMagDaysideCompression != null)
                 TrySetField(_fiMagDaysideCompression, Mathf.Lerp(calmDaysideCompression, maxDaysideCompression, magS));
@@ -417,7 +571,7 @@ public class DynamoStormController : MonoBehaviour
         }
 
         // StormFlow drive (immediate)
-        if (stormFlow && scaleStormFlow)
+        if (!useFlowBlanket && stormFlow && scaleStormFlow)
         {
             CacheStormFlowBaselines();
 
@@ -443,7 +597,10 @@ public class DynamoStormController : MonoBehaviour
             var psr = stormFlow.GetComponent<ParticleSystemRenderer>();
 if (psr && psr.sharedMaterial)
 {
-    psr.sharedMaterial.SetFloat("_Intensity", s); // s = storm strength 0..1
+    if (_legacyFlowProperties == null) _legacyFlowProperties = new MaterialPropertyBlock();
+    psr.GetPropertyBlock(_legacyFlowProperties);
+    _legacyFlowProperties.SetFloat("_Intensity", s);
+    psr.SetPropertyBlock(_legacyFlowProperties);
 }
 
             // Jitter (do NOT compound)
@@ -533,6 +690,11 @@ if (psr && psr.sharedMaterial)
 private bool TryGetEnvelopeQ(Vector3 worldPos, out float q)
 {
     q = 0f;
+    if (useFlowBlanket && GameplayField)
+    {
+        q = GameplayField.GetGameplayEnvelopeQ(worldPos);
+        return true;
+    }
     if (stormFlow != null && _miStormFlowEnvelopeQ != null)
     {
         try
@@ -599,7 +761,7 @@ private void UpdatePlayerStormFactors()
             continue;
         }
 
-        float front = useTravelingFrontForDamage ? Front01(tr.position, flow) : 1f;
+        float front = useFlowBlanket ? CurrentState.VisibilityAt(tr.position) : useTravelingFrontForDamage ? Front01(tr.position, flow) : 1f;
 
         float factor = outside * front * _stormStrength01;
         _stormFactorByPlayer[id] = factor;
@@ -658,7 +820,9 @@ private void ApplyDamageTick(float dt)
 
 public float GetStormFactor01(Transform player)
 {
-    if (!player) return 0f;
+    // The authored list includes all roster slots, even those excluded by the
+    // selected match mode. They must not lose mass or start respawn routines.
+    if (!player || !player.gameObject.activeInHierarchy) return 0f;
     return GetStormHazard01(player.position);
 }
 
@@ -669,7 +833,7 @@ public Vector3 GetStormFlowDirWS()
     Vector3 d = _downstreamDir; d.y = 0f;
     if (d.sqrMagnitude < 1e-6f) d = Vector3.right;
     d.Normalize();
-    return GetStormFlowIncomingFlag() ? -d : d;
+    return !useFlowBlanket && GetStormFlowIncomingFlag() ? -d : d;
 }
 
     // ============================================================
@@ -684,7 +848,7 @@ public Vector3 GetStormFlowDirWS()
         float nextIn = Mathf.Max(0f, _nextStormStartTime - now);
 
         string magName = magnetosphere ? magnetosphere.GetType().Name : "(none)";
-        string flowName = stormFlow ? stormFlow.name : "(none)";
+        string flowName = useFlowBlanket ? "GPU flow blanket" : stormFlow ? stormFlow.name : "(none)";
 
         float pg = ReadFloatField(_fiMagPressureGain, magnetosphere);
 
@@ -716,7 +880,7 @@ public Vector3 GetStormFlowDirWS()
         GUILayout.Space(6);
 
         GUILayout.Label($"Magnetosphere: {magName}  pressureGain={pg:0.000}");
-        GUILayout.Label($"StormFlow: {flowName}  psPlaying={psPlaying}  aliveParticles={alive}");
+        GUILayout.Label(useFlowBlanket ? $"StormFlow: {flowName}  front={CurrentState.Front:0.0}" : $"StormFlow: {flowName}  psPlaying={psPlaying}  aliveParticles={alive}");
 
         GUILayout.EndArea();
     }
@@ -951,6 +1115,7 @@ private PlayerExternalEffects GetEffects(Transform tr)
 
     private float OutsideFactor01(Vector3 posWS)
 {
+    if (useFlowBlanket) return Outside01(posWS);
     if (stormFlow == null) return 1f; // fail-open: assume outside
 
     float q = stormFlow.GetEnvelopeQ(posWS); // uses the public wrapper above
@@ -999,7 +1164,9 @@ public float GetStormHazard01(Vector3 posWS)
 
     float f = outside01 * _stormStrength01;
 
-    if (useTravelingFrontForDamage)
+    if (useFlowBlanket)
+        f *= CurrentState.VisibilityAt(posWS);
+    else if (useTravelingFrontForDamage)
         f *= FrontMask01(posWS);
 
     return Mathf.Clamp01(f);

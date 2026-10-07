@@ -460,13 +460,18 @@ namespace Massive.Multiplier
 
         public bool TryApplyAttackImpact(PlayerAttackController attack)
         {
-            if (presentationOnly || IsCaptured || IsInExternalTransit || body == null || body.isKinematic ||
-                Time.time < _nextAttackImpactTime)
+            if (!CanReceiveImpact || Time.time < _nextAttackImpactTime)
                 return false;
-            if (attack == null || !attack.IsAttacking)
+            if (attack == null || !attack.isActiveAndEnabled || !attack.IsAttacking || attack.CurrentStage == null)
+                return false;
+            var stage = attack.CurrentStage;
+            if (stage.StageType == AttackStageType.FinisherRepulsor ||
+                attack.StageNormalizedTime < stage.ActivationStartNormalized ||
+                attack.StageNormalizedTime > stage.ActivationEndNormalized)
                 return false;
 
-            Vector3 thrustDirection = attack.CurrentAttackDirectionWS;
+            Vector3 thrustDirection = stage.StageType == AttackStageType.ComboSwipe
+                ? attack.CurrentAttackVisualDirectionWS : attack.CurrentAttackDirectionWS;
             thrustDirection.y = 0f;
             if (thrustDirection.sqrMagnitude < 0.0001f)
                 return false;
@@ -485,18 +490,55 @@ namespace Massive.Multiplier
                 1.1f,
                 Mathf.InverseLerp(-0.2f, 1f, alignment));
 
-            body.AddForce(
-                thrustDirection * (Effective_attackImpulse * angleStrength),
-                ForceMode.Impulse);
-            attack.StopAtSolidImpact(
-                Effective_playerPlanarVelocityRetention,
-                Effective_playerImpactStopSeconds);
+            ApplyImpactImpulse(thrustDirection * (Effective_attackImpulse * angleStrength));
+            // Only the lunge stops at a solid impact. A sweep must continue its
+            // arc and combo window, and the radial pulse has its own lifetime.
+            if (stage.StageType == AttackStageType.PrimaryLunge)
+                attack.StopAtSolidImpact(
+                    Effective_playerPlanarVelocityRetention,
+                    Effective_playerImpactStopSeconds);
 
             _nextAttackImpactTime = Time.time + Effective_repeatImpactLockoutSeconds;
+            return true;
+        }
+
+        private bool CanReceiveImpact => isActiveAndEnabled && !presentationOnly &&
+            !IsCaptured && !IsInExternalTransit && body != null && !body.isKinematic &&
+            collisionShape != null && collisionShape.enabled;
+
+        // The live Repulsor owns contact gating and one-hit-per-Core deduplication.
+        public bool TryApplyRepulsorImpact(Vector3 origin, Vector3 fallbackDirection)
+        {
+            if (!CanReceiveImpact) return false;
+            Vector3 direction = body.worldCenterOfMass - origin;
+            direction.y = 0f;
+            if (direction.sqrMagnitude < .0001f)
+            {
+                direction = fallbackDirection;
+                direction.y = 0f;
+            }
+            if (direction.sqrMagnitude < .0001f) return false;
+            ApplyImpactImpulse(direction.normalized * Effective_attackImpulse);
+            return true;
+        }
+
+        // Beam contact runs per rendered frame. Integrate force into impulse so
+        // sustained pressure is independent of the rendering/physics frame ratio.
+        public bool TryApplyBeamPush(Vector3 direction, float force, float deltaTime)
+        {
+            if (!CanReceiveImpact || force <= 0f || deltaTime <= 0f) return false;
+            direction.y = 0f;
+            if (direction.sqrMagnitude < .0001f) return false;
+            ApplyImpactImpulse(direction.normalized * (force * deltaTime));
+            return true;
+        }
+
+        private void ApplyImpactImpulse(Vector3 impulse)
+        {
+            body.AddForce(impulse, ForceMode.Impulse);
             _attractionExcitement = 1f;
             if (visual != null)
                 visual.SetExcitement(1f);
-            return true;
         }
 
         private void TryApplyCollisionAttackImpact(Collision collision)
@@ -506,7 +548,11 @@ namespace Massive.Multiplier
 
             PlayerAttackController attack =
                 collision.collider.GetComponentInParent<PlayerAttackController>();
-            TryApplyAttackImpact(attack);
+            // Sweep and Repulsor are delivered by their live weapon hitboxes,
+            // not by unrelated body contact during their windup or aftermath.
+            if (attack && attack.CurrentStage != null &&
+                attack.CurrentStage.StageType == AttackStageType.PrimaryLunge)
+                TryApplyAttackImpact(attack);
         }
 
         private void StartLifecycle(IEnumerator routine)

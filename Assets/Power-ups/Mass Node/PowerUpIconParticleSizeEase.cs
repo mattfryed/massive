@@ -9,7 +9,7 @@ namespace Massive.PowerUps
     [DisallowMultipleComponent]
     public class PowerUpIconParticleSizeEase : MonoBehaviour
     {
-        [Header("Particle Systems to Animate (assign the 2 icon systems)")]
+        [Header("Particle Systems to Animate (all inner icon layers)")]
         [SerializeField] private ParticleSystem[] systems;
 
         [Header("Timing")]
@@ -40,7 +40,7 @@ namespace Massive.PowerUps
 
         private void Reset()
         {
-            // Auto-grab, but I strongly recommend explicitly assigning ONLY the 2 icon systems.
+            // Only the icon's systems belong here; the shell has its own animation.
             systems = GetComponentsInChildren<ParticleSystem>(true);
         }
 

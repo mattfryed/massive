@@ -279,6 +279,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   grid: {fileID: 3538192773405353633}
   insetWorld: 0
+  ovalOutline: 0
+  ovalEndHeightRatio: 0.7
 --- !u!114 &2458370390505388333
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -7431,6 +7433,7 @@ MonoBehaviour:
   scoreCoveragePow: 1.35
   outerRadiusAtFullScoreMultiplier: 1.65
   containerBoundary: {fileID: 6499820875225276107}
+  ellipticalContainer: {fileID: 0}
   driveRegionFromContainer: 1
   fitRendererToContainerAtRuntime: 1
   clipToContainer: 1
@@ -8195,6 +8198,7 @@ MonoBehaviour:
   scoreCoveragePow: 1.35
   outerRadiusAtFullScoreMultiplier: 1.65
   containerBoundary: {fileID: 9157848632790019671}
+  ellipticalContainer: {fileID: 0}
   driveRegionFromContainer: 1
   fitRendererToContainerAtRuntime: 1
   clipToContainer: 1

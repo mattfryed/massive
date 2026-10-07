@@ -1,0 +1,87 @@
+#pragma kernel Trace
+
+Texture3D<float4> _FieldA, _FieldB;
+SamplerState sampler_FieldA;
+struct Segment { float4 a; float4 b; };
+RWStructuredBuffer<Segment> _Segments;
+float3 _Origin, _Spacing, _Dimensions, _SourceDipole, _CalmDipole, _Wind;
+float _Blend, _InnerRadius, _OuterRadius, _Step, _DipoleCoefficient, _ExternalWeight;
+int _SeedCount, _Steps;
+
+bool Inside(float3 p)
+{
+    float radius = length(p);
+    return radius >= _InnerRadius && radius <= _OuterRadius;
+}
+
+float3 Dipole(float3 p, float3 axis)
+{
+    float radius = max(length(p), .0001);
+    float3 radial = p / radius;
+    return _DipoleCoefficient * (3 * dot(axis, radial) * radial - axis) / (radius * radius * radius);
+}
+
+float3 Field(float3 p)
+{
+    float3 intrinsic = Dipole(p, _CalmDipole);
+    if (_ExternalWeight <= 0) return intrinsic;
+    float3 across = float3(-_Wind.z, 0, _Wind.x);
+    float3 gsm = float3(-dot(p, _Wind), p.y, dot(p, across));
+    float3 uv = ((gsm - _Origin) / _Spacing + .5) / _Dimensions;
+    float3 recorded = lerp(_FieldA.SampleLevel(sampler_FieldA, uv, 0).xyz,
+        _FieldB.SampleLevel(sampler_FieldA, uv, 0).xyz, _Blend);
+    // Remove the run's known internal dipole before applying any recorded disturbance.
+    // The residual also contains interpolation error and other current contributions;
+    // scaling/rotating it is an explicit gameplay reconstruction, not a new MHD solve.
+    float3 residual = recorded - Dipole(gsm, _SourceDipole);
+    return intrinsic + _ExternalWeight * (-_Wind * residual.x + float3(0, residual.y, 0) + across * residual.z);
+}
+
+[numthreads(64, 1, 1)]
+void Trace(uint3 id : SV_DispatchThreadID)
+{
+    uint seed = id.x;
+    if (seed >= (uint)_SeedCount) return;
+    float3 axis = normalize(_CalmDipole);
+    float3 reference = abs(axis.y) < .9 ? float3(0, 1, 0) : float3(1, 0, 0);
+    float3 side = normalize(cross(axis, reference));
+    float3 other = cross(axis, side);
+    uint azimuthCount = max(3, _SeedCount / 8);
+    uint ring = seed / azimuthCount;
+    float theta = radians(18 + (ring % 4) * 12);
+    float phi = 6.28318530718 * (seed % azimuthCount) / azimuthCount;
+    float pole = ring < 4 ? 1 : -1;
+    float3 start = (_InnerRadius + 1.1) * (axis * cos(theta) * pole +
+        sin(theta) * (side * cos(phi) + other * sin(phi)));
+
+    for (uint direction = 0; direction < 2; direction++)
+    {
+        float3 p = start;
+        bool alive = Inside(p);
+        for (uint i = 0; i < (uint)_Steps; i++)
+        {
+            uint slot = (seed * 2 + direction) * _Steps + i;
+            Segment s; s.a = 0; s.b = 0;
+            if (alive)
+            {
+                float3 f = Field(p);
+                float magnitude = length(f);
+                float sign = direction == 0 ? 1 : -1;
+                float3 mid = p + sign * .5 * _Step * f / max(magnitude, 1e-8);
+                if (magnitude < 1e-6 || !Inside(mid)) alive = false;
+                else
+                {
+                    float3 fm = Field(mid);
+                    float3 next = p + sign * _Step * fm / max(length(fm), 1e-8);
+                    if (!Inside(next) || length(fm) < 1e-6) alive = false;
+                    else
+                    {
+                        s.a = float4(p, magnitude); s.b = float4(next, 1);
+                        p = next;
+                    }
+                }
+            }
+            _Segments[slot] = s;
+        }
+    }
+}

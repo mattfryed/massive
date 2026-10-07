@@ -1,11 +1,15 @@
 using Massive.Enemies;
+using Massive.Scoring;
 using System.Collections.Generic;
+using System.Threading;
 using UnityEngine;
 
 [RequireComponent(typeof(Rigidbody))]
 public class MatterNuggetScript : MonoBehaviour
 {
     [Range(0f, 1f)] public float rewardMultiplier = 1f;
+    [Tooltip("Fixed collection score from the shared economy, independent of restored mass. Blank disables scoring.")]
+    [ScoreRewardKey] public string scoreRewardKey = ScoreRewardKeys.MassNugget;
     public EnemyScoreToast rewardToastPrefab;
     [Min(.01f)] public float spawnSeconds = .18f;
     [Min(.01f)] public float despawnSeconds = .16f;
@@ -29,7 +33,11 @@ public class MatterNuggetScript : MonoBehaviour
     private Vector3 incomingVelocity;
     public float VisualScale { get; private set; }
     public float LastMassRestored { get; private set; }
+    public ScoreAwardResult LastScoreAward { get; private set; }
     public bool IsDespawning => ending;
+
+    private static long nextSourceLife;
+    private string sourceLifeToken;
 
     private static readonly HashSet<MatterNuggetScript> activePickups = new();
 
@@ -78,6 +86,10 @@ public class MatterNuggetScript : MonoBehaviour
     private void BeginLife(float seconds)
     {
         age = exitAge = 0f; lifetime = seconds; ending = queuedEjection = false; LastMassRestored = 0f;
+        LastScoreAward = default;
+        // Eject can recycle an active pooled object without an OnEnable. Each
+        // actual spawn gets its own identity; collider callbacks share that identity.
+        sourceLifeToken = "MASS-PICKUP-" + Interlocked.Increment(ref nextSourceLife);
         for (int i = 0; i < colliders.Length; i++) colliders[i].enabled = colliderEnabled[i];
         foreach (var enemy in EnemyBase.ActiveEnemies)
             if (enemy && enemy.gameObject.scene == gameObject.scene)
@@ -206,7 +218,13 @@ public class MatterNuggetScript : MonoBehaviour
         float before = player.massScore;
         player.GrowScaled(rewardMultiplier); player.GrowScaled(rewardMultiplier); player.GrowScaled(rewardMultiplier);
         LastMassRestored = Mathf.Max(0f, player.massScore - before);
-        EnemyScoreToast.ShowMass(rewardToastPrefab, LastMassRestored, player.massScoreMax - player.massScoreMin,
+        var scores = MatchScoreService.Instance;
+        if (scores != null && !string.IsNullOrWhiteSpace(scoreRewardKey))
+        {
+            scores.TryAwardToPlayer(scoreRewardKey, player, sourceLifeToken, transform.position, out var award);
+            LastScoreAward = award;
+        }
+        EnemyScoreToast.ShowPickup(rewardToastPrefab, LastScoreAward, LastMassRestored, player.massScoreMax - player.massScoreMin,
             transform.position, gameObject.scene);
     }
 
