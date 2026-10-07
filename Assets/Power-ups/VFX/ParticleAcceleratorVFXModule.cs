@@ -74,6 +74,12 @@ namespace Massive.PowerUps
 
         // Runtime state
         private bool _visible;
+        private bool _energyMeter;
+        public float EnergyMeter01 => _charge01;
+        public bool IsEnergyMeterVisible => _visible && _energyMeter && _ringSdf && _ringSdf.gameObject.activeInHierarchy;
+        public float LifeVisibilityScale => _lifeScale;
+        private bool _followingLifeFx, _lifeHidden;
+        private float _lifeScale = 1f, _deathBaseRadius = 1f;
         private bool _charging;
         private float _charge01;
         private float _cooldown01; // 0..1 (0=ready)
@@ -102,13 +108,42 @@ private int _burstSerial = 0;
 
         public void Bind(PlayerControllerScript p)
         {
+            UnbindLifeEvents();
             owner = p;
+            _followingLifeFx = _lifeHidden = false; _lifeScale = 1f;
+            if (owner)
+            {
+                owner.DeathStarted += OnDeathStarted;
+                owner.DeathHidden += OnDeathHidden;
+                owner.RespawnStarted += OnRespawnStarted;
+                owner.RespawnCompleted += OnRespawnCompleted;
+                if (owner.temporarilyEliminated) OnDeathStarted(owner);
+            }
             // Keep module at player origin (since hub parents under player)
             transform.localPosition = Vector3.zero;
             transform.localRotation = Quaternion.identity;
             RecomputeVolumeSizes();
             ApplyVolumeScales();
         }
+
+        private void UnbindLifeEvents()
+        {
+            if (!owner) return;
+            owner.DeathStarted -= OnDeathStarted; owner.DeathHidden -= OnDeathHidden;
+            owner.RespawnStarted -= OnRespawnStarted; owner.RespawnCompleted -= OnRespawnCompleted;
+        }
+        private void OnDestroy() { UnbindLifeEvents(); }
+        private void OnDeathStarted(PlayerControllerScript player)
+        {
+            _followingLifeFx = true; _lifeHidden = false;
+            _deathBaseRadius = player.visualsController ? Mathf.Max(.0001f, player.visualsController.baseRadius) : 1f;
+        }
+        private void OnDeathHidden(PlayerControllerScript player)
+        { _lifeHidden = true; _lifeScale = 0; ApplyVisibility(); }
+        private void OnRespawnStarted(PlayerControllerScript player)
+        { _lifeHidden = false; }
+        private void OnRespawnCompleted(PlayerControllerScript player)
+        { _followingLifeFx = _lifeHidden = false; _lifeScale = 1f; ApplyVisibility(); }
 
         private void Awake()
         {
@@ -211,13 +246,29 @@ private int _burstSerial = 0;
         public void SetVisible(bool on)
         {
             _visible = on;
+            ApplyVisibility();
+        }
+
+        private void ApplyVisibility()
+        {
+            bool on = _visible && _lifeScale > .001f && !_lifeHidden;
             if (_ringSdf) _ringSdf.gameObject.SetActive(on);
-            if (_orbSdf)  _orbSdf.gameObject.SetActive(on);
+            if (_orbSdf)  _orbSdf.gameObject.SetActive(on && !_energyMeter);
             if (_rayDots)
             {
-                _rayDots.gameObject.SetActive(on);
+                _rayDots.gameObject.SetActive(on && !_energyMeter);
                 if (!on) _rayDots.Hide();
             }
+        }
+
+        public void SetEnergyMeter(float energy01)
+        {
+            _energyMeter = true;
+            _charge01 = Mathf.Clamp01(energy01);
+            _charging = false;
+            _burstT = 0;
+            if (_orbSdf) _orbSdf.gameObject.SetActive(false);
+            if (_rayDots) { _rayDots.Hide(); _rayDots.gameObject.SetActive(false); }
         }
 
         public void SetState(
@@ -228,6 +279,7 @@ private int _burstSerial = 0;
             Vector3 aimDirWS,
             float blockedDistance)
         {
+            _energyMeter = false;
             _charging = charging;
             _charge01 = Mathf.Clamp01(charge01);
             _cooldown01 = Mathf.Clamp01(cooldown01);
@@ -294,11 +346,22 @@ _shardSpinMul = new float[n];
         {
             if (!_visible || !owner) return;
 
+            // The player life effect animates its radius with its own curve/time
+            // source. Follow that value so the ring dissolves and reforms in sync.
+            if (_followingLifeFx)
+            {
+                var visual = owner.visualsController;
+                _lifeScale = _lifeHidden || !visual || !visual.enabled ? 0 : Mathf.Clamp01(visual.baseRadius / _deathBaseRadius);
+                ApplyVisibility();
+            }
+
             // Live size adjustments also affect a module already equipped or cooling down.
             RecomputeVolumeSizes();
             ApplyVolumeScales();
             Vector3 center = GetOwnerCenterWS();
             center.y += vfxPlaneYOffsetWorld * SpatialScale;
+
+            if (_energyMeter) { BuildRing(center); return; }
 
 _rayDots.SetTuning(
     startRadiusWorld: rayStartRadiusWorld * SpatialScale,
@@ -371,7 +434,21 @@ public Vector3 GetVfxOriginWS()
             float step = (Mathf.PI * 2f) / ringDots;
             float start = ringStartAngleDeg * Mathf.Deg2Rad;
 
-            if (_charging)
+            if (_energyMeter)
+            {
+                // The fractional dot scales continuously while draining or refilling.
+                float filledDots = _charge01 * ringDots;
+                for (int i = 0; i < ringDots; i++)
+                {
+                    float fill = Mathf.Clamp01(filledDots - i);
+                    if (fill <= 0) continue;
+                    float angle = start + step * (ringClockwise ? -i : i);
+                    Vector3 offset = new Vector3(Mathf.Cos(angle) * ringRadiusWorld, ringHeightWorld,
+                        Mathf.Sin(angle) * ringRadiusWorld) * (SpatialScale * _lifeScale);
+                    _ringSdf.AddBall(offset * invS, ringDotMaxRadiusWorld * Mathf.Sqrt(fill) * SpatialScale * _lifeScale * invS);
+                }
+            }
+            else if (_charging)
             {
                 float p = _charge01 * ringDots;
                 int full = Mathf.FloorToInt(p);

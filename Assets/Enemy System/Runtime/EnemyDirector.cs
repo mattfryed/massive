@@ -166,6 +166,7 @@ namespace Massive.Enemies
         public void NotifyEnemyDestroyed(EnemyBase enemy)
         {
             if (enemy == null) return;
+            wallFootprints.Remove(enemy);
 
             // Remove from list (if present)
             if (!_alive.Remove(enemy)) return;

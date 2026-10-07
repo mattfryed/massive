@@ -54,6 +54,30 @@ public class ParametricPolyhedronWire : ImmediateModeShapeDrawer
     [Min(0f)] public float shatterSpinDegrees = 220f;
     [Range(0f, 1f)] public float shatterRandomness = 0.35f; // 0 = purely radial, 1 = purely random
 
+    [Header("Pickup vertex / face animation")]
+    [Range(0f, .4f)] public float drawTimingVariation = .16f;
+    [Range(0f, .4f)] public float drawSpeedVariation = .18f;
+    [Range(0f, .4f)] public float faceTimingVariation = .12f;
+    [Range(0f, .4f)] public float faceSpeedVariation = .16f;
+    // Opted into by the pickup animator. Other users (e.g. Dyson) retain their authored renderer.
+    public bool UsePickupAnimation { get; set; }
+    public bool IsAcquiring { get; set; }
+
+    public struct WireSegment
+    {
+        public Vector3 a, b;
+        public int face;
+        public WireSegment(Vector3 a, Vector3 b, int face) { this.a = a; this.b = b; this.face = face; }
+    }
+    struct Face
+    {
+        public int a, b, c, ab, bc, ca;
+        public int Vertex(int i) => i == 0 ? a : i == 1 ? b : c;
+        public int EdgeIndex(int i) => i == 0 ? ab : i == 1 ? bc : ca;
+    }
+    readonly List<Face> _faces = new List<Face>(20);
+    readonly List<WireSegment> _segments = new List<WireSegment>(120);
+
 
 
     struct Edge { public int a, b; public Edge(int A, int B) { a = A; b = B; } }
@@ -74,6 +98,19 @@ public override void DrawShapes(Camera cam)
     if (sides < 3) sides = 3;
 
     RebuildIfNeeded();
+
+    if (UsePickupAnimation)
+    {
+        GetPickupSegments(_segments);
+        using (Draw.Command(cam))
+        {
+            Draw.Matrix = transform.localToWorldMatrix;
+            Draw.LineGeometry = lineGeometry; Draw.ThicknessSpace = thicknessSpace;
+            Draw.Thickness = thickness; Draw.Color = color;
+            foreach (var segment in _segments) Draw.Line(segment.a, segment.b);
+        }
+        return;
+    }
 
     using (Draw.Command(cam))
     {
@@ -241,6 +278,7 @@ public override void DrawShapes(Camera cam)
 
         _verts.Clear();
         _edges.Clear();
+        _faces.Clear();
 
         switch (family)
         {
@@ -458,6 +496,96 @@ public override void DrawShapes(Camera cam)
             AddEdgeUnique(t[i + 1], t[i + 2], edgeSet);
             AddEdgeUnique(t[i + 2], t[i], edgeSet);
         }
+        var indices = new Dictionary<ulong, int>(_edges.Count);
+        for (int i = 0; i < _edges.Count; i++) indices[EdgeKey(_edges[i].a, _edges[i].b)] = i;
+        for (int i = 0; i < t.Count; i += 3)
+        {
+            int a = t[i], b = t[i + 1], c = t[i + 2];
+            _faces.Add(new Face { a = a, b = b, c = c, ab = indices[EdgeKey(a, b)],
+                bc = indices[EdgeKey(b, c)], ca = indices[EdgeKey(c, a)] });
+        }
+    }
+
+    static ulong EdgeKey(int a, int b) => ((ulong)(uint)Mathf.Min(a, b) << 32) | (uint)Mathf.Max(a, b);
+
+    float UnitHash(int index, int salt)
+    {
+        unchecked
+        {
+            uint h = (uint)(index * 374761393) ^ (uint)(GetInstanceID() + salt);
+            h ^= h >> 13; h *= 1274126177u; h ^= h >> 16;
+            return (h & 0x00FFFFFF) / 16777215f;
+        }
+    }
+    Vector3 DirectionHash(int index, int salt)
+    {
+        var v = new Vector3(UnitHash(index, salt), UnitHash(index, salt + 71), UnitHash(index, salt + 137)) * 2 - Vector3.one;
+        return v.sqrMagnitude < .0001f ? Vector3.up : v.normalized;
+    }
+    float LocalProgress(float progress, int index, float timing, float speed, int salt)
+    {
+        // Every interval is inside [0,1]. Reusing this mapping backward gives an exact undraw.
+        float delay = UnitHash(index, salt) * timing;
+        float duration = (1 - timing) * (1 - UnitHash(index, salt + 29) * speed);
+        return Mathf.Clamp01((progress - delay) / Mathf.Max(.001f, duration));
+    }
+
+    /// <summary>Local-space geometry also consumed by the renderer; caller owns/reuses the buffer.</summary>
+    public void GetPickupSegments(List<WireSegment> result)
+    {
+        RebuildIfNeeded(); result.Clear();
+        float draw = Mathf.Clamp01(drawProgress);
+        if (draw <= 0 || collapseProgress >= 1) return;
+        if (!IsAcquiring || _faces.Count == 0)
+        {
+            for (int i = 0; i < _edges.Count; i++)
+            {
+                var edge = _edges[i];
+                float p = LocalProgress(draw, i, drawTimingVariation, drawSpeedVariation, 317);
+                AddVisibleEdge(result, _verts[edge.a], _verts[edge.b], p, 0, -1);
+            }
+            return;
+        }
+        for (int i = 0; i < _faces.Count; i++)
+        {
+            var face = _faces[i];
+            Vector3 a = _verts[face.a], b = _verts[face.b], c = _verts[face.c];
+            Vector3 center = (a + b + c) / 3f;
+            Vector3 normal = Vector3.Cross(b - a, c - a).normalized;
+            if (Vector3.Dot(normal, center) < 0) normal = -normal;
+            float separate = LocalProgress(shatterProgress, i, faceTimingVariation, faceSpeedVariation, 619);
+            float erase = LocalProgress(collapseProgress, i, faceTimingVariation, faceSpeedVariation, 877);
+            Vector3 direction = Vector3.Lerp(normal, DirectionHash(i, 101), shatterRandomness * .35f).normalized;
+            Vector3 offset = direction * (shatterDistance * separate);
+            Quaternion rotation = Quaternion.AngleAxis(shatterSpinDegrees * separate, DirectionHash(i, 1337));
+            int first = Mathf.Min(2, (int)(UnitHash(i, 197) * 3));
+            float perimeter = Vector3.Distance(a, b) + Vector3.Distance(b, c) + Vector3.Distance(c, a);
+            float removed = erase * perimeter;
+            for (int side = 0; side < 3; side++)
+            {
+                int k = (first + side) % 3;
+                Vector3 start = _verts[face.Vertex(k)], end = _verts[face.Vertex((k + 1) % 3)];
+                float length = Vector3.Distance(start, end);
+                float cut = Mathf.Clamp01(removed / Mathf.Max(.0001f, length));
+                removed = Mathf.Max(0, removed - length);
+                float visible = LocalProgress(draw, face.EdgeIndex(k), drawTimingVariation, drawSpeedVariation, 317);
+                // All three sides use the SAME rigid face transform. Only their visible interval changes.
+                start = center + offset + rotation * (start - center);
+                end = center + offset + rotation * (end - center);
+                AddVisibleEdge(result, start, end, visible, cut, i);
+            }
+        }
+    }
+
+    static void AddVisibleEdge(List<WireSegment> result, Vector3 a, Vector3 b, float visible, float cut, int face)
+    {
+        if (visible <= 0 || cut >= 1) return;
+        if (visible >= 1) { result.Add(new WireSegment(Vector3.Lerp(a, b, cut), b, face)); return; }
+        // Draw from BOTH original 3D vertices toward the center; never move or flatten a vertex.
+        float half = visible * .5f;
+        if (cut < half) result.Add(new WireSegment(Vector3.Lerp(a, b, cut), Vector3.Lerp(a, b, half), face));
+        float start = Mathf.Max(cut, 1 - half);
+        if (start < 1) result.Add(new WireSegment(Vector3.Lerp(a, b, start), b, face));
     }
 
     static Vector3 N(Vector3 p) => p.normalized;

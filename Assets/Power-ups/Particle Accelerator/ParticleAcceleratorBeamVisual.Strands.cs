@@ -23,6 +23,8 @@ namespace Massive.PowerUps
         private const int MaxStrands = 8, NodesPerStrand = 65;
         private readonly Vector4[] strandNodes = new Vector4[MaxStrands * NodesPerStrand];
         private readonly Vector4[] strandInfo = new Vector4[MaxStrands];
+        private ParticleBeamAimTrail aimTrail;
+        public void SetAimTrail(ParticleBeamAimTrail trail) { aimTrail = trail; }
 
         private float BodyRadius(float radius, float charge, float clock)
         {
@@ -34,7 +36,7 @@ namespace Massive.PowerUps
         private Vector3 PathCenter(float length, float distance, float bodyRadius, float clock, float waveNumber)
         {
             float pin = Mathf.Sin(Mathf.PI * distance / Mathf.Max(.001f, length));
-            return new Vector3(bodyRadius * curveAmplitude * pin * Mathf.Sin(distance * waveNumber * .55f - clock * 2.1f),
+            return new Vector3((aimTrail?.OffsetAt(distance) ?? 0f) + bodyRadius * curveAmplitude * pin * Mathf.Sin(distance * waveNumber * .55f - clock * 2.1f),
                 bodyRadius * curveAmplitude * .32f * pin * Mathf.Sin(distance * waveNumber * .39f - clock * 1.7f + .9f), distance);
         }
 

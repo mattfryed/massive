@@ -18,20 +18,32 @@ public class MetaballManifest : MonoBehaviour
     [SerializeField, Range(0f, 2f)] private float overshoot = 1.15f; // 0 = no overshoot
     [SerializeField, Min(0f)] private float minRadiusToEmit = 0.0005f;
 
-    private enum State { Hidden, In, Shown, Out }
+    private enum State { Hidden, In, Shown, Out, SampledSpawn, Acquire }
 
     private MetaballSDFInstance _sdf;
     private float _t;
     private int _idx;
     private int _lastFrameCount = 1;
     private State _state = State.Shown;
+    private bool _externallyDriven;
+    private readonly float[] _acquireSizes = new float[MetaballSDFInstance.MaxBalls];
+    private bool _pickupScaleCached;
+    private Vector3 _pickupScale;
+
+    public void ApplyPickupSettings(Massive.PowerUps.PowerUpVisualSettings settings)
+    {
+        if (!_pickupScaleCached) { _pickupScale = transform.localScale; _pickupScaleCached = true; }
+        transform.localScale = _pickupScale * settings.innerScale;
+        inDuration = settings.innerSpawnSeconds; outDuration = settings.innerAcquireSeconds;
+        stagger = settings.innerStagger; jitter = settings.innerJitter; overshoot = settings.innerOvershoot;
+    }
 
     private int MaxBalls => Mathf.Max(1, MetaballSDFInstance.MaxBalls);
 
 private void Awake()
 {
     _sdf = GetComponent<MetaballSDFInstance>();
-    if (startHidden) SetHiddenInstant();
+    if (startHidden && !_externallyDriven) SetHiddenInstant();
 }
 
 
@@ -40,6 +52,29 @@ private void Awake()
 
     public void PlayIn()  { _state = State.In;  _t = 0f; }
     public void PlayOut() { _state = State.Out; _t = 0f; }
+
+    // One shared timeline lets a world pickup replay its entire spawn backwards.
+    public void SampleSpawnTime(float seconds)
+    {
+        _externallyDriven = true;
+        _state = State.SampledSpawn;
+        _t = Mathf.Max(0f, seconds);
+    }
+
+    public float EstimatedInTime() =>
+        (Mathf.Clamp(_lastFrameCount, 1, MaxBalls) - 1) * stagger + inDuration + jitter;
+
+    public float AcquireDuration => outDuration;
+
+    public void BeginAcquireDespawn()
+    {
+        for (int i = 0; i < _acquireSizes.Length; i++) _acquireSizes[i] = Evaluate(i);
+        _externallyDriven = true;
+        _state = State.Acquire;
+        _t = 0f;
+    }
+
+    public void SampleAcquireTime(float seconds) => _t = Mathf.Max(0f, seconds);
 
     public float EstimatedOutTime()
     {
@@ -94,12 +129,16 @@ private void Awake()
 
         int i = Mathf.Clamp(index, 0, MaxBalls - 1);
 
+        if (_state == State.Acquire)
+            return _acquireSizes[i] * (1f - Mathf.SmoothStep(0f, 1f, _t / Mathf.Max(0.0001f, outDuration)));
+
         // deterministic per-ball jitter (no per-frame Random)
         float j = HashSigned01(i, GetInstanceID()) * jitter;
 
-        if (_state == State.In)
+        if (_state == State.In || _state == State.SampledSpawn)
         {
-            float delay = i * stagger + j;
+            if (_t <= 0f) return 0f;
+            float delay = Mathf.Max(0f, i * stagger + j);
             float u = Mathf.Clamp01((_t - delay) / Mathf.Max(0.0001f, inDuration));
             return EaseOutBack(u, overshoot);
         }

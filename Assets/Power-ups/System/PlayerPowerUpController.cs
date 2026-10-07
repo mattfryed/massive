@@ -15,9 +15,11 @@ namespace Massive.PowerUps
         // Outputs used by PlayerControllerScript
         public float MovementMultiplier { get; private set; } = 1f;
         public float MovementMultiplierWhileCharging { get; private set; } = 1f;
+        internal bool AttackInputHeld { get; private set; }
 
         public bool HasActive => active != null && remaining > 0f;
         public PowerUpDefinition ActiveDefinition => active;
+        public float ParticleAcceleratorEnergy01 => _ability is ParticleAcceleratorAbility accelerator ? accelerator.Energy01 : 0f;
         public bool HasMovementAction => HasActive &&
             _ability is ParticleAcceleratorAbility accelerator && accelerator.IsMovementActionActive;
 
@@ -131,7 +133,7 @@ private static IEnumerator IgnoreCollisionsCo(PlayerControllerScript a, PlayerCo
             UnequipInternal();
 
             active = def;
-            remaining = Mathf.Max(0.01f, def.effectDurationSeconds);
+            remaining = Mathf.Max(0.01f, def.EffectDurationSeconds);
             cooldownRemaining = 0f;
 
             _ability = PowerUpAbilityFactory.Create(def, _player, this);
@@ -211,6 +213,9 @@ private static IEnumerator IgnoreCollisionsCo(PlayerControllerScript a, PlayerCo
         /// Returns true if the power-up consumed the attack input (so melee shouldn't trigger).
         public bool HandleInput(in PowerUpInputState input)
         {
+            // Remember input even without an ability, so a pickup can reject an
+            // attack already held before it was equipped.
+            AttackInputHeld = (input.attackDown || input.attackHeld) && !input.attackUp;
             if (!HasActive || _ability == null) return false;
 
             // ability can set movement modifiers (e.g., slow while charging)
@@ -236,7 +241,7 @@ private static IEnumerator IgnoreCollisionsCo(PlayerControllerScript a, PlayerCo
 
         // Ability helpers (called from abilities)
         public void SetMovementMultiplier(float m) => MovementMultiplier = Mathf.Max(0.01f, m);
-        public void SetMovementMultiplierWhileCharging(float m) => MovementMultiplierWhileCharging = Mathf.Max(0.01f, m);
+        public void SetMovementMultiplierWhileCharging(float m) => MovementMultiplierWhileCharging = Mathf.Max(0f, m);
     }
 
     internal interface IPowerUpAbility

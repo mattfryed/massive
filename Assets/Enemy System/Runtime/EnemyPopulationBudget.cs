@@ -32,20 +32,21 @@ namespace Massive.Enemies
             }
             types[enemy] = count; Total = total;
         }
-        public bool Allows(EnemyEncounterTimeline timeline, out string reason)
+        public bool Allows(EnemyEncounterTimeline timeline, out string reason, EnemyEncounterScaling.Limits limits = null)
         {
+            limits ??= EnemyEncounterScaling.Limits.Capture(timeline, false);
             reason = null;
-            if (timeline.maxAliveTotal > 0 && Total.Total > timeline.maxAliveTotal)
-            { reason = $"Total limit {timeline.maxAliveTotal}: {Total}"; return false; }
+            if (limits.total > 0 && Total.Total > limits.total)
+            { reason = $"Total limit {limits.total}: {Total}"; return false; }
             foreach (var pair in types)
             {
-                int limit = timeline.Limit(pair.Key);
+                int limit = limits.For(pair.Key);
                 if (limit > 0 && pair.Value.Total > limit)
                 { reason = $"{Name(pair.Key)} limit {limit}: {pair.Value}"; return false; }
             }
-            if (timeline.maxPressure > 0 && Pressure > timeline.maxPressure + .001f)
+            if (limits.pressure > 0 && Pressure > limits.pressure + .001f)
             {
-                reason = $"Pressure limit {timeline.maxPressure:0.##}: {AlivePressure:0.##} alive + {ReservedPressure:0.##} reserved + {RequestedPressure:0.##} requested";
+                reason = $"Pressure limit {limits.pressure:0.##}: {AlivePressure:0.##} alive + {ReservedPressure:0.##} reserved + {RequestedPressure:0.##} requested";
                 return false;
             }
             return true;

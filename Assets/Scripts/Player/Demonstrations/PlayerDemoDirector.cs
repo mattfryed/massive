@@ -218,8 +218,8 @@ namespace Massive.Demonstrations
                 FrameView((partnerHome - primaryHome) * .5f, Vector3.Distance(primaryHome, partnerHome) + 5f, 3.4f);
             else if (scenario.powerUp is ParticleAcceleratorPowerUpDefinition accelerator)
             {
-                // Include the full charge telegraph, muzzle, recoil and impact; the camera stays still all loop.
-                float distance = Mathf.Lerp(accelerator.minDistanceOnTap, accelerator.maxDistance, scenario.acceleratorChargeFraction) * PlayerScaleAdjuster.ProjectileReachOf(primary);
+                // Include the energy ring, muzzle and impact; the camera stays still all loop.
+                float distance = accelerator.maxDistance * PlayerScaleAdjuster.ProjectileReachOf(primary);
                 float right = Mathf.Max(pickupGap + distance + 1.5f, partnerHome.x - primaryHome.x + 2f);
                 FrameView(Vector3.right * ((right - 2f) * .5f), right + 2f, 4.4f);
             }
@@ -244,12 +244,15 @@ namespace Massive.Demonstrations
         {
             shot = true; ConfirmedShots++;
             if (projectile.TryGetComponent<ParticleAcceleratorProjectile>(out var beam))
-                beam.PlayerContact += (victim, shielded) =>
-                {
-                    if (victim != partner) return;
-                    projectileContact = true; ConfirmedProjectileContacts++;
-                    if (shielded) OnBlock(victim);
-                };
+                beam.PlayerContact += OnBeamContact;
+            if (projectile.TryGetComponent<ParticleAcceleratorBeam>(out var sustained))
+            { sustained.PlayerContact -= OnBeamContact; sustained.PlayerContact += OnBeamContact; }
+        }
+        private void OnBeamContact(PlayerControllerScript victim, bool shielded)
+        {
+            if (victim != partner) return;
+            projectileContact = true; ConfirmedProjectileContacts++;
+            if (shielded) OnBlock(victim);
         }
         private void Cleanup()
         {
@@ -406,15 +409,19 @@ namespace Massive.Demonstrations
             }
             if (accelerator)
             {
-                Phase = "Charging shot";
-                yield return Attack(primary, Vector3.right, accelerator.chargeToMaxSeconds * scenario.acceleratorChargeFraction);
                 if (!heldBlock && !undefended)
                 {
                     shieldRaisedAt = Time.time;
                     yield return Shield(partner, Vector3.left);
                 }
-                Phase = heldBlock ? "Projectile / held block" : "Projectile / parry";
+                Phase = heldBlock ? "Plasma / held block" : "Plasma / parry";
+                SetFrame(primary, Vector2.zero, Vector3.right, down: true, held: true);
+                yield return null;
+                SetFrame(primary, Vector2.zero, Vector3.right, held: true);
                 yield return Until(() => projectileContact, "Projectile did not contact its intended defender.");
+                SetFrame(primary, Vector2.zero, Vector3.right, up: true);
+                yield return null;
+                SetFrame(primary, Vector2.zero, Vector3.right);
             }
             else
             {
@@ -478,15 +485,16 @@ namespace Massive.Demonstrations
             if (def is ParticleAcceleratorPowerUpDefinition accelerator)
             {
                 // A real opponent at normal spawn mass. Repeat real shots until gameplay resolves a kill.
-                int safetyLimit = Mathf.CeilToInt(partner.massScoreMax / Mathf.Max(.01f, Mathf.Lerp(accelerator.massRemovedMin, accelerator.massRemovedMax, scenario.acceleratorChargeFraction))) + 2;
+                int safetyLimit = Mathf.CeilToInt(partner.massScoreMax / Mathf.Max(.01f, accelerator.playerDamagePerSecond * 3f)) + 2;
                 for (int attempt = 0; attempt < safetyLimit && !targetDied && !failed; attempt++)
                 {
                     yield return MoveActorTo(primary, primaryHome + Vector3.right * pickupGap, Vector3.right);
                     if (failed) yield break;
-                    yield return Until(() => primary.powerUps.CooldownRemaining <= 0f, "Accelerator did not recharge.");
+                    yield return Until(() => !primary.powerUps.HasActive || primary.powerUps.ParticleAcceleratorEnergy01 >= .99f,
+                        "Accelerator did not refill.", accelerator.emptyToFullRefillSeconds + 2f);
                     if (failed) yield break;
                     // Long sequences can outlive a pickup. Return and claim a fresh one naturally.
-                    if (!primary.powerUps.HasActive || primary.powerUps.RemainingSeconds < accelerator.chargeToMaxSeconds * scenario.acceleratorChargeFraction + accelerator.preFireTelegraphSeconds + .5f)
+                    if (!primary.powerUps.HasActive || primary.powerUps.RemainingSeconds < 3.5f)
                     {
                         if (primary.powerUps.HasActive)
                             yield return Until(() => !primary.powerUps.HasActive, "Power-up did not expire.", primary.powerUps.RemainingSeconds + 2f);
@@ -495,8 +503,8 @@ namespace Massive.Demonstrations
                     }
                     int beforeShots = ConfirmedShots;
                     float beforeMass = partner.massScore;
-                    yield return Attack(primary, (partner.transform.position - primary.transform.position).normalized, accelerator.chargeToMaxSeconds * scenario.acceleratorChargeFraction);
-                    yield return Until(() => ConfirmedShots > beforeShots, "Accelerator did not fire after release.");
+                    yield return Attack(primary, (partner.transform.position - primary.transform.position).normalized, 3f);
+                    yield return Until(() => ConfirmedShots > beforeShots, "Accelerator did not sustain while held.");
                     if (failed) yield break;
                     yield return Until(() => targetDied || partner.massScore < beforeMass, "Accelerator did not hit its opponent.");
                 }

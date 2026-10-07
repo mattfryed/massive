@@ -13,7 +13,7 @@ using Object = UnityEngine.Object;
 
 public static class PlayerActionTestArenaSetup
 {
-    public const string ScenePath = "Assets/Scenes/S-T_PLAYER-ACTIONS.unity";
+    public const string ScenePath = "Assets/Scenes/EXPERIMENTS/S-T_PLAYER-ACTIONS.unity";
     const string EconomyPath = "Assets/Scripts/Player/Demonstrations/Action Test Economy.asset";
     const string LevelPath = "Assets/Scripts/Player/Demonstrations/Action Test Level.asset";
 

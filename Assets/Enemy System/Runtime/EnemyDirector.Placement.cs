@@ -27,6 +27,7 @@ namespace Massive.Enemies
         }
         private void ResolvePlacement(List<FormationMember> batch, EnemyFormation formation, float maximum, bool flexible)
         {
+            ResolveWallPlacement(batch);
             bool allClear = true;
             foreach (var m in batch)
             { m.placed = ClearInBatch(m, batch, out m.status.reason); allClear &= m.placed; }
@@ -98,8 +99,9 @@ namespace Massive.Enemies
             if (maximum <= 0 || m.pose.socket != null || m.status.announced) { m.placed = false; return false; }
             var previous = m.pose;
             Vector3 center = Vector3.zero;
-            foreach (var slot in formation.slots)
-                if (arenaLayout.Resolve(slot, m.cue.mirror, out var pose, out _)) center += pose.position;
+            var policy = encounterTimeline.cues[m.cue.index];
+            for (int i = 0; i < formation.slots.Count; i++)
+                if (arenaLayout.Resolve(policy.GetSlot(formation, i), m.cue.mirror, out var pose, out _, policy.flipWallOrientation)) center += pose.position;
             center /= formation.slots.Count;
             // Ring corrections prefer the tangent/radius; rows prefer the arena's horizontal axis.
             Vector3 radial = m.authored.position - center; radial.y = 0;

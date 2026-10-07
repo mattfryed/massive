@@ -16,9 +16,17 @@ public sealed partial class EnemyEncounterComposer
         GUILayout.Label("TIMELINE", EditorStyles.boldLabel);
         using (new EditorGUI.DisabledScope(!CanEdit))
         {
-            EditorGUILayout.PropertyField(serialized.FindProperty("duration"));
+            EditorGUILayout.PropertyField(serialized.FindProperty("fitRegulation"), new GUIContent("Fit regulation"));
+            EditorGUILayout.PropertyField(serialized.FindProperty("duration"), new GUIContent("Authored span (s)"));
         }
+        GUILayout.Label(timeline.fitRegulation
+            ? $"{timeline.duration:0.##} authored seconds → {DisplayDuration:0.##} match seconds ({displayTimeScale:0.###}×). Ruler and arrival fields show match seconds."
+            : "Fixed timing: ruler and arrivals use authored seconds.", small);
+        GUILayout.Label("Warnings, within-formation stagger and attack timings keep their real durations.", small);
         DrawPopulation(serialized);
+        using (new EditorGUI.DisabledScope(!CanEdit))
+            EditorGUILayout.PropertyField(serialized.FindProperty("twoVTwo"), new GUIContent("2v2 scaling profile"), true);
+        GUILayout.Label("Preview mode also selects the player roster when you press Play. Purple marks optional reinforcement pairs. Counts round down to whole pairs; authored positions and timings stay intact.", small);
         var chosenLayout = (EnemyArenaLayout)EditorGUILayout.ObjectField("Arena layout", layout, typeof(EnemyArenaLayout), true);
         if (chosenLayout != layout) { layout = chosenLayout; validationDirty = true; }
         GUILayout.Space(12);
@@ -31,11 +39,23 @@ public sealed partial class EnemyEncounterComposer
             {
                 EditorGUILayout.PropertyField(cue.FindPropertyRelative("label"));
                 EditorGUILayout.PropertyField(cue.FindPropertyRelative("formation"));
-                EditorGUILayout.PropertyField(cue.FindPropertyRelative("arrivalSeconds"), new GUIContent("First arrival (s)"));
+                if (EnemyTurretFormationAuthoring.CanFlip(cue.FindPropertyRelative("formation").objectReferenceValue as EnemyFormation))
+                {
+                    var flip = cue.FindPropertyRelative("flipWallOrientation");
+                    if (GUILayout.Button(flip.boolValue ? "Flip orientation (currently flipped)" : "Flip orientation")) flip.boolValue = !flip.boolValue;
+                    GUILayout.Label("Swap left/right quadrants for this encounter only.", small);
+                }
+                var arrivalProperty = cue.FindPropertyRelative("arrivalSeconds");
+                EditorGUI.BeginChangeCheck();
+                float displayedArrival = EditorGUILayout.FloatField("First arrival (s)", arrivalProperty.floatValue * displayTimeScale);
+                if (EditorGUI.EndChangeCheck()) arrivalProperty.floatValue = Mathf.Max(0, displayedArrival) / displayTimeScale;
                 EditorGUILayout.PropertyField(cue.FindPropertyRelative("allowedLateness"), new GUIContent("Max lateness (s)"));
                 EditorGUILayout.PropertyField(cue.FindPropertyRelative("allowHorizontalMirror"), new GUIContent("Allow seeded mirroring"));
                 EditorGUILayout.PropertyField(cue.FindPropertyRelative("variants"), true);
                 EditorGUILayout.PropertyField(cue.FindPropertyRelative("fallback"));
+                EditorGUILayout.PropertyField(cue.FindPropertyRelative("scaling"), new GUIContent("2v2 scaling"));
+                if (cue.FindPropertyRelative("scaling").enumValueIndex == (int)EnemyEncounterScaling.CuePolicy.Override)
+                    EditorGUILayout.PropertyField(cue.FindPropertyRelative("reinforcementPairs"), new GUIContent("Extra pairs"));
                 EditorGUILayout.PropertyField(cue.FindPropertyRelative("overrideSpawnPolicy"), new GUIContent("Override spawn policy"));
                 using (new EditorGUI.DisabledScope(!cue.FindPropertyRelative("overrideSpawnPolicy").boolValue))
                 {
@@ -61,7 +81,8 @@ public sealed partial class EnemyEncounterComposer
                 GUILayout.Label($"{value.IntegrityFor(formation)} · Adjustment ≤ {value.AdjustmentFor(formation):0.##} units · Slot grace {value.GraceFor(formation):0.##}s" +
                     (value.overrideSpawnPolicy ? " (cue override)" : " (formation defaults)"), small);
                 GUILayout.Label($"Seed {seed}: {formation.name}" + (mirror ? " (mirrored)" : ""), small);
-                GUILayout.Label($"Warning {value.arrivalSeconds - formation.warningSeconds:0.00}s → First {value.arrivalSeconds:0.00}s → Last {value.arrivalSeconds + EnemyEncounterAuthoring.LastDelay(formation):0.00}s", small);
+                float arrival = value.arrivalSeconds * displayTimeScale;
+                GUILayout.Label($"Warning {arrival - formation.warningSeconds:0.00}s → First {arrival:0.00}s → Last {arrival + LastDelay(formation, selected):0.00}s", small);
                 if (Live)
                 {
                     var state = Director.CueStates.FirstOrDefault(c => c.index == selected);
@@ -73,6 +94,9 @@ public sealed partial class EnemyEncounterComposer
                         if (state.formation) { formation = state.formation; mirror = state.mirror; }
                         foreach (var slot in state.slots.Where(s => !string.IsNullOrEmpty(s.reason)).Take(4))
                             GUILayout.Label($"Slot {slot.index + 1}: {slot.reason}", small);
+                        if (state.reinforcements != null)
+                            foreach (var slot in state.reinforcements.slots.Where(s => !string.IsNullOrEmpty(s.reason)).Take(4))
+                                GUILayout.Label($"Extra {slot.index + 1}: {slot.reason}", small);
                     }
                 }
             }
@@ -89,9 +113,16 @@ public sealed partial class EnemyEncounterComposer
         if (formation)
         {
             GUILayout.Label("ARENA PLACEMENT", EditorStyles.boldLabel);
-            GUILayout.Label($"{formation.slots.Count} enemies · Warning {formation.warningSeconds:0.##}s · Spawn span {EnemyEncounterAuthoring.LastDelay(formation):0.##}s", small);
+            GUILayout.Label($"{formation.slots.Count} authored + {Extras(formation, selected).Count} optional · Warning {formation.warningSeconds:0.##}s · Spawn span {LastDelay(formation, selected):0.##}s", small);
             DrawArena(GUILayoutUtility.GetRect(100, 142, GUILayout.ExpandWidth(true)), formation, mirror);
+            DrawPlacementControls(formation);
             GUILayout.Label("Blue: planned · Orange: adjusted · Red: blocked/skipped · Green: spawned", small);
+            if (TwoVTwo) GUILayout.Label("Purple +: generated 2v2 reinforcement. Drag blue originals to change the base placement.", small);
+            if (layout && formation.slots.Any(s => layout.sockets.Exists(w => w.id == s.socket && w.useRange)))
+            {
+                GUILayout.Label("Yellow: searchable wall range. Paired ranges prefer matching positions; circles show preferred or live arrivals.", EditorStyles.wordWrappedMiniLabel);
+                if (GUILayout.Button("Inspect wall ranges")) Selection.activeObject = layout;
+            }
             if (selected < 0)
             {
                 var shared = new SerializedObject(formation); shared.Update();
@@ -106,7 +137,7 @@ public sealed partial class EnemyEncounterComposer
                 if (shared.ApplyModifiedProperties()) { AssetDatabase.SaveAssetIfDirty(formation); Changed(false); }
             }
             if (GUILayout.Button("Inspect shared formation asset")) { Selection.activeObject = formation; EditorGUIUtility.PingObject(formation); }
-            GUILayout.Label("Count, spacing and stagger are shared formation settings. Timing and alternatives belong to this cue.", small);
+            GUILayout.Label("Count and stagger belong to the shared formation. Timeline cues can override individual spawn positions.", small);
         }
         GUILayout.Space(12); GUILayout.Label("AUTHORING CHECKS", EditorStyles.boldLabel);
         if (!layout) EditorGUILayout.HelpBox("Assign an arena layout to preview placement and check boundaries, exclusions and mount sockets.", MessageType.Info);
@@ -125,6 +156,8 @@ public sealed partial class EnemyEncounterComposer
         if (!lab) return;
         GUILayout.Label("PREVIEW PLAYER", EditorStyles.boldLabel);
         var preview = new SerializedObject(lab); preview.Update();
+        using (new EditorGUI.DisabledScope(!CanEdit))
+            EditorGUILayout.PropertyField(preview.FindProperty("previewRegulationSeconds"), new GUIContent("Preview regulation (s)"));
         EditorGUILayout.PropertyField(preview.FindProperty("manualPlayerControl"), new GUIContent("Manual control (P1)"));
         preview.ApplyModifiedProperties();
         if (lab.manualPlayerControl)
@@ -137,6 +170,9 @@ public sealed partial class EnemyEncounterComposer
         GUILayout.Space(6);
         GUILayout.Label("POPULATION", EditorStyles.boldLabel);
         GUILayout.Label("Timeline owns these limits. 0 = unlimited. Counts alive + reserved arrivals, including Carrier-launched Drones.", small);
+        var effective = EffectiveLimits;
+        GUILayout.Label($"{(TwoVTwo ? "2v2" : "1v1")} effective: {LimitText(effective.total)} total · {LimitText(effective.pressure)} pressure", EditorStyles.wordWrappedMiniLabel);
+        if (TwoVTwo) GUILayout.Label("Fields below are 1v1 limits. Profile multipliers produce the effective 2v2 limits.", small);
         var budget = Live ? Director.CapturePopulationBudget() : null;
         using (new EditorGUI.DisabledScope(!CanEdit))
         {
@@ -149,7 +185,7 @@ public sealed partial class EnemyEncounterComposer
             foreach (var definition in definitions)
             {
                 int current = timeline.Limit(definition);
-                string label = EnemyEncounterAuthoring.Name(definition);
+                string label = EnemyEncounterAuthoring.Name(definition) + (TwoVTwo ? $" → {(effective.For(definition) == 0 ? "∞" : effective.For(definition).ToString())}" : "");
                 string tooltip = "Optional per-enemy limit. 0 = unlimited.";
                 if (budget != null) tooltip += " Current: " + budget.For(definition);
                 int value = Mathf.Max(0, EditorGUILayout.IntField(new GUIContent(label, tooltip), current));
@@ -166,8 +202,8 @@ public sealed partial class EnemyEncounterComposer
         }
         if (budget != null)
         {
-            GUILayout.Label($"Live: {budget.Total.alive} alive + {budget.Total.reserved} reserved / {LimitText(timeline.maxAliveTotal)} total", small);
-            GUILayout.Label($"Pressure: {budget.Pressure:0.##} / {LimitText(timeline.maxPressure)}", small);
+            GUILayout.Label($"Live: {budget.Total.alive} alive + {budget.Total.reserved} reserved / {LimitText(effective.total)} total", small);
+            GUILayout.Label($"Pressure: {budget.Pressure:0.##} / {LimitText(effective.pressure)}", small);
         }
         if (!lab) return;
         var preview = new SerializedObject(lab); preview.Update();
@@ -186,9 +222,19 @@ public sealed partial class EnemyEncounterComposer
         if (axisX.sqrMagnitude < .01f || axisY.sqrMagnitude < .01f) return;
         float scale = Mathf.Min((rect.width - 18) / (axisX.magnitude * 2), (rect.height - 18) / (axisY.magnitude * 2));
         Vector2 Map(Vector3 p) => rect.center + new Vector2(Vector3.Dot(p - center, axisX.normalized), -Vector3.Dot(p - center, axisY.normalized)) * scale;
-        var a = Map(layout.World(new Vector2(-1, 1))); var b = Map(layout.World(new Vector2(1, -1)));
+        Vector3 Unmap(Vector2 p) => center + axisX.normalized * ((p.x - rect.center.x) / scale) - axisY.normalized * ((p.y - rect.center.y) / scale);
+        HandleArenaDrag(rect, formation, mirror, scale, Map, Unmap);
         Color old = Handles.color; Handles.color = Grid;
-        Handles.DrawAAPolyLine(1, new Vector3(a.x, a.y, 0), new Vector3(b.x, a.y, 0), new Vector3(b.x, b.y, 0), new Vector3(a.x, b.y, 0), new Vector3(a.x, a.y, 0));
+        int segments = layout.arena.ovalOutline ? ArenaBoundsFromVectorGrid.OvalSegments : 1;
+        var outline = new Vector3[(segments + 1) * 2 + 1];
+        for (int i = 0; i <= segments; i++)
+        {
+            float x = Mathf.Lerp(-1, 1, (float)i / segments);
+            outline[i] = Map(layout.World(new Vector2(x, 1)));
+            outline[segments + 1 + i] = Map(layout.World(new Vector2(-x, -1)));
+        }
+        outline[outline.Length - 1] = outline[0];
+        Handles.DrawAAPolyLine(1, outline);
         foreach (var volume in layout.exclusions)
         {
             if (!volume || !volume.enabled || !volume.gameObject.activeInHierarchy) continue;
@@ -201,21 +247,45 @@ public sealed partial class EnemyEncounterComposer
             var r = Rect.MinMaxRect(Mathf.Max(rect.x, min.x), Mathf.Max(rect.y, min.y), Mathf.Min(rect.xMax, max.x), Mathf.Min(rect.yMax, max.y));
             if (r.width > 0 && r.height > 0) EditorGUI.DrawRect(r, Grid);
         }
-        void Draw(EnemyFormation value, bool reflected, bool active)
+        void Draw(EnemyFormation value, bool reflected, bool active, int cueIndex)
         {
+            bool flipWalls = cueIndex >= 0 && timeline.cues[cueIndex].flipWallOrientation;
             var live = active && Live && selected >= 0 ? Director.CueStates.FirstOrDefault(c => c.index == selected) : null;
-            for (int i = 0; i < value.slots.Count; i++)
+            var extras = Extras(value, cueIndex);
+            for (int i = 0; i < value.slots.Count + extras.Count; i++)
             {
-                var slot = value.slots[i];
-                if (slot == null || !slot.enemy || !layout.Resolve(slot, reflected, out var pose, out _)) continue;
+                bool extra = i >= value.slots.Count;
+                int extraIndex = i - value.slots.Count;
+                var slot = extra ? extras[extraIndex] : PreviewSlot(value, cueIndex, i);
+                if (slot == null || !slot.enemy || !layout.Resolve(slot, reflected, out var pose, out _, flipWalls)) continue;
+                if (pose.socket != null && pose.socket.useRange)
+                {
+                    Handles.color = active ? new Color(1f, .8f, .2f) : Grid;
+                    var range = new Vector3[33];
+                    for (int j = 0; j < range.Length; j++) range[j] = Map(layout.WallPose(pose.socket, j / 32f).position);
+                    Handles.DrawAAPolyLine(active ? 3 : 1, range);
+                }
                 float radius = Mathf.Max(Director ? Director.spawnCheckRadiusWorld : 0, slot.enemy.GetSpawnRadiusWorld());
-                bool clear = layout.Clear(pose, radius, Director ? Director.borderBufferWorld : 0, out _);
-                var status = live != null && i < live.slots.Count ? live.slots[i] : null;
+                bool clear = layout.Clear(pose, radius, Director ? Director.borderBufferWorld : 0, out string reason);
+                bool picked = active && arenaDrag != null && arenaDrag.slot == i;
+                if (picked && clear) for (int j = 0; j < value.slots.Count; j++)
+                {
+                    if (j == i) continue;
+                    var sibling = PreviewSlot(value, cueIndex, j);
+                    if (!layout.Resolve(sibling, reflected, out var otherPose, out _, flipWalls)) continue;
+                    float otherRadius = Mathf.Max(Director ? Director.spawnCheckRadiusWorld : 0, sibling.enemy.GetSpawnRadiusWorld());
+                    if ((pose.clearance - otherPose.clearance).sqrMagnitude >= Mathf.Pow(radius + otherRadius, 2)) continue;
+                    clear = false; reason = $"Overlaps slot {j + 1}"; break;
+                }
+                if (picked) placementHint = $"Slot {i + 1}: " + (clear ? "preferred position is clear." : reason + ". Runtime will try nearby space.");
+                var status = extra ? live?.reinforcements != null && extraIndex < live.reinforcements.slots.Count ? live.reinforcements.slots[extraIndex] : null
+                    : live != null && i < live.slots.Count ? live.slots[i] : null;
                 Vector2 authored = Map(pose.clearance);
                 if (status != null) { pose.position = status.position; pose.clearance = status.clearance; pose.rotation = status.rotation; }
                 Vector2 p = Map(pose.clearance);
                 if (!rect.Contains(p)) continue;
                 Handles.color = !active ? new Color(.5f, .5f, .5f, .5f) : clear ? ArrivalColor : new Color(1, .35f, .3f);
+                if (extra && active && clear) Handles.color = new Color(.8f, .55f, 1);
                 if (status != null)
                 {
                     if (status.adjusted) { Handles.color = new Color(1, .65f, .2f); Handles.DrawDottedLine(authored, p, 3); }
@@ -223,15 +293,17 @@ public sealed partial class EnemyEncounterComposer
                     if (status.state == "Blocked" || status.state == "Skipped") Handles.color = new Color(1, .35f, .3f);
                 }
                 Handles.DrawWireDisc(p, Vector3.forward, Mathf.Max(2, radius * scale));
+                if (extra) { Handles.DrawLine(p - Vector2.right * 3, p + Vector2.right * 3); Handles.DrawLine(p - Vector2.up * 3, p + Vector2.up * 3); }
+                if (picked) Handles.DrawWireDisc(p, Vector3.forward, Mathf.Max(2, radius * scale) + 3);
                 Handles.DrawLine(p, Map(pose.clearance + pose.rotation * Vector3.forward * radius * 1.5f));
             }
         }
         if (selected >= 0) for (int i = 0; i < timeline.cues.Count; i++)
         {
-            if (i == selected || Mathf.Abs(timeline.cues[i].arrivalSeconds - TimeOf(selected)) > .01f) continue;
-            var other = EnemyEncounterAuthoring.Choose(timeline, i, seed, out bool reflected); if (other) Draw(other, reflected, false);
+            if (i == selected || Mathf.Abs(TimeOf(i) - TimeOf(selected)) > .01f) continue;
+            var other = EnemyEncounterAuthoring.Choose(timeline, i, seed, out bool reflected); if (other) Draw(other, reflected, false, i);
         }
-        Draw(formation, mirror, true); Handles.color = old;
+        Draw(formation, mirror, true, selected); Handles.color = old;
     }
 }
 #endif

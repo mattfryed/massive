@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   rulesetId: MASSIVE_SCORE_V1
   rulesetVersion: 4
-  regulationDurationSeconds: 120
+  regulationDurationSeconds: 180
   chainSettings:
     multiplierSteps: 0100000002000000040000000800000010000000
     chargeRequiredPerTier:

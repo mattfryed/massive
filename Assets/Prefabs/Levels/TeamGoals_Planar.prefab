@@ -4970,6 +4970,7 @@ MonoBehaviour:
   scoreCoveragePow: 1.35
   outerRadiusAtFullScoreMultiplier: 1.65
   containerBoundary: {fileID: 1603152632255612127}
+  ellipticalContainer: {fileID: 0}
   driveRegionFromContainer: 1
   fitRendererToContainerAtRuntime: 1
   clipToContainer: 1
@@ -5444,6 +5445,7 @@ MonoBehaviour:
   scoreCoveragePow: 1.35
   outerRadiusAtFullScoreMultiplier: 1.65
   containerBoundary: {fileID: 5188918581837691764}
+  ellipticalContainer: {fileID: 0}
   driveRegionFromContainer: 1
   fitRendererToContainerAtRuntime: 1
   clipToContainer: 1

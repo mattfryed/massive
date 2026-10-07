@@ -215,7 +215,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 45943354}
-  m_Enabled: 0
+  m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: a1c3862d52f0142dba3ccf29a76cc414, type: 3}
   m_Name: 
@@ -933,6 +933,38 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!1 &251901812
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 251901813}
+  m_Layer: 0
+  m_Name: superluminous
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &251901813
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 251901812}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 768106901}
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &260850768
 GameObject:
   m_ObjectHideFlags: 0
@@ -1092,7 +1124,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!4 &277358975
 Transform:
   m_ObjectHideFlags: 0
@@ -2006,7 +2038,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!4 &641442411
 Transform:
   m_ObjectHideFlags: 0
@@ -2410,6 +2442,37 @@ Transform:
   - {fileID: 4134086544602696161}
   - {fileID: 3287925392318019933}
   m_Father: {fileID: 1821900150}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &768106900
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 768106901}
+  m_Layer: 0
+  m_Name: layer 1
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &768106901
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 768106900}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 251901813}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &791305257
 GameObject:
@@ -3063,7 +3126,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!4 &974775268
 Transform:
   m_ObjectHideFlags: 0
@@ -3346,7 +3409,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!4 &1118500389
 Transform:
   m_ObjectHideFlags: 0
@@ -11995,6 +12058,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   arena: {fileID: 3193814614994987285}
   gameplayHeight: 0
+  ovalSpawnInset: 0.25
   regions:
   - id: Arena
     rectangle:
@@ -12034,6 +12098,9 @@ MonoBehaviour:
   sockets:
   - id: TopLeft
     enabled: 1
+    useRange: 1
+    rangeStart: {x: 0, y: 1}
+    rangeEnd: {x: -1, y: 1}
     position: {x: -0.5, y: 1}
     inward: {x: 0, y: -1}
     aimArc: 75
@@ -12041,6 +12108,9 @@ MonoBehaviour:
     support: {fileID: 0}
   - id: TopRight
     enabled: 1
+    useRange: 1
+    rangeStart: {x: 0, y: 1}
+    rangeEnd: {x: 1, y: 1}
     position: {x: 0.5, y: 1}
     inward: {x: 0, y: -1}
     aimArc: 75
@@ -12048,6 +12118,9 @@ MonoBehaviour:
     support: {fileID: 0}
   - id: BottomLeft
     enabled: 1
+    useRange: 1
+    rangeStart: {x: 0, y: -1}
+    rangeEnd: {x: -1, y: -1}
     position: {x: -0.5, y: -1}
     inward: {x: 0, y: 1}
     aimArc: 75
@@ -12055,6 +12128,9 @@ MonoBehaviour:
     support: {fileID: 0}
   - id: BottomRight
     enabled: 1
+    useRange: 1
+    rangeStart: {x: 0, y: -1}
+    rangeEnd: {x: 1, y: -1}
     position: {x: 0.5, y: -1}
     inward: {x: 0, y: 1}
     aimArc: 75
@@ -14207,6 +14283,7 @@ GameObject:
   - component: {fileID: 8455266651050621218}
   - component: {fileID: 8455266651050621219}
   - component: {fileID: 8455266651050621220}
+  - component: {fileID: 8455266651050621221}
   m_Layer: 0
   m_Name: VectorGridGPU
   m_TagString: Untagged
@@ -29796,6 +29873,8 @@ MonoBehaviour:
   - {fileID: 4451982308417248766}
   - {fileID: 6616959457081892218}
   - {fileID: 6476386583107515554}
+  outsideMaskShader: {fileID: 4800000, guid: 80f7998ead3a2ab4389843151145cffa, type: 3}
+  maskOutsideOval: 1
   layoutRevision: 3
 --- !u!114 &8455266651050621219
 MonoBehaviour:
@@ -29853,6 +29932,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 287a4c181791a98439f04e424921452e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  kind: 0
   web: {fileID: 8455266651050621219}
   nuggletPrefab: {fileID: 7525906451072600638, guid: 1018c5973353f8d44ba27b035f53c907,
     type: 3}
@@ -29951,9 +30031,20 @@ MonoBehaviour:
   nuggletLifetime: 20
   nuggletCapacity: 32
   flashColor: {r: 1, g: 0.67, b: 0.25, a: 1}
+  randomizeColor: 1
+  cyanWhiteColor: {r: 0.88, g: 0.98, b: 1, a: 1}
+  cyanBlueColor: {r: 0.15, g: 0.64, b: 1, a: 1}
+  lightPurpleColor: {r: 0.76, g: 0.5, b: 1, a: 1}
   flashBrightness: 4
   flashRadius: 0.75
   flashSeconds: 0.4
+  shellColor: {r: 1, g: 0.42, b: 0.08, a: 1}
+  shellDetail: 0.7
+  cloudExpansionSeconds: 1.8
+  cloudFadeSeconds: 2.4
+  cloudDistortion: 0.85
+  cloudMixingSpeed: 0.45
+  telegraphDistortion: 0.85
   buildUpSeconds: 1.8
   buildUpBrightness: 0.12
   flickerStrength: 0.35
@@ -29961,6 +30052,138 @@ MonoBehaviour:
   dieOffSeconds: 0.3
   fixedRandomSeed: 0
   randomSeed: 90211
+--- !u!114 &8455266651050621221
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 405120828900279794}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 287a4c181791a98439f04e424921452e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  kind: 1
+  web: {fileID: 8455266651050621219}
+  nuggletPrefab: {fileID: 8411381529477278133, guid: 2a7cf2d5a680c8a4589a00ff81aca229,
+    type: 3}
+  flashShader: {fileID: 4800000, guid: f061c8a7daf1ce94ca644945b46a16b6, type: 3}
+  frequencyOverAge:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.125
+      value: 0.047529384
+      inSlope: 0.67490536
+      outSlope: 0.67490536
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.25
+      value: 0.18391322
+      inSlope: 1.5022813
+      outSlope: 1.5022813
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.375
+      value: 0.3905609
+      inSlope: 1.5483924
+      outSlope: 1.5483924
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.5
+      value: 0.5
+      inSlope: -0
+      outSlope: -0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.625
+      value: 0.3905609
+      inSlope: -1.5483924
+      outSlope: -1.5483924
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.75
+      value: 0.18391322
+      inSlope: -1.5022813
+      outSlope: -1.5022813
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.875
+      value: 0.047529384
+      inSlope: -0.67490536
+      outSlope: -0.67490536
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  peakExplosionsPerSecond: 3
+  clusterBias: 0.92
+  wallClearance: 0.35
+  ejectionSpeed: {x: 2, y: 5}
+  nuggletLifetime: 20
+  nuggletCapacity: 32
+  flashColor: {r: 0.12, g: 0.55, b: 1, a: 1}
+  randomizeColor: 0
+  cyanWhiteColor: {r: 0.88, g: 0.98, b: 1, a: 1}
+  cyanBlueColor: {r: 0.15, g: 0.64, b: 1, a: 1}
+  lightPurpleColor: {r: 0.76, g: 0.5, b: 1, a: 1}
+  flashBrightness: 8
+  flashRadius: 1.8000001
+  flashSeconds: 0.65000004
+  shellColor: {r: 1, g: 0.42, b: 0.08, a: 1}
+  shellDetail: 0.7
+  cloudExpansionSeconds: 1.8
+  cloudFadeSeconds: 2.4
+  cloudDistortion: 0.85
+  cloudMixingSpeed: 0.45
+  telegraphDistortion: 0.85
+  buildUpSeconds: 1.8
+  buildUpBrightness: 0.12
+  flickerStrength: 0.35
+  flickerSpeed: 7
+  dieOffSeconds: 0.75
+  fixedRandomSeed: 0
+  randomSeed: 90312
 --- !u!4 &8495005746540136009
 Transform:
   m_ObjectHideFlags: 0
@@ -30705,3 +30928,4 @@ SceneRoots:
   - {fileID: 2142562456}
   - {fileID: 687973052}
   - {fileID: 112759206}
+  - {fileID: 251901813}

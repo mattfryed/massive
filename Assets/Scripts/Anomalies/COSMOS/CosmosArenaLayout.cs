@@ -14,13 +14,19 @@ namespace Massive.Cosmos
         [Min(.1f)] public float wallHeight = 5f;
         public Color borderColor = Color.white;
         public Renderer[] fieldMasks;
+        [Tooltip("Black cutout across the full camera view, including curved corners missed by the original rectangular mask strips.")]
+        public Shader outsideMaskShader;
+        public bool maskOutsideOval = true;
         [HideInInspector] public int layoutRevision;
         ArenaBoundsFromVectorGrid bounds;
+        CosmicWebBackground background;
         MeshRenderer gridRenderer;
         MaterialPropertyBlock block;
         MaterialPropertyBlock maskBlock;
         Mesh borderMesh;
         Material borderMaterial;
+        Mesh outsideMaskMesh;
+        Material outsideMaskMaterial;
         GameObject walls;
         Vector4 builtProfile;
         Vector3 builtScale;
@@ -31,6 +37,7 @@ namespace Massive.Cosmos
         void OnEnable()
         {
             bounds = GetComponent<ArenaBoundsFromVectorGrid>();
+            background = GetComponent<CosmicWebBackground>();
             gridRenderer = GetComponent<MeshRenderer>();
             block = new MaterialPropertyBlock();
             maskBlock = new MaterialPropertyBlock();
@@ -57,6 +64,19 @@ namespace Massive.Cosmos
                     maskBlock.SetMatrix("_CosmosWorldToGrid", transform.worldToLocalMatrix);
                     mask.SetPropertyBlock(maskBlock);
                 }
+            if (maskOutsideOval && outsideMaskMesh && outsideMaskMaterial)
+            {
+                // Cover the nearest face of the cosmic depth slab, beneath gameplay/HUD.
+                // The old foreground strips sit in front of some world-space score glyphs.
+                float depth = background ? -background.backgroundDepth + .5f : 0;
+                maskBlock.Clear();
+                maskBlock.SetVector("_ArenaOval", bounds.OutlineShaderParameters);
+                maskBlock.SetMatrix("_CosmosWorldToGrid", transform.worldToLocalMatrix);
+                var maskMatrix = transform.localToWorldMatrix * Matrix4x4.TRS(new Vector3(0,0,depth), Quaternion.identity,
+                    new Vector3(Mathf.Max(100, builtProfile.z * 4), Mathf.Max(100, builtProfile.y * 4), 1));
+                Graphics.DrawMesh(outsideMaskMesh, maskMatrix, outsideMaskMaterial, gameObject.layer,
+                    null, 0, maskBlock, ShadowCastingMode.Off, false, null, LightProbeUsage.Off);
+            }
             if (!borderMesh || !borderMaterial) return;
             borderMaterial.SetColor("_Color", borderColor);
             Graphics.DrawMesh(borderMesh, transform.localToWorldMatrix, borderMaterial, gameObject.layer,
@@ -66,6 +86,7 @@ namespace Massive.Cosmos
         public void Rebuild()
         {
             if (!bounds) bounds = GetComponent<ArenaBoundsFromVectorGrid>();
+            if (!background) background = GetComponent<CosmicWebBackground>();
             if (!bounds || !bounds.Grid || !bounds.ovalOutline) return;
             ReleaseGeometry();
             builtProfile = bounds.OutlineShaderParameters;
@@ -102,6 +123,14 @@ namespace Massive.Cosmos
             borderMesh.vertices = vertices; borderMesh.triangles = triangles; borderMesh.RecalculateBounds();
             if (!boundaryShader) boundaryShader = Shader.Find("MASSIVE/Cosmos/Boundary");
             if (boundaryShader) borderMaterial = new Material(boundaryShader) { hideFlags = HideFlags.DontSave };
+            if (outsideMaskShader)
+            {
+                outsideMaskMaterial = new Material(outsideMaskShader) { name = "COSMOS outside oval black mask", hideFlags = HideFlags.DontSave };
+                outsideMaskMesh = new Mesh { name = "COSMOS continuous oval cutout", hideFlags = HideFlags.DontSave };
+                outsideMaskMesh.vertices = new[] { new Vector3(-1,-1), new Vector3(-1,1), new Vector3(1,1), new Vector3(1,-1) };
+                outsideMaskMesh.triangles = new[] { 0,1,2,0,2,3 };
+                outsideMaskMesh.RecalculateBounds(); outsideMaskMesh.UploadMeshData(true);
+            }
         }
 
         Vector2 GoalCapPoint(int i, int count, int side)
@@ -153,6 +182,8 @@ namespace Massive.Cosmos
         {
             if (walls) { walls.SetActive(false); Release(walls); }
             Release(borderMesh); Release(borderMaterial);
+            Release(outsideMaskMesh); Release(outsideMaskMaterial);
+            outsideMaskMesh = null; outsideMaskMaterial = null;
             walls = null; borderMesh = null; borderMaterial = null;
         }
         static void Release(Object value)

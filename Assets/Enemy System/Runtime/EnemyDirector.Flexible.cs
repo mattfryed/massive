@@ -76,8 +76,9 @@ namespace Massive.Enemies
                 {
                     if (GameplayAge + warning > unit.deadline + .02f)
                     { SkipUnit(cue, unit, unit.reason ?? "Insufficient warning lead"); continue; }
-                    if (!UnitClear(unit, batch, out _))
+                    if (!UnitClear(unit, batch, out _) && !cue.optional)
                     {
+                        ResolveWallPlacement(batch);
                         if (unit.members.Count > 1) TryRigidPlacement(unit.members, batch, cue.formation, policy.AdjustmentFor(cue.formation));
                         foreach (var m in unit.members) FindLocalPlacement(m, batch, cue.formation, policy.AdjustmentFor(cue.formation));
                     }

@@ -60,7 +60,7 @@ namespace Massive.PowerUps
             // Player target (so you see “mass pulled into the player”)
             for (int i = 0; i < blobsToPlayer; i++)
             {
-                var go = Object.Instantiate(blobPrefab, spawnPos, Quaternion.identity);
+                var go = Object.Instantiate(blobPrefab, spawnPos, Quaternion.identity, player.SimulationRoot);
                 var smb = go.GetComponent<SmallMassBlobScript>();
                 if (smb != null) smb.target = player.gameObject;
             }
@@ -77,7 +77,7 @@ namespace Massive.PowerUps
             {
                 for (int i = 0; i < blobsToGoal; i++)
                 {
-                    var go = Object.Instantiate(blobPrefab, spawnPos, Quaternion.identity);
+                    var go = Object.Instantiate(blobPrefab, spawnPos, Quaternion.identity, player.SimulationRoot);
                     var smb = go.GetComponent<SmallMassBlobScript>();
                     if (smb != null) smb.target = goalTarget;
                 }

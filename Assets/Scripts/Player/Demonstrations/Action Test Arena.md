@@ -1,6 +1,6 @@
 # Player action test arena
 
-Open `Assets/Scenes/S-T_PLAYER-ACTIONS.unity` in Unity 6000.0.28f1, or use **MASSIVE > Demonstrations > Open Player Action Arena**, then press Play. No front-end navigation or Build Settings change is needed. On a fresh checkout, use the Open command once: it imports the bundled TMP Essential Resources from the installed Unity package when missing (the repository ignores that directory).
+Open `Assets/Scenes/EXPERIMENTS/S-T_PLAYER-ACTIONS.unity` in Unity 6000.0.28f1, or use **MASSIVE > Demonstrations > Open Player Action Arena**, then press Play. No front-end navigation or Build Settings change is needed. On a fresh checkout, use the Open command once: it imports the bundled TMP Essential Resources from the installed Unity package when missing (the repository ignores that directory).
 
 This is a copy of the composed planar arena, with its connected Players_Gameplay roster (nested canonical PlayerActor instances), grid, goals, HUD, MatchScoreService and Core / Resonance encounter. It uses the same PlayerActor as How To Play. Manual / Combo / Attack + shield use the scoring match roster. All demos uses independent non-scoring demonstration actors on the same arena.
 
@@ -52,6 +52,82 @@ Final validation after importing the bundled text resources: the same Play Mode 
 
 
 ## Simultaneous gallery
+
+### Live power-up icon row
+
+The bottom of **Simultaneous Player Demos** contains four pairs: Time Dilation,
+Particle Accelerator, Decoherence and Mass Node. Each references the canonical
+definition and pickup prefab, so subsequent power-up edits appear here too.
+
+- **Natural:** ordinary spawn, idle and timeout/despawn, using the global settings'
+  effective world lifetime (currently 12 seconds), followed by a one-second repeat pause.
+- **Hit:** a persistent canonical PlayerActor attacks the second icon through
+  scripted Sword input. The actual pickup applies the effect, shatters and shows
+  the shared two-line pickup toast. The player walks back through normal input
+  and waits for the equipped effect to expire before repeating. Mass Node uses
+  its instant effect. Initial hit delays stagger the four toasts for readability.
+
+The three Accelerator combat lanes sit above this row. Actors, pickup claims,
+collisions, toasts and Mass Node effects are isolated/owned by their demonstration.
+These non-match players do not award match score. Gallery Stop, mode changes and
+scene exit remove the row's runtime objects; Run creates a fresh set.
+
+Each pair exposes markers, hit delay and repeat pause in its **Power Up Icon Demo**
+component. Gameplay values remain on the shared definitions and player tuning.
+Use **MASSIVE > Demonstrations > Set Up Power-up Icon Row** to install missing
+content (idempotent), and **Validate Power-up Icon Row** for repeated real claims,
+natural expiration, shatter/toast observations, score/time preservation and
+Stop/Run cleanup. Reports and rendered captures go to
+`Library/PowerUpIconDemoValidation`.
+
+The shared pickup animation preserves the full 3D shell throughout its lifetime.
+Edges grow inward from both vertices, with stable per-edge timing/speed variation.
+The inner icon starts at 50% of the shell's draw duration. Natural expiration
+plays that same timeline backward, including the inner icon's size envelope.
+On a confirmed hit, the inner icon immediately shrinks from its current size;
+the shell's 20 triangular face outlines separate and rotate as rigid pieces,
+then erase around each perimeter from a randomly chosen vertex. Per-face timing
+and speed vary slightly. Hits during spawn preserve the partial drawing.
+
+Tune shell duration, scale, acquisition distance/spin/durations and edge/face
+variation in **MASSIVE > Power-up Settings > Global > Visuals**. This shared
+profile drives the same canonical pickups in all scenes and in this gallery.
+The legacy wire-out/fold/delay fields are retained only for prefab compatibility.
+Mass Node's particle icon shares the timeline and scales already-live particles.
+The row validation also exercises all four canonical prefabs' geometry, reverse
+timeline, midpoint start, early acquisition, immediate inner shrink and cleanup.
+
+Validated on 2026-10-05 in Unity 6000.0.28f1 / DX11: all 118 checks passed,
+including two complete natural and hit loops per definition, real effect
+application, all four wire shatters and visible toasts, continued action lanes,
+unchanged match score/clock, and Stop/Run cleanup. Overview, activation, each
+toast, natural despawn, later-loop and close-up animation renders were captured
+and inspected. The additional checks cover all four pickup animation timelines,
+fixed 3D vertices, 20 rigid face outlines, varied drawing/erasure, early hits,
+and immediate inner-icon despawn inside the real melee claim callback.
+No runtime Console errors; the scene's pre-existing match-spawn kinematic
+velocity warnings remain. No standalone build was run.
+
+Global power-up settings validation on 2026-10-05 passed all **157 checks** in
+Unity 6000.0.28f1 / DX11. This includes the above demo/animation regression plus
+percentage mixing, zero-chance exclusion, Undo/Redo, missing-system installation
+and repair, shared limits and lifecycle timing, and live visual changes in two
+additive scene fixtures. Ordinary toasts stay in their owning scene; toast
+settings and the global cleanup delay were exercised on actual instances. Test
+profiles and definitions were cloned and discarded; the saved defaults were
+preserved. No runtime Console errors. The window's visuals, lifecycle, spawn
+mixer, definition and prefab-link layouts were also inspected in the Editor.
+
+Collider follow-up on 2026-10-05 passed **189 checks**, including 32 new checks
+for all four pickups. The claim trigger and solid sphere now fit the intact
+shell's radius and follow global Shell Scale live. Tested physics surfaces at
+0.25x, 2x, 0.75x and 1x, independent inner scaling, immediate sizing on re-enable,
+and colliders remaining disabled after acquisition. Removed the unused disabled
+colliders from Mass Node's decorative inner particle prefab instance. The full
+melee/demo regression passed with no runtime Console errors; saved user tuning
+was preserved.
+
+### Action lanes
 
 The scene opens in **All demos** with six paired scenarios and one solo attacker:
 

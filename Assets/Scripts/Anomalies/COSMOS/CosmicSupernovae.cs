@@ -6,9 +6,12 @@ using UnityEngine.SceneManagement;
 
 namespace Massive.Cosmos
 {
-    [DisallowMultipleComponent, RequireComponent(typeof(CosmicWebBackground)), DefaultExecutionOrder(650)]
+    // Independent layers share this scheduler, warning lifecycle, rendering and pickup pooling.
+    [RequireComponent(typeof(CosmicWebBackground)), DefaultExecutionOrder(650)]
     public sealed class CosmicSupernovae : MonoBehaviour
     {
+        public enum SupernovaKind { Normal, Superluminous }
+        public SupernovaKind kind;
         public CosmicWebBackground web;
         public MatterNuggetScript nuggletPrefab;
         public Shader flashShader;
@@ -23,7 +26,7 @@ namespace Massive.Cosmos
         [Tooltip("World-space clearance from playable walls and goal separators. Events outside this area are rejected.")]
         [Min(0)] public float wallClearance = .35f;
 
-        [Header("Released mass nugglet")]
+        [Header("Released mass pickup")]
         [Tooltip("Random planar launch speed in world units per second.")]
         public Vector2 ejectionSpeed = new Vector2(2, 5);
         [Min(.5f)] public float nuggletLifetime = 20;
@@ -32,12 +35,33 @@ namespace Massive.Cosmos
 
         [Header("Localized flash")]
         [ColorUsage(false, true)] public Color flashColor = new Color(1, .67f, .25f);
+        [Tooltip("Choose one palette color per event, retained through buildup, flash and ring.")]
+        public bool randomizeColor = true;
+        [ColorUsage(false, true)] public Color cyanWhiteColor = new Color(.88f, .98f, 1);
+        [ColorUsage(false, true)] public Color cyanBlueColor = new Color(.15f, .64f, 1);
+        [ColorUsage(false, true)] public Color lightPurpleColor = new Color(.76f, .5f, 1);
         [Min(0)] public float flashBrightness = 4;
         [Min(.05f)] public float flashRadius = .75f;
         [Min(.05f)] public float flashSeconds = .4f;
+        [Tooltip("Outer ejecta color for the superluminous shell. Normal explosions use their selected flash color.")]
+        [ColorUsage(false, true)] public Color shellColor = new Color(1, .42f, .08f);
+        [Tooltip("Irregular structure in the superluminous expanding shell.")]
+        [Range(0, 1)] public float shellDetail = .7f;
+
+        [Header("Superluminous cloud")]
+        [Tooltip("Seconds for the ejecta cloud to expand to its full radius. Independent of the brief center flash.")]
+        [Min(.05f)] public float cloudExpansionSeconds = 1.8f;
+        [Tooltip("Seconds for the expanded cloud to dissolve after expansion finishes.")]
+        [Min(.05f)] public float cloudFadeSeconds = 2.4f;
+        [Tooltip("Large-scale billowing and asymmetric mixing in the expanding cloud.")]
+        [Range(0, 1)] public float cloudDistortion = .85f;
+        [Tooltip("Speed of internal cloud and telegraph motion. Zero freezes internal flow; expansion still runs.")]
+        [Range(0, 2)] public float cloudMixingSpeed = .45f;
+        [Tooltip("Uneven, moving gas around the source during buildup. Zero restores a round envelope.")]
+        [Range(0, 1)] public float telegraphDistortion = .85f;
 
         [Header("Build up and die off glow")]
-        [Tooltip("Seconds of subtle warning glow before the explosion. Zero restores an immediate burst. The nugglet launches at the peak.")]
+        [Tooltip("Seconds of subtle warning glow before the explosion. Zero restores an immediate burst. The mass pickup launches at the peak.")]
         [Min(0)] public float buildUpSeconds = 1.8f;
         [Tooltip("Maximum buildup glow relative to Flash Brightness, before flicker. The explosion still reaches full brightness.")]
         [Range(0, 1)] public float buildUpBrightness = .12f;
@@ -55,7 +79,8 @@ namespace Massive.Cosmos
         {
             public CosmicWebTopology.Particle source;
             public Vector3 position, pickupPoint;
-            public float elapsed, buildUp, duration, dieOff, radius, flickerSeed, cancelGlow;
+            public Color color;
+            public float elapsed, buildUp, duration, dieOff, radius, flickerSeed, cancelGlow, cloudExpansion, cloudFade;
             public int generation, nuggletSlot;
             public bool active, exploded, cancelled;
         }
@@ -72,7 +97,12 @@ namespace Massive.Cosmos
         double hazardRemaining;
         bool matchFinished;
         static readonly int PhaseID = Shader.PropertyToID("_Phase"), ColorID = Shader.PropertyToID("_Color"),
-            BrightnessID = Shader.PropertyToID("_Brightness"), GlowID = Shader.PropertyToID("_Glow");
+            BrightnessID = Shader.PropertyToID("_Brightness"), GlowID = Shader.PropertyToID("_Glow"),
+            SuperluminousID = Shader.PropertyToID("_Superluminous"), ShellColorID = Shader.PropertyToID("_ShellColor"),
+            ShellDetailID = Shader.PropertyToID("_ShellDetail"), BurstSeedID = Shader.PropertyToID("_BurstSeed"),
+            CloudExpansionID = Shader.PropertyToID("_CloudExpansion"), CloudOpacityID = Shader.PropertyToID("_CloudOpacity"),
+            CloudDistortionID = Shader.PropertyToID("_CloudDistortion"), FlowTimeID = Shader.PropertyToID("_FlowTime"),
+            TelegraphDistortionID = Shader.PropertyToID("_TelegraphDistortion");
         public int ExplosionsReleased { get; private set; }
         public float CurrentFrequency => web ? FrequencyAtAge(web.Age) : 0;
 
@@ -98,14 +128,14 @@ namespace Massive.Cosmos
             if (!web) web = GetComponent<CosmicWebBackground>();
             if (!web || !web.match || !nuggletPrefab || !flashShader || !flashShader.isSupported)
             {
-                Debug.LogError("[COSMOS] Supernovae need the web, its match clock, a mass nugglet prefab and a supported flash shader.", this);
+                Debug.LogError("[COSMOS] Supernovae need the web, its match clock, a mass pickup prefab and a supported flash shader.", this);
                 enabled = false; return;
             }
             nugglets = new MatterNuggetScript[Mathf.Clamp(nuggletCapacity, 1, 128)];
             reservedNugglets = new bool[nugglets.Length];
             flashes = new Flash[32];
             // A world-space root preserves the pickup prefab's scale and horizontal physics plane.
-            poolRoot = new GameObject("COSMOS Supernova Nugglets");
+            poolRoot = new GameObject(kind == SupernovaKind.Superluminous ? "COSMOS Superluminous Nuggets" : "COSMOS Supernova Nugglets");
             SceneManager.MoveGameObjectToScene(poolRoot, gameObject.scene);
             flashMaterial = new Material(flashShader) { hideFlags = HideFlags.HideAndDontSave };
             flashProperties = new MaterialPropertyBlock();
@@ -133,6 +163,17 @@ namespace Massive.Cosmos
         {
             float rate = frequencyOverAge == null ? 0 : frequencyOverAge.Evaluate(Mathf.Clamp01(age)) * Mathf.Max(0, peakExplosionsPerSecond);
             return float.IsNaN(rate) || float.IsInfinity(rate) ? 0 : Mathf.Max(0, rate);
+        }
+        Color NextColor()
+        {
+            if (!randomizeColor) return flashColor;
+            switch (random.Next(4))
+            {
+                case 1: return cyanWhiteColor;
+                case 2: return cyanBlueColor;
+                case 3: return lightPurpleColor;
+                default: return flashColor;
+            }
         }
         void LateUpdate()
         {
@@ -186,8 +227,10 @@ namespace Massive.Cosmos
             reservedNugglets[slot] = true;
             flashes[flashSlot] = new Flash { source = source, generation = web.Generation, position = origin, pickupPoint = pickupPoint,
                 nuggletSlot = slot, buildUp = buildup, duration = Mathf.Max(.05f, flashSeconds), dieOff = Mathf.Max(.01f, dieOffSeconds),
+                cloudExpansion = kind == SupernovaKind.Superluminous ? Mathf.Max(.05f, cloudExpansionSeconds) : 0,
+                cloudFade = kind == SupernovaKind.Superluminous ? Mathf.Max(.05f, cloudFadeSeconds) : 0,
                 radius = Mathf.Max(.05f, flashRadius) * Mathf.Lerp(.8f, 1.2f, (float)random.NextDouble()),
-                flickerSeed = (float)random.NextDouble() * 1000, active = true };
+                flickerSeed = (float)random.NextDouble() * 1000, color = NextColor(), active = true };
         }
         void Explode(ref Flash flash)
         {
@@ -240,14 +283,25 @@ namespace Massive.Cosmos
                 else flash.elapsed += visualDelta;
                 bool pending = !flash.exploded && !flash.cancelled;
                 float afterPeak = Mathf.Max(0, flash.elapsed - flash.buildUp);
-                if (!pending && afterPeak >= (flash.cancelled ? flash.dieOff : Mathf.Max(flash.duration, flash.dieOff)))
+                float lifetime = Mathf.Max(Mathf.Max(flash.duration, flash.dieOff), flash.cloudExpansion + flash.cloudFade);
+                if (!pending && afterPeak >= (flash.cancelled ? flash.dieOff : lifetime))
                 { flashes[i].active = false; continue; }
                 flashes[i] = flash;
                 float glow = pending ? BuildUpGlow(flash) :
                     (flash.cancelled ? flash.cancelGlow : 1) * (1 - Mathf.SmoothStep(0, 1, Mathf.Clamp01(afterPeak / flash.dieOff)));
                 flashProperties.SetFloat(GlowID, glow);
                 flashProperties.SetFloat(PhaseID, pending ? -1 : flash.cancelled ? 1 : Mathf.Clamp01(afterPeak / flash.duration));
-                flashProperties.SetColor(ColorID, flashColor);
+                flashProperties.SetColor(ColorID, flash.color);
+                flashProperties.SetFloat(SuperluminousID, kind == SupernovaKind.Superluminous ? 1 : 0);
+                flashProperties.SetColor(ShellColorID, shellColor);
+                flashProperties.SetFloat(ShellDetailID, shellDetail);
+                flashProperties.SetFloat(BurstSeedID, flash.flickerSeed);
+                flashProperties.SetFloat(CloudExpansionID, Mathf.Clamp01(afterPeak / Mathf.Max(.05f, flash.cloudExpansion)));
+                flashProperties.SetFloat(CloudOpacityID, flash.exploded ?
+                    1 - Mathf.SmoothStep(0, 1, Mathf.Clamp01((afterPeak - flash.cloudExpansion) / Mathf.Max(.05f, flash.cloudFade))) : 0);
+                flashProperties.SetFloat(CloudDistortionID, cloudDistortion);
+                flashProperties.SetFloat(TelegraphDistortionID, telegraphDistortion);
+                flashProperties.SetFloat(FlowTimeID, flash.elapsed * Mathf.Max(0, cloudMixingSpeed));
                 flashProperties.SetFloat(BrightnessID, Mathf.Max(0, flashBrightness));
                 var matrix = Matrix4x4.TRS(flash.position, web.transform.rotation, Vector3.one * flash.radius);
                 Graphics.DrawMesh(flashMesh, matrix, flashMaterial, gameObject.layer, null, 0,

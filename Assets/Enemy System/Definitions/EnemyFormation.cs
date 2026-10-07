@@ -12,7 +12,7 @@ namespace Massive.Enemies
         [Min(.1f)] public float warningSeconds = 2f;
         [Header("Spawn conflict handling")]
         public Integrity integrity;
-        [Min(0f), Tooltip("Maximum world-space displacement before a warning appears. Wall sockets never move.")]
+        [Min(0f), Tooltip("Maximum mobile displacement before a warning appears. Wall mounts search their configured range instead; fixed mounts never move.")]
         public float maxPositionAdjustment;
         [Min(0f), Tooltip("Flexible slots may wait this long beyond their scheduled arrival; each still needs a full warning.")]
         public float blockedSlotGrace = 3f;
@@ -29,8 +29,12 @@ namespace Massive.Enemies
             public string region = "Arena";
             public Vector2 position = new(.5f, .5f);
             public Vector2 facing = Vector2.down;
-            [Tooltip("Optional wall socket ID. Replaces region, position and facing.")]
+            [Tooltip("Optional wall mount ID (fixed point or searchable wall range on the arena layout). Replaces region, position and facing.")]
             public string socket;
+            [Tooltip("Use this slot's preferred fraction along its wall range instead of the layout default. The range search still handles blockers.")]
+            public bool overrideWallPosition;
+            [Range(0f, 1f)] public float wallPosition = .5f;
+            public Slot Copy() => (Slot)MemberwiseClone();
             [Min(0f)] public float releaseDelay;
             [Min(0), Tooltip("Optional rigid placement group, e.g. one phalanx. 0 uses the formation's default grouping.")]
             public int placementGroup;

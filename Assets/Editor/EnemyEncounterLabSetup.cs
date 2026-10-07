@@ -88,7 +88,8 @@ public static class EnemyEncounterLabSetup
         layout.regions.Add(new EnemyArenaLayout.Region { id = "Left", rectangle = new Rect(-.85f, -.65f, .35f, 1.3f) });
         layout.regions.Add(new EnemyArenaLayout.Region { id = "Right", rectangle = new Rect(.5f, -.65f, .35f, 1.3f) });
         void Socket(string id, Vector2 position, Vector2 inward) => layout.sockets.Add(new EnemyArenaLayout.Socket
-        { id = id, position = position, inward = inward, clearanceOffset = 1.12f, aimArc = 75, enabled = !id.StartsWith("Side") });
+        { id = id, position = position, inward = inward, clearanceOffset = 1.12f, aimArc = 75, enabled = !id.StartsWith("Side"),
+            useRange = !id.StartsWith("Side"), rangeStart = new Vector2(0, position.y), rangeEnd = new Vector2(Mathf.Sign(position.x), position.y) });
         Socket("TopLeft", new(-.5f, 1), Vector2.down); Socket("TopRight", new(.5f, 1), Vector2.down);
         Socket("BottomLeft", new(-.5f, -1), Vector2.up); Socket("BottomRight", new(.5f, -1), Vector2.up);
         Socket("SideLeftTop", new(-1, .75f), Vector2.right); Socket("SideLeftBottom", new(-1, -.75f), Vector2.right);

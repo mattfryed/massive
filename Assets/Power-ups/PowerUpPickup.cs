@@ -1,5 +1,6 @@
 using UnityEngine;
 using Massive.Scoring;
+using Massive.Player;
 using System.Collections.Generic;
 
 namespace Massive.PowerUps
@@ -12,6 +13,16 @@ namespace Massive.PowerUps
         public int ColliderHierarchyVersion { get; private set; }
         public PowerUpDefinition definition;
         public event System.Action<PlayerControllerScript> Claimed;
+        private bool restrictClaimant;
+        private PlayerControllerScript allowedClaimant;
+        public bool CountsTowardSpawnLimit => !restrictClaimant;
+
+        /// <summary>Isolate a staged pickup; null makes a natural-lifetime example unclaimable.</summary>
+        public void RestrictClaimsTo(PlayerControllerScript player)
+        {
+            restrictClaimant = true;
+            allowedClaimant = player;
+        }
 
         /// <summary>Configure while inactive so lifetime, intro and physics all see final spawn data.</summary>
         public static PowerUpPickup Spawn(PowerUpDefinition def, Vector3 position, Quaternion rotation, Transform parent = null)
@@ -85,7 +96,7 @@ namespace Massive.PowerUps
             }
             else
             {
-                float life = (definition != null) ? definition.worldLifetimeSeconds : 10f;
+                float life = (definition != null) ? definition.WorldLifetimeSeconds : 10f;
 
                 // Optional: allow “<= 0 means never”
                 if (life <= 0f) _deathTime = float.PositiveInfinity;
@@ -106,8 +117,7 @@ namespace Massive.PowerUps
                 if (_anim != null)
                 {
                     _despawning = true;
-                    _iconParticles?.PlayDespawn();
-                    _anim.BeginDespawn(); // timeout uses existing outro
+                    _anim.BeginDespawn();
                     return;
                 }
 
@@ -115,9 +125,14 @@ namespace Massive.PowerUps
             }
         }
 
-private void OnTriggerEnter(Collider other)
+private void OnTriggerEnter(Collider other) => TryActivate(other);
+private void OnTriggerStay(Collider other) => TryActivate(other);
+
+// Also used by the Repulsor's final overlap query when its last radius falls
+// between physics ticks. Every contact shares the same one-time claim guard.
+public void TryActivate(Collider other)
 {
-    if (_despawning || _activated) return;
+    if (_despawning || _activated || !other || !other.enabled || !other.gameObject.activeInHierarchy) return;
 
     if (definition == null)
     {
@@ -134,12 +149,13 @@ private void OnTriggerEnter(Collider other)
             (attackActivatorLayers.value & (1 << other.gameObject.layer)) == 0)
             return;
 
-        // Melee-only pickup: require a real PlayerMelee hitbox
-        var melee = other.GetComponent<PlayerMelee>();
-        if (!melee) melee = other.GetComponentInParent<PlayerMelee>();
-        if (!melee) return;
-
-        p = melee.GetComponentInParent<PlayerPowerUpController>();
+        // Thrust and Sweep share the sword; Repulsor has its own active pulse.
+        var melee = other.GetComponentInParent<PlayerMelee>();
+        var repulsor = other.GetComponentInParent<PlayerRepulsorAOE>();
+        if (melee && melee.isActiveAndEnabled)
+            p = melee.GetComponentInParent<PlayerPowerUpController>();
+        else if (repulsor && repulsor.isActiveAndEnabled && repulsor.IsPulseActive)
+            p = repulsor.GetComponentInParent<PlayerPowerUpController>();
         if (!p) return;
     }
     else
@@ -150,10 +166,20 @@ private void OnTriggerEnter(Collider other)
     }
 
     var player = p.GetComponent<PlayerControllerScript>();
-    if (!player) return;
+    if (!player || !player.isActiveAndEnabled || player.temporarilyEliminated || player.IsMatchInputLocked) return;
+    if (restrictClaimant && player != allowedClaimant) return;
 
     // From this point forward, we commit to consuming this pickup exactly once.
     _activated = true;
+
+    // Begin the inner-icon outro in the confirmed-hit callback itself, before effects/toasts.
+    if (_anim != null)
+    {
+        _despawning = true;
+        _deathTime = float.PositiveInfinity;
+        _anim.BeginAttackDespawn();
+    }
+    else _iconParticles?.PlayDespawn();
 
     // Apply effect:
     // - Instant power-ups apply immediately and DO NOT occupy the equipped slot.
@@ -170,19 +196,11 @@ private void OnTriggerEnter(Collider other)
     scoreRewardEmitter?.TryAward(player, transform.position);
 
     // Toast ALWAYS (you wanted mass nodes to still show it)
-    if (player.ParticipatesInMatch && PowerUpPickupToastSystem.Instance != null)
-        PowerUpPickupToastSystem.Instance.Show(definition, transform.position);
+    var toastSystem = PowerUpPickupToastSystem.ForScene(gameObject.scene);
+    if (player.ParticipatesInMatch && toastSystem != null)
+        toastSystem.Show(definition, transform.position);
 
-    // Despawn visuals / shatter the cage
-    if (_anim != null)
-    {
-        _despawning = true;
-        _deathTime = float.PositiveInfinity;
-
-        _iconParticles?.PlayDespawn();
-        _anim.BeginAttackDespawn();
-        return;
-    }
+    if (_anim != null) return;
 
     // The component belongs to the pickup root, which may be inside a demo or spawn group.
     Destroy(gameObject);

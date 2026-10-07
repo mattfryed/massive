@@ -16,6 +16,8 @@ namespace Massive.Demonstrations
         public TMP_Text status;
         public LayoutPreset preset;
         public bool loop = true;
+        [Min(1f), Tooltip("Regulation duration simulated by the Composer Lab. Independent of the long Player Actions test-scene clock.")]
+        public float previewRegulationSeconds = 120f;
         [Tooltip("Preview actors restore damage after a hit so the authored schedule can run continuously.")]
         public bool restorePlayerMass = true;
         public bool actorsMove = true, actorsAttack = true;
@@ -52,11 +54,15 @@ namespace Massive.Demonstrations
             players.Clear(); ApplyLayout();
             var go = new GameObject("Timeline actors"); go.transform.SetParent(transform, false); go.SetActive(false); session = go.transform;
             director.enemyRoot = session; director.ConfigureDemonstration(session);
-            for (int i = 0; i < 2; i++)
+            int actorCount = director.TimelineIsTwoVTwo ? 4 : 2;
+            for (int i = 0; i < actorCount; i++)
             {
-                var actor = Instantiate(playerPrefab, layout.World(new Vector2((i == 0 ? -1f : 1f) * actorHorizontalPosition, -.15f)), Quaternion.identity, session);
-                actor.name = "Preview player " + (i + 1);
-                var player = actor.GetComponent<PlayerControllerScript>(); player.ConfigureDemonstration(session, i, i + 1);
+                int team = i % 2 + 1;
+                int slot = actorCount == 4 ? (i % 2) * 2 + i / 2 : i * 2;
+                var actor = Instantiate(playerPrefab, layout.World(new Vector2((team == 1 ? -1f : 1f) * actorHorizontalPosition,
+                    actorCount == 4 ? i < 2 ? -.23f : .23f : -.15f)), Quaternion.identity, session);
+                actor.name = "Preview player " + (slot + 1);
+                var player = actor.GetComponent<PlayerControllerScript>(); player.ConfigureDemonstration(session, slot, team);
                 foreach (var interactor in actor.GetComponentsInChildren<GridInteractor>(true)) interactor.grid = layout.arena.Grid;
                 foreach (var pulse in actor.GetComponentsInChildren<PlayerRepulsorGridPulse>(true)) pulse.BindGrid(layout.arena.Grid);
                 if (actor.TryGetComponent<PlayerScaleAdjuster>(out var scale)) scale.ApplyScale();
@@ -100,9 +106,9 @@ namespace Massive.Demonstrations
                     var delta = enemy.transform.position - player.transform.position;
                     if (delta.sqrMagnitude < nearest) { nearest = delta.sqrMagnitude; aim = delta; }
                 }
-                float side = i == 0 ? -1 : 1;
+                float side = i % 2 == 0 ? -1 : 1;
                 var target = layout.World(new Vector2(side * (actorHorizontalPosition + Mathf.Sin(director.GameplayAge * .2f) * .06f),
-                    Mathf.Sin(director.GameplayAge * .3f + i * Mathf.PI) * .23f));
+                    Mathf.Sin(director.GameplayAge * .3f + i % 2 * Mathf.PI) * (players.Count == 4 ? .18f : .23f) + (players.Count == 4 ? (i < 2 ? -.25f : .25f) : 0)));
                 var move = target - player.transform.position;
                 player.SetScriptedInput(new PlayerInputFrame { moveInput = actorsMove && !director.timelinePaused ? Vector2.ClampMagnitude(new Vector2(move.x, move.z), .4f) : Vector2.zero,
                     hasAimDirWS = true, aimDirWS = aim, attackDown = attack, attackHeld = attack, attackUp = release });

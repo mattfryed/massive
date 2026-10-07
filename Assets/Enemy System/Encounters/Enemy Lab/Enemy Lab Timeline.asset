@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: Enemy Lab Timeline
   m_EditorClassIdentifier: 
   duration: 181
+  fitRegulation: 1
   maxAliveTotal: 80
   populationLimits:
   - enemy: {fileID: 11400000, guid: ad3522b075ef69644b75b698ffc0e515, type: 2}
@@ -41,12 +42,26 @@ MonoBehaviour:
     cost: 5
   - enemy: {fileID: 11400000, guid: 55d708e694ace4746a1091d176812f13, type: 2}
     cost: 6
+  twoVTwo:
+    enabled: 1
+    droneExtraFraction: 0.5
+    rangedExtraFraction: 0.25
+    seekerExtraPairs: 1
+    dysonExtraPairs: 1
+    completeTurretQuadrants: 1
+    advancedFrom: 0.5
+    totalLimitMultiplier: 1.5
+    typeLimitMultiplier: 1.5
+    pressureLimitMultiplier: 1.5
+    reinforcementGrace: 1
   cues:
   - label: Drone Paired Rows
     arrivalSeconds: 3
     formation: {fileID: 11400000, guid: 00c4829533153e24cb63ab0ac76036b2, type: 2}
     variants: []
     allowHorizontalMirror: 0
+    flipWallOrientation: 0
+    placementOverrides: []
     fallback: {fileID: 0}
     allowedLateness: 3
     overrideSpawnPolicy: 0
@@ -58,6 +73,8 @@ MonoBehaviour:
     formation: {fileID: 11400000, guid: acf60a7d12314a7d890fc87979355118, type: 2}
     variants: []
     allowHorizontalMirror: 0
+    flipWallOrientation: 0
+    placementOverrides: []
     fallback: {fileID: 0}
     allowedLateness: 3
     overrideSpawnPolicy: 0
@@ -69,6 +86,8 @@ MonoBehaviour:
     formation: {fileID: 11400000, guid: d3dfaa25813c50e4a8cec43650df16c5, type: 2}
     variants: []
     allowHorizontalMirror: 0
+    flipWallOrientation: 0
+    placementOverrides: []
     fallback: {fileID: 0}
     allowedLateness: 3
     overrideSpawnPolicy: 0
@@ -80,6 +99,8 @@ MonoBehaviour:
     formation: {fileID: 11400000, guid: 48354aa23c74a8149b943de5f43c0244, type: 2}
     variants: []
     allowHorizontalMirror: 0
+    flipWallOrientation: 0
+    placementOverrides: []
     fallback: {fileID: 0}
     allowedLateness: 3
     overrideSpawnPolicy: 0
@@ -91,6 +112,8 @@ MonoBehaviour:
     formation: {fileID: 11400000, guid: cac64f6e2b631614694479c7ff8b69ef, type: 2}
     variants: []
     allowHorizontalMirror: 0
+    flipWallOrientation: 0
+    placementOverrides: []
     fallback: {fileID: 11400000, guid: 3a0b5e7c1899b1948b22d32b90129d3f, type: 2}
     allowedLateness: 3
     overrideSpawnPolicy: 0
@@ -98,10 +121,12 @@ MonoBehaviour:
     maxPositionAdjustment: 1
     blockedSlotGrace: 3
   - label: Carrier
-    arrivalSeconds: 63
+    arrivalSeconds: 62.75
     formation: {fileID: 11400000, guid: b1de5fbaabf87f541bcd20b9eb6a088f, type: 2}
     variants: []
     allowHorizontalMirror: 0
+    flipWallOrientation: 0
+    placementOverrides: []
     fallback: {fileID: 11400000, guid: 77a419de4de6db84fa5298b4252226ca, type: 2}
     allowedLateness: 3
     overrideSpawnPolicy: 0
@@ -113,6 +138,8 @@ MonoBehaviour:
     formation: {fileID: 11400000, guid: 0f98c5891ec547ef83c51bad25c27f80, type: 2}
     variants: []
     allowHorizontalMirror: 0
+    flipWallOrientation: 0
+    placementOverrides: []
     fallback: {fileID: 0}
     allowedLateness: 3
     overrideSpawnPolicy: 0
@@ -124,6 +151,8 @@ MonoBehaviour:
     formation: {fileID: 11400000, guid: 568365a5236147d8b3e880c0c566b627, type: 2}
     variants: []
     allowHorizontalMirror: 0
+    flipWallOrientation: 0
+    placementOverrides: []
     fallback: {fileID: 0}
     allowedLateness: 3
     overrideSpawnPolicy: 0
@@ -135,6 +164,8 @@ MonoBehaviour:
     formation: {fileID: 11400000, guid: 0aa9e77d6e414cc2b0b0f4e14d47dc50, type: 2}
     variants: []
     allowHorizontalMirror: 0
+    flipWallOrientation: 0
+    placementOverrides: []
     fallback: {fileID: 0}
     allowedLateness: 3
     overrideSpawnPolicy: 0
@@ -146,6 +177,8 @@ MonoBehaviour:
     formation: {fileID: 11400000, guid: 0a70fffa1dcc47a4afbb515bc462a0cb, type: 2}
     variants: []
     allowHorizontalMirror: 0
+    flipWallOrientation: 0
+    placementOverrides: []
     fallback: {fileID: 0}
     allowedLateness: 3
     overrideSpawnPolicy: 0
@@ -157,6 +190,8 @@ MonoBehaviour:
     formation: {fileID: 11400000, guid: cac64f6e2b631614694479c7ff8b69ef, type: 2}
     variants: []
     allowHorizontalMirror: 0
+    flipWallOrientation: 1
+    placementOverrides: []
     fallback: {fileID: 0}
     allowedLateness: 3
     overrideSpawnPolicy: 0
@@ -164,10 +199,12 @@ MonoBehaviour:
     maxPositionAdjustment: 1
     blockedSlotGrace: 3
   - label: 02b Ranged Drone Center Ring
-    arrivalSeconds: 99
+    arrivalSeconds: 126
     formation: {fileID: 11400000, guid: 568365a5236147d8b3e880c0c566b627, type: 2}
     variants: []
     allowHorizontalMirror: 0
+    flipWallOrientation: 0
+    placementOverrides: []
     fallback: {fileID: 0}
     allowedLateness: 3
     overrideSpawnPolicy: 0
@@ -179,6 +216,8 @@ MonoBehaviour:
     formation: {fileID: 11400000, guid: d3dfaa25813c50e4a8cec43650df16c5, type: 2}
     variants: []
     allowHorizontalMirror: 0
+    flipWallOrientation: 0
+    placementOverrides: []
     fallback: {fileID: 0}
     allowedLateness: 3
     overrideSpawnPolicy: 0
@@ -190,6 +229,8 @@ MonoBehaviour:
     formation: {fileID: 11400000, guid: 48354aa23c74a8149b943de5f43c0244, type: 2}
     variants: []
     allowHorizontalMirror: 0
+    flipWallOrientation: 0
+    placementOverrides: []
     fallback: {fileID: 0}
     allowedLateness: 3
     overrideSpawnPolicy: 0
@@ -201,6 +242,8 @@ MonoBehaviour:
     formation: {fileID: 11400000, guid: 00c4829533153e24cb63ab0ac76036b2, type: 2}
     variants: []
     allowHorizontalMirror: 0
+    flipWallOrientation: 0
+    placementOverrides: []
     fallback: {fileID: 0}
     allowedLateness: 3
     overrideSpawnPolicy: 0
@@ -212,6 +255,70 @@ MonoBehaviour:
     formation: {fileID: 11400000, guid: acf60a7d12314a7d890fc87979355118, type: 2}
     variants: []
     allowHorizontalMirror: 0
+    flipWallOrientation: 0
+    placementOverrides: []
+    fallback: {fileID: 0}
+    allowedLateness: 3
+    overrideSpawnPolicy: 0
+    integrity: 0
+    maxPositionAdjustment: 1
+    blockedSlotGrace: 3
+  - label: 05c Turret Four Quadrants
+    arrivalSeconds: 146.5
+    formation: {fileID: 11400000, guid: ca905a6a4eb5c284baa61e35fbc7fa5b, type: 2}
+    variants: []
+    allowHorizontalMirror: 0
+    flipWallOrientation: 0
+    placementOverrides: []
+    fallback: {fileID: 0}
+    allowedLateness: 3
+    overrideSpawnPolicy: 0
+    integrity: 0
+    maxPositionAdjustment: 1
+    blockedSlotGrace: 3
+  - label: 06b Carrier Lower Right
+    arrivalSeconds: 116.25
+    formation: {fileID: 11400000, guid: 77a419de4de6db84fa5298b4252226ca, type: 2}
+    variants: []
+    allowHorizontalMirror: 0
+    flipWallOrientation: 0
+    placementOverrides: []
+    fallback: {fileID: 0}
+    allowedLateness: 3
+    overrideSpawnPolicy: 0
+    integrity: 0
+    maxPositionAdjustment: 1
+    blockedSlotGrace: 3
+  - label: 02b Ranged Drone Center Ring
+    arrivalSeconds: 90.25
+    formation: {fileID: 11400000, guid: 568365a5236147d8b3e880c0c566b627, type: 2}
+    variants: []
+    allowHorizontalMirror: 0
+    flipWallOrientation: 0
+    placementOverrides: []
+    fallback: {fileID: 0}
+    allowedLateness: 3
+    overrideSpawnPolicy: 0
+    integrity: 0
+    maxPositionAdjustment: 1
+    blockedSlotGrace: 3
+  - label: 03 Seeker Stagger
+    arrivalSeconds: 165.25
+    formation: {fileID: 11400000, guid: d3dfaa25813c50e4a8cec43650df16c5, type: 2}
+    variants: []
+    allowHorizontalMirror: 0
+    flipWallOrientation: 0
+    placementOverrides:
+    - formation: {fileID: 11400000, guid: d3dfaa25813c50e4a8cec43650df16c5, type: 2}
+      slotIndex: 0
+      position: {x: 0.24736866, y: 0.16420725}
+      overrideWallPosition: 0
+      wallPosition: 0.5
+    - formation: {fileID: 11400000, guid: d3dfaa25813c50e4a8cec43650df16c5, type: 2}
+      slotIndex: 1
+      position: {x: 0.7315792, y: 0.17504057}
+      overrideWallPosition: 0
+      wallPosition: 0.5
     fallback: {fileID: 0}
     allowedLateness: 3
     overrideSpawnPolicy: 0

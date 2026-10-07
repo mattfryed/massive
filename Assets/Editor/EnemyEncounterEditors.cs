@@ -68,14 +68,18 @@ public sealed class EnemyEncounterLabInspector : Editor
         {
             if (d.previewCue >= 0 && d.previewCue != i) continue;
             var formation = d.ChooseFormation(i, out bool mirror); if (!formation) continue;
-            foreach (var slot in formation.slots)
-                if (lab.layout.Resolve(slot, mirror, out var pose, out _) && slot.enemy)
+            for (int slotIndex = 0; slotIndex < formation.slots.Count; slotIndex++)
+            {
+                var slot = d.encounterTimeline.cues[i].GetSlot(formation, slotIndex);
+                if (lab.layout.Resolve(slot, mirror, out var pose, out _, d.encounterTimeline.cues[i].flipWallOrientation) && slot.enemy)
                 {
                     Handles.color = lab.layout.Clear(pose, slot.enemy.spawnRadiusWorld, d.borderBufferWorld, out _) ? Color.cyan : Color.red;
                     Handles.DrawWireDisc(pose.clearance, Vector3.up, slot.enemy.spawnRadiusWorld);
                     Handles.DrawLine(pose.position, pose.position + pose.rotation * Vector3.forward);
-                    Handles.Label(pose.position + Vector3.up * .2f, $"{d.encounterTimeline.cues[i].arrivalSeconds + slot.releaseDelay:0.0}s {slot.enemy.name}");
+                    float scale = Application.isPlaying ? d.TimelineTimeScale : d.PreviewTimelineTimeScale(d.encounterTimeline);
+                    Handles.Label(pose.position + Vector3.up * .2f, $"{d.encounterTimeline.cues[i].arrivalSeconds * scale + slot.releaseDelay:0.0}s {slot.enemy.name}");
                 }
+            }
         }
     }
 }

@@ -5,326 +5,176 @@ namespace Massive.PowerUps
 {
     internal class ParticleAcceleratorAbility : IPowerUpAbility
     {
-        private readonly ParticleAcceleratorPowerUpDefinition _def;
-        private readonly PlayerControllerScript _owner;
-        private readonly PlayerPowerUpController _host;
+        readonly ParticleAcceleratorPowerUpDefinition definition;
+        readonly PlayerControllerScript owner;
+        readonly PlayerPowerUpController host;
+        PlayerVisualController visuals;
+        ParticleAcceleratorBeam beam;
+        ParticleAcceleratorVFXModule meter;
+        bool held;
+        bool attackArmed;
+        int equippedFrame;
+        float aimVelocity;
+        float energy = 1f, minimumBurstRemaining;
+        Vector3 aim = Vector3.right;
+        public bool IsMovementActionActive => beam && beam.IsFiring;
+        public float Energy01 => energy;
 
-        private PlayerVFXHub _vfxHub;
-        private ParticleAcceleratorVFXModule _vfx;
-
-        private PlayerVisualController _visuals;
-
-        private bool _charging;
-        private float _chargeTime;
-
-        private bool _pendingFire;
-        private float _pendingCharge01;
-        private Vector3 _pendingDirWS;
-        private float _telegraphRemaining;
-
-        public bool IsMovementActionActive => _charging || _pendingFire || _telegraphRemaining > 0f;
-
-        // local cooldown tracking so we can drive refill visuals
-        private float _cooldownRemaining;
-        private float _cooldownTotal;
-        private int _spentDots;
-
-        public ParticleAcceleratorAbility(ParticleAcceleratorPowerUpDefinition def, PlayerControllerScript owner, PlayerPowerUpController host)
-        {
-            _def = def;
-            _owner = owner;
-            _host = host;
-        }
+        public ParticleAcceleratorAbility(ParticleAcceleratorPowerUpDefinition def, PlayerControllerScript player, PlayerPowerUpController controller)
+        { definition = def; owner = player; host = controller; }
 
         public void OnEquip()
         {
-            _vfxHub = _owner.GetComponent<PlayerVFXHub>();
-            if (!_vfxHub) _vfxHub = _owner.gameObject.AddComponent<PlayerVFXHub>();
-
-            _vfx = _vfxHub.GetOrCreate<ParticleAcceleratorVFXModule>(_def.vfxModulePrefab);
-            _vfx.Bind(_owner);
-            _vfx.SetVisible(true);
-
-            _visuals = _owner.visualsController != null
-                ? _owner.visualsController
-                : _owner.GetComponentInChildren<PlayerVisualController>(true);
+            visuals = owner.visualsController ? owner.visualsController : owner.GetComponentInChildren<PlayerVisualController>(true);
+            aim = owner.transform.forward;
+            energy = 1f;
+            equippedFrame = Time.frameCount;
+            attackArmed = !host.AttackInputHeld;
+            owner.DeathStarted += OnOwnerDeath;
+            var hub = owner.GetComponent<PlayerVFXHub>();
+            if (!hub) hub = owner.gameObject.AddComponent<PlayerVFXHub>();
+            meter = hub.GetOrCreate<ParticleAcceleratorVFXModule>(definition.vfxModulePrefab);
+            meter.gameObject.SetActive(true);
+            meter.Bind(owner);
+            meter.SetEnergyMeter(energy);
+            meter.SetVisible(true);
+            if (definition.sustainedBeamPrefab)
+            {
+                beam = Object.Instantiate(definition.sustainedBeamPrefab);
+                beam.name = "Particle Accelerator — sustained plasma";
+                beam.Initialize(owner, definition);
+                beam.EnergyDriver = this;
+            }
         }
+
+        Vector3 Origin => (visuals && visuals.visuals ? visuals.visuals.position : owner.transform.position)
+            + (aim * Mathf.Max(0, definition.muzzleOffset) + Vector3.up * definition.muzzleHeight) * PlayerScaleAdjuster.SizeOf(owner);
 
         public void Tick(float dt)
         {
-            if (_charging) _chargeTime += dt;
-
-            if (_telegraphRemaining > 0f)
-            {
-                _telegraphRemaining -= dt;
-                if (_telegraphRemaining <= 0f && _pendingFire)
-                {
-                    _pendingFire = false;
-                    Fire(_pendingDirWS, _pendingCharge01);
-                }
-            }
-
-            if (_cooldownRemaining > 0f)
-            {
-                _cooldownRemaining = Mathf.Max(0f, _cooldownRemaining - dt);
-                if (_cooldownRemaining <= 0f)
-                {
-                    _spentDots = 0;
-                    _cooldownTotal = 0f;
-                }
-            }
+            if (dt <= 0 || owner.IsMatchInputLocked) return;
+            if (beam) beam.QueueAdvance(dt, Origin, aim);
         }
 
-public void PreTickInput(in PowerUpInputState input)
-{
-    float charge01 = _charging ? Mathf.Clamp01(_chargeTime / Mathf.Max(0.01f, _def.chargeToMaxSeconds)) : 0f;
-
-    float moveMul = _charging ? Mathf.Lerp(1f, _def.selfSlowWhileCharging, charge01) : 1f;
-    _host.SetMovementMultiplierWhileCharging(moveMul);
-
-    Vector3 dir = input.aimDirWS;
-    dir.y = 0f;
-
-    if (dir.sqrMagnitude < 0.0001f && _visuals != null && _visuals.visuals != null)
-        dir = _visuals.visuals.right;
-
-    if (dir.sqrMagnitude < 0.0001f)
-        dir = _owner.transform.forward;
-
-    dir.y = 0f;
-    dir.Normalize();
-
-    float cd01 = (_cooldownRemaining > 0f && _cooldownTotal > 0.0001f)
-        ? Mathf.Clamp01(_cooldownRemaining / _cooldownTotal)
-        : 0f;
-
-    // Use current charge while charging; during telegraph preview pending shot
-    float preview01 = _charging ? charge01 : 0f;
-    if (_telegraphRemaining > 0f && _pendingFire)
-        preview01 = _pendingCharge01;
-
-    float size = PlayerScaleAdjuster.SizeOf(_owner);
-    float thickness = Mathf.Lerp(_def.beamThicknessMin, _def.beamThicknessMax, preview01) * size;
-    float maxDist   = Mathf.Lerp(_def.minDistanceOnTap, _def.maxDistance, preview01) * PlayerScaleAdjuster.ProjectileReachOf(_owner);
-
-    Vector3 origin = (_vfx != null) ? _vfx.GetVfxOriginWS() : _owner.transform.position;
-    float muzzleOffset = 0.6f * size;
-    float blocked = muzzleOffset + ComputeBlockedDistance(origin + dir * muzzleOffset, dir, maxDist, thickness * 0.5f, _def.blockMask);
-
-    _vfx?.SetState(
-        charging: _charging,
-        charge01: charge01,
-        cooldown01: cd01,
-        spentDots: _spentDots,
-        aimDirWS: dir,
-        blockedDistance: blocked
-    );
-
-    if (_visuals != null)
-    {
-        _visuals.SetExternalChargeJitter01(_charging ? charge01 : 0f);
-        _visuals.SetExternalTurnDamp01(_charging ? charge01 : 0f);
-    }
-}
-
-
-        public bool ConsumesAttackWhileOnCooldown(in PowerUpInputState input)
+        // The beam calls this after all actors have applied input. Energy, collision and
+        // the minimum burst share the same clock, including a partially funded last frame.
+        internal void AdvanceBeamFrame(float dt, Vector3 origin, Vector3 direction)
         {
-            // While equipped, we always consume Sword input so melee doesn't fire.
-            return input.attackDown || input.attackHeld || input.attackUp;
+            if (CannotFire)
+            { held = false; minimumBurstRemaining = 0; beam.Stop(); }
+            if (beam.IsFiring && !held && minimumBurstRemaining <= 0) beam.Stop();
+
+            float idleTime = dt;
+            if (beam.IsFiring)
+            {
+                float capacitySeconds = Mathf.Max(.01f, definition.fullMeterFireSeconds);
+                float firingTime = Mathf.Min(dt, energy * capacitySeconds);
+                if (!held) firingTime = Mathf.Min(firingTime, minimumBurstRemaining);
+                beam.Advance(firingTime, origin, direction);
+                energy = Mathf.Max(0, energy - firingTime / capacitySeconds);
+                minimumBurstRemaining = Mathf.Max(0, minimumBurstRemaining - firingTime);
+                idleTime = Mathf.Max(0, dt - firingTime);
+                if (energy <= 0 || (!held && minimumBurstRemaining <= 0)) beam.Stop();
+            }
+            if (idleTime > 0)
+            {
+                energy = Mathf.Min(1, energy + idleTime / Mathf.Max(.01f, definition.emptyToFullRefillSeconds));
+                beam.Advance(idleTime, origin, direction);
+            }
+            meter.SetEnergyMeter(energy);
+            UpdateMovement();
         }
+
+        bool CannotFire => owner.temporarilyEliminated || owner.IsStunned || owner.IsExternallyStunned || !owner.isActiveAndEnabled;
+
+        public void PreTickInput(in PowerUpInputState input)
+        {
+            Vector3 direction = input.aimDirWS; direction.y = 0;
+            if (direction.sqrMagnitude > .0001f)
+            {
+                direction.Normalize();
+                if (IsMovementActionActive)
+                {
+                    float turnRate = visuals ? Mathf.Max(0, visuals.maxYawSpeed) : 900f;
+                    turnRate *= Mathf.Clamp01(definition.turningWhileFiring);
+                    float yaw = Mathf.Atan2(aim.z, aim.x) * Mathf.Rad2Deg;
+                    float targetYaw = Mathf.Atan2(direction.z, direction.x) * Mathf.Rad2Deg;
+                    aimVelocity = Mathf.Clamp(aimVelocity, -turnRate, turnRate);
+                    if (turnRate <= 0) aimVelocity = 0;
+                    else if (definition.aimDirectionEaseSeconds > 0)
+                        yaw = Mathf.SmoothDampAngle(yaw, targetYaw, ref aimVelocity,
+                            definition.aimDirectionEaseSeconds, turnRate, Time.deltaTime);
+                    else
+                    {
+                        aimVelocity = 0;
+                        yaw = Mathf.MoveTowardsAngle(yaw, targetYaw, turnRate * Time.deltaTime);
+                    }
+                    yaw *= Mathf.Deg2Rad;
+                    aim = new Vector3(Mathf.Cos(yaw), 0, Mathf.Sin(yaw));
+                }
+                else { aim = direction; aimVelocity = 0; }
+            }
+            // Physics pickup callbacks can precede routing this frame's Sword
+            // edge. Never let that edge (or its held continuation) fire the beam.
+            if (Time.frameCount == equippedFrame && (input.attackDown || input.attackHeld)) attackArmed = false;
+            else if (input.attackUp || (!input.attackHeld && !input.attackDown)) attackArmed = true;
+            if (beam) beam.UpdateQueuedPose(Origin, aim);
+            held = input.attackHeld && !input.attackUp;
+            UpdateMovement();
+        }
+
+        void UpdateMovement()
+        {
+            host.SetMovementMultiplierWhileCharging(IsMovementActionActive ? Mathf.Clamp01(definition.movementWhileFiring) : 1);
+            if (visuals)
+            {
+                visuals.SetExternalChargeJitter01(0);
+                visuals.SetExternalTurnDamp01(0);
+                // Use the same limited heading for combat facing and the beam's swept path.
+                // Raw input remains available for normal facing as soon as firing stops.
+                if (IsMovementActionActive) visuals.SetAimDirection(aim);
+            }
+        }
+
+        public bool ConsumesAttackWhileOnCooldown(in PowerUpInputState input) => input.attackDown || input.attackHeld || input.attackUp;
 
         public bool HandleInput(in PowerUpInputState input, out float cooldownToApply)
         {
-            cooldownToApply = 0f;
-
-            // If we’re in telegraph window, just consume input
-            if (_telegraphRemaining > 0f)
-                return input.attackDown || input.attackHeld || input.attackUp;
-
-            // Start charge
-            if (input.attackDown && !_charging)
+            cooldownToApply = 0;
+            // A new press is required after exhaustion or a parry. Holding an empty
+            // meter never turns its first refill increment into repeated tiny shots.
+            if (attackArmed && Time.frameCount > equippedFrame && input.attackDown && energy > 0 && beam && !beam.IsFiring && !CannotFire && !owner.IsMatchInputLocked)
             {
-                _charging = true;
-                _chargeTime = 0f;
-                return true;
+                minimumBurstRemaining = Mathf.Max(0, definition.minimumBurstSeconds);
+                beam.Begin(Origin, aim);
+                host.NotifyProjectileFired(beam.gameObject);
+                UpdateMovement();
             }
-
-            // Hold charge
-            if (_charging && input.attackHeld)
-            {
-                // Auto-fire at max charge
-                if (_chargeTime >= _def.chargeToMaxSeconds)
-                {
-                    TriggerShot(1f, input.aimDirWS);
-
-                    cooldownToApply = _def.baseRechargeDelay + (_chargeTime * _def.rechargeMultiplier);
-                    BeginCooldown(cooldownToApply);
-
-                    return true;
-                }
-
-                return true;
-            }
-
-            // Release -> fire
-            if (_charging && input.attackUp)
-            {
-                float charge01 = Mathf.Clamp01(_chargeTime / Mathf.Max(0.01f, _def.chargeToMaxSeconds));
-                TriggerShot(charge01, input.aimDirWS);
-
-                cooldownToApply = _def.baseRechargeDelay + (_chargeTime * _def.rechargeMultiplier);
-                BeginCooldown(cooldownToApply);
-
-                return true;
-            }
-
-            // Accelerator replaces melee even when an input sequence is incomplete.
-            return input.attackDown || input.attackHeld || input.attackUp;
+            return ConsumesAttackWhileOnCooldown(input);
         }
 
-        private void BeginCooldown(float cooldownSeconds)
+        void ResetMovement()
         {
-            _cooldownTotal = Mathf.Max(0.01f, cooldownSeconds);
-            _cooldownRemaining = _cooldownTotal;
-        }
-
-        private void TriggerShot(float charge01, Vector3 aimDirWS)
-        {
-            _charging = false;
-
-            Vector3 dir = aimDirWS;
-            dir.y = 0f;
-            if (dir.sqrMagnitude < 0.0001f) dir = _owner.transform.forward;
-            dir.Normalize();
-
-            _pendingFire = true;
-            _pendingCharge01 = Mathf.Clamp01(charge01);
-            _pendingDirWS = dir;
-
-            _telegraphRemaining = Mathf.Max(0.01f, _def.preFireTelegraphSeconds);
-
-            // Spend dots proportional to charge
-            _spentDots = _vfx != null ? _vfx.ComputeSpentDots(_pendingCharge01) : 1;
-
-            // Burst telegraph so others get a dodge window
-            _vfx?.TriggerTelegraphBurst(_pendingCharge01);
-
-            // reset charge timer
-            _chargeTime = 0f;
-        }
-
-        private void Fire(Vector3 aimDirWS, float charge01)
-        {
-            Vector3 dir = aimDirWS;
-            dir.y = 0f;
-            if (dir.sqrMagnitude < 0.0001f) dir = _owner.transform.forward;
-            dir.Normalize();
-
-            // Snapshot the owner's geometry; an airborne shot keeps its launch size.
-            float size = PlayerScaleAdjuster.SizeOf(_owner);
-            float dist = Mathf.Lerp(_def.minDistanceOnTap, _def.maxDistance, charge01) * PlayerScaleAdjuster.ProjectileReachOf(_owner);
-            float thickness = Mathf.Lerp(_def.beamThicknessMin, _def.beamThicknessMax, charge01) * size;
-            float massRemove = Mathf.Lerp(_def.massRemovedMin, _def.massRemovedMax, charge01);
-
-            var prb = _owner.GetComponent<Rigidbody>();
-            if (prb != null)
-            {
-                float recoil = Mathf.Lerp(_def.recoilVelocityMin, _def.recoilVelocityMax, charge01) * PlayerScaleAdjuster.MovementOf(_owner);
-
-                // Kick opposite shot direction (planar)
-                Vector3 kick = -dir * recoil;
-                kick.y = 0f;
-
-                // VelocityChange is great here (consistent regardless of mass)
-                _owner.ProtectActionMomentum(.25f);
-                prb.AddForce(kick, ForceMode.VelocityChange);
-            }
-
-
-            // Spawn projectile
-            GameObject go;
-
-            if (_def.beamProjectilePrefab != null)
-                go = Object.Instantiate(_def.beamProjectilePrefab);
-            else
-                go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-
-            go.name = "PA_Beam";
-            Vector3 origin = (_vfx != null) ? _vfx.GetVfxOriginWS() : _owner.transform.position;
-            go.transform.position = origin + dir * (0.6f * size);
-
-            go.transform.localScale = Vector3.one; // IMPORTANT: don't scale the hierarchy
-            go.transform.rotation = Quaternion.LookRotation(dir, Vector3.up);
-
-
-
-            var col = go.GetComponent<Collider>();
-            if (col) col.isTrigger = true;
-
-            var rb = go.GetComponent<Rigidbody>();
-            if (!rb) rb = go.AddComponent<Rigidbody>();
-            rb.isKinematic = true;
-            rb.useGravity = false;
-
-            var proj = go.GetComponent<ParticleAcceleratorProjectile>();
-            if (!proj) proj = go.AddComponent<ParticleAcceleratorProjectile>();
-
-            float capLen = Mathf.Lerp(_def.beamVisualMinLength, _def.beamVisualMaxLength, charge01) * size;
-
-            // Optional: never exceed the actual travel distance for this shot
-            capLen = Mathf.Min(capLen, dist);
-
-            proj.Init(
-                shooter: _owner,
-                dirWS: dir,
-                speed: _def.beamSpeed,
-                maxDistance: dist,
-                radius: thickness * 0.5f,
-                massRemove: massRemove,
-                transferToShooter: _def.transferMassToShooter,
-                blockMask: _def.blockMask,
-                charge01: charge01,
-                beamVisualMaxLength: capLen,
-                spatialScale: size
-                // impactPrefabOverride: (optional) you can pass one here if you add it to the definition
-
-            );
-            _host.NotifyProjectileFired(go);
-        }
-
-        private static float ComputeBlockedDistance(Vector3 origin, Vector3 dir, float maxDist, float radius, LayerMask blockMask)
-        {
-            if (blockMask.value == 0)
-                return maxDist; // treat as "no blockers configured"
-
-            if (Physics.SphereCast(origin, radius, dir, out var hit, maxDist, blockMask, QueryTriggerInteraction.Collide))
-                return hit.distance;
-
-            return maxDist;
+            aimVelocity = 0;
+            host.SetMovementMultiplierWhileCharging(1);
+            if (visuals) { visuals.SetExternalChargeJitter01(0); visuals.SetExternalTurnDamp01(0); }
         }
 
         public bool TryHandleShieldImpact(PlayerControllerScript attacker, Collider shieldCollider, Vector3 attackDirWS) => false;
 
+        void OnOwnerDeath(PlayerControllerScript player)
+        {
+            held = false; attackArmed = false; minimumBurstRemaining = 0;
+            if (beam) beam.Clear();
+            ResetMovement();
+        }
+
         public void OnUnequip()
         {
-            _charging = false;
-            _chargeTime = 0f;
-
-            _pendingFire = false;
-            _telegraphRemaining = 0f;
-
-            _cooldownRemaining = 0f;
-            _cooldownTotal = 0f;
-            _spentDots = 0;
-
-            _host.SetMovementMultiplierWhileCharging(1f);
-
-            if (_visuals != null)
-                _visuals.SetExternalChargeJitter01(0f);
-
-            if (_vfx != null)
-                _vfx.SetVisible(false);
+            owner.DeathStarted -= OnOwnerDeath;
+            held = false; minimumBurstRemaining = 0; ResetMovement();
+            if (meter) meter.SetVisible(false);
+            if (beam) { beam.Clear(); Object.Destroy(beam.gameObject); beam = null; }
         }
     }
 }

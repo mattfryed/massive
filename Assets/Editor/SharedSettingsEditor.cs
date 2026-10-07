@@ -244,6 +244,7 @@ namespace Massive.EditorTools
         {
             SharedSettingsEditing.EnsureProfiles();
             if (GUILayout.Button("Open Player Tuning — attack timeline, movement, size & melee")) PlayerTuningWindow.Open();
+            if (GUILayout.Button("Open Power-up Settings — visuals, life cycle, spawning & toasts")) PowerUpSettingsWindow.Open();
             tab = GUILayout.Toolbar(tab, new[] { "Melee", "Amplifier", "Resonance", "Text" });
             SharedSettingsProfile[] profiles = { SharedSettingsRuntime.Load<MeleeVisualProfile>(), SharedSettingsRuntime.Load<AmplifierSharedProfile>(), SharedSettingsRuntime.Load<ResonanceSharedProfile>(), SharedSettingsRuntime.Load<TextAnimationSharedProfile>() };
             var profile = profiles[Mathf.Clamp(tab, 0, 3)];

@@ -55,6 +55,13 @@ namespace Massive.PowerUps
         private Camera _cam;
         private Coroutine _routine;
 
+        public void ApplySettings(PowerUpToastSettings settings)
+        {
+            worldScale = settings.worldScale; panelPadding = settings.panelPadding; maxWidth = settings.maxWidth;
+            billboardToCamera = settings.billboard; sortingOrder = settings.sortingOrder;
+            introEase = settings.introEase; outroEase = settings.outroEase;
+        }
+
         private void Awake()
         {
             if (!scaleRoot) scaleRoot = transform;

@@ -196,6 +196,9 @@ public class MatterNuggetScript : MonoBehaviour
     private void TryCollect(Collider other)
     {
         if (ending || age < .3f || (lifetime > 0f && lifetime - age <= despawnSeconds)) return;
+        // Only the tagged physical body collects mass. Weapons, Repulsor and
+        // shields share the player hierarchy but are not collection surfaces.
+        if (!other || other.isTrigger || !other.CompareTag("Player")) return;
         var player = other.GetComponentInParent<PlayerControllerScript>();
         if (!player || !player.isActiveAndEnabled || player.IsPseudoPlayer || player.temporarilyEliminated || player.IsMatchInputLocked) return;
         BeginExit();

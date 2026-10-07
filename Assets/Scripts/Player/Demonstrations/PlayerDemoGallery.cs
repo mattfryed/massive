@@ -17,6 +17,7 @@ namespace Massive.Demonstrations
         private bool matchWasEnabled;
         private bool[] encounterWasActive;
         private float nextLabelUpdate;
+        private PowerUpIconDemo[] iconDemos;
         public bool IsPlaying { get; private set; }
         public IReadOnlyList<PlayerDemoDirector> Demos => demos;
 
@@ -36,12 +37,15 @@ namespace Massive.Demonstrations
             }
             IsPlaying = true;
             content.SetActive(true);
+            iconDemos = content.GetComponentsInChildren<PowerUpIconDemo>();
             IsolateBodies();
             foreach (var demo in demos)
             {
                 if (demo.Primary) demo.Primary.RespawnCompleted += OnRespawn;
                 if (demo.Partner) demo.Partner.RespawnCompleted += OnRespawn;
             }
+            foreach (var demo in iconDemos)
+                if (demo.Player) demo.Player.RespawnCompleted += OnRespawn;
             nextLabelUpdate = 0f;
         }
 
@@ -56,6 +60,9 @@ namespace Massive.Demonstrations
                 if (demo.Partner) colliders.AddRange(demo.Partner.GetComponentsInChildren<Collider>(true));
                 groups.Add(colliders.ToArray());
             }
+            if (iconDemos != null)
+                foreach (var demo in iconDemos)
+                    if (demo && demo.Player) groups.Add(demo.Player.GetComponentsInChildren<Collider>(true));
             for (int i = 0; i < groups.Count; i++)
                 for (int j = i + 1; j < groups.Count; j++)
                     foreach (var a in groups[i]) foreach (var b in groups[j])
@@ -84,7 +91,11 @@ namespace Massive.Demonstrations
                 if (demo.Primary) demo.Primary.RespawnCompleted -= OnRespawn;
                 if (demo.Partner) demo.Partner.RespawnCompleted -= OnRespawn;
             }
+            if (iconDemos != null)
+                foreach (var demo in iconDemos)
+                    if (demo && demo.Player) demo.Player.RespawnCompleted -= OnRespawn;
             content.SetActive(false); // Directors stop and remove their owned actors, beams and VFX.
+            iconDemos = null;
             IsPlaying = false;
             for (int i = 0; i < encounters.Length; i++)
                 if (encounters[i]) encounters[i].SetActive(encounterWasActive[i]);

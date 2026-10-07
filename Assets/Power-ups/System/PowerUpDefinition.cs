@@ -26,5 +26,7 @@ namespace Massive.PowerUps
         [Header("Player Effect")]
         [Tooltip("How long the power-up remains equipped/usable once collected.")]
         public float effectDurationSeconds = 8f;
+        public float WorldLifetimeSeconds => PowerUpSettings.Current ? PowerUpSettings.Current.WorldLifetime(this) : worldLifetimeSeconds;
+        public float EffectDurationSeconds => PowerUpSettings.Current ? PowerUpSettings.Current.EffectDuration(this) : effectDurationSeconds;
     }
 }

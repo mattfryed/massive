@@ -63,6 +63,37 @@ The camera stays fixed while sizing; its current framing targets the cabinet's 1
 The level has its own definition/stage assets for direct launch; carousel icon,
 instructions and catalog registration remain later work.
 
+## Enemy placement in the oval
+
+The existing encounter timeline and formation assets are reused unchanged.
+`EnemyArenaLayout` maps their normalized positions through the same oval columns
+as the grid. Top/bottom rows bend toward the goal separators; rings and phalanxes
+deform smoothly with their location. Facing directions for mobile enemies retain
+their authored angles. Goal caps remain outside the playable spawn area.
+
+On `LATTICE Enemy Timeline`, **Enemy Arena Layout > Oval Spawn Inset** defaults to
+0.25 world units. It adds a continuous inset to the mapped territory, accounting
+for the curved wall's slope and grid scale. The Director's enemy-radius, border,
+obstacle, player, reservation, and population checks still apply. Large inset
+values or small arena dimensions can leave formations blocked; the existing
+bounded placement adjustments and expiry rules remain authoritative.
+
+Wall sockets bypass the formation inset and stay on the physical boundary.
+Top/bottom sockets face the ellipse's inward normal while retaining any authored
+aim offset and aim arc. Side sockets remain on the playable goal separators.
+Warnings and spawns consume the same resolved pose; announced positions stay
+locked. Width/height edits are read for subsequent placements. Rectangular levels
+retain the original mapping and ignore Oval Spawn Inset.
+
+The Scene gizmos and Encounter Composer preview show the curved territory.
+**MASSIVE > COSMOS > Validate oval enemy placements** exercises the saved scene
+with the existing formations in Play Mode and writes its report and captures to
+`Library/CosmosEnemyLayoutValidation`. All test configuration is temporary.
+The inherited optional `05b Turret Side Corners` formation references
+`SideLeftTop` and `SideRightBottom`, which are absent from this scene's layout.
+That pre-existing configuration is reported by validation and remains unchanged;
+oval mapping does not create mounts or substitute encounters.
+
 ## Cosmic web
 
 `CosmicWebBackground` is on the same `VectorGridGPU` object as the layout controls.
@@ -263,13 +294,20 @@ testing remain deferred to the user's machine; earlier test results do not quali
 this revision. Visual reference: the 20:24–20:35 segment of
 https://www.youtube.com/watch?v=UCgVlHlNWpA&t=1224s (used for appearance only).
 
-## Supernovae and mass nugglets
+## Normal and superluminous supernovae
 
-`VectorGridGPU` in `S-9_COSMOS.unity` now has **Cosmic Supernovae**, referencing
-the existing web and `ORBITAL/Mass Nugglet.prefab`. Its **Frequency Over Age**
+`VectorGridGPU` in `S-9_COSMOS.unity` has two **Cosmic Supernovae** components,
+labelled **Normal supernovae** and **Superluminous supernovae** in the Inspector.
+Both reference the existing web and share the same scheduling/rendering code,
+with independent controls, random streams and pickup pools. **Frequency Over Age**
 curve maps normalized simulation Age (X, 0–1) to a frequency multiplier (Y).
-The default bell curve starts/ends at zero and peaks at Age 0.5. **Peak Explosions
-Per Second** defaults to 1 and sets the rate when the curve is at 1. Random
+The bell curves start/end at zero and peak at Age 0.5. The saved scene's normal
+curve peaks at 1 and superluminous at 0.5; both use **Peak Explosions Per Second**
+of 3, giving maximum rates of **3/sec** and **1.5/sec**. Curve previews share a
+0–1 vertical scale so the half-height curve stays visible. The superluminous
+curve was initialized from the normal curve with both values and tangents halved;
+subsequent edits are independent. The Inspector also shows the rate at Age 0.5.
+Random
 exponential waiting intervals are integrated against the advancing regulation
 clock, giving irregular timing instead of synchronized or evenly spaced pulses.
 Countdown, stopped regulation time and completed matches do not generate bursts.
@@ -290,31 +328,84 @@ Each event begins with a subtle localized glow that follows its source galaxy.
 **Build Up Seconds** defaults to 1.8, with **Build Up Brightness** at 0.12 of
 flash brightness. **Flicker Strength** (0.35) and **Flicker Speed** (7) control
 smooth, irregular noise during the rise. Setting buildup time to zero restores
-an immediate burst. At the peak, a white/warm flash with a small expanding ring
-releases exactly one existing mass nugglet directly above that point on the XZ
+an immediate burst. At the peak, the flash and expanding effect
+release exactly one existing mass pickup directly above that point on the XZ
 gameplay plane. Its direction is uniform around the plane, with **Ejection Speed**
 randomized between 2 and 5 world units/second by default. The existing pickup
-handles collection rewards, damping, wall bounces and despawn; its fractional
-reward remains 0.1 of the standard pickup reward. **Nugglet Lifetime** defaults
-to 20 seconds. Up to 32 pickups are pooled; each warning reserves a slot until
+handles collection rewards, damping, wall bounces and despawn. Normal events use
+`ORBITAL/Mass Nugglet.prefab` with a 0.1 reward multiplier; superluminous events use
+`ORBITAL/Orbital Mass Nugget.prefab` with the full 1.0 multiplier and existing
+pooled lifetime behavior. **Pickup Lifetime** defaults
+to 20 seconds. Up to 32 pickups per layer are pooled; each warning reserves a slot until
 its explosion. When all slots are occupied or reserved, new events are skipped
 without removing a collectible. Capacity is allocated at level start. If the
 source galaxy leaves the playable area during buildup, its warning fades away
 and releases the reservation without spawning a pickup.
 
-**Die Off Seconds** defaults to 0.3 for a quick, smooth glow fade after the peak.
-Flash color, emission, radius and ring duration remain Inspector controls (default
-duration 0.4 seconds and radius 0.75 world units). The glow shares the existing
-flash quad/material; up to 32 warnings/flashes can coexist. Flash storage and catch-up
+Normal **Die Off Seconds** remains 0.3, with flash duration 0.4 seconds, radius
+0.75 world units and brightness 4. **Randomize Color** chooses uniformly between
+the existing gold **Flash Color**, slightly cyan white, cyan-blue and light purple.
+All four are editable HDR colors. An event retains its chosen color through the
+buildup, burst and fade; disabling randomization uses only Flash Color.
+
+Superluminous defaults are radius **1.8** (2.4× normal), brightness **8** (2×),
+**Center Flash Seconds** **0.65** and glow die-off **0.75 seconds**. The cloud
+has independent timing: **Cloud Expansion Seconds** defaults to **1.8**, followed
+by **Cloud Fade Seconds** of **2.4**. The cloud remains alive after the core flash
+and localized glow finish. Pickup release still happens once at the initial peak.
+
+The cloud uses moving noise at several scales, warped density lobes and wisps,
+mixing blue and warm ejecta throughout its interior. There are no concentric cloud
+shells. **Cloud Distortion** (0.85) controls billowing, **Cloud Mixing Speed** (0.45)
+controls internal flow, and **Cloud Fine Detail** (0.7) controls finer gas strands.
+**Warm Ejecta Color** sets the orange material; **Flash Color** sets the cool gas.
+The latter two cloud color/detail labels retain the serialized `shellColor` and
+`shellDetail` fields for compatibility. **Telegraph Distortion** (0.85) gives the
+buildup an uneven, evolving gas envelope; each event has its own seed/orientation.
+Zero restores a round telegraph envelope. Randomize Color is off for this layer
+by default, but the same palette option is available. Appearance references:
+[explosion sequence](https://scitechdaily.com/images/Type-Ia-Supernova-1.gif) and
+[blue/orange color reference](https://dst.gov.in/sites/default/files/Exploring-Super-luminous-supernovae-exploded-rapidly-and-decayed-slowly-01.jpg).
+These guide the VFX, not a physical supernova simulation.
+
+The glow and burst share one quad/material per layer; up to 32 warnings/flashes
+per layer can coexist. Flash storage and catch-up
 bursts are bounded. Disabling the component clears its effects; destruction
 releases the pool and generated mesh/material. A fixed random seed is optional.
 
-Validation: scripts/shader imported with no Console errors or warnings; scene
-references and default curve values were checked. Isolated renders of buildup,
-peak and die-off were inspected over the live web. This glow revision does not
-save the scene or overwrite its existing Inspector tuning. Play Mode timing,
-collection, balance, automated tests, standalone builds and target-machine
-profiling remain deferred.
+**MASSIVE > COSMOS > Supernovae > Install superluminous layer** (Ctrl+Shift+Alt+F6)
+adds the layer only if missing and saves the active COSMOS scene. Re-running
+preserves existing layer tuning. The initial scene backup and installation report
+are in `Library/CosmosSupernovae`. The installer checks that existing transforms,
+cameras, web and normal-layer settings stay unchanged.
+
+**Apply cloud and oval mask revision** (Ctrl+Shift+Alt+F4) saves the cloud fields
+and installs a continuous black cutout through **Cosmos Arena Layout > Mask
+Outside Oval**. It reuses `CosmosArenaMask.shader` and the live full-oval dimensions,
+including goal caps. One transient quad spans the cabinet view and covers corners
+the original rectangular mask strips missed. Its depth sits just in front of the
+cosmic background slab, behind gameplay and world-space HUD; no camera, HUD or
+goal transforms change. The quad/material are released with the layout. The
+previous saved scene is backed up as `Library/CosmosSupernovae/BeforeCloudRevision.unity`.
+
+Validation (2026-10-05, Unity 6000.0.28f1 / DX11): scripts and shader compiled;
+**28 Play Mode checks passed**, including half frequency at 201 sampled ages,
+49 normal and 21 superluminous releases during the sampled interval, all four
+stable per-event normal colors, both reward multipliers, bounded pools, pause,
+rewind, reuse and independent disable/re-enable behavior. No runtime errors or
+exceptions occurred; the four existing kinematic player-spawn warnings remain.
+Actual shader comparison and live gameplay captures were visually reviewed.
+The extended checks verify the independent cloud lifetime and cover all 3,292
+sampled spill pixels from staged border bursts. All 5,239 sampled HUD/title pixels
+remain visible (the existing unit-label pulse is allowed). Mask/no-mask captures
+were compared after the startup reveal, including dim score digits and labels.
+The saved scene was unchanged by validation. Run **Validate both layers in Play
+Mode** (Ctrl+Shift+Alt+F5) from saved COSMOS to repeat the checks; results and images
+are in `Library/CosmosSupernovae/validation.txt`, `comparison.png` and `gameplay.png`.
+The comparison rows show normal colors, four telegraph seeds, then cloud ages
+0.4, 1.2, 2.2 and 3.4 seconds. Border and HUD comparisons use `border-masked.png`,
+`border-unmasked.png`, `hud-masked.png` and `hud-unmasked.png` in that directory.
+Collection balance, cabinet performance and standalone builds remain untested.
 
 ## Level Select icon
 

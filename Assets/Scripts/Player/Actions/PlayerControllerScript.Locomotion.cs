@@ -29,7 +29,7 @@ public partial class PlayerControllerScript
     {
         if (!Effective_clampSpeed) return velocity;
         Vector3 planar = new Vector3(velocity.x, 0, velocity.z);
-        float max = Mathf.Max(.1f, Effective_maxMoveSpeed * multiplier);
+        float max = multiplier <= 0 ? 0 : Mathf.Max(.1f, Effective_maxMoveSpeed * multiplier);
         if (planar.sqrMagnitude > max * max) planar = planar.normalized * max;
         return new Vector3(planar.x, velocity.y, planar.z);
     }

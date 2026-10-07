@@ -20,6 +20,21 @@ public sealed partial class EnemyEncounterComposer : EditorWindow
     [SerializeField] private float pixelsPerSecond = 22, cursor, snap = .25f;
     [SerializeField] private Vector2 scroll, libraryScroll, detailScroll;
     [SerializeField] private bool follow = true;
+    [SerializeField] private bool previewTwoVTwo;
+    private bool TwoVTwo => Live ? Director.TimelineIsTwoVTwo : previewTwoVTwo;
+    private EnemyEncounterScaling.Limits EffectiveLimits => Live && Director.TimelineLimits != null ? Director.TimelineLimits : EnemyEncounterScaling.Limits.Capture(timeline, TwoVTwo);
+    private readonly Dictionary<(EnemyFormation, int), List<EnemyFormation.Slot>> extraPlans = new();
+    private List<EnemyFormation.Slot> Extras(EnemyFormation form, int index)
+    {
+        var key = (form, index);
+        if (!extraPlans.TryGetValue(key, out var slots))
+        {
+            var cue = index >= 0 && index < timeline.cues.Count ? timeline.cues[index] : new EnemyEncounterTimeline.Cue { formation = form };
+            slots = EnemyEncounterScaling.Reinforcements(timeline, cue, form, TwoVTwo); extraPlans[key] = slots;
+        }
+        return slots;
+    }
+    private float LastDelay(EnemyFormation form, int index) => Mathf.Max(EnemyEncounterAuthoring.LastDelay(form), Extras(form, index).Select(s => s.releaseDelay).DefaultIfEmpty(0).Max());
     [SerializeField] private string search = "";
     [SerializeField] private EnemyFormation librarySelection;
     private readonly List<EnemyFormation> library = new();
@@ -33,6 +48,8 @@ public sealed partial class EnemyEncounterComposer : EditorWindow
     private double nextRepaint;
     private string notice;
     private GUIStyle small, trackLabel;
+    private float displayTimeScale = 1f;
+    private float DisplayDuration => Mathf.Max(1f, timeline.duration) * displayTimeScale;
     internal EnemyDirector Director => lab ? lab.director : sceneDirector;
     private bool Live => Application.isPlaying && Director && Director.encounterTimeline == timeline;
     private float Playhead
@@ -42,7 +59,7 @@ public sealed partial class EnemyEncounterComposer : EditorWindow
             if (!Live) return cursor;
             var state = Director.previewCue >= 0 ? Director.CueStates.FirstOrDefault(c => c.index == Director.previewCue) : null;
             return Director.GameplayAge + (state != null && state.index < timeline.cues.Count
-                ? timeline.cues[state.index].arrivalSeconds - state.arrival : 0);
+                ? timeline.cues[state.index].arrivalSeconds * displayTimeScale - state.arrival : 0);
         }
     }
     private bool CanEdit => timeline && !EditorApplication.isPlayingOrWillChangePlaymode;
@@ -89,6 +106,7 @@ public sealed partial class EnemyEncounterComposer : EditorWindow
     }
     private void OnEnable()
     {
+        wantsMouseMove = true;
         titleContent = new GUIContent("Encounter Composer"); minSize = new Vector2(1000, 580);
         Undo.undoRedoPerformed += UndoChanged; EditorApplication.projectChanged += ProjectChanged;
         EditorApplication.hierarchyChanged += HierarchyChanged; EditorApplication.update += EditorTick;
@@ -102,8 +120,8 @@ public sealed partial class EnemyEncounterComposer : EditorWindow
         EditorApplication.playModeStateChanged -= PlayState; CancelDrag();
         if (timeline && !Application.isPlaying) AssetDatabase.SaveAssetIfDirty(timeline);
     }
-    private void OnLostFocus() { CancelDrag(); }
-    private void CancelDrag() { if (dragging >= 0 && GUIUtility.hotControl == dragControl) GUIUtility.hotControl = 0; dragging = -1; pendingLibraryDrag = null; }
+    private void OnLostFocus() { CancelDrag(); Repaint(); }
+    private void CancelDrag() { CancelArenaDrag(); if (dragging >= 0 && GUIUtility.hotControl == dragControl) GUIUtility.hotControl = 0; dragging = -1; pendingLibraryDrag = null; }
     private void UndoChanged() { CancelDrag(); validationDirty = true; Repaint(); }
     private void ProjectChanged() { RefreshLibrary(); validationDirty = true; Repaint(); }
     private void HierarchyChanged() { if (!Director) FindContext(); validationDirty = true; }
@@ -159,6 +177,8 @@ public sealed partial class EnemyEncounterComposer : EditorWindow
         trackLabel ??= new GUIStyle(EditorStyles.label) { wordWrap = true, alignment = TextAnchor.MiddleLeft };
         DrawHeader();
         if (!timeline) { EditorGUILayout.HelpBox("Choose an Encounter Timeline asset, or create one to start planning.", MessageType.Info); return; }
+        float timing = Live && Director.CueStates.Count > 0 ? Director.TimelineTimeScale : Director ? Director.PreviewTimelineTimeScale(timeline) : 1f;
+        if (!Mathf.Approximately(timing, displayTimeScale)) { CancelDrag(); displayTimeScale = timing; validationDirty = true; pendingFit = true; }
         selected = Mathf.Clamp(selected, -1, timeline.cues.Count - 1);
         HandleLibraryDrag();
         HandleKeys();
@@ -169,13 +189,14 @@ public sealed partial class EnemyEncounterComposer : EditorWindow
         if (validationDirty && Event.current.type == EventType.Layout)
         {
             if (layout && layout.arena) layout.arena.RefreshNow(false);
-            issues = EnemyEncounterAuthoring.Validate(timeline, layout, Director, seed); validationDirty = false;
+            issues = EnemyEncounterAuthoring.Validate(timeline, layout, Director, seed, TwoVTwo); validationDirty = false;
         }
         string status = notice ?? (Application.isPlaying ? "Play Mode: authoring locked. Live status uses the Director's gameplay clock." : "Drag formations onto their tracks. Drag blocks to move; double-click a track to add the selected formation. Ctrl+D duplicate · Delete remove · Ctrl+Z Undo.");
         GUI.Label(new Rect(8, position.height - 22, position.width - 16, 20), status, EditorStyles.miniLabel);
     }
     private void DrawHeader()
     {
+        extraPlans.Clear();
         GUILayout.BeginHorizontal(EditorStyles.toolbar);
         var asset = (EnemyEncounterTimeline)EditorGUILayout.ObjectField(timeline, typeof(EnemyEncounterTimeline), false, GUILayout.MinWidth(200));
         if (asset != timeline) SetTimeline(asset);
@@ -203,6 +224,11 @@ public sealed partial class EnemyEncounterComposer : EditorWindow
         }
         GUILayout.EndHorizontal();
         GUILayout.BeginHorizontal(EditorStyles.toolbar);
+        using (new EditorGUI.DisabledScope(EditorApplication.isPlayingOrWillChangePlaymode))
+        {
+            int mode = EditorGUILayout.Popup(TwoVTwo ? 1 : 0, new[] { "1v1 preview", "2v2 preview" }, EditorStyles.toolbarPopup, GUILayout.Width(105));
+            if ((mode == 1) != previewTwoVTwo && !Application.isPlaying) { previewTwoVTwo = mode == 1; validationDirty = true; CancelDrag(); }
+        }
         GUILayout.Label("Snap", GUILayout.Width(34)); int snapIndex = snap == 0 ? 0 : Mathf.Approximately(snap, .25f) ? 1 : 2;
         snapIndex = EditorGUILayout.Popup(snapIndex, new[] { "Off", "0.25s", "1s" }, EditorStyles.toolbarPopup, GUILayout.Width(60)); snap = new[] { 0f, .25f, 1f }[snapIndex];
         GUILayout.Space(12); GUILayout.Label("Zoom", GUILayout.Width(36)); pixelsPerSecond = GUILayout.HorizontalSlider(pixelsPerSecond, .05f, 100, GUILayout.Width(110));
@@ -214,7 +240,7 @@ public sealed partial class EnemyEncounterComposer : EditorWindow
         using (new EditorGUI.DisabledScope(Application.isPlaying)) value = EditorGUILayout.IntField(seed, GUILayout.Width(58));
         if (value != seed) { seed = value; validationDirty = true; }
         follow = GUILayout.Toggle(follow, "Follow playhead", EditorStyles.toolbarButton, GUILayout.Width(108));
-        if (Live) GUILayout.Label($"{Director.GameplayAge:0.0}s · Alive {Director.AliveCount} · Reserved {Director.TimelinePendingCount} · Pressure {Director.CurrentPressure:0}/{timeline.maxPressure:0}", GUILayout.Width(350));
+        if (Live) GUILayout.Label($"{Director.GameplayAge:0.0}s · Alive {Director.AliveCount} · Reserved {Director.TimelinePendingCount} · Pressure {Director.CurrentPressure:0}/{EffectiveLimits.pressure:0}", GUILayout.Width(350));
         GUILayout.EndHorizontal();
     }
     internal void StartPreview(int cue)
@@ -228,6 +254,7 @@ public sealed partial class EnemyEncounterComposer : EditorWindow
             Director.encounterTimeline = timeline; Director.previewCue = cue; Director.encounterSeed = seed;
             EditorUtility.SetDirty(Director); PrefabUtility.RecordPrefabInstancePropertyModifications(Director);
             AssetDatabase.SaveAssetIfDirty(timeline);
+            EnemyEncounterPreviewMode.Request(previewTwoVTwo);
             EditorApplication.isPlaying = true;
         }
         else
@@ -288,7 +315,7 @@ public sealed partial class EnemyEncounterComposer : EditorWindow
         if (e.type == EventType.MouseUp) pendingLibraryDrag = null;
     }
     private void Add(EnemyFormation formation, float at)
-    { selected = EnemyEncounterAuthoring.Add(timeline, formation, at, snap); librarySelection = formation; notice = null; Changed(); }
+    { selected = EnemyEncounterAuthoring.Add(timeline, formation, EnemyEncounterAuthoring.Snap(at, snap) / displayTimeScale, 0); librarySelection = formation; notice = null; Changed(); }
     private void Duplicate()
     { if (!CanEdit || selected < 0) return; selected = EnemyEncounterAuthoring.Duplicate(timeline, selected); Changed(); }
     private void Remove()
@@ -296,6 +323,7 @@ public sealed partial class EnemyEncounterComposer : EditorWindow
     private void HandleKeys()
     {
         var e = Event.current; if (!CanEdit || EditorGUIUtility.editingTextField || e.type != EventType.KeyDown) return;
+        if (arenaDrag != null) { if (e.keyCode == KeyCode.Escape) { CancelDrag(); Repaint(); e.Use(); } return; }
         if (e.keyCode == KeyCode.Delete || e.keyCode == KeyCode.Backspace) { Remove(); e.Use(); }
         if ((e.control || e.command) && e.keyCode == KeyCode.D) { Duplicate(); e.Use(); }
         if ((e.control || e.command) && e.keyCode == KeyCode.S) { AssetDatabase.SaveAssetIfDirty(timeline); e.Use(); }
@@ -329,15 +357,15 @@ public sealed partial class EnemyEncounterComposer : EditorWindow
                 int lane = ends.FindIndex(end => end + 10 / pixelsPerSecond < time - warning);
                 if (lane < 0) { lane = ends.Count; ends.Add(0); }
                 // Reserve room for the label too, so adjacent short cues remain readable at any zoom.
-                ends[lane] = Mathf.Max(time + EnemyEncounterAuthoring.LastDelay(formation), time - warning + 100 / pixelsPerSecond);
+                ends[lane] = Mathf.Max(time + LastDelay(formation, item.index), time - warning + 100 / pixelsPerSecond);
                 row.clips.Add((item.index, lane));
             }
             row.y = y; row.height = Mathf.Max(64, ends.Count * 48 + 16); y += row.height;
         }
         return rows;
     }
-    private float TimeOf(int index) => dragging == index ? dragTime : timeline.cues[index].arrivalSeconds;
-    private float EndTime => Mathf.Max(timeline.duration, timeline.cues.Count == 0 ? 0 : timeline.cues.Select((c, i) => TimeOf(i) + EnemyEncounterAuthoring.LastDelay(EnemyEncounterAuthoring.Choose(timeline, i, seed, out _))).Max()) + 5;
+    private float TimeOf(int index) => dragging == index ? dragTime : timeline.cues[index].arrivalSeconds * displayTimeScale;
+    private float EndTime => Mathf.Max(DisplayDuration, timeline.cues.Count == 0 ? 0 : timeline.cues.Select((c, i) => TimeOf(i) + LastDelay(EnemyEncounterAuthoring.Choose(timeline, i, seed, out _), i)).Max()) + 5;
     private void DrawTimeline(Rect rect)
     {
         float viewportWidth = rect.width - LabelWidth - 16;
@@ -371,7 +399,7 @@ public sealed partial class EnemyEncounterComposer : EditorWindow
         var view = new Rect(rect.x + LabelWidth, rect.y + RulerHeight, rect.width - LabelWidth, rect.height - RulerHeight - 20);
         scroll = GUI.BeginScrollView(view, scroll, new Rect(0, 0, contentWidth, Mathf.Max(height, view.height - 16)), true, true);
         for (float t = 0; t < EndTime; t += tick) EditorGUI.DrawRect(new Rect(12 + t * pixelsPerSecond, 0, 1, height), Grid);
-        EditorGUI.DrawRect(new Rect(12 + timeline.duration * pixelsPerSecond, 0, 2, height), new Color(.75f, .55f, .3f));
+        EditorGUI.DrawRect(new Rect(12 + DisplayDuration * pixelsPerSecond, 0, 2, height), new Color(.75f, .55f, .3f));
         foreach (var row in rows)
         {
             var rowRect = new Rect(0, row.y, contentWidth, row.height);
@@ -384,12 +412,12 @@ public sealed partial class EnemyEncounterComposer : EditorWindow
         float playhead = Playhead;
         EditorGUI.DrawRect(new Rect(12 + playhead * pixelsPerSecond, 0, 2, height), ArrivalColor);
         HandleClipDrag(); GUI.EndScrollView();
-        GUI.Label(new Rect(rect.x + 8, rect.yMax - 19, rect.width - 16, 18), "Light: warning   •   Blue: spawn sequence   •   Tick: first arrival   •   Orange: timeline end", EditorStyles.miniLabel);
+        GUI.Label(new Rect(rect.x + 8, rect.yMax - 19, rect.width - 16, 18), "Light: warning   •   Blue: spawn sequence   •   Purple: 2v2 extras   •   Tick: first arrival   •   Orange: timeline end", EditorStyles.miniLabel);
     }
     private void DrawClip(int index, float y)
     {
         var cue = timeline.cues[index]; var form = EnemyEncounterAuthoring.Choose(timeline, index, seed, out _);
-        float time = TimeOf(index), warning = form ? Mathf.Max(.1f, form.warningSeconds) : 0, last = EnemyEncounterAuthoring.LastDelay(form);
+        float time = TimeOf(index), warning = form ? Mathf.Max(.1f, form.warningSeconds) : 0, last = LastDelay(form, index);
         var r = new Rect(12 + Mathf.Max(0, time - warning) * pixelsPerSecond, y, Mathf.Max(8, (Mathf.Min(time, warning) + last) * pixelsPerSecond), 26);
         bool problem = issues.Any(i => i.cue == index);
         var state = Live ? Director.CueStates.FirstOrDefault(c => c.index == index) : null;
@@ -400,10 +428,12 @@ public sealed partial class EnemyEncounterComposer : EditorWindow
         EditorGUI.DrawRect(r, fill);
         float arrivalX = 12 + time * pixelsPerSecond;
         EditorGUI.DrawRect(new Rect(arrivalX, y, Mathf.Max(3, last * pixelsPerSecond), 26), new Color(.24f, .52f, .73f));
+        foreach (var extra in Extras(form, index)) EditorGUI.DrawRect(new Rect(arrivalX + extra.releaseDelay * pixelsPerSecond, y + 18, 3, 8), new Color(.8f, .55f, 1));
         EditorGUI.DrawRect(new Rect(arrivalX, y - 3, 2, 32), ArrivalColor);
         if (selected == index) { Handles.color = ArrivalColor; Handles.DrawWireCube(new Vector3(r.center.x, r.center.y, 0), new Vector3(r.width + 4, r.height + 4, 0)); }
         string text = string.IsNullOrEmpty(cue.label) ? form ? form.name : "Missing formation" : cue.label;
         if (state != null) text += " · " + state.state;
+        if (Extras(form, index).Count > 0) text += $" (+{Extras(form, index).Count})";
         var labelRect = new Rect(r.x, y + 27, Mathf.Max(100, r.width), 18);
         GUI.Label(labelRect, new GUIContent(text, $"{text}\nFirst arrival: {time:0.00}s · Last: {time + last:0.00}s\n{state?.Progress}\n{state?.reason}"), EditorStyles.miniLabel);
         var hit = new Rect(r.x, r.y - 3, Mathf.Max(24, r.width), 46);
@@ -413,7 +443,7 @@ public sealed partial class EnemyEncounterComposer : EditorWindow
             if (CanEdit)
             {
                 dragControl = GUIUtility.GetControlID(FocusType.Passive); GUIUtility.hotControl = dragControl;
-                dragging = index; dragStartX = Event.current.mousePosition.x; dragStartTime = dragTime = cue.arrivalSeconds;
+                dragging = index; dragStartX = Event.current.mousePosition.x; dragStartTime = dragTime = cue.arrivalSeconds * displayTimeScale;
             }
             Event.current.Use(); Repaint();
         }
@@ -427,7 +457,7 @@ public sealed partial class EnemyEncounterComposer : EditorWindow
         if (e.type == EventType.MouseUp && e.button == 0)
         {
             int index = dragging; float time = dragTime; CancelDrag();
-            EnemyEncounterAuthoring.Move(timeline, index, time, 0); Changed(); e.Use();
+            EnemyEncounterAuthoring.Move(timeline, index, time / displayTimeScale, 0); Changed(); e.Use();
         }
     }
     private void HandleDrop(Rect row, EnemyDefinition type)

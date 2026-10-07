@@ -69,6 +69,11 @@ public class GameManagerScript : MonoBehaviour
     public MatchRuntimePhase Phase { get; private set; } = MatchRuntimePhase.Preparing;
     public float RegulationRemainingSeconds => Mathf.Max(0f, _regulationRemainingSeconds);
     public float RegulationDurationSeconds => Mathf.Max(1f, _regulationDurationSeconds);
+    // Available before Start and in editor previews; uses the same profile precedence as EnsureScoreService.
+    public float ConfiguredRegulationDurationSeconds => scoreEconomyProfile ? scoreEconomyProfile.RegulationDurationSeconds
+        : scoreService && scoreService.Profile ? scoreService.Profile.RegulationDurationSeconds : 120f;
+    public float EncounterRegulationDurationSeconds => _regulationDurationSeconds > 0f
+        ? _regulationDurationSeconds : ConfiguredRegulationDurationSeconds;
     public float BonusElapsedSeconds => Mathf.Max(0f, _bonusElapsedSeconds);
     public MatchScoreService ScoreService => scoreService;
     public long FinalLightMilliElectronVolts => finalLightMilliElectronVolts;

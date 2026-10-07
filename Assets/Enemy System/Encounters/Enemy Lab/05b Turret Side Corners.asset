@@ -13,6 +13,10 @@ MonoBehaviour:
   m_Name: 05b Turret Side Corners
   m_EditorClassIdentifier: 
   warningSeconds: 2
+  integrity: 1
+  maxPositionAdjustment: 0
+  blockedSlotGrace: 3
+  adjustmentPattern: 0
   slots:
   - enemy: {fileID: 11400000, guid: 6f3894cbeefe69747a0c29774dff7027, type: 2}
     telegraph: {fileID: 5068085433824001074, guid: 25e5d64499b5b6248808906d63821390,
@@ -22,6 +26,8 @@ MonoBehaviour:
     facing: {x: 1, y: 0}
     socket: SideLeftTop
     releaseDelay: 0
+    placementGroup: 0
+    releaseGroup: 0
     entrySeconds: 0
     entrySpeed: 1.4
   - enemy: {fileID: 11400000, guid: 6f3894cbeefe69747a0c29774dff7027, type: 2}
@@ -32,5 +38,7 @@ MonoBehaviour:
     facing: {x: -1, y: 0}
     socket: SideRightBottom
     releaseDelay: 0
+    placementGroup: 0
+    releaseGroup: 0
     entrySeconds: 0
     entrySpeed: 1.4

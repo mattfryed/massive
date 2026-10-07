@@ -1,11 +1,30 @@
 using UnityEngine;
+using System.Collections.Generic;
+using UnityEngine.SceneManagement;
 
 namespace Massive.PowerUps
 {
     [DisallowMultipleComponent]
     public class PowerUpPickupToastSystem : MonoBehaviour
     {
-        public static PowerUpPickupToastSystem Instance { get; private set; }
+        private static readonly List<PowerUpPickupToastSystem> systems = new();
+        public static PowerUpPickupToastSystem Instance => ForScene(SceneManager.GetActiveScene());
+        public static PowerUpPickupToastSystem ForScene(Scene scene)
+        {
+            foreach (var system in systems) if (system && system.gameObject.scene == scene) return system;
+            // Also recover when entering Play Mode without a domain/scene reload.
+            if (scene.IsValid() && scene.isLoaded)
+                foreach (var root in scene.GetRootGameObjects())
+                {
+                    var system = root.GetComponentInChildren<PowerUpPickupToastSystem>(true);
+                    if (!system) continue;
+                    systems.Add(system);
+                    return system;
+                }
+            return null;
+        }
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetStatics() => systems.Clear();
 
         [Header("Prefab")]
         [SerializeField] private PowerUpPickupToast toastPrefab;
@@ -38,13 +57,15 @@ private void Start()
 
 private System.Collections.IEnumerator PrewarmRoutine()
 {
-    if (!toastPrefab) yield break;
+    var settings = PowerUpSettings.Current;
+    var prefab = settings ? settings.toasts.prefab : toastPrefab;
+    if (!prefab || (settings && !settings.toasts.enabled)) yield break;
 
     Camera cam = cameraOverride ? cameraOverride : Camera.main;
 
     // Spawn far away so it won't be seen
     Vector3 far = new Vector3(99999f, 99999f, 99999f);
-    var toast = Instantiate(toastPrefab, far, Quaternion.identity, parent);
+    var toast = Instantiate(prefab, far, Quaternion.identity, parent ? parent : transform);
 
     // Run once to force TMP + layout + materials to initialize
     toast.Play(prewarmText, 0f, 0.01f, 0f, cam);
@@ -58,17 +79,23 @@ private System.Collections.IEnumerator PrewarmRoutine()
 
         private void Awake()
         {
-            if (Instance != null && Instance != this)
-            {
-                Destroy(gameObject);
-                return;
-            }
-            Instance = this;
+            if (!systems.Contains(this)) systems.Add(this);
         }
+
+        private void OnDestroy() => systems.Remove(this);
 
         public void Show(PowerUpDefinition def, Vector3 pickupWorldPos)
         {
-            if (!toastPrefab) return;
+            Show(def, pickupWorldPos, null);
+        }
+
+        /// <summary>Use the same toast with an explicit owner for isolated demonstrations.</summary>
+        public PowerUpPickupToast Show(PowerUpDefinition def, Vector3 pickupWorldPos, Transform owner)
+        {
+            var settings = PowerUpSettings.Current;
+            var tuning = settings ? settings.toasts : null;
+            var prefab = tuning != null ? tuning.prefab : toastPrefab;
+            if (!prefab || (tuning != null && !tuning.enabled)) return null;
 
             Camera cam = cameraOverride ? cameraOverride : Camera.main;
 
@@ -82,11 +109,11 @@ private System.Collections.IEnumerator PrewarmRoutine()
 
             // 2-line label (desc optional)
             string text =
-                string.IsNullOrWhiteSpace(desc)
+                string.IsNullOrWhiteSpace(desc) || (tuning != null && !tuning.showDescription)
                     ? title
-                    : $"{title}\n<size=70%>{desc}</size>";
+                    : $"{title}\n<size={(tuning != null ? tuning.descriptionPercent : 70):0}%>{desc}</size>";
 
-            Vector3 pos = pickupWorldPos + Vector3.up * worldYLift;
+            Vector3 pos = pickupWorldPos + Vector3.up * (tuning != null ? tuning.worldYLift : worldYLift);
 
             if (cam)
             {
@@ -94,11 +121,14 @@ private System.Collections.IEnumerator PrewarmRoutine()
                 up.y = 0f;
                 if (up.sqrMagnitude < 1e-4f) up = Vector3.forward;
                 up.Normalize();
-                pos += up * screenUpOffsetWorld;
+                pos += up * (tuning != null ? tuning.screenUpOffset : screenUpOffsetWorld);
             }
 
-            var toast = Instantiate(toastPrefab, pos, Quaternion.identity, parent);
-            toast.Play(text, introSeconds, totalSeconds, outroSeconds, cam);
+            var toast = Instantiate(prefab, pos, Quaternion.identity, owner ? owner : (parent ? parent : transform));
+            if (tuning != null) toast.ApplySettings(tuning);
+            toast.Play(text, tuning != null ? tuning.introSeconds : introSeconds,
+                tuning != null ? tuning.totalSeconds : totalSeconds, tuning != null ? tuning.outroSeconds : outroSeconds, cam);
+            return toast;
         }
 
     }

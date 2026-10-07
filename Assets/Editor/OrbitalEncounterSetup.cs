@@ -70,7 +70,8 @@ public static class OrbitalEncounterSetup
         if (layout.sockets.Count == 0)
         {
             void Socket(string id, Vector2 position, Vector2 inward) => layout.sockets.Add(new EnemyArenaLayout.Socket
-            { id = id, position = position, inward = inward, clearanceOffset = 1.12f, aimArc = 75 });
+            { id = id, position = position, inward = inward, clearanceOffset = 1.12f, aimArc = 75,
+                useRange = true, rangeStart = new Vector2(0, position.y), rangeEnd = new Vector2(Mathf.Sign(position.x), position.y) });
             Socket("TopLeft", new(-.5f, 1), Vector2.down); Socket("TopRight", new(.5f, 1), Vector2.down);
             Socket("BottomLeft", new(-.5f, -1), Vector2.up); Socket("BottomRight", new(.5f, -1), Vector2.up);
         }

@@ -1520,3 +1520,522 @@ the three added web controls; camera, oval, HUD and existing element poses are u
 Backups: Library/CosmosWeb/BeforeWeb.unity and OrganicBefore (previous source/captures
 and the user's saved scene). Install shortcut Ctrl+Shift+Alt+F7;
 validation shortcut Ctrl+Shift+Alt+F12. Scene is saved with midpoint Edit Mode preview.
+
+COSMOS supernova extension (2026-10-05): based on pulled v5 commit 3d9127b1,
+which adds the user's revised web motion/heat controls, normal supernova scheduler,
+level icon and dictionary registration. The current saved oval is 36 x 13,
+camera size 9, web padding 0.05, brightness 1.5 and Edit Mode preview age 1.
+Those authored settings, all 494 existing transforms and both cameras were
+preserved during this extension; earlier preview/padding notes above are historical.
+
+VectorGridGPU now has two CosmicSupernovae components sharing the existing web
+and regulation-clock scheduling logic, each with its own controls, pool and random
+stream. Normal retains its authored 3/sec peak and now chooses gold, slightly cyan
+white, cyan-blue or light purple once per event. Superluminous uses a half-height
+curve (including halved tangents), yielding 1.5/sec at midpoint with the same
+rate scalar. It releases the existing pooled Orbital Mass Nugget (reward multiplier
+1) instead of the normal Mass Nugglet (0.1). Its radius is 1.8 vs 0.75, brightness
+8 vs 4, burst duration 0.65 vs 0.4 and glow die-off 0.75 vs 0.3 seconds. The shared
+shader adds a blue-white core, cyan inner glow and noisy orange expanding shell.
+The Inspector distinguishes both layers and uses the same 0–1 curve display scale.
+
+Supernova validation passed 24 Play Mode checks in Unity 6000.0.28f1 / DX11,
+including frequency across 201 ages, both real pickup types/reward multipliers,
+per-event color stability, buildup, pause, rewind, pool reuse and independent
+layer cleanup. No runtime errors/exceptions; four existing kinematic startup
+warnings remain. Shader comparison and live gameplay captures were reviewed.
+Installation preserves existing settings; validation leaves the saved scene
+unchanged and returns to Edit Mode. Reports/images: Library/CosmosSupernovae.
+Menu: MASSIVE > COSMOS > Supernovae; install shortcut Ctrl+Shift+Alt+F6, validation
+Ctrl+Shift+Alt+F5. No standalone build, cabinet profiling or collection-balance
+playtest was performed. Full controls are documented in the COSMOS README.
+
+COSMOS cloud refinement (2026-10-05): superluminous clouds now expand for 1.8
+seconds and then dissolve over 2.4 seconds, independently of the existing 0.65s
+center flash and 0.75s localized glow. New Inspector controls expose these two
+times, Cloud Distortion (0.85), Cloud Mixing Speed (0.45) and Telegraph Distortion
+(0.85). Warped noise mixes blue/orange gas into asymmetric moving lobes and wisps,
+replacing concentric shells and the circular telegraph. Normal visuals and all
+spawn/pickup controls retain their prior behavior. The existing shellColor and
+shellDetail fields are relabelled Warm Ejecta Color and Cloud Fine Detail.
+
+CosmosArenaLayout now owns a transient continuous black mask quad using the
+existing CosmosArenaMask shader and the live full ellipse, including goal caps.
+The new serialized shader reference and Mask Outside Oval toggle are installed.
+The quad spans the cabinet view, immediately above the cosmic depth slab and
+behind gameplay/HUD. This avoids the rectangular masks' corner gaps and preserves
+world-space score glyphs. Buffers/materials are released with the layout. The saved
+scene diff for this refinement adds only the mask reference/toggle and cloud fields;
+299 authored transforms, both cameras, web settings and existing tuning are unchanged.
+Backup: Library/CosmosSupernovae/BeforeCloudRevision.unity. Apply menu/shortcut:
+MASSIVE > COSMOS > Supernovae > Apply cloud and oval mask revision (Ctrl+Shift+Alt+F4).
+
+All 28 supernova Play Mode checks passed, including the longer cloud lifetime,
+3,292/3,292 sampled border spill pixels covered, and 5,239/5,239 HUD pixels retained
+after startup (allowing the existing unit-label pulse). Actual cloud/telegraph,
+live gameplay, border and HUD captures were reviewed. No runtime errors/exceptions;
+existing shared warnings remain. Latest report/images overwrite the prior ones in
+Library/CosmosSupernovae. No standalone build or cabinet performance qualification.
+
+## Particle Accelerator sustained turret plasma — 2026-10-05
+
+The player power-up now charges while Sword is held, sustains until release, and
+cancels on stun/unequip. Release stops damage/contact emission immediately while
+the beam retracts. The canonical definition references the new
+`ParticleAcceleratorSustainedBeam.prefab`, created once by
+`ParticleAcceleratorBeamSetup` from the Particle Beam Turret's authored visual,
+core plasma and contact plasma children. Enemy controllers/colliders are not
+copied; the turret prefab and its tuning are unchanged. Legacy pulse fields and
+projectile remain serialized for compatibility but are hidden from current tuning.
+
+`ParticleBeamAimTrail` keeps bounded unwrapped aim history and integrates delayed
+tangents along the beam's forward axis. The shared renderer optionally adds this
+path to both its plasma strands and collision envelope; turret users have no aim
+trail and retain their prior behavior. Swept segment queries clip the curved beam
+against shields, bodies, enemy hurtboxes, solid geometry and arena bounds. Filters
+preserve simulation isolation. The player ability advances the rig's explicit
+clock, so match locks and zero delta freeze it; the rig owns all transient VFX.
+
+Power-up Settings > Particle Accelerator exposes charge, range, DPS, grow/fade,
+opening radius, movement, muzzle, collision mask, propagation speed (45 world
+units/s), maximum delay (.35s) and bend cap (35 degrees). Delay zero disables the
+arc. Its appearance foldout edits the shared beam/emitter/contact prefab; new
+equips instantiate that tuning. Definition controls are read live. Player size
+scales width/muzzle/plasma and projectile reach scales axial range. Updated demo
+choreography holds through charge and releases after beam contact.
+
+Unity compilation succeeded. `ParticleAcceleratorBeamValidation` passed 26 checks
+covering high-framerate/wrapped heading history, visible arcing, curved collision,
+impact placement, damage, release/retraction, simulation isolation, real input,
+match pause, cleanup and all three accelerator shield/parry demo lanes, with no
+runtime Console errors. The report and reviewed rendered arc are in
+`Library/ParticleAcceleratorBeamValidation`. Run via the Particle Accelerator tab
+or MASSIVE > Power-ups > Validate Sustained Particle Accelerator in PLAYER ACTIONS.
+
+The final live beam resolves in LateUpdate after shield/release input, before its
+renderer uploads the path. Charge completion does not double-spend the same frame
+delta on beam growth/damage. This also preserves parries during slow capture
+frames. Final validation: 26 beam checks plus all 189 power-up/icon/settings and
+collider checks passed, with zero runtime Console errors. Existing startup
+kinematic-body warnings remain. No standalone build was run.
+
+### Particle Accelerator energy-meter revision (2026-10-05)
+
+Supersedes the charge/recharge behavior above: acquisition fills the ring and
+Sword fires immediately. Holding drains a normalized meter; idle gameplay time
+refills it. Shared defaults are six seconds of continuous fire, four seconds
+empty-to-full refill and a one-second minimum burst per press. Releasing before
+that minimum keeps the burst running, capped by available energy. Release after
+the minimum, exhaustion, stun, parry or unequip stops it. Exhaustion requires a
+fresh press to use recovered energy. There is no full-charge threshold or
+post-shot cooldown. The normal power-up lifetime still applies.
+
+The ability computes energy and firing time in the beam's LateUpdate callback,
+after all actors apply input; a partially funded last frame advances collision
+only for its available firing time. Remaining frame time refills and advances
+the non-damaging fade. Match input locks and transit pause these clocks. The
+existing ParticleAcceleratorVFXModule has a ring-only energy mode; its orb and
+aim dots stay disabled. PlayerPowerUpController exposes read-only
+ParticleAcceleratorEnergy01. The shared settings tab exposes the three timing
+controls, derived minimum-burst percentage and ring appearance prefab fields.
+Legacy serialized charge/cooldown fields remain hidden for asset compatibility.
+
+The accelerator demo choreography now raises parry shields before instant
+firing; long power-up demo sequences wait for meter refill. Unity compilation
+and 40 focused Play Mode checks passed, including real input, one-second taps,
+partial-charge caps, exhaustion, refill, pause, cleanup and all three shield/
+parry lanes. The energy-ring firing capture was visually reviewed at
+Library/ParticleAcceleratorBeamValidation/energy-ring-firing.png.
+The broader 189 power-up/icon/settings/collider checks also passed, for 229
+checks total with no runtime Console errors. Unity was returned to Edit Mode
+with the Particle Accelerator settings tab open. No standalone build was run.
+
+### Particle Accelerator enemy damage verification (2026-10-06)
+
+`MASSIVE > Power-ups > Validate Particle Accelerator Enemy Damage` passed 58
+Play Mode checks against the seven canonical enemy prefabs: Drone, Ranged Drone,
+Seeker, Particle Beam Turret, Carrier and both Dyson Sphere variants. Collision,
+continuous DPS, impact plasma, pause, simulation isolation, non-damaging fade,
+and one-time lethal defeat attribution to the shooter passed without runtime
+Console errors. The isolated fixture advances the beam clock directly for lethal
+checks; it does not bypass energy in normal gameplay or validate score awards.
+Report: `Library/ParticleAcceleratorBeamValidation/enemy-report.txt`.
+
+Current shared DPS is 0.08 against both player mass and enemy health. Six seconds
+of charge supplies slightly under 0.48 damage after beam growth, versus health
+1 for Drone/Ranged Drone/Seeker, 3 for the turret, 6 for Carrier and 20 for Dyson.
+The damage path works, but current tuning cannot kill a fresh Drone in one tank.
+No production damage code or balance values were changed during this check.
+
+### Separate Particle Accelerator target damage (2026-10-06)
+
+The shared definition now exposes `playerDamagePerSecond` and
+`enemyDamagePerSecond` under Damage / Mass in Power-up Settings. The beam selects
+the rate by target type; player shields and actual-loss mass transfer retain their
+existing behavior. Both rates remain 0.08 initially. The previous serialized
+`damagePerSecond` maps to the player field through `FormerlySerializedAs`; the
+single canonical definition explicitly stores both values. Player demo safety
+limits use the player rate. These shared definition values are read live.
+
+Unity compilation and 78 focused Play Mode checks passed with no runtime Console
+errors. The enemy validator now covers independent live rate changes and zero
+damage on all seven enemy prefabs, plus a real player target and player mass
+transfer. Results remain in `Library/ParticleAcceleratorBeamValidation/enemy-report.txt`.
+Existing unrelated compiler and player-spawn kinematic-body warnings remain.
+No scene/prefab changes or standalone build were needed.
+
+### Particle Accelerator firing movement controls (2026-10-06)
+
+Power-up Settings > Particle Accelerator > Firing movement exposes movement and
+turning speed scales from 0 to 1. Existing movement tuning remains 0.65; turning
+defaults to 1. Movement scales propulsion and the speed cap, including a true
+zero. Turning scales the player's maximum yaw speed and supplies the same limited
+heading to combat facing and the beam's visual/collision path, before distance
+based arc propagation. Shared definition edits apply live during firing. Both
+restrictions last through minimum tap bursts and clear when firing stops or the
+power-up is removed. Idle aim remains unrestricted.
+
+Unity compilation and all 18 focused Play Mode checks passed with no runtime
+Console errors in S-0_ATTRACT. Coverage includes zero movement/turning, half and
+full turn rates, live edits, beam/facing alignment, pause, minimum bursts, meter
+exhaustion and unequip. Run MASSIVE > Power-ups > Validate Particle Accelerator
+Firing Movement; results are in
+`Library/ParticleAcceleratorBeamValidation/movement-report.txt`.
+The settings labels and sliders were verified in the native window. No scenes
+were saved and no standalone build was run.
+
+### Particle Accelerator easing, pickup input and life presentation (2026-10-06)
+
+The shared Particle Accelerator definition exposes **Aim Direction Ease Seconds**
+under Firing movement, initially 0.2. Firing yaw uses SmoothDampAngle with retained
+angular velocity and the existing turn-rate limit, so direction reversals brake
+before accelerating the other way. Zero restores constant-speed turning; zero
+turn scale locks immediately. Idle facing and beam arc propagation retain their
+separate behavior. User tuning present before this change (movement 0.2, turn
+0.05, enemy DPS 4, player DPS 0.2, radius 0.2, duration 150) was preserved.
+
+A controlled Play Mode reproduction confirmed both reported defects before the
+fix: equipping during the acquiring attack's input frame fired immediately, and
+the ring remained visible after DeathHidden. The ability now rejects the equip
+frame's attack and remembers whether Sword was already held before pickup;
+release/repress arms the next shot. Death cancels the beam and also requires a
+fresh press after respawn. Existing power-up lifetime and idle recharge remain.
+
+ParticleAcceleratorVFXModule follows the player's life-effect radius during death
+and respawn, using existing life events to hard-hide the ring between them.
+Bindings are removed on rebind/destruction. ParticleAcceleratorAimGuide draws the
+turret's white volumetric dash style while equipped and idle, clips against beam
+eligible blockers and arena bounds, and hides during firing/death. It is created
+and destroyed with the beam; no scene or prefab installation is needed.
+
+Unity 6000.0.28f1 compilation, 22 refinement Play Mode checks and all 18 existing
+firing-movement checks passed with no runtime Console errors in S-0_ATTRACT.
+Refinement coverage includes equip-frame/held input, fresh press, obstacle-clipped
+guide, idle direction, reversing with easing, live zero easing, zero turn scale,
+release, actual death while firing, shrinking/hidden ring, respawn and unequip.
+Rendered captures of idle/clipped guides and shrinking/hidden death states were
+inspected. Run MASSIVE > Power-ups > Validate Particle Accelerator Refinements;
+reports and images are in `Library/ParticleAcceleratorBeamValidation`, including
+`refinements-before.txt`, `refinements-report.txt`, and `movement-report.txt`.
+No scenes were saved or standalone build run.
+
+### Pickup contacts, icon displacement and beam regrowth (2026-10-06)
+
+ParticleAcceleratorBeam resumes its initial smooth growth curve from the last
+blocked length using Beam Grow Seconds when an obstruction leaves. Collision,
+damage and impact plasma are restricted to the growing tip; nearer blockers
+still clip immediately. Aim history and the full visual reference path remain
+independent of the clipped length, preserving the existing arc.
+
+PowerUpPickup shares an idempotent TryActivate path between trigger-enter,
+trigger-stay and Repulsor's final-radius overlap sweep. Thrust, Sweep and active
+Repulsor all qualify; the player's body does not. MatterNuggetScript now requires
+the non-trigger Player-tagged body for collection, so swords, Repulsor and shields
+cannot gather free Matter/Orbital nuggets or nugglets.
+
+PU_MassNode's nested decorative nugget now removes MatterNuggetScript as well as
+its Rigidbody/colliders. Merely disabling that script let RequireComponent
+restore a child Rigidbody, leaving the inner particles behind during a shove.
+The normal-physics fixture reproduced a 0.256-unit separation before the fix and
+zero afterward. The other three canonical icons stayed centered in the same
+physical-contact test before and after; no unrelated visual changes were made.
+
+MASSIVE > Power-ups > Validate Pickup Contacts and Beam Growth passed 56 Play
+Mode checks in Unity 6000.0.28f1, with no runtime Console errors. It covers real
+stage collider contacts, duplicate claims, existing-overlap Sweep, final-radius
+Repulsor, collection filtering, all four icons during physical displacement,
+beam regrowth, delayed next-target damage/plasma, live growth speed and very short
+frame steps. Reports and inspected bump captures are under
+Library/PowerUpContactValidation. No scenes or user tuning were saved/changed.
+The existing 78 enemy/player damage checks and 22 input/aim/death refinement
+checks also passed with no runtime Console errors (156 checks total). Enemy
+validation now uses low DPS on its cloned definition for nonlethal assertions,
+then authored DPS for kill attribution; the former live-tuning assumption failed
+because the user's 6 enemy DPS killed targets before contact could be inspected.
+Compilation and diff whitespace checks passed; no standalone build was run.
+
+### COSMOS enemy formation mapping (2026-10-06)
+
+`EnemyArenaLayout.World` now follows the grid's oval column mapping when the
+referenced bounds has `ovalOutline`. `Resolve` adds a scene-level
+`ovalSpawnInset` (default 0.25 world units) to non-socket placements using the
+offset supporting lines of the 96-segment physical boundary. Goal caps stay
+outside spawn territory. Top/bottom sockets remain on the wall, using an inward
+ellipse normal and preserving authored aim offsets; mobile facing angles remain
+authored. Rectangular layouts keep the original mapping. Scene gizmos and the
+Encounter Composer's boundary preview reflect the oval. No encounter assets,
+Director scheduling, camera, HUD, goals, or saved scene values were edited.
+
+Unity 6000.0.28f1 compiled this change. `CosmosEnemyLayoutValidation` passed 47
+Play Mode checks in the saved COSMOS scene: 441 inset/symmetry samples, live
+dimension/scale changes, rectangular fallback, 216 original/mirrored formation
+poses, and all 16 selected cues (183 real releases). Warnings and spawns agree;
+release groupings and adjacent cadence retain authored values within the existing
+scheduler's warning/release tick tolerance. The fixture runs cues individually
+with a demonstration scope and pauses spawned enemies; it is placement validation,
+not a full match balance test. Timeline, formation and saved scene hashes are
+unchanged. Reports and visually inspected rows/mounts captures are in
+`Library/CosmosEnemyLayoutValidation`. No standalone build was requested or run.
+The pre-existing optional side-turret variant references unavailable
+`SideLeftTop`/`SideRightBottom` sockets; these were reported and not installed.
+Existing player-spawn kinematic-velocity warnings remain; no new runtime errors.
+
+### COSMOS full-sequence spawn audit (2026-10-06)
+
+Investigated missed encounters without changing gameplay, scene, timeline or
+formation settings. `CosmosSpawnAudit` adds MASSIVE > COSMOS > Audit full encounter
+spawning. It probes the real pickup prefabs with the Director's MemberClear path,
+then records cue/slot rejection transitions through the full sequence. Evidence:
+Library/CosmosSpawnAudit/baseline.txt and baseline-summary.txt.
+
+All four current power-up prefabs plus Matter nugget, Orbital Mass Nugget and
+Mass Nugglet permitted overlapping enemy arrivals. Their actual colliders are on
+Default (0), outside the Director's 2688 mask (PowerUps, NoSpawnZone, Obstacle).
+The mask's PowerUps bit does not itself imply that the present pickup prefabs
+block. COSMOS retains Resonance/Amplifier overlap permission and has no shared
+Amplifier placement region. Positive controls confirmed ordinary obstacles,
+NoSpawnZone volumes and player clearance still reject arrivals.
+
+The unattended 2x-time replay finished all 16 cues: 100 of 183 authored enemies
+spawned, with 3 complete, 5 partial and 8 skipped cues. Failures were existing
+enemy/player occupancy, occupied turret sockets and the 80-total population cap;
+there were no collider, warped-footprint or full-query rejection reasons.
+Seeker at 27s and Dyson at 39s were blocked by enemies; Carrier at 63s by a player;
+the 99s turret cue reused TopLeft/BottomRight still occupied by the 51s turrets.
+The 150.5s Ranged rows requested 20 against 53 alive + 19 reserved; the 159s
+Ranged phalanxes requested 20 against 62 alive. Both exceeded the total cap.
+Seeker, Dyson, Carrier and turret formations still inherit Strict integrity and
+zero adjustment; their cue overrides are disabled and allowed lateness is 3s.
+Thus a blocked member can reject an entire strict formation. Flexible Drone
+formations instead skipped individual occupied slots. Initial population
+reservation still requests the entire formation, even for Flexible integrity.
+
+This was a diagnostic replay with normal AI, stationary unassisted players,
+normal pickup spawning, no scripted kills/heals and no occupancy overrides; its
+counts do not reconstruct the user's earlier playthrough. Unity compiled and
+reported zero runtime errors. The authored timeline and saved scene hash stayed
+unchanged, and COSMOS returned to Edit Mode. Existing player-spawn warnings remain.
+
+### Flexible formations and wall quadrants (2026-10-06)
+
+The follow-up replaces the strict Seeker, Dyson, Carrier and turret formation
+defaults referenced in the audit above. All formations used by the shared Enemy
+Lab timeline, including its fallbacks, now use Flexible integrity with independent
+slot releases and 3s blocked-slot grace. Existing Drone/Ranged formation tuning is
+preserved. Seeker/Dyson can adjust up to 1.5 world units before warning; both Carrier
+formations can adjust up to 2. These are shared formation asset settings, with the
+existing per-cue overrides still available in the Composer.
+
+`EnemyArenaLayout.Socket` supports opt-in searchable wall ranges while preserving
+legacy fixed mounts. COSMOS's TopLeft/TopRight/BottomLeft/BottomRight mounts cover
+their entire half of the top/bottom boundary. Endpoints run from wall center to
+corner so equal fractions yield mirrored positions. `EnemyDirector.WallPlacement`
+searches a bounded 64-step grid nearest the preferred position, first attempting
+equal fractions across the unannounced pair, then independent available positions.
+Oval positions follow the curved wall and update the inward normal at each candidate.
+Once announced, warning positions remain immutable; blocked arrivals retry/expire
+under the existing flexible policy. A live turret reserves its inward-offset body
+footprint rather than monopolizing the whole quadrant, allowing later waves in
+remaining space. Destruction/restart clears its footprint reservation.
+
+The Composer highlights selected wall ranges in yellow and offers **Inspect wall
+ranges**. The arena layout Inspector exposes **Search wall range**, endpoints,
+preferred position, inward direction, aim arc, clearance offset and support collider.
+Mobile displacement does not constrain wall searches. New Lab/ORBITAL setups use
+the same quadrant defaults; existing other scenes retain their saved mount modes.
+Population limits, exclusion volumes, player/enemy clearance and environmental
+overlap permissions still apply. Flexibility does not override the population cap.
+
+`MASSIVE > Encounters > Validate flexible COSMOS placement` runs temporary Play Mode
+fixtures with real prefabs; evidence is written to
+`Library/EnemyFlexiblePlacement/validation.txt`. The setup utility is at
+`MASSIVE > Encounters > Use flexible formations and wall quadrants in current scene`.
+
+Validation passed 31 checks with zero runtime Console errors: rectangular/oval
+geometry, inward orientation, repeated live turret waves, symmetric relocation,
+asymmetric fallback, fully blocked quadrant isolation, retry after clearing,
+immutable warnings, mobile partial releases/local corrections, legacy fixed-mount
+occupancy, population limits, and unchanged saved assets during fixtures. COSMOS
+returned to Edit Mode. This is targeted placement validation, not a new unattended
+full-sequence audit or a standalone build.
+
+### Turret orientation controls and four-quadrant formation (2026-10-06)
+
+Turret formation assets now have a **Flip orientation** Inspector button with
+Undo/Redo and multi-selection support. It swaps the standard left/right mount
+IDs, including the side-wall fallback IDs; mount geometry and inward facing still
+come from the level's layout. This edits the shared formation and therefore all
+encounters that use it.
+
+The Composer's selected-encounter panel also has **Flip orientation**, backed by
+`EnemyEncounterTimeline.Cue.flipWallOrientation` (default false). This flips only
+that encounter's wall mounts, including variants/fallbacks, and is independent of
+seeded mobile mirroring. Duplication and Unity serialization preserve the setting;
+runtime, authoring validation, scene handles and arena previews resolve the same
+flipped mounts. Missing or unrecognized opposite mounts reject placement explicitly.
+
+`05c Turret Four Quadrants.asset` adds a Composer library formation containing one
+turret in each of TopLeft, TopRight, BottomLeft and BottomRight, with simultaneous
+arrivals, 2s warning, Flexible integrity and 3s per-slot grace. It uses the existing
+wall-range search and population accounting. It is available to drag onto the
+timeline; existing encounter timing and orientation were preserved.
+
+Validation: 12 Editor control checks passed (Undo/Redo, independent cue edits,
+duplication and serialization), followed by 38 COSMOS Play Mode placement checks
+with zero runtime errors. Added scenarios verify both diagonals using one shared
+asset and all four turrets relocating symmetrically around an obstruction. Reports:
+`Library/EnemyTurretFormations/validation.txt` and
+`Library/EnemyFlexiblePlacement/validation.txt`. Unity returned to Edit Mode;
+the new Inspector/Composer buttons and Four Quadrants library entry were reviewed.
+
+### Draggable Composer spawn previews (2026-10-06)
+
+In **ARENA PLACEMENT**, drag a spawn circle to set its preferred location.
+With a timeline encounter selected, this creates a per-slot override on that cue;
+with a library formation selected, it edits the shared formation. Mobile positions
+stay within their authored region and invert the level's oval mapping/inset and
+seeded mirroring. Turrets project onto their resolved wall range (including a
+flipped quadrant), maintaining wall contact and inward facing. Fixed wall mounts
+remain read-only in the preview. Runtime conflict handling can still adjust a
+blocked preferred location before its warning begins.
+
+Drag proposals are temporary until release; Escape, focus loss and entering Play
+Mode cancel them. A release creates one Undo operation. **Reset placements to
+formation** clears the selected cue's overrides for the displayed formation, with
+Undo. Hover/drag feedback identifies the slot and checks its footprint against
+the arena, exclusions and other slots in that formation. Authoring remains locked
+during Play Mode. The preview cannot predict future moving blockers.
+
+`Cue.placementOverrides` is scoped by formation reference and slot index, so
+variants/fallbacks do not inherit unrelated overrides. Duplication deep-copies the
+entries. Reordering a shared formation's slots also changes which slot an index
+refers to; reset/review affected cue placements after structural template edits.
+The runtime reservation path, radial adjustment center, Composer, authoring
+validation and scene handles all resolve effective cue slots. Shared wall slots
+can override their preferred range fraction without modifying the scene layout.
+
+Validation: `MASSIVE > Encounters > Validate spawn placement editing` passed 14
+Editor checks, then 40 COSMOS Play Mode placement checks with zero runtime errors.
+Reports are in `Library/EnemySpawnPlacement/validation.txt` and
+`Library/EnemyFlexiblePlacement/validation.txt`. The runtime cases verify exact
+mobile and flipped-wall arrivals at edited positions, alongside existing blocker,
+warning-lock, symmetry and population checks.
+Native Editor interaction also verified Carrier drag/Undo and flipped turret
+drag/reset along the curved wall. A hover-dependent IMGUI control-count error was
+fixed by reserving a stable hint row and reset control; repeated native drags then
+produced no new Console errors. Test edits were restored to template positions.
+
+### Regulation-relative encounter timing (2026-10-06)
+
+`EnemyEncounterTimeline.fitRegulation` maps each authored cue's first arrival by
+`regulation duration / authored timeline duration`. The shared timeline enables
+this option; its saved 181-second authoring span and cue values are preserved.
+At the current 120-second regulation, a cue halfway across that span starts at
+60 seconds; at 240-second regulation it starts at 120 seconds. This fits the
+existing full schedule into the match instead of retaining late cues outside
+regulation. Turning **Fit regulation** off restores fixed authored timing.
+
+The Director reads its scene's GameManager duration (same score-profile precedence
+as match startup), captures the scale at timeline start/restart, and scales its
+completion time. It does not rewrite assets or move an active run's warnings when
+settings change. Telegraph lengths, within-formation stagger, allowed lateness,
+blocked-slot grace and enemy behavior continue using their existing durations.
+Extremely early/late cues can still need adjustment for a complete warning or
+stagger; the Composer reports those timing constraints. Play-cue mode keeps its
+short preview lead, and ordinary pause/conflict rules remain in force.
+
+The Composer ruler, blocks, playhead, arrival fields, drag/drop and checks use
+effective match seconds; edits convert back to the proportional authored time.
+**Authored span (s)** defines the reference span; the displayed mapping shows the
+current level's regulation duration and ratio. The Lab has a separate
+**Preview regulation (s)** setting (120 by default) so its long Player Actions
+test-scene clock does not stretch encounter previews to 20 minutes. A scene
+without match timing falls back to authored seconds.
+
+Timing validation is available through
+`MASSIVE > Encounters > Validate regulation timeline scaling`, with editor results
+in `Library/EnemyTimelineTiming/validation.txt` and runtime results in
+`Library/EnemyFlexiblePlacement/validation.txt`.
+Validation passed 11 Editor checks and 57 Play Mode checks, with zero runtime
+Console errors. Real Seeker waves were verified at 60-, 120- and 240-second
+regulation lengths, preserving full warnings, within-batch stagger and pause
+behavior. The same fixtures verify captured run timing, prompt single-cue
+previews, placement/blocker handling and preservation of saved assets.
+
+### One-timeline 2v2 scaling (2026-10-06)
+
+The shared Enemy Lab Timeline now has an enabled **2v2 scaling profile**. The
+Director captures `GameFlowContext.IsTwoVTwo` and effective population limits at
+start/restart; it never selects difficulty from the number of living players.
+One-v-one keeps every authored slot, position, timing and population limit.
+
+Initial 2v2 defaults:
+- Drones: 50% extra, rounded down to balanced pairs. Paired Rows and Goal
+  Phalanxes become 30 total; Center Ring becomes 14.
+- Ranged Drones: 25% extra, rounded down to pairs: 24 for rows/phalanxes and 12
+  for the ring.
+- From halfway through the authored timeline: one extra Seeker pair, one extra
+  Dyson pair, and paired turret encounters complete the opposite diagonal.
+  Existing Four Quadrants and Carrier counts remain unchanged.
+- Total, per-definition and pressure caps multiply by 1.5; zero remains
+  unlimited. These are ceilings, not additional spawn requests. Carrier child
+  reservations use the same effective budget.
+
+Each cue supports **Inherit / Disable / Override**; Override supplies an explicit
+extra-pair count and bypasses the inherited late-timeline gate. Expansion respects
+supported formation geometry: row gaps, ring gaps, an additional phalanx rank,
+opposing local flanks or the unoccupied turret diagonal. Unsupported/mixed
+formations are left unchanged. Generated slots never rewrite base slots or
+per-cue drag overrides, and keep the selected variant, mirror and wall flip.
+Health, damage, AI, attack cadence and telegraphs are unchanged.
+
+All due base batches reserve before optional pairs. Each pair is admitted only
+if both members fit remaining budget and placement; otherwise both are skipped
+with a visible reason. Extras follow the original sequence at its real-time
+stagger, rather than compressing original timings. Accepted warnings lock their
+positions. A later obstruction can hold the pair until its short deadline
+(one second of grace by default), then skip both. Originals and extras have
+separate release state, including for Strict formations; restart cancels both.
+
+The Composer's **1v1 preview / 2v2 preview** selector shows effective budgets,
+purple reinforcement ticks in timeline blocks and purple `+` icons in arena
+placement. The blue authored slots remain draggable. The 2v2 profile and cue
+overrides are editable in the details panel and normal Inspector. **Play all**
+and **Play cue** request the selected actual player roster before scene Awake,
+using an Editor-only, one-shot request; this does not serialize a match-mode
+override into the level. The selected mode is locked during playback. The Lab
+creates two actors per team in 2v2 and retains manual P1 control.
+
+Validation entry: `MASSIVE > Encounters > Validate 2v2 encounter scaling`.
+Authoring results: `Library/EnemyEncounterScaling/validation.txt`.
+Runtime geometry, regression and mode results:
+`Library/EnemyFlexiblePlacement/validation.txt`.
+
+Validation passed 26 authoring checks and 78 Play Mode checks with zero runtime
+Console errors. Coverage includes 30-Drone rows, complete turret quadrants,
+original-batch priority, partial budget admission by pairs, pre/post-warning
+obstructions, locked warning positions, Strict formations, captured mode/caps,
+restart cleanup, four-player match startup, and a four-actor Lab at Y=0 with
+manual P1 control and its existing background-input lock. Native Composer
+interaction verified the mode switch, effective limits, per-cue controls and
+distinct reinforcement icons. Balance values remain initial playtest settings.

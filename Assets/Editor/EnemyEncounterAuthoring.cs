@@ -62,9 +62,11 @@ internal static class EnemyEncounterAuthoring
         // Append, rather than insert/sort, so existing seeded cues do not change identity.
         timeline.cues.Add(new EnemyEncounterTimeline.Cue { label = cue.label + " copy", formation = cue.formation,
             arrivalSeconds = cue.arrivalSeconds + 5, allowedLateness = cue.allowedLateness,
-            allowHorizontalMirror = cue.allowHorizontalMirror, fallback = cue.fallback,
+            allowHorizontalMirror = cue.allowHorizontalMirror, flipWallOrientation = cue.flipWallOrientation, fallback = cue.fallback,
             overrideSpawnPolicy = cue.overrideSpawnPolicy, integrity = cue.integrity,
             maxPositionAdjustment = cue.maxPositionAdjustment, blockedSlotGrace = cue.blockedSlotGrace,
+            scaling = cue.scaling, reinforcementPairs = cue.reinforcementPairs,
+            placementOverrides = cue.placementOverrides == null ? new() : cue.placementOverrides.Where(p => p != null).Select(p => p.Copy()).ToList(),
             variants = cue.variants == null ? new() : new(cue.variants) });
         EditorUtility.SetDirty(timeline); return timeline.cues.Count - 1;
     }
@@ -77,9 +79,13 @@ internal static class EnemyEncounterAuthoring
         public readonly string message;
         public Issue(int cue, string message) { this.cue = cue; this.message = message; }
     }
-    internal static List<Issue> Validate(EnemyEncounterTimeline timeline, EnemyArenaLayout layout, EnemyDirector director, int seed)
+    internal static List<Issue> Validate(EnemyEncounterTimeline timeline, EnemyArenaLayout layout, EnemyDirector director, int seed, bool twoVTwo = false)
     {
         var issues = new List<Issue>(); if (!timeline) return issues;
+        var limits = EnemyEncounterScaling.Limits.Capture(timeline, twoVTwo);
+        float scale = director ? (Application.isPlaying && director.encounterTimeline == timeline
+            ? director.TimelineTimeScale : director.PreviewTimelineTimeScale(timeline)) : 1f;
+        float end = Mathf.Max(1f, timeline.duration) * scale;
         var chosen = new List<(int index, EnemyFormation formation, bool mirror, float arrival)>();
         for (int i = 0; i < timeline.cues.Count; i++)
         {
@@ -91,23 +97,37 @@ internal static class EnemyEncounterAuthoring
                 if (group.Any(s => !Mathf.Approximately(s.releaseDelay, group.First().releaseDelay)))
                     Add("Linked release group " + group.Key + " should use equal release delays.");
             float warning = Mathf.Max(.1f, formation.warningSeconds);
-            if (cue.arrivalSeconds < warning) Add("Warning begins before 0s; the Director will delay or skip this cue.");
-            if (cue.arrivalSeconds + LastDelay(formation) > timeline.duration) Add("Last spawn is after the timeline duration.");
+            float arrival = cue.arrivalSeconds * scale;
+            if (arrival < warning) Add("Warning begins before 0s; the Director will delay or skip this cue.");
+            if (arrival + LastDelay(formation) > end) Add("Last spawn is after the timeline duration.");
             var budget = new EnemyPopulationBudget();
             var poses = new List<(EnemyArenaLayout.Pose pose, float radius)>();
-            foreach (var slot in formation.slots)
+            for (int slotIndex = 0; slotIndex < formation.slots.Count; slotIndex++)
             {
+                var slot = cue.GetSlot(formation, slotIndex);
                 if (slot == null || !slot.enemy || !slot.enemy.prefab || !slot.telegraph) { Add("Slot is missing an enemy, prefab or telegraph."); continue; }
                 budget.Add(timeline, slot.enemy, EnemyPopulationBudget.Kind.Requested);
                 if (!layout) continue;
                 float radius = Mathf.Max(director ? director.spawnCheckRadiusWorld : 0, slot.enemy.GetSpawnRadiusWorld());
-                if (!layout.Resolve(slot, mirror, out var pose, out var reason)) { Add(reason); continue; }
-                if (!layout.Clear(pose, radius, director ? director.borderBufferWorld : 0, out reason)) Add(reason);
-                if (poses.Any(p => (p.pose.clearance - pose.clearance).sqrMagnitude < Mathf.Pow(p.radius + radius, 2))) Add("Formation footprints overlap.");
+                if (!layout.Resolve(slot, mirror, out var pose, out var reason, cue.flipWallOrientation)) { Add(reason); continue; }
+                if (!layout.Clear(pose, radius, director ? director.borderBufferWorld : 0, out reason))
+                {
+                    bool rangeFits = false;
+                    if (pose.socket != null && pose.socket.useRange)
+                        for (int sample = 0; sample <= 64 && !rangeFits; sample++)
+                            rangeFits = layout.Clear(layout.WallPose(pose.socket, sample / 64f), radius, 0, out _);
+                    if (!rangeFits) Add(reason);
+                }
+                if (poses.Any(p => (p.pose.clearance - pose.clearance).sqrMagnitude < Mathf.Pow(p.radius + radius, 2)))
+                    Add(pose.socket != null && pose.socket.useRange ? "Preferred wall footprints overlap; runtime will search their ranges." : "Formation footprints overlap.");
                 poses.Add((pose, radius));
             }
-            if (!budget.Allows(timeline, out var budgetReason)) Add("Batch cannot fit: " + budgetReason);
-            chosen.Add((i, formation, mirror, cue.arrivalSeconds));
+            if (!budget.Allows(timeline, out var budgetReason, limits)) Add("Batch cannot fit: " + budgetReason);
+            var extras = EnemyEncounterScaling.Reinforcements(timeline, cue, formation, twoVTwo);
+            foreach (var extra in extras) budget.Add(timeline, extra.enemy, EnemyPopulationBudget.Kind.Requested);
+            if (extras.Count > 0 && !budget.Allows(timeline, out var extraReason, limits)) Add("Some optional 2v2 pairs will be skipped: " + extraReason);
+            if (extras.Count > 0 && arrival + extras.Max(s => s.releaseDelay) > end) Add("Optional 2v2 arrivals extend beyond the timeline duration.");
+            chosen.Add((i, formation, mirror, arrival));
         }
         // Predict only authored reservation conflicts; surviving enemies require the live simulation.
         for (int a = 0; a < chosen.Count; a++) for (int b = a + 1; b < chosen.Count; b++)
@@ -116,9 +136,13 @@ internal static class EnemyEncounterAuthoring
             if (Mathf.Max(x.arrival - x.formation.warningSeconds, y.arrival - y.formation.warningSeconds) >
                 Mathf.Min(x.arrival + LastDelay(x.formation), y.arrival + LastDelay(y.formation))) continue;
             bool overlap = false;
-            if (layout) foreach (var p in x.formation.slots) foreach (var q in y.formation.slots)
+            if (layout) for (int pIndex = 0; pIndex < x.formation.slots.Count; pIndex++) for (int qIndex = 0; qIndex < y.formation.slots.Count; qIndex++)
             {
-                if (p == null || q == null || !p.enemy || !q.enemy || !layout.Resolve(p, x.mirror, out var pp, out _) || !layout.Resolve(q, y.mirror, out var qq, out _)) continue;
+                var p = timeline.cues[x.index].GetSlot(x.formation, pIndex);
+                var q = timeline.cues[y.index].GetSlot(y.formation, qIndex);
+                if (p == null || q == null || !p.enemy || !q.enemy ||
+                    !layout.Resolve(p, x.mirror, out var pp, out _, timeline.cues[x.index].flipWallOrientation) ||
+                    !layout.Resolve(q, y.mirror, out var qq, out _, timeline.cues[y.index].flipWallOrientation)) continue;
                 float minimum = director ? director.spawnCheckRadiusWorld : 0;
                 float radius = Mathf.Max(minimum, p.enemy.GetSpawnRadiusWorld()) + Mathf.Max(minimum, q.enemy.GetSpawnRadiusWorld());
                 if ((pp.clearance - qq.clearance).sqrMagnitude < radius * radius) overlap = true;

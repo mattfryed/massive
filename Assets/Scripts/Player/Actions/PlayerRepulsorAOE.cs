@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using Massive.Enemies;
+using Massive.PowerUps;
 
 namespace Massive.Player
 {
@@ -460,6 +461,9 @@ namespace Massive.Player
                 return;
 
             if (!other) return;
+
+            var pickup = other.GetComponentInParent<PowerUpPickup>();
+            if (pickup) { pickup.TryActivate(hitbox); return; }
 
             var enemyHurtbox = other.GetComponent<EnemyHurtbox>();
             var enemy = enemyHurtbox && enemyHurtbox.isActiveAndEnabled ? enemyHurtbox.Enemy : null;

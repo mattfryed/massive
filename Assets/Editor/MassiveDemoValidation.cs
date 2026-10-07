@@ -193,6 +193,8 @@ public static partial class MassiveDemoValidation
             throw new Exception("A demonstration pickup survived cleanup.");
         if (UnityEngine.Object.FindObjectsByType<Massive.PowerUps.ParticleAcceleratorProjectile>(FindObjectsInactive.Include, FindObjectsSortMode.None).Any(p => p.transform.position.x > 900f))
             throw new Exception("A demonstration projectile survived cleanup.");
+        if (UnityEngine.Object.FindObjectsByType<Massive.PowerUps.ParticleAcceleratorBeam>(FindObjectsInactive.Include, FindObjectsSortMode.None).Any(p => p.transform.root.position.x > 900f))
+            throw new Exception("A demonstration plasma beam survived cleanup.");
         return count + " demonstration sessions cleaned up; no actors, pickups or projectiles remain in their stages.";
     }
     public static string Stop() { Time.timeScale = 1f; EditorApplication.isPlaying = false; return "Stopping validation; editor scene restored."; }

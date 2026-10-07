@@ -13,13 +13,20 @@ MonoBehaviour:
   m_Name: PU_ParticleAccelerator
   m_EditorClassIdentifier: 
   displayName: Particle Accelerator
-  description: Ranged laser attack
+  description: Fire instantly with Sword. Hold to drain the energy ring; release
+    to refill. Taps fire for at least one second while energy lasts.
   spawnWeight: 1
   pickupPrefab: {fileID: 1305589374316551868, guid: b8be357cf873d46ebadf8060e1559a61,
     type: 3}
   worldLifetimeSeconds: 12
-  effectDurationSeconds: 15
+  effectDurationSeconds: 18
   activateInputName: Sword
+  fullMeterFireSeconds: 6
+  emptyToFullRefillSeconds: 3
+  minimumBurstSeconds: 1
+  movementWhileFiring: 0.2
+  turningWhileFiring: 0.05
+  aimDirectionEaseSeconds: 0.2
   chargeToMaxSeconds: 2
   minDistanceOnTap: 2
   maxDistance: 20
@@ -34,6 +41,8 @@ MonoBehaviour:
   beamSpeed: 33
   massRemovedMin: 0.06
   massRemovedMax: 0.26
+  playerDamagePerSecond: 0.4
+  enemyDamagePerSecond: 6
   transferMassToShooter: 1
   beamProjectilePrefab: {fileID: 2729370454382667784, guid: 4d8350eed08b3db479d57c1aa9c52f24,
     type: 3}
@@ -45,3 +54,18 @@ MonoBehaviour:
   blockMask:
     serializedVersion: 2
     m_Bits: 0
+  sustainedBeamPrefab: {fileID: 5882933547008667791, guid: 2d0e2ec470702fc498a3e2310c51d1cb,
+    type: 3}
+  beamRadius: 0.2
+  beamGrowSeconds: 0.22
+  beamFadeSeconds: 0.46
+  openingRadiusMultiplier: 1.7
+  openingSettleSeconds: 0.32
+  muzzleOffset: 0.6
+  muzzleHeight: 0.2
+  beamCollisionMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  turnPropagationSpeed: 45
+  maxTurnDelay: 0.35
+  maxBendAngle: 35

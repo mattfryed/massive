@@ -13,6 +13,10 @@ MonoBehaviour:
   m_Name: 03 Seeker Stagger
   m_EditorClassIdentifier: 
   warningSeconds: 2
+  integrity: 1
+  maxPositionAdjustment: 1.5
+  blockedSlotGrace: 3
+  adjustmentPattern: 0
   slots:
   - enemy: {fileID: 11400000, guid: ad3522b075ef69644b75b698ffc0e515, type: 2}
     telegraph: {fileID: 4011098490873948616, guid: 92710bd0f657aec4fb8a68ee60a82851,
@@ -22,6 +26,8 @@ MonoBehaviour:
     facing: {x: 0, y: -1}
     socket: 
     releaseDelay: 0
+    placementGroup: 0
+    releaseGroup: 0
     entrySeconds: 0
     entrySpeed: 1.4
   - enemy: {fileID: 11400000, guid: ad3522b075ef69644b75b698ffc0e515, type: 2}
@@ -32,5 +38,7 @@ MonoBehaviour:
     facing: {x: 0, y: -1}
     socket: 
     releaseDelay: 0.7
+    placementGroup: 0
+    releaseGroup: 0
     entrySeconds: 0
     entrySpeed: 1.4
