@@ -16,7 +16,7 @@ MonoBehaviour:
   levelTitle: ORBITAL
   scaleExponent: -10
   gameplayScene:
-    sceneName: S-6_ORBITAL
+    sceneName: S-4_ORBITAL
     sceneAsset: {fileID: 102900000, guid: adf30183b78832343b0fc0db6183f649, type: 3}
   iconPrefab: {fileID: 5458079288298586697, guid: 0c5895cc59749984bb456022e2b974a6,
     type: 3}

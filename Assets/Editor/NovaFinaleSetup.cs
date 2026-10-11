@@ -51,6 +51,12 @@ public static class NovaFinaleSetup
                 }
             }
             rumble.visualRoot=visuals; rumble.star=star;
+            // The solid body must share stage growth and pulse/shake with the visible core.
+            // Entry and attraction triggers remain on the stable star root.
+            foreach (var body in star.GetComponentsInChildren<Collider>(true)
+                .Where(c => c.enabled && !c.isTrigger && c.transform != star.transform)
+                .Select(c => c.transform).Distinct().ToArray())
+                if (!body.IsChildOf(visuals)) body.SetParent(visuals, true);
             var audio=star.GetComponent<AudioSource>();
             if(!audio)audio=star.gameObject.AddComponent<AudioSource>();
             audio.playOnAwake=false; audio.loop=false; audio.spatialBlend=0f;

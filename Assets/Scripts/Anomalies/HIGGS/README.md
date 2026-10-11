@@ -15,16 +15,17 @@ The field provides evolving ambient topography. A reserved local excitation anno
 | First uncontested claim | Extends deadline to at least 10 s from that claim, once only |
 | Lock ramp | 2 s uncontested; no income during ramp |
 | Capture radius | 1.15 world units |
-| Reward | HiggsControlTick: 25 meV every 0.25 productive seconds |
+| Base reward | HiggsControlTick: 25 meV every 0.25 productive seconds (100 meV/s) |
+| Sustained growth | Exponential; doubles every 2 productive seconds; capped at x8 before Team Amplifier |
 | Multiplier / charge | Team Amplifier applies; no personal multiplier or charge |
 | Outro / excitation tail | 1 s / 0.75 s |
 | Next opportunity cooldown | 10 s plus random -2 to +2 s after tail |
 | Core introduction clearance | Wait at least 3 s after its introduction ends |
-| Regulation | 120 s; HIGGS reward introduced in version 2 and retained in shared ruleset version 4 |
+| Regulation | Current shared asset: 180 s, ruleset version 5; historical GDD baseline: 120 s |
 
-The player centre must be inside the capture ring; extending a weapon or shield into it cannot claim from outside. Any opposing eligible presence contests, even two allies against one opponent. Additional allies do not increase income. Contest pauses the lock ramp and clears a partial reward tick; leaving the zone or a change of controlling team resets the ramp. Re-entry never extends lifetime again. Eligibility excludes inactive, disabled, eliminated and pseudo players, and actors in other scenes. Pause freezes capture and encounter clocks. Closed scoring cannot award, and match end retires the encounter.
+The player centre must be inside the capture ring; extending a weapon or shield into it cannot claim from outside. Any opposing eligible presence contests, even two allies against one opponent. Additional allies do not increase income. Contest pauses the lock ramp and income growth, and clears a partial reward tick; leaving the zone or a change of controlling team resets the ramp and growth. Re-entry never extends lifetime again. Eligibility excludes inactive, disabled, eliminated and pseudo players, and actors in other scenes. Pause freezes capture and encounter clocks. Closed scoring cannot award, and match end retires the encounter.
 
-The full claimed window can yield 800 meV at team x1 if held continuously from first claim: two seconds locking, eight seconds productive. Team x8 raises this to 6.4 eV. This is a prototype tuning comparison, not a final economy target.
+The full claimed window now yields 3,533 meV at team x1 if held continuously from first claim: two seconds locking, eight seconds productive. Team x8 raises this to 28,264 meV. Each tick pays `round(25 * min(2^(n * 0.25 / 2), 8))` meV before team amplification, where n starts at zero and counts completed productive intervals before that tick. Individual ticks are rounded to integer meV; batches use each tick's own rate. This is prototype tuning, not a final economy target.
 
 ## Ownership and integration
 
@@ -33,6 +34,7 @@ The full claimed window can yield 800 meV at team x1 if held continuously from f
 - `SymmetryKnotCaptureState`: frame-rate independent lifecycle/capture rules. Double-precision clock accumulation avoids dropped ticks at common frame rates.
 - `SymmetryKnotController`: eligible presence query, state advancement and authoritative `MatchScoreService.TryAwardToTeam` calls. A team stream has no player attribution.
 - `SymmetryKnotGoalMouth`: endpoint and aggregated receipt feedback only. Receipts use accepted energy amounts and the existing pooled toast system, at most once per second. The endpoint never awards score or fakes Core capture.
+- `SymmetryKnotIncomeToast`: one reusable, camera-facing popup above the Knot. Entry shows `LIGHT CONTROL` or `DARK CONTROL` and slowly pulsing `CAPTURING` during lock. The first accepted reward shrinks that text and grows in the accepted income rate using the existing `TMPTextTransition` SDF effect. Subsequent ticks update the rate without replaying the intro. Contest, vacancy, pause, retirement and closed scoring clear the requested rate and play the shrink outro; controller disable hides immediately. Quick re-entry retains only the latest pending content. The toast never awards energy or replaces goal receipts. Tune income/capture font sizes, team-label percentage, clearance and pulse on `PF_SymmetryKnotIncomeToast`; tune SDF timings and easing on its `TMPTextTransition`. Tune doubling seconds and maximum multiplier on `PF_SymmetryKnot`; `Reset Income On Contest` is off (pause growth), and a maximum multiplier of 1 restores flat income.
 - `SymmetryKnotVisual`: capture ring, forming/locking/contested state, tube caps, spring motion and outro. `hold01` now drives visual locking.
 - `SymmetryKnotMetaballFlow`: stream follows `IsFlowing`; no stream during warmup, contest, vacancy or retirement. Presentation may fade out after flow stops.
 - `AmplifierResonanceSpawner`: shared Core/pattern lifecycle. HIGGS supplies only an optional introduction gate; other stages keep their existing behavior.
@@ -41,6 +43,20 @@ The full claimed window can yield 800 meV at team x1 if held continuously from f
 The HIGGS scene contains a real shared Amplifier/Resonance spawner using the existing 345 Hz encounter and Core prefabs. Shared settings remain authoritative for that encounter. HIGGS timing, field appearance and capture radius remain stage-local. Goal HUD Cores are presentation, not duplicate gameplay objectives.
 
 The field extent matches the current 28 x 12 grid. Local excitation glow compounds on high contours; underlay opacity is 0.65, glow strength 1.25 and power 2. Tune contrast against players, capture rings, Core and Resonance together.
+
+The shared Surface prefab now supplies `ArenaOutsideMask` on `Surface/GRID/VectorGridGPU`. Like COSMOS, it generates continuous black coverage outside the arena, using HIGGS's rectangular field and rounded goal caps. Dimensions follow the grid automatically. Mask height, cap depth and edge padding are exposed there. The shared Bounds prefab's old mask renderers are disabled while their colliders remain active. See `Assets/Prefabs/Levels/README.md` for shared authoring and validation controls.
+
+## Enemy encounters — October 7, 2026
+
+`GameplayObjects/LevelContent/HIGGS/HIGGS Enemy Timeline` uses the same shared Director prefab, Enemy Lab Timeline and enabled ORBITAL Encounter Profile as LATTICE. The profile's historical name does not add ORBITAL gameplay. The authored timeline supplies formations, full spawn warnings, population budgets, difficulty scaling and 2v2 reinforcements; its duration follows the current shared regulation clock. The saved scene plays the complete timeline (`previewCue = -1`).
+
+Scene bindings point to HIGGS's arena, anomaly manager, Amplifier/Resonance spawner and dedicated `Timeline enemies` child. The Director waits for scoring, freezes when the match clock pauses, and cancels pending arrivals when scoring closes. Defeats use the shared `EnemyScoreReward` adapter and central score service. The timeline layout permits shared Core/Resonance overlap, as in LATTICE, while retaining player, enemy and physical-blocker checks.
+
+Four top/bottom wall quadrants support flexible placement. Four side-wall fallback mounts sit above/below the goal openings at normalized Z ±0.75. Mobile regions match LATTICE; all mounts use HIGGS's gameplay plane. Announced warnings remain fixed. Knot timing, capture income, field appearance and the 0.25-unit goal tunnel attachment are independent of enemy scheduling.
+
+`MASSIVE/HIGGS/Integrate Enemy Timeline from LATTICE` is a one-time migration for a saved HIGGS scene without a Director. Once installed, edit the scene's existing Director/layout. `MASSIVE/HIGGS/Validate Enemy Integration (1v1 and 2v2)` runs disposable Play Mode fixtures covering the opening wave, score attribution, pause/closure, live Knot/Core/Resonance coexistence, and previews of the other enemy families. It returns to Edit Mode and saves reports/captures under `Library/HiggsEnemyValidation`. These fixtures do not establish full-match balance or cabinet performance.
+
+Validation: Unity compiled the integration; 29 runtime checks passed in each mode (58 total), with zero runtime errors. Both real rosters initialized one ready Rewired manager. All six enemy families spawned, defeat credit occurred once, warnings held their positions, pause/resume worked, and scoring closure cancelled pending arrivals and froze remaining enemies. The saved scene passed 37 composition checks over 6,901 reference slots plus seven enemy-binding checks. Game-view captures of enemies alongside the Knot/Core/Resonance encounter were inspected. LATTICE and the shared encounter assets were unchanged. Existing startup/kinematic-body warnings remain; no standalone build was run. Unattended fixtures extend the runtime inactivity timeout and defer automatic imports until both runs finish.
 
 
 ## Universal level composition — September 26, 2026
@@ -65,6 +81,12 @@ Launch HIGGS directly in the Editor or select it through Attract. LevelSceneCont
 `MASSIVE/HIGGS/Validate Capture Rules` runs deterministic lifecycle and authored-configuration checks. `HiggsValidation.RunPlayChecks()` runs a destructive runtime-only fixture in an already-started HIGGS match, using actual players, colliders and the score service; exit Play Mode immediately afterward. Neither validation function saves runtime fixture state.
 
 Telemetry on the manager: opportunities, placement retries, first arrival, uncontested/contested time, ownership changes and Knot energy. Active-Knot metrics are captured on retirement; these are local runtime diagnostics, not persisted match-result telemetry.
+
+`MASSIVE/HIGGS/Validate Control Income Toast` checks the saved prefab and level composition, then runs a staged HIGGS Play Mode fixture covering score rates, both teams, amplification, interruption and cleanup. Start with saved scenes in Edit Mode; it opens HIGGS and returns there after discarding runtime changes. Reports and staged screenshots are written to `Library/HiggsIncomeToastValidation`.
+
+October 7 baseline note: the current shared economy asset uses ruleset version 5 and 180-second regulation. The GDD and the historical `HiggsValidation.RunRules` duration assertion still specify 120 seconds. The toast change preserves the current shared duration; reconcile the design/validation baseline separately.
+
+October 7 validation: Unity compiled the updated toast and growth curve; 41 new runtime checks and the existing 17 physics/scoring checks passed with no runtime errors. The legacy scoring fixture explicitly sets the growth cap to 1 to isolate its flat-income assumptions; the new fixture validates authored exponential growth, matching 3,533 meV totals at 1/30/60/120 fps. The saved scene passed 37 composition checks covering 6,854 serialized reference slots, and the toast prefab reference passed. Staged 4K captures were inspected for CAPTURING, Light +100 meV/s and Dark +6.4 eV/s; runtime checks verified SDF material changes, pulsing, exposed sizing and interrupted transitions. Existing startup/anomaly and kinematic-body warnings remain; ordinary-input balance, cabinet readability and standalone builds were not revalidated. HIGGS setup paths and its serialized LevelDefinition scene name match `S-3_HIGGS` and the existing scene GUID.
 
 ## Universal composition validation — September 26, 2026
 
@@ -205,6 +227,7 @@ No guide arc is drawn. The “vector line” is communicated by:
 - `Source Cap Rise`: **1.2–1.8**
 - `Source Cap Len`: **1.8–2.6**
 **End Cap**
+- `goalRingInset`: **0.25** world units from the goal capture point toward the arena. The first ring stays pinned and faces inward; the remaining rings retain their wiggle. Both scene goal mouths reference their matching TeamGoals capture points.
 - `End Slice Count`: **12–18**
 - `End Emit Len`: **0.8–1.4**
 - `End Curve Pull`: **1.2–2.2**
@@ -273,4 +296,4 @@ No guide arc is drawn. The “vector line” is communicated by:
 - Too rigid: reduce spring damping slightly and add modest breathing.
 - Unclear direction: increase slice taper and source-cap length; inspect both endpoints together.
 - Matter outside the tube: reduce ball radius and inspect SDF bounds/fit padding.
-- Excessive income: tune the shared HiggsControlTick reward or stage lock duration, then compare ordinary 120-second rounds. Do not restore endpoint-owned floating-point scoring.
+- Excessive income: tune the shared HiggsControlTick reward or stage lock duration, then compare ordinary rounds using the current shared regulation duration. Do not restore endpoint-owned floating-point scoring.

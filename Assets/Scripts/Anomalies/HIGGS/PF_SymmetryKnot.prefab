@@ -323,6 +323,7 @@ MonoBehaviour:
   sourceCapRise: 1.4
   sourceCapLen: 2.2
   endSliceCount: 9
+  goalRingInset: 0.25
   endEmitLen: 1.1
   endCurvePull: 1.6
   meetGap: 0.5
@@ -374,6 +375,11 @@ MonoBehaviour:
   rewardKey: HIGGS_CONTROL_TICK
   tickIntervalSeconds: 0.25
   goalMouths: []
+  incomeDoublingSeconds: 2
+  maximumIncomeMultiplier: 8
+  resetIncomeOnContest: 0
+  incomeToastPrefab: {fileID: 7783754389121449529, guid: eabf2d0b2e7ee0141a27dad9309a93a5,
+    type: 3}
 --- !u!114 &206864617395595538
 MonoBehaviour:
   m_ObjectHideFlags: 0

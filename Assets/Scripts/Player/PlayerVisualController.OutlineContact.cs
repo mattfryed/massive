@@ -14,7 +14,7 @@ public partial class PlayerVisualController
             jitter = new Vector3(Mathf.Sin(t * 1.13f), 0f, Mathf.Sin(t * .97f + 1.7f))
                 * (.06f * _chargeJitter01 * Massive.Player.PlayerScaleAdjuster.SizeOf(this));
         }
-        Vector3 center = frame.position + jitter + _decoPreJitterWS + RepulsorVisualOffsetWS;
+        Vector3 center = frame.position + jitter + _decoPreJitterWS + RepulsorVisualOffsetWS + ThrustChargeVisualOffsetWS;
         Vector3 local = frame.InverseTransformVector(worldPoint - center);
         float stretch = blobMat ? Mathf.Max(.0001f, blobMat.GetFloat("_Stretch")) : 1f;
         float angle = Mathf.Atan2(local.z / stretch, local.x);

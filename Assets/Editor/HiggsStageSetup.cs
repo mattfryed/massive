@@ -11,14 +11,14 @@ using UnityEngine.SceneManagement;
 
 public static class HiggsStageSetup
 {
-    public const string ScenePath = "Assets/Scenes/S-9_HIGGS.unity";
+    public const string ScenePath = HiggsLevelSetup.ScenePath;
     public const string KnotPath = "Assets/Scripts/Anomalies/HIGGS/PF_SymmetryKnot.prefab";
 
     [MenuItem("MASSIVE/HIGGS/Apply Accepted Stage Setup")]
     public static void Apply()
     {
         if (Application.isPlaying || SceneManager.GetActiveScene().path != ScenePath)
-            throw new InvalidOperationException("Open S-9_HIGGS outside Play Mode.");
+            throw new InvalidOperationException("Open S-3_HIGGS outside Play Mode.");
         var scene = SceneManager.GetActiveScene();
         var manager = UnityEngine.Object.FindFirstObjectByType<HiggsExcitationKnotManager>();
         var field = UnityEngine.Object.FindFirstObjectByType<HiggsFieldGPU>();

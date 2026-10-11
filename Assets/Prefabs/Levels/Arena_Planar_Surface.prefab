@@ -220,6 +220,7 @@ GameObject:
   - component: {fileID: 3011660933884231386}
   - component: {fileID: 3685593986504089761}
   - component: {fileID: 7662870565085769299}
+  - component: {fileID: 554545524090767676}
   m_Layer: 0
   m_Name: VectorGridGPU
   m_TagString: Untagged
@@ -394,6 +395,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   grid: {fileID: 7723011505848382257}
   insetWorld: 0
+  ovalOutline: 0
+  ovalEndHeightRatio: 0.7
 --- !u!114 &3685593986504089761
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -606,7 +609,7 @@ MonoBehaviour:
   previewTeam: 1
   heldLevel: 3
   playbackSpeed: 1
-  showControls: 1
+  showControls: 0
   legacyCaptureFeedback: 0
   loopCapture: 0
   loopInterval: 4
@@ -615,6 +618,24 @@ MonoBehaviour:
   - {fileID: 0}
   preset: 3
   useSharedSettings: 1
+--- !u!114 &554545524090767676
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2532255830184951679}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 76e43b3f91e671e46972086cbdf2fef2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  arena: {fileID: 3011660933884231386}
+  maskShader: {fileID: 4800000, guid: 80f7998ead3a2ab4389843151145cffa, type: 3}
+  maskYOffset: 2
+  includeTeamGoalHalfCircles: 1
+  goalCapDepthRatio: 1
+  edgePadding: 0.03
 --- !u!1 &3582232809996235514
 GameObject:
   m_ObjectHideFlags: 0

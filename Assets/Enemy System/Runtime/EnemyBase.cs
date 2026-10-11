@@ -46,6 +46,8 @@ namespace Massive.Enemies
         public bool CanTarget(PlayerControllerScript player) => player && player.isActiveAndEnabled
             && player.gameObject.scene == gameObject.scene && SharesSimulationWith(player)
             && !player.IsSpawning && !player.IsInvulnerable && !player.IsMatchInputLocked
+            && !player.IsSingularityTransitControlled
+            && (!Director || !Director.restrictTargetsToArena || Director.arenaBounds && Director.arenaBounds.ContainsWorldPoint(player.transform.position))
             && player.massScore > player.massScoreMin && (OwnerTeamId < 0 || player.teamID != OwnerTeamId);
 
         public float HealthRemaining { get; private set; }

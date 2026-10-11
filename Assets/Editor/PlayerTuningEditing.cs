@@ -106,7 +106,11 @@ namespace Massive.EditorTools
         {
             PlayerTuningEditing.GetOrCreate();
             if (GUILayout.Button("Open Player Tuning")) PlayerTuningWindow.Open();
-            base.OnInspectorGUI();
+            serializedObject.Update();
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("spawnMassScore01"),
+                new GUIContent("Spawn Health", "Health restored at match start and after respawning. 1 = 100% health."));
+            serializedObject.ApplyModifiedProperties();
+            SharedSettingsEditing.DrawComponent(serializedObject, "spawnMassScore01");
         }
     }
 

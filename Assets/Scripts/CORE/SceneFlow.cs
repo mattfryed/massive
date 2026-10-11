@@ -8,7 +8,7 @@ public static class SceneFlow
     public const string HowToPlayScene = "S-0_HOW-TO-PLAY";
     public const string LevelSelectScene = "S-0_LEVEL-SELECT NEW";
     public const string ChooseModeScene = "S-0_ATTRACT";
-    public const string PostGameScene = "S-0_POSTGAME";
+    public const string PostGameScene = "S-0_POSTGAME-V2";
 
     // Session-owned, so destroying the instructions UI cannot lose the operation.
     private static AsyncOperation gameplayPreload;

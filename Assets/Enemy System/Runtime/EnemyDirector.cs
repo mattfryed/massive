@@ -21,6 +21,8 @@ namespace Massive.Enemies
         [Header("Arena / Placement")]
         [Tooltip("Playable bounds provider. If left empty, we'll auto-find one.")]
         public ArenaBoundsFromVectorGrid arenaBounds;
+        [Tooltip("Acquire targets only inside this Director's playable domain. Used by folded arenas whose other faces lie outside the planar enemy domain.")]
+        public bool restrictTargetsToArena;
 
         [Tooltip("Do not spawn inside this padding from the arena border (world units).")]
         [Min(0f)] public float borderBufferWorld = 0.75f;

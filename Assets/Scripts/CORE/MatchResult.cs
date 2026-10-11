@@ -25,6 +25,7 @@ public struct MatchResult
     public int scoringRulesetVersion;
 
     public PlayerScoreContribution[] playerContributions;
+    public PlayerMatchStatistics[] playerStatistics;
     public ScoreTelemetryRecord[] scoreTelemetry;
 
     public long LightScore => Math.Max(0L, lightMilliElectronVolts);

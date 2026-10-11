@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 84069745dee364571bc5afed6a38869d, type: 3}
   m_Name: SINGULARITY Stage
   m_EditorClassIdentifier: 
-  stageId: STAGE_006
+  stageId: STAGE_007
   displayName: SINGULARITY
   globalMinInterval: 15
   globalMaxInterval: 35

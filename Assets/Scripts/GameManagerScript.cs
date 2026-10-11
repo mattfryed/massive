@@ -537,6 +537,7 @@ public class GameManagerScript : MonoBehaviour
             scoringRulesetId = profile != null ? profile.RulesetId : "UNVERSIONED",
             scoringRulesetVersion = profile != null ? profile.RulesetVersion : 0,
             playerContributions = scoreService.GetContributionSnapshot(),
+            playerStatistics = scoreService.GetStatisticsSnapshot(),
             scoreTelemetry = scoreService.GetTelemetrySnapshot()
         };
     }

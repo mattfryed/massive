@@ -172,7 +172,7 @@ void HandlePreCull(Camera cam)
     // Base center (plus deco pre-jitter if active)
     Vector3 baseCenter = GetBlobCenterWS();
     if (controller != null)
-        baseCenter += controller.DecoPreJitterWS + controller.RepulsorVisualOffsetWS;
+        baseCenter += controller.DecoPreJitterWS + controller.RepulsorVisualOffsetWS + controller.ThrustChargeVisualOffsetWS;
 
     // Determine if we are in split mode
     float splitT = (controller != null) ? Mathf.Clamp01(controller.DecoSplit01) : 0f;

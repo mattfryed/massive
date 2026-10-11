@@ -52,6 +52,8 @@ namespace Massive.Scoring
     [Serializable]
     public struct ScoreAwardResult
     {
+        // Objective growth applied to the rule's base reward before other multipliers.
+        public double rewardScale;
         public bool accepted;
         public ScoreAwardRejection rejection;
         public string rewardKey;

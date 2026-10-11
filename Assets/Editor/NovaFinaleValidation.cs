@@ -46,7 +46,7 @@ public static class NovaFinaleValidation
         sceneReady=false;
         SceneManager.sceneLoaded-=OnSceneLoaded;
         SceneManager.sceneLoaded+=OnSceneLoaded;
-        SceneManager.LoadScene("S-3_NOVA");
+        SceneManager.LoadScene(System.IO.Path.GetFileNameWithoutExtension(NovaLevelSetup.NovaPath));
         EditorApplication.update+=Tick;
         return Status;
     }
@@ -58,7 +58,7 @@ public static class NovaFinaleValidation
             if(!Application.isPlaying){EditorApplication.update-=Tick;SceneManager.sceneLoaded-=OnSceneLoaded;return;}
             if(!sceneReady)return;
             if(EditorApplication.timeSinceStartup>deadline)throw new TimeoutException(Status);
-            if(SceneManager.GetActiveScene().name=="S-0_POSTGAME")
+            if(SceneManager.GetActiveScene().name==SceneFlow.PostGameScene)
             {
                 var post=Object.FindFirstObjectByType<PostGameScreenController>();
                 if(post) post.StopAllCoroutines();
@@ -93,7 +93,7 @@ public static class NovaFinaleValidation
                 Check(!scores.IsScoringOpen && match.RegulationRemainingSeconds==0,"regulation scoring closed");
                 Check(star.IsEntryWindowOpen && star.entryRingVisual.activeSelf,"entry ring opens");
                 Check(Time.timeScale==1,"movement remains available for entry");
-                Check(star.transform.localScale==physicsScale && ((SphereCollider)star.entryCollider).radius==colliderRadius,"physics footprint stable");
+                Check(star.transform.localScale==physicsScale && ((SphereCollider)star.entryCollider).radius==colliderRadius,"entry and attraction frame stable");
                 Check(star.rumble.visualRoot.localScale.x>=.99f,"stage four authored scale reached");
                 regulationLight=scores.LightScoreMilliElectronVolts; regulationDark=scores.DarkScoreMilliElectronVolts;
                 var roster=star.GetRosteredPlayers();
@@ -166,7 +166,7 @@ public static class NovaFinaleValidation
 
     static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
-        if(scene.name!="S-3_NOVA")return;
+        if(scene.name!=System.IO.Path.GetFileNameWithoutExtension(NovaLevelSetup.NovaPath))return;
         match=null;
         sceneReady=true;
         SceneManager.sceneLoaded-=OnSceneLoaded;

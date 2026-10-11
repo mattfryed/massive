@@ -57,6 +57,21 @@ MonoBehaviour:
       m_PostInfinity: 2
       m_RotationOrder: 4
     thrustMaxTurnDegrees: 15
+    thrustChargeEnabled: 1
+    thrustChargeMaxSeconds: 3
+    thrustChargeMaxDistanceMultiplier: 3
+    thrustChargeMaxDamageMultiplier: 2
+    thrustChargeVibrationAmplitude: .08
+    thrustChargeVibrationFrequency: 28
+    thrustChargeMinMoveMultiplier: .25
+    thrustChargeGuideEnabled: 1
+    thrustChargeGuideArrowCount: 5
+    thrustChargeGuideDistanceFraction: .5
+    thrustChargeGuideStrokeWidth: .035
+    thrustChargeGuideArrowLength: .25
+    thrustChargeGuideArrowWidth: .4
+    thrustChargeGuideRevealSeconds: .15
+    thrustChargeGuideColor: {r: 1, g: 1, b: 1, a: 0.85}
     visualDirectionFollowsCombatFacing: 1
     lockOnEnabled: 1
     lockOnConeHalfAngleDeg: 25

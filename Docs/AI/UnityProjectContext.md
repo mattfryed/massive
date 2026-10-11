@@ -2039,3 +2039,410 @@ restart cleanup, four-player match startup, and a four-actor Lab at Y=0 with
 manual P1 control and its existing background-input lock. Native Composer
 interaction verified the mode switch, effective limits, per-cue controls and
 distinct reinforcement icons. Balance values remain initial playtest settings.
+
+### HIGGS control income toast (2026-10-07)
+
+Inspected checkout `C:/Users/mattf/massive` at `94058806` and the MASSIVE Notion GDD,
+especially section 4.2.3. Unity remains 6000.0.28f1 / DX11. The installed Coplay
+package has no callable MCP connection in this session; native Editor refresh,
+project Editor validation and Game-view captures provide live evidence.
+
+`SymmetryKnotController` now owns one child `SymmetryKnotIncomeToast`, instantiated
+from the assigned `PF_SymmetryKnotIncomeToast` after the first accepted productive
+tick. It shows LIGHT/DARK CONTROL and accepted energy per second, normalizing
+batched awards by quantity and the capture tick duration. It uses the existing
+score-toast font and energy formatter, a short pop-in and camera-facing placement
+above the ring. No personal attribution, charge or extra award is introduced.
+Contest, vacancy, pause, retirement, disable and scoring closure clear it; the
+next accepted tick restores it. Goal receipts retain their existing behavior.
+
+The saved HIGGS scene retains its universal composition. HIGGS setup/validation
+paths and the LevelDefinition's runtime scene name now match `S-3_HIGGS` and its
+unchanged scene GUID. Existing assets still use STAGE_002.
+
+The current shared economy is ruleset 5 with 180-second regulation; the GDD and
+historical capture validator still expect 120 seconds. This change preserves
+the shared tuning and records that baseline discrepancy. Validation entry:
+`MASSIVE > HIGGS > Validate Control Income Toast`; reports and staged captures:
+`Library/HiggsIncomeToastValidation`. The fixture opens the saved HIGGS scene,
+enters Play Mode, then discards its runtime changes and returns to HIGGS Edit Mode.
+
+Unity compilation, 26 toast/runtime checks, 17 existing physics/scoring checks,
+37 composition checks (6,854 references) and the toast prefab binding passed.
+Staged 4K Light/Dark Game-view captures were inspected. No runtime errors occurred;
+existing startup/anomaly and kinematic-body warnings remain. Ordinary-input
+balance, cabinet readability and standalone builds were not revalidated.
+
+### HIGGS toast and sustained-control update (October 7, 2026)
+
+Supersedes the initial toast behavior above. Entry now shows slowly pulsing
+CAPTURING throughout the lock, followed by accepted income per second. Both
+transitions use the existing TMPTextTransition SDF grow/shrink on an instanced
+material. Font sizes for capture/income, team-label percentage, pulse and SDF
+settings are exposed on PF_SymmetryKnotIncomeToast. Font material assets remain
+unchanged; outgoing transitions retain only the latest requested content.
+
+PF_SymmetryKnot exposes incomeDoublingSeconds (2), maximumIncomeMultiplier (8)
+and resetIncomeOnContest (false, per Matt: pause growth on contest). Income starts
+at 100 meV/s; productive intervals advance an exponential curve, capped at x8
+before Team Amplifier. Warmup, pause and contests do not advance growth. Vacancy
+and takeover reset it. MatchScoreService accepts an optional rewardScale (default
+1) before personal/team multipliers; each tick rounds to integer meV separately,
+so frame batching cannot overpay. Full continuous control pays 3,533 meV at x1.
+
+Unity compilation, 41 new runtime checks, 17 legacy physics/scoring checks and
+37 composition checks passed, with no runtime errors. The legacy fixture sets
+maximumIncomeMultiplier=1 explicitly; the new fixture checks the authored growth
+at 1/30/60/120 fps, contest pause/resume, takeover, cap and team amplification,
+SDF intro/outro, pulse, font tuning, rapid re-entry and shared material isolation.
+Staged 4K CAPTURING, Light +100 meV/s and Dark +6.4 eV/s captures were inspected.
+The shared 180s/GDD 120s baseline discrepancy remains; no standalone build or
+ordinary-input balance run was performed for this update.
+
+### HIGGS goal-side tunnel attachment (October 7, 2026)
+
+The scene's old free-standing mouth anchors were (-11.87, .74, 0) and
+(11.67, .74, 0), about 2.255/2.450 units away from their actual goal capture
+points (-14, 0, 0) and (14.005, 0, 0). Both SymmetryKnotGoalMouth.flowAnchor
+references now point to the matching shared goal's existing CapturePoint.
+SymmetryKnotVisual.goalRingInset is exposed under End Cap and authored at .25
+world units toward the arena. The first goal-side ring's position and normal
+are pinned; other rings still wiggle/breathe. Metaball flow follows those slices.
+
+Unity compiled and the staged fixture passed 45 current runtime checks plus
+17 legacy physics/scoring checks, alongside 37 scene composition checks. Four
+of the runtime checks verify the first ring's actual goal reference, .25-unit
+position and inward normal for both teams at different animation times.
+Light/Dark Game-view captures were inspected. No runtime errors occurred.
+The one-time scene/prefab authoring helper was removed after validation.
+
+### HIGGS shared enemy encounters (October 7, 2026)
+
+HIGGS now contains one EnemyDirector and EnemyArenaLayout under
+GameplayObjects/LevelContent/HIGGS/HIGGS Enemy Timeline. It keeps LATTICE's
+shared Drone Swarm Spawner prefab, Enemy Lab Timeline and ORBITAL Encounter
+Profile (an enabled neutral profile despite its historical name). All scene
+references are remapped to HIGGS: bounds, anomaly manager, Amplifier/Resonance
+spawner and a dedicated Timeline enemies child. The complete timeline uses
+the current shared regulation duration, match gating, score rewards and 2v2
+population/reinforcement scaling.
+
+The layout uses LATTICE's five mobile regions with current flexible top/bottom
+wall quadrants plus four side-corner fallback mounts above/below goal openings.
+Core/Resonance spawn overlap is allowed, as in LATTICE; physical blockers,
+players and enemies still constrain placement. HIGGS's field, Knot scheduling,
+capture income and goal tunnel references are unchanged by enemy installation.
+
+Editor menus: MASSIVE > HIGGS > Integrate Enemy Timeline from LATTICE (one-time,
+requires no existing Director), and Validate Enemy Integration (1v1 and 2v2).
+The validation uses disposable Play Mode state, defers automatic asset imports
+across both runs and extends only the runtime inactivity timeout for unattended
+checks. Reports and captures are under Library/HiggsEnemyValidation. The legacy
+capture fixture disables live enemy Directors to isolate its score assertions.
+
+Validated in Unity 6000.0.28f1: 29 runtime checks in each match mode (58 total),
+zero runtime errors, all six enemy families, score attribution, fixed warnings,
+pause/resume, closure cleanup and live Knot/Core/Resonance coexistence. Authored
+validation passed 37 composition checks over 6,901 reference slots and seven
+enemy-binding checks. Both 4K game captures were inspected. LATTICE and shared
+encounter assets remained unchanged. Full-match balance, cabinet performance
+and a standalone build were not assessed.
+
+### Shared Surface outside mask (October 7, 2026)
+
+ArenaOutsideMask on Arena_Planar_Surface/GRID/VectorGridGPU generates one transient
+quad/material from the existing CosmosArenaMask shader. It reads the local arena
+bounds and grid dimensions/transform live. Planar openings include rounded goal
+caps; oval bounds use the full ellipse. includeTeamGoalHalfCircles defaults true;
+false masks both goal caps at the mouths, retaining the field shape and cap depth
+setting. This also preserves curved field edges on oval bounds.
+Other controls are maskYOffset (2 world units
+above the grid), goalCapDepthRatio (1 for round caps; 0 for a rectangle), and
+edgePadding (.03 world units, with a minimum matching half the grid border stroke).
+The shader's original COSMOS inputs still select the same oval cutout; no COSMOS
+scene/layout edits were required.
+
+HIGGS, NOVA, Level-Planar and S-T_PLAYER-ACTIONS inherit the component from Surface.
+Arena_Planar_Bounds now disables only the four old fixed mask MeshRenderers; their
+colliders and the ground remain unchanged. Scenes that do not use the shared
+Surface/Bounds pair are not migrated. HIGGS needed no new scene override.
+
+MASSIVE > Levels > Validate Shared Surface Outside Mask passed 13 authored checks
+and 17 Play Mode/GPU checks, including both goal-toggle states on rectangular and
+oval fields, live HIGGS, resize, goals, corners, foreground
+depth, oval/COSMOS compatibility and resource recreation. No runtime errors. All
+26,124 sampled HIGGS HUD/title pixels stayed visible. Captures were visually
+inspected. Reports/captures: Library/ArenaOutsideMask; prefab backups are kept there.
+No standalone build or cabinet performance validation was performed.
+
+PULSAR full composition (2026-10-07) supersedes its earlier mask-only migration.
+`Assets/Scenes/S-5_PULSAR.unity` now uses the six standard roots and eight shared
+prefab modules. LevelSceneContext explicitly supplies PULSAR/STAGE_004 identity,
+shared Rewired input bootstrap, roster, anomaly references and spawner phase gating.
+MatchRuntime owns one explicit MatchScoreService with the shared economy profile;
+all four player slots, HUD timer, score presenters, goal treatments and grid effects
+are wired locally. Shared regulation duration is read from the profile (currently
+180 seconds), rather than the old runtime fallback. Gameplay shuts down at match end;
+existing death sphere/HUD stay outside GameplayObjects for the shared PostGame flow.
+
+AmplifierResonanceEncounter and a LATTICE-based shared enemy timeline live under
+GameplayObjects/Encounters with local bounds, wall sockets and ownership. A stable
+NoSpawnZone around PULSAR's solid core protects pickup and enemy placement. PULSAR's
+authored geometry, visual/physics components and poses were preserved. Grid force
+references are now explicit. The inactive rhythm prototype lives beside the star
+under LevelContent with its director, playable director and center references wired.
+It remains unfinished: no IPulsarInputSource implementation or scoring/session
+integration exists, so do not activate it as a production minigame yet.
+
+Surface/Bounds module inheritance replaces the legacy PLAYING FIELD wrapper while
+retaining authored overrides. The automatic mask and goal-half-circle toggle remain
+available at 02_Arena/Surface/GRID/VectorGridGPU. ArenaOutsideMaskValidation supports
+all five Surface scenes and no longer injects a temporary Rewired manager for PULSAR.
+Migration and integration tooling: Assets/Editor/PulsarLevelSetup.cs and
+PulsarLevelValidation.cs; backup/reports/captures: Library/PulsarLevelValidation.
+See Assets/Prefabs/Levels/README.md for hierarchy and authoring details.
+PULSAR validation: 40 composition + 7 enemy wiring checks, 7,800 reference slots,
+and 41 runtime checks per mode (1v1 and 2v2), including the full PostGame/Attract
+flow. Zero runtime errors. The migrated mask passed 16 authored + 18 runtime/GPU
+checks with all 39,861 sampled HUD/title pixels retained. Captures were inspected;
+a standalone build and cabinet performance were not tested.
+
+
+### Charged Thrust (2026-10-07)
+
+Attack input now starts an optional Thrust charge on button-down, fires on release,
+and automatically fires once at the maximum hold time. The shared defaults are
+3 seconds, 3x travel and 2x damage, interpolated linearly from uncharged values.
+Continued holding after auto-fire never repeats or queues a combo; Swipe and
+Repulsor still require fresh press edges and receive no charge bonus. Direct
+BeginAttack callers retain immediate, uncharged behavior. Thrust captures its
+heading when launched and retains the existing +/-15-degree steering limit.
+
+PlayerAttackController.Charge owns charge state and captures per-stage bonuses
+without modifying attack assets. PlayerControllerScript routes held/released
+input after shields and power-ups, cancelling charge on input locks, stun,
+suppression, elimination, disable and ownership changes. Movement remains usable
+while charging. PlayerMelee and EnemyHurtbox apply the same charge multiplier;
+player damage remains one transaction, including captured delayed shield leak.
+Existing parry/stun, shields and particle-follow behavior are preserved.
+
+Body outline and GPU nuggets share a visual-only, increasing vibration offset.
+The physics body and hitbox do not jitter. Charge time, maximum distance/damage,
+vibration amplitude/frequency and the enable toggle are in PlayerTuningProfile
+combat and MASSIVE > Player Tuning > Movement > Thrust charge. They use the
+existing persistent Play Mode editing path. In disrupted LATTICE, distance
+rounds to whole nodes (up to three by default), checking each intermediate
+segment and preserving quantized endpoints.
+
+Validation: Unity 6000.0.28f1 compiled and ThrustChargeValidation.RunBatch passed
+41 integration checks in an isolated copy of S-T_PLAYER-ACTIONS. Actual travel
+was 2.03 / 4.05 / 6.00 units for tap / half charge / full charge; tested player
+and NPC damage, one-shot auto-fire, combo handoff, steering, interruption, pause,
+visual shake without physics motion, LATTICE travel/blockers, two successful
+loops of all seven demos, and saved settings after Play Mode exit/reimport.
+Early/late charge captures inspected; no runtime errors. Existing package asmref
+and unrelated terrain-shader dependency warnings remain. No standalone build
+or physical gamepad session was run. Evidence, source hashes and backups are in
+Library/ThrustChargeValidation. The disposable test project was removed.
+
+
+### Thrust charge slowdown and path telegraph (2026-10-07)
+
+Charged Thrust now scales locomotion toward 25% at full charge by default. The
+multiplier feeds both ordinary physics and LATTICE's movement clock, reducing
+propulsion and the speed ceiling. Charging enforces that ceiling even when
+ordinary speed clamping is disabled, so existing momentum also slows. Release,
+cancel, disable and input ownership changes clear the charge penalty.
+
+PlayerThrustChargeGuide is bound from PlayerAttackController.OnEnable, including
+a script reload during Play Mode. It draws open chevrons from nearest to farthest
+as the charge builds (five maximum by default). Each arrow smoothly grows its
+stroke from zero to full width over .15 seconds. The final tip reaches half the
+maximum charged travel from the player center (3 units with the current 6-unit
+maximum); this depicts maximum unobstructed range, not a collision forecast.
+The guide follows the same aim-assistance query used by launch and the snapped
+heading/range on LATTICE. It remains stable while body/nuggets vibrate, scales
+with the player and maps onto SINGULARITY's surface. No rear triangle edge is
+drawn. Volumetric Shapes strokes render relative to the player origin; the
+billboard line path failed camera validation and is not used.
+
+MASSIVE > Player Tuning > Movement > Thrust charge exposes minimum movement,
+guide toggle, count, range fraction, stroke width, arrow length/width, color
+and reveal duration. Values use the shared PlayerTuningProfile combat group
+and persist when edited during Play Mode.
+
+Validation: Unity 6000.0.28f1 compiled and the extended ThrustChargeValidation
+passed 65 runtime/integration checks in an isolated S-T_PLAYER-ACTIONS copy.
+These include measured slowing, pixel checks for both arrow legs and the open
+back, range/scale, live aim, assisted launch agreement, cancellation/reuse,
+uncapped movement, LATTICE, existing charged damage/combo behavior, two loops
+of all seven demos, and settings after Play Mode exit/reimport. Two-arrow and
+five-arrow captures were inspected. No runtime errors; existing unrelated
+package/shader import warnings remain. No standalone build or physical
+controller session was run; SINGULARITY surface mapping was code-reviewed.
+Evidence, captures, source hashes and backups: Library/ThrustChargeGuideValidation.
+The disposable validation project was removed.
+
+
+### Detailed post-match results (2026-10-07)
+
+The user's duplicated `Assets/Scenes/S-0_POSTGAME-V2.unity` is now the production
+PostGame destination in SceneFlow and EditorBuildSettings. The original scene is
+retained. The authored Team 1 / Player 2 layout supplies all four stat columns;
+Team 2 mirrors its placement with left-aligned text and P3/P4 reading order.
+Full team scores use comma-separated canonical meV, without tier conversion.
+In 1v1, P1/P3 remain, with player headings and the individual-score row hidden.
+
+MatchScoreService.Statistics extends the existing score authority with per-player
+kills, deaths, enemy kills and traveled meters. Confirmed death/defeat events
+count independently of score reward amounts and deduplicate each victim life.
+Distance samples Rigidbody positions at physics steps: one world unit = one
+meter, accumulated with double precision and rounded only for display. Spawn,
+respawn, match locks and SINGULARITY portal transit are excluded; TeleportTo
+invalidates the position sample. Closed scoring freezes totals; ResetForMatch
+clears them. GameManager copies PlayerMatchStatistics into MatchResult alongside
+existing exact contributions. Non-player team awards remain in the team total.
+
+PostGamePlayerStatsView uses explicit scene bindings. V2 keeps mode, countdown
+and optional NOVA regulation/bonus text white outside the winner disc, and uses
+the dark disc for ties. The existing 15-second return and input gate remain.
+PostGameResultsSetup authors the duplicate once; normal Inspector editing remains
+available thereafter. No package or gameplay prefab changes were needed.
+
+Unity 6000.0.28f1 compiled; PostGameResultsValidation.RunBatch passed 34 checks in
+an isolated project copy. Coverage includes real player damage/death and enemy
+defeat events, duplicate exclusion, world-distance measurement, teleport/lock/
+pause handling, frozen/reset snapshots, GameManager payload, real SceneFlow load,
+exact scores, four-player formatting, solo visibility, NOVA breakdown and ties.
+1080p 2v2 Light, 1v1 Dark/bonus and tie renders were inspected. No runtime errors;
+existing package/import shader warnings remain. No standalone build or physical
+controller session was run; not every gameplay stage was exercised. Evidence,
+source hashes, original-file backups and captures: Library/PostGameResultsValidation.
+
+
+### Static results void (2026-10-07 follow-up)
+
+S-0_POSTGAME-V2 now uses a fixed circular void large enough to contain the mode,
+winner and return countdown. Both score-void halves have one fixed-radius core
+(0.21 object-space, 2.93475 world-space radius), no score-source binding, pulse,
+jitter, orbit or growth-in animation. The void center moved down 0.15 world units
+for countdown padding. Mode and countdown now follow the winner theme inside the
+void; optional NOVA breakdown remains white outside it. Gameplay score voids and
+shared materials are unchanged. The existing results validation passed all 34
+checks in Unity 6000.0.28f1 with no runtime errors; Light/Dark renders confirm
+both lines fit. Evidence: Library/PostGameStaticVoidValidation.
+
+
+### NOVA star collision follows supernova growth (2026-10-07)
+
+NOVA_Feature now parents both existing solid-collider objects beneath Star Visuals,
+so the physical star body inherits NovaStarRumble stage growth, pulse and shake.
+Previously the collision radius stayed at 1.75 while the stage-one core was only
+0.735 units. Stages 1–4 now match rendering at radii 0.735, 1.05, 1.40 and 1.75.
+Authored world poses and collider settings are preserved. Entry and attraction
+triggers remain on the stable star root; the separate spawn-exclusion zone stays
+independent. NovaFinaleSetup preserves this hierarchy when rebuilding the feature.
+NovaLevelSetup and the finale validator use the current S-7_NOVA scene path.
+
+Unity 6000.0.28f1 compiled and NovaStarCollisionValidation passed 19 Play Mode checks
+in the open NOVA scene. Surface raycasts and inside/outside queries agree with the
+visible core through clock-driven growth, the final-entry pulse and re-enable.
+Matter bursts, trigger sizes and saved scene/prefab integrity also passed, with
+zero runtime errors. Stage-one/four captures were inspected. Evidence and the
+pre-change prefab backup: Library/NovaStarCollisionValidation. NOVA remains open
+in Edit Mode; no standalone build or physical-controller session was run.
+
+
+### SINGULARITY shared level integration (2026-10-07)
+
+S-8_SINGULARITY now has the standard six roots and five shared modules: MatchRuntime,
+Players_Gameplay, TeamGoals_Planar, AmplifierResonanceEncounter and MatchHUD.
+LevelSceneContext supplies explicit match/score/roster/HUD references, shared economy,
+direct-launch Rewired bootstrap and phase-gated power-ups. The saved LevelDefinition
+scene name now resolves S-8_SINGULARITY; stage/title/result identity is STAGE_007,
+matching its existing catalog number. The old duplicate input object was removed.
+
+SingularityArenaDomains exposes a front-face placement rectangle and full projected
+mask rectangle using disabled, non-registering VectorGridGPU data holders. The
+original SingularityGridRenderer remains the only surface renderer/simulation.
+The shared ArenaOutsideMask lives at 02_Arena/Surface/Projected arena mask, follows
+surface dimensions and exposes the goal-half-circle toggle. No new walls block folds.
+
+LATTICE's shared enemy timeline/profile uses scene-local front bounds, eight wall
+mounts, the existing black-hole exclusion and a local enemy container. Per user
+choice, enemies and power-ups stay on the front face. EnemyDirector's opt-in
+restrictTargetsToArena excludes rear-chart targets; portal-controlled players are
+also ineligible. Other levels retain the default targeting domain. The original
+folded player/Core adapters, seam traversal, rear dimming, black-hole sequence,
+Core-goal behavior and all authored world poses were preserved. Shared Repulsor
+feedback now emits into the folded renderer. The inactive sandbox remains under
+90_EditorOnly; the optional anomaly pool remains empty. Shared match end shuts down
+gameplay and cancels portal ownership before PostGame/Attract navigation.
+
+Unity 6000.0.28f1 DX11 validation: 35 composition checks, 7 enemy checks and 6,241
+serialized reference slots passed. Both 1v1 and 2v2 passed 52 integration checks plus
+50 existing live Core portal checks each, including all six enemy families, safe
+pickups, scoring, pause, player/Core travel, cancellation and exact result handoff.
+The mask passed 4 authored and 14 runtime/GPU checks, including resize, both goal
+toggle states, depth, cleanup and zero coverage of 29,124 visible HUD/title pixels.
+Gameplay/mask captures were inspected and saved-asset integrity checks passed.
+Runtime errors were zero; PlayerControllerScript.MatchSpawnRoutine still logs
+kinematic-velocity warnings. No standalone build or physical-controller play session
+was run. An initial pickup fixture was corrected to respect the live pickup cap;
+a separate interrupted 2v2 attempt was rerun successfully after editor compilation.
+Evidence and original scene/identity backups: Library/SingularityLevelValidation.
+SINGULARITY is left open in Edit Mode.
+
+
+### All playable levels: universal systems validation (2026-10-07)
+
+The eight LevelCatalog entries were audited and run in Unity 6000.0.28f1 DX11:
+LATTICE, HIGGS, ORBITAL, PULSAR, DYNAMO, NOVA, SINGULARITY and COSMOS. Each ran
+both 1v1 and 2v2 through countdown, regulation, actual PostGame-V2 and Attract.
+COSMOS retains its existing catalog number 9. Level-specific mechanics and all
+retained authored world poses were preserved during structural repairs.
+
+The audit found gaps beyond the previously integrated scenes. ORBITAL now has
+LevelSceneContext, the six standard roots, explicit shared economy/input/title
+bindings and the team Amplifier toast, while retaining its probability cloud.
+NOVA now has the shared enemy timeline with local arena, star exclusions and
+encounter bindings. HIGGS has its missing stage profile; NOVA/ORBITAL stage IDs
+and stale serialized gameplay scene names now agree with the catalog.
+
+LATTICE, ORBITAL and COSMOS each had two Repulsor damage areas per player, both
+subscribing to the same attack event with independent hit sets. The redundant
+scene-added copies were removed, leaving one explicitly bound area per player.
+All levels now retire GameplayObjects at resolution. LATTICE, ORBITAL and
+DYNAMO gained automatic outside masks where unpacked surfaces lacked them;
+COSMOS's ellipse and SINGULARITY's folded projection remain specialized.
+PlayerControllerScript avoids assigning velocities to an already kinematic body
+during match spawn, eliminating the earlier shared startup warnings.
+
+Production Amplifier preview controls are hidden in catalog scenes and the shared
+Arena_Planar_Surface prefab. DYNAMO starts with its debug overlay hidden; its
+existing toggle remains available. These are presentation flags, not balance changes.
+
+Validation passed 536 runtime checks across 16 cases (38/28 per ordinary level,
+42/32 for NOVA). Coverage includes one input/score authority, correct roster/HUD,
+score deduplication, real enemy defeat, pause/resume, natural Core/Resonance and
+pickup spawning, team amplification, all six enemy families in each 1v1 scene,
+shutdown, exact result handoff and navigation cleanup. NOVA also passed its real
+entry and Core Collapse bonus with arena pause and bonus-only scoring. All cases
+reported zero runtime errors and warnings. The runtime sweep preserved hashes of
+38 saved scenes, prefabs, definitions, settings and Build Settings. The final
+saved-scene audit passed 192 checks and 56,416 serialized reference slots, including
+production preview/debug overlays hidden. The final DYNAMO capture had zero runtime
+errors and showed both authoring overlays absent.
+
+Menu: MASSIVE > Levels > Audit All Playable Levels; Validate All Playable Levels
+(1v1 and 2v2). The validation uses disposable runtime time/score fixtures and does
+not save them. Evidence, before-repair backups and reviewed gameplay captures:
+Library/UniversalLevelValidation. A final DYNAMO capture checks presentation after
+hiding the controls; the original PULSAR scene is restored in Edit Mode.
+
+This establishes shared-system integration in the Editor. No standalone build,
+physical-controller session, exhaustive wave timing or competitive balance test
+was run. Three existing Editor compiler warnings remain (two obsolete TMP wrapping
+calls and a reference-comparison warning in the older NovaLevelValidation helper).
+An initial fixture checked timeline initialization one frame too early; it was
+corrected to wait for actual initialization and the full sweep passed afterward.

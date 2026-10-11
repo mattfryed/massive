@@ -178,6 +178,13 @@ namespace Massive.Player
         }
 
 
+        private void OnEnable()
+        {
+            // Also wire after an Editor script reload while the scene is playing.
+            if (Application.isPlaying && !GetComponent<PlayerThrustChargeGuide>())
+                gameObject.AddComponent<PlayerThrustChargeGuide>();
+        }
+
         private void OnDisable()
         {
             // Death and world suppression disable this controller. Release the
@@ -234,6 +241,7 @@ namespace Massive.Player
             if (Time.time < lastAttackEndTime + Effective_attackCooldown)
                 return;
 
+            CancelCharge(); // Direct calls remain immediate, uncharged attacks.
             StartStage(0);
         }
 
@@ -513,6 +521,7 @@ private Vector3 GetAttackDirection()
 
             currentStage = stage;
             currentStageIndex = stageIndex;
+            CaptureStageCharge();
             stageTimer = 0f;
             currentDistanceProgress = 0f;
             previousNormalizedTime = 0f;
@@ -536,7 +545,7 @@ private Vector3 GetAttackDirection()
             // an explicit factor, fixed for the lifetime of this attack stage.
             stageTravelDistanceWS = currentStage.StageType == AttackStageType.FinisherRepulsor
                 ? 0f
-                : currentStage.TravelDistance * PlayerScaleAdjuster.ActionReachOf(this);
+                : currentStage.TravelDistance * PlayerScaleAdjuster.ActionReachOf(this) * stageDistanceMultiplier;
             stageStopDistanceWS = stageTravelDistanceWS;
             lockedTarget = null;
             PrepareLatticeAttack();
@@ -621,6 +630,7 @@ private Vector3 GetAttackDirection()
 
         public void CancelAttack(bool signalComplete = false)
         {
+            CancelCharge();
             if (!isAttacking)
                 return;
 
@@ -668,18 +678,28 @@ private Vector3 GetAttackDirection()
 
 
     private void TryApplyLungeLockOn()
-{
-    Vector3 origin = (rb != null) ? rb.position : transform.position;
+    {
+        Vector3 origin = rb ? rb.position : transform.position;
+        if (!TryFindLungeLockOn(origin, stageAttackDirectionWS, stageTravelDistanceWS,
+            out var target, out var direction, out float distance)) return;
+        lockedTarget = target;
+        stageAttackDirectionWS = direction;
+        // Stop at contact while preserving the authored motion curve.
+        stageStopDistanceWS = Mathf.Clamp(distance, 0f, stageTravelDistanceWS);
+    }
 
-    Vector3 aimDir = stageAttackDirectionWS;
+    private bool TryFindLungeLockOn(Vector3 origin, Vector3 aimDir, float travelDistance,
+        out PlayerControllerScript target, out Vector3 direction, out float distance)
+{
+    target = null; direction = aimDir; distance = 0f;
     aimDir.y = 0f;
-    if (aimDir.sqrMagnitude < 0.0001f) return;
+    if (aimDir.sqrMagnitude < 0.0001f) return false;
     aimDir.Normalize();
 
     float maxDist = (Effective_lockOnMaxDistanceOverride > 0f)
         ? Effective_lockOnMaxDistanceOverride * PlayerScaleAdjuster.ActionReachOf(this)
-        : stageTravelDistanceWS;
-    if (maxDist <= 0.0001f) return;
+        : travelDistance;
+    if (maxDist <= 0.0001f) return false;
 
     float cosLimit = Mathf.Cos(Effective_lockOnConeHalfAngleDeg * Mathf.Deg2Rad);
 
@@ -746,18 +766,18 @@ private Vector3 GetAttackDirection()
         }
     }
 
-    if (best == null) return;
+    if (best == null) return false;
 
-    lockedTarget = best;
+    target = best;
 
     // Blend for feel (avoid “magnet snap”)
     Vector3 blendedDir = Vector3.Slerp(aimDir, bestDir, Mathf.Clamp01(Effective_lockOnDirectionBlend));
     blendedDir.y = 0f;
     if (blendedDir.sqrMagnitude > 0.0001f)
-        stageAttackDirectionWS = blendedDir.normalized;
+        direction = blendedDir.normalized;
 
-    // Stop at initial distance (but preserve speed by clamping, not scaling travelDistance)
-    stageStopDistanceWS = Mathf.Clamp(bestDist, 0f, stageTravelDistanceWS);
+    distance = bestDist;
+    return true;
 }
     }
 

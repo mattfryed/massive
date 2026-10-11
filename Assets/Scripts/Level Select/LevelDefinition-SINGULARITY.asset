@@ -16,7 +16,7 @@ MonoBehaviour:
   levelTitle: SINGULARITY
   scaleExponent: 14
   gameplayScene:
-    sceneName: S-7_SINGULARITY
+    sceneName: S-8_SINGULARITY
     sceneAsset: {fileID: 102900000, guid: 4bef542724edb0244a300cf42cb8ff61, type: 3}
   iconPrefab: {fileID: 6340624273316516380, guid: af2cd38a9d6ef7e46aed17cd4998dfa9,
     type: 3}

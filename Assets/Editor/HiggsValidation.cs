@@ -82,6 +82,9 @@ public static class HiggsValidation
         var manager=Object.FindFirstObjectByType<HiggsExcitationKnotManager>();
         var encounter=Object.FindFirstObjectByType<AmplifierResonanceSpawner>();
         manager.enabled=false; encounter.enabled=false;
+        // Keep this deterministic capture fixture independent of live encounter scoring.
+        foreach (var enemies in Object.FindObjectsByType<Massive.Enemies.EnemyDirector>(FindObjectsSortMode.None))
+            enemies.enabled=false;
         var gm=Object.FindFirstObjectByType<GameManagerScript>(); gm.StopAllCoroutines(); gm.enabled=false;
         scores.ResetForMatch(true);
         var players=Object.FindObjectsByType<PlayerControllerScript>(FindObjectsInactive.Include,FindObjectsSortMode.None)
@@ -98,6 +101,10 @@ public static class HiggsValidation
         var dark=players.First(p=>p.teamID==2);
         var prefab=AssetDatabase.LoadAssetAtPath<GameObject>(HiggsStageSetup.KnotPath);
         var knot=Object.Instantiate(prefab).GetComponent<SymmetryKnotController>();
+        // Isolate the original economy/collider regression from optional sustained growth.
+        var incomeSettings = new SerializedObject(knot);
+        incomeSettings.FindProperty("maximumIncomeMultiplier").floatValue = 1;
+        incomeSettings.ApplyModifiedPropertiesWithoutUndo();
         knot.Initialize(Vector3.zero); knot.enabled=false;
         try
         {

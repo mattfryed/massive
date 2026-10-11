@@ -1134,10 +1134,10 @@ MonoBehaviour:
   powerUps: {fileID: 1518572828788266588}
   shieldAbility: {fileID: 5653448991387559043}
   aimDeadzone: 0.18
-  massScore: 0.5
+  massScore: 1
   massScoreMin: 0
   massScoreMax: 1
-  spawnMassScore01: 0.5
+  spawnMassScore01: 1
   massGainPerHit: 0.08
   massLossPerHit: 0.08
   shieldDrainPerSecond01: 0.004

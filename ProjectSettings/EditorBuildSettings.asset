@@ -30,8 +30,8 @@ EditorBuildSettings:
     path: Assets/Scenes/S-5_PULSAR.unity
     guid: bb7730e7f14d8434e9290237f30c9a70
   - enabled: 1
-    path: Assets/Scenes/S-0_POSTGAME.unity
-    guid: b08d2d847ed49684c8852683be1e5a4b
+    path: Assets/Scenes/S-0_POSTGAME-V2.unity
+    guid: e9b1514c9673e444f947223d9d7a29e0
   - enabled: 0
     path: Assets/Scenes/DEPRECATED/S-X_LEVEL-END.unity
     guid: 2cde54bef5b5b407981e481f3a617e89

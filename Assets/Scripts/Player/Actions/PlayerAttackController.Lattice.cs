@@ -16,7 +16,8 @@ namespace Massive.Player
             if (!latticeAttackMotor || !ownerController.CanUseLatticeAttack) return;
             bool thrust = currentStage.StageType == AttackStageType.PrimaryLunge;
             if (!latticeAttackMotor.TryPlanAttack(stageAttackDirectionWS, thrust,
-                out latticeAttackStart, out latticeAttackEnd, out Vector3 direction)) return;
+                out latticeAttackStart, out latticeAttackEnd, out Vector3 direction,
+                thrust ? Mathf.Max(1, Mathf.FloorToInt(stageDistanceMultiplier + .5f)) : 1)) return;
             IsLatticeAttack = true;
             if (thrust) stageAttackDirectionWS = direction;
             stageTravelDistanceWS = Vector3.Distance(latticeAttackStart, latticeAttackEnd);

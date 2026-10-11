@@ -14,14 +14,18 @@ public sealed class SymmetryKnotCaptureState
     public float ContestedSeconds { get; private set; }
     public float FirstArrivalSeconds { get; private set; } = -1;
     public int OwnershipChanges { get; private set; }
+    public int IncomeTicks { get; private set; }
+    public double TickSeconds => interval;
 
     private readonly double formation, claimed, ramp, interval, outro;
     private double age, expiresAt, hold, retiringAge;
     private double tickTime;
     private int lastClaimedTeam = -1;
+    private readonly bool resetIncomeOnContest;
 
     public SymmetryKnotCaptureState(float formationSeconds, float unclaimedSeconds,
-        float claimedSeconds, float rampSeconds, float tickSeconds, float outroSeconds)
+        float claimedSeconds, float rampSeconds, float tickSeconds, float outroSeconds,
+        bool resetIncomeOnContest = false)
     {
         formation = Math.Max(0, formationSeconds);
         expiresAt = formation + Math.Max(.01f, unclaimedSeconds);
@@ -29,6 +33,7 @@ public sealed class SymmetryKnotCaptureState
         ramp = Math.Max(0, rampSeconds);
         interval = Math.Max(.02f, tickSeconds);
         outro = Math.Max(.01f, outroSeconds);
+        this.resetIncomeOnContest = resetIncomeOnContest;
         Phase = formation > 0 ? Stage.Forming : Stage.Active;
     }
 
@@ -57,7 +62,7 @@ public sealed class SymmetryKnotCaptureState
         if (teamMask != 0 && FirstArrivalSeconds < 0) FirstArrivalSeconds = (float)age;
         if (!Contested && candidate != OwnerTeam)
         {
-            OwnerTeam = candidate; hold = 0; tickTime = 0;
+            OwnerTeam = candidate; hold = 0; tickTime = 0; IncomeTicks = 0;
             if (candidate > 0)
             {
                 if (lastClaimedTeam > 0 && lastClaimedTeam != candidate) OwnershipChanges++;
@@ -76,6 +81,7 @@ public sealed class SymmetryKnotCaptureState
             ContestedSeconds += (float)activeDt;
             // Contest pauses the ramp, but never carries a fractional award through a contest.
             tickTime = 0;
+            if (resetIncomeOnContest) IncomeTicks = 0;
         }
         else if (OwnerTeam > 0)
         {
@@ -85,6 +91,7 @@ public sealed class SymmetryKnotCaptureState
             tickTime += activeDt - warmup;
             ticks = (int)Math.Floor((tickTime + 0.000001) / interval);
             tickTime = Math.Max(0, tickTime - ticks * (double)interval);
+            IncomeTicks += ticks;
         }
         age += activeDt;
         // Caller delivers ticks earned before the exact deadline, then retires presentation.
@@ -95,6 +102,6 @@ public sealed class SymmetryKnotCaptureState
     public void Retire()
     {
         if (Phase == Stage.Finished || Phase == Stage.Retiring) return;
-        Phase = Stage.Retiring; OwnerTeam = -1; Contested = false; hold = 0; tickTime = 0;
+        Phase = Stage.Retiring; OwnerTeam = -1; Contested = false; hold = 0; tickTime = 0; IncomeTicks = 0;
     }
 }

@@ -32,11 +32,11 @@ namespace Massive.Enemies
                 defeat.source != EnemyDamageSource.Repulsor) return;
             if (_enemy.OwnerTeamId == defeat.creditedPlayer.teamID) return;
 
-            string key = _enemy.Definition != null ? _enemy.Definition.defeatRewardKey : null;
-            if (string.IsNullOrWhiteSpace(key)) return;
-
             MatchScoreService service = MatchScoreService.Instance;
             if (service == null) return;
+            service.RecordEnemyDefeat(defeat.creditedPlayer, defeat.sourceLifeToken);
+            string key = _enemy.Definition != null ? _enemy.Definition.defeatRewardKey : null;
+            if (string.IsNullOrWhiteSpace(key)) return;
             if (service.TryAwardToPlayer(key, defeat.creditedPlayer, defeat.sourceLifeToken,
                 defeat.worldPosition, out var award) && scoreToastPrefab != null)
                 EnemyScoreToast.Show(scoreToastPrefab, award, gameObject.scene);

@@ -57,6 +57,8 @@ public class SymmetryKnotVisual : MonoBehaviour
 
     [Header("End Cap")]
     [Range(6, 32)] [SerializeField] private int endSliceCount = 14;
+    [Tooltip("World-space gap from the goal's flow anchor to the first tunnel ring, toward the arena.")]
+    [SerializeField, Min(0)] private float goalRingInset = .25f;
     [SerializeField] private float endEmitLen = 1.1f;
     [SerializeField] private float endCurvePull = 1.6f;
 
@@ -472,6 +474,8 @@ private void ForceRingsToXZPlane()
         if (endEmitByWorldXSide)
             exitDir = (E.x < 0f) ? Vector3.right : Vector3.left;
 
+        E += exitDir * goalRingInset;
+
         // Retraction:
         // As lockValue goes to 0, collapse q3 back toward the mouth so the end knot "shrinks back".
         float lock01 = Mathf.Clamp01(lockValue);
@@ -493,9 +497,11 @@ private void ForceRingsToXZPlane()
         {
             float t = (endSlices.Count == 1) ? 1f : i / (float)(endSlices.Count - 1);
 
-            Vector3 pos = SampleWithWiggle(q0, q1, q2, q3, dirXZ, t, Time.time, 1.7f);
+            // Keep the goal attachment fixed while the rest of the conduit breathes/wiggles.
+            Vector3 pos = i == 0 ? q0 : SampleWithWiggle(q0, q1, q2, q3, dirXZ, t, Time.time, 1.7f);
             Vector3 pos2 = SampleWithWiggle(q0, q1, q2, q3, dirXZ, Mathf.Min(1f, t + 0.02f), Time.time, 1.7f);
             Vector3 tan = (pos2 - pos);
+            if (i == 0) tan = exitDir;
             if (tan.sqrMagnitude < 0.000001f) tan = exitDir;
 
             float breath = 1f + breatheAmplitude * Mathf.Sin(Time.time * breatheSpeed * 6.2831853f + 1.1f + t * 2.8f);

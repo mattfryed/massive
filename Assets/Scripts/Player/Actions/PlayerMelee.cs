@@ -34,6 +34,7 @@ public class PlayerMelee : MonoBehaviour
     private readonly System.Collections.Generic.HashSet<AmplifierCoreGameplay> coreContacts = new();
 
     public PlayerControllerScript Owner => owner;
+    public float DamageMultiplier => attackController ? attackController.CurrentDamageMultiplier : 1f;
 #if UNITY_EDITOR
     public Collider TuningHitbox => hitbox;
     public PlayerAttackController TuningAttackController => attackController;
@@ -226,9 +227,10 @@ public class PlayerMelee : MonoBehaviour
 
         if (defenderShield != null)
         {
+            float damageMultiplier = DamageMultiplier; // Capture before the parry cancels the attacker.
             defenderShield.QueueMeleeParry(owner, (strength, fullyBlocked) =>
             {
-                if (!fullyBlocked && owner && defender) ApplyShieldLeak(defender, strength);
+                if (!fullyBlocked && owner && defender) ApplyShieldLeak(defender, strength, damageMultiplier);
             });
             return;
         }
@@ -237,13 +239,13 @@ public class PlayerMelee : MonoBehaviour
         AudioSystem.I?.Play(AudioEventId.Player_Parry, transform.position);
     }
 
-    private void ApplyShieldLeak(PlayerControllerScript defender, float strength)
+    private void ApplyShieldLeak(PlayerControllerScript defender, float strength, float damageMultiplier)
     {
         float leak01 = Mathf.Clamp01(1f - strength);
         if (defender == null || IsFriendly(defender) || leak01 <= 0.001f)
             return;
 
-        PlayerHitResult hit = defender.TryApplyHit(owner.gameObject, leak01);
+        PlayerHitResult hit = defender.TryApplyHit(owner.gameObject, leak01, damageMultiplier);
         if (!hit.accepted)
             return;
 
@@ -261,7 +263,7 @@ public class PlayerMelee : MonoBehaviour
         if (victim.shieldOn)
             return;
 
-        PlayerHitResult hit = victim.TryApplyHit(owner.gameObject, 1f);
+        PlayerHitResult hit = victim.TryApplyHit(owner.gameObject, 1f, DamageMultiplier);
         if (!hit.accepted)
             return;
 

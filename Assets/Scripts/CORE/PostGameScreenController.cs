@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Globalization;
 using Massive.Scoring;
 using TMPro;
 using UnityEngine;
@@ -19,6 +20,11 @@ public class PostGameScreenController : MonoBehaviour
     [SerializeField] private TMP_Text scoreDarkUnitText;
     [SerializeField] private TMP_Text scoreLightBreakdownText;
     [SerializeField] private TMP_Text scoreDarkBreakdownText;
+
+    [Header("Detailed Results")]
+    [SerializeField] private bool displayExactMilliElectronVolts;
+    [SerializeField] private PostGamePlayerStatsView[] playerStats;
+    [SerializeField] private GameObject individualScoreLabel;
 
     [Header("Optional UI")]
     [SerializeField] private TMP_Text modeText;        // "1v1" / "2v2"
@@ -131,6 +137,11 @@ public class PostGameScreenController : MonoBehaviour
 
         if (modeText != null)
             modeText.text = r.mode == GameMode.TwoVTwo ? "2v2" : "1v1";
+
+        bool twoVTwo = r.mode == GameMode.TwoVTwo;
+        if (individualScoreLabel) individualScoreLabel.SetActive(twoVTwo);
+        if (playerStats != null)
+            foreach (var view in playerStats) view.Apply(r);
     }
 
     private static void ApplyBreakdown(TMP_Text text, bool show, long regulation, long bonus)
@@ -149,8 +160,9 @@ private void ApplyWinnerTheme(MatchResult r)
               (r.winner == TeamSide.Dark)  ? darkWinTextColor  :
               darkWinTextColor;
 
-    ApplyThemeColorToText(scoreLightBreakdownText, c);
-    ApplyThemeColorToText(scoreDarkBreakdownText, c);
+    Color outsideColor = displayExactMilliElectronVolts ? Color.white : c;
+    ApplyThemeColorToText(scoreLightBreakdownText, outsideColor);
+    ApplyThemeColorToText(scoreDarkBreakdownText, outsideColor);
     System.Collections.Generic.HashSet<TMPTextTransition> toRefresh = null;
 
     if (themedTexts != null)
@@ -160,6 +172,7 @@ private void ApplyWinnerTheme(MatchResult r)
             var t = themedTexts[i];
             if (t == null) continue;
 
+            // Mode, winner and countdown all sit inside the fixed result void.
             t.color = c;
 
             // Collect transitions that might be controlling this text
@@ -189,7 +202,7 @@ private void ApplyWinnerTheme(MatchResult r)
     // 2) Void background team override (leave your existing code as-is)
     int teamId = (r.winner == TeamSide.Light) ? lightTeamIdOverride :
                  (r.winner == TeamSide.Dark)  ? darkTeamIdOverride  :
-                 -1;
+                 displayExactMilliElectronVolts ? darkTeamIdOverride : -1;
 
     if (teamId < 0) return;
 
@@ -340,6 +353,13 @@ private void ApplyWinnerTheme(MatchResult r)
 
     private void ApplyEnergyScore(TMP_Text valueText, TMP_Text unitText, long rawMilliElectronVolts)
     {
+        if (displayExactMilliElectronVolts)
+        {
+            string exact = Math.Max(0L, rawMilliElectronVolts).ToString("N0", CultureInfo.InvariantCulture);
+            if (valueText) valueText.text = unitText ? exact : exact + " meV";
+            if (unitText) unitText.text = "meV";
+            return;
+        }
         EnergyDisplayValue display = EnergyScoreFormatter.GetDisplayValue(rawMilliElectronVolts);
         string value = EnergyScoreFormatter.FormatValue(
             rawMilliElectronVolts,

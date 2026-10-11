@@ -8164,6 +8164,11 @@ PrefabInstance:
       propertyPath: 'tierTextAnimators.Array.data[1]'
       value: 
       objectReference: {fileID: 7891872733597267792}
+    - target: {fileID: 2855074021223123526, guid: e969ac83d0dc53d46af4f400e458bd5d,
+        type: 3}
+      propertyPath: m_text
+      value: 000.000
+      objectReference: {fileID: 0}
     - target: {fileID: 3906757715838245731, guid: e969ac83d0dc53d46af4f400e458bd5d,
         type: 3}
       propertyPath: m_LocalPosition.x
@@ -8243,6 +8248,23 @@ PrefabInstance:
         type: 3}
       propertyPath: m_text
       value: DARK    MASS
+      objectReference: {fileID: 0}
+    - target: {fileID: 7234922601398362239, guid: e969ac83d0dc53d46af4f400e458bd5d,
+        type: 3}
+      propertyPath: m_fontAsset
+      value: 
+      objectReference: {fileID: 11400000, guid: 13b46f913b61e2d4195306f4c4e38dbd,
+        type: 2}
+    - target: {fileID: 7234922601398362239, guid: e969ac83d0dc53d46af4f400e458bd5d,
+        type: 3}
+      propertyPath: m_sharedMaterial
+      value: 
+      objectReference: {fileID: 1584024093373271768, guid: 13b46f913b61e2d4195306f4c4e38dbd,
+        type: 2}
+    - target: {fileID: 7234922601398362239, guid: e969ac83d0dc53d46af4f400e458bd5d,
+        type: 3}
+      propertyPath: m_wordWrappingRatios
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 7234922601398362239, guid: e969ac83d0dc53d46af4f400e458bd5d,
         type: 3}

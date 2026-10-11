@@ -177,7 +177,7 @@ MonoBehaviour:
     spawnOrganicRibbonScale: 1.5
     timeoutInstability: 1
   goal:
-    pullAcceleration: 24
+    pullAcceleration: 14
     pullByProximity:
       serializedVersion: 2
       m_Curve:

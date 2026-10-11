@@ -48,7 +48,7 @@ namespace Massive.Lattice
 
         // The attack controller owns motion after this handoff. A stage captures
         // its two nodes once, so drifting noise cannot change its travel midway.
-        internal bool TryPlanAttack(Vector3 aim, bool advance, out Vector3 start, out Vector3 end, out Vector3 direction)
+        internal bool TryPlanAttack(Vector3 aim, bool advance, out Vector3 start, out Vector3 end, out Vector3 direction, int maxSteps = 1)
         {
             start = end = default; direction = aim;
             if (!isActiveAndEnabled || !field || !field.isActiveAndEnabled || !field.IsReady
@@ -63,7 +63,15 @@ namespace Massive.Lattice
             if (step == Vector2Int.zero) step = Vector2Int.right;
             Vector3 next = field.NodeWorld(node + step, body.position.y);
             direction = (next - start).normalized;
-            end = advance && field.NodeFits(node + step, radius) && ClearPath(start, next, radius) ? next : start;
+            end = start;
+            if (advance)
+                for (int i = 1; i <= Mathf.Max(1, maxSteps); i++)
+                {
+                    Vector2Int targetNode = node + step * i;
+                    next = field.NodeWorld(targetNode, body.position.y);
+                    if (!field.NodeFits(targetNode, radius) || !ClearPath(end, next, radius)) break;
+                    end = next;
+                }
             Release(); // Restore normal interpolation for the smooth attack travel.
             body.position = start;
             body.linearVelocity = new Vector3(0, body.linearVelocity.y, 0);

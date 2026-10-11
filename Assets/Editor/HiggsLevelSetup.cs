@@ -16,7 +16,7 @@ using Object = UnityEngine.Object;
 /// <summary>Explicit migration onto the common planar modules, retaining HIGGS objects and overrides.</summary>
 public static class HiggsLevelSetup
 {
-    public const string ScenePath = "Assets/Scenes/S-9_HIGGS.unity";
+    public const string ScenePath = "Assets/Scenes/S-3_HIGGS.unity";
     private static T[] All<T>(Scene scene) where T : Component => scene.GetRootGameObjects()
         .SelectMany(root => root.GetComponentsInChildren<T>(true)).ToArray();
     private static Transform Group(string name, Transform parent = null)

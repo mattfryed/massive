@@ -786,7 +786,7 @@ public void SetMoveInput(Vector2 stick)
             jitter = new Vector3(Mathf.Sin(tt * 1.13f), 0f, Mathf.Sin(tt * 0.97f + 1.7f)) * amp;
         }
 
-        Vector3 basePos = visuals.position + jitter + _decoPreJitterWS + RepulsorVisualOffsetWS;
+        Vector3 basePos = visuals.position + jitter + _decoPreJitterWS + RepulsorVisualOffsetWS + ThrustChargeVisualOffsetWS;
         Quaternion baseRot = visuals.rotation;
         Vector3 baseScale = visuals.lossyScale * RepulsorVisualScale;
 

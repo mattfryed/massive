@@ -15,7 +15,7 @@ using Object = UnityEngine.Object;
 /// Never runs on import. Existing authored transforms and cross-module bindings are preserved.</summary>
 public static class NovaLevelSetup
 {
-    public const string NovaPath = "Assets/Scenes/S-3_NOVA.unity";
+    public const string NovaPath = "Assets/Scenes/S-7_NOVA.unity";
     public const string TemplatePath = "Assets/Scenes/Templates/Level-Planar.unity";
     private const string Prefabs = "Assets/Prefabs/Levels";
 

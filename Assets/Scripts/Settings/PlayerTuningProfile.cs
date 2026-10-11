@@ -55,6 +55,23 @@ namespace Massive.Settings
         public AnimationCurve swipeArcCurve = AnimationCurve.EaseInOut(0, 0, 1, 1);
         [Tooltip("Maximum turn to either side of Thrust's starting heading, after aim assistance. 0 locks aim; 180 removes the limit.")]
         [Range(0f, 180f)] public float thrustMaxTurnDegrees = 15f;
+        [Header("Thrust charge — release to fire; auto-fire at maximum")]
+        public bool thrustChargeEnabled = true;
+        [Min(.05f)] public float thrustChargeMaxSeconds = 3f;
+        [Min(1f)] public float thrustChargeMaxDistanceMultiplier = 3f;
+        [Min(1f)] public float thrustChargeMaxDamageMultiplier = 2f;
+        [Tooltip("Maximum visual shake in world units at player size 1; never moves physics or hitboxes.")]
+        [Min(0f)] public float thrustChargeVibrationAmplitude = .08f;
+        [Min(1f)] public float thrustChargeVibrationFrequency = 28f;
+        [Range(0f, 1f)] public float thrustChargeMinMoveMultiplier = .25f;
+         public bool thrustChargeGuideEnabled = true;
+        [Range(1, 12)] public int thrustChargeGuideArrowCount = 5;
+        [Range(0f, 1f)] public float thrustChargeGuideDistanceFraction = .5f;
+        [Min(0f)] public float thrustChargeGuideStrokeWidth = .035f;
+        [Min(.01f)] public float thrustChargeGuideArrowLength = .25f;
+        [Min(.01f)] public float thrustChargeGuideArrowWidth = .4f;
+        [Min(.01f)] public float thrustChargeGuideRevealSeconds = .15f;
+         public Color thrustChargeGuideColor = new Color(1f, 1f, 1f, .85f);
         public bool visualDirectionFollowsCombatFacing = true;
         public bool lockOnEnabled = true;
         [Range(0, 90)] public float lockOnConeHalfAngleDeg = 25f;

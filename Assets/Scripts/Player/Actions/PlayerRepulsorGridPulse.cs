@@ -20,6 +20,7 @@ namespace Massive.Player
         [Tooltip("Small tangential curl alongside the radial wave. Zero produces a radial pulse.")]
         [Range(0f, 1f)] public float curl = 0.2f;
         [SerializeField] private VectorGridGPU grid;
+        [SerializeField] private Massive.Singularity.SingularityGridRenderer foldedGrid;
 
         private struct Pulse
         {
@@ -123,6 +124,13 @@ namespace Massive.Player
             pulse.started = PulseTime;
             pulses[nextPulse] = pulse;
             nextPulse = (nextPulse + 1) % pulses.Length;
+            if (foldedGrid && foldedGrid.surface)
+            {
+                var surface = foldedGrid.surface;
+                var local = surface.transform.InverseTransformPoint(pulse.origin);
+                foldedGrid.EmitRipple(new Vector2(local.x, surface.Wrap(local.z + surface.FrontHeight * .5f)),
+                    pulse.seconds, pulse.radius, pulse.amplitude, pulse.width, pulse.startRadius);
+            }
         }
 
         /// <summary>Reuse the same bounded grid wave for an enemy, with an owner-controlled paused clock.</summary>

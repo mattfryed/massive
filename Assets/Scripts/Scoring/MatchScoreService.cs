@@ -6,7 +6,7 @@ using UnityEngine;
 namespace Massive.Scoring
 {
     [DisallowMultipleComponent]
-    public sealed class MatchScoreService : MonoBehaviour
+    public sealed partial class MatchScoreService : MonoBehaviour
     {
         private sealed class MutableTelemetry
         {
@@ -149,6 +149,7 @@ namespace Massive.Scoring
                 return;
 
             _registeredPlayers.Add(player);
+            EnsurePlayerStatistics(player);
             player.DeathResolved += OnPlayerDeathResolved;
             EnsureAndConfigureChain(player, reset: true);
         }
@@ -170,10 +171,12 @@ namespace Massive.Scoring
             _deduplicationKeys.Clear();
             _telemetry.Clear();
             _contributions.Clear();
+            ResetStatistics();
             _warnedMissingChainPlayerIds.Clear();
             _scoringOpen = openScoring;
             _bonusScoringOnly = false;
             _chainClockRunning = openScoring;
+            SampleDistances();
 
             foreach (PlayerControllerScript player in _registeredPlayers)
             {
@@ -191,8 +194,15 @@ namespace Massive.Scoring
 
         public void SetScoringState(bool scoringOpen, bool chainClockRunning)
         {
+            bool opening = !_scoringOpen && scoringOpen;
+            if (_scoringOpen != scoringOpen)
+            {
+                SampleDistances();
+                ResetDistanceSamples();
+            }
             _scoringOpen = scoringOpen;
             _chainClockRunning = scoringOpen && chainClockRunning;
+            if (opening) SampleDistances();
         }
 
         public void OpenScoring(bool chainClockRunning = true)
@@ -312,9 +322,10 @@ namespace Massive.Scoring
             string sourceToken,
             Vector3 worldPosition,
             out ScoreAwardResult result,
-            long quantity = 1L)
+            long quantity = 1L,
+            double rewardScale = 1d)
         {
-            return TryAwardInternal(rewardKey, teamID, multiplierOwner, sourceToken, worldPosition, quantity, out result);
+            return TryAwardInternal(rewardKey, teamID, multiplierOwner, sourceToken, worldPosition, quantity, out result, rewardScale);
         }
 
         public ScoreTelemetryRecord[] GetTelemetrySnapshot()
@@ -357,7 +368,8 @@ namespace Massive.Scoring
             string sourceToken,
             Vector3 worldPosition,
             long quantity,
-            out ScoreAwardResult result)
+            out ScoreAwardResult result,
+            double rewardScale = 1d)
         {
             result = new ScoreAwardResult
             {
@@ -371,7 +383,8 @@ namespace Massive.Scoring
                 quantity = quantity,
                 multiplier = 1,
                 teamAmplifierMultiplier = 1,
-                combinedMultiplier = 1
+                combinedMultiplier = 1,
+                rewardScale = rewardScale
             };
 
             if (!_scoringOpen)
@@ -397,7 +410,7 @@ namespace Massive.Scoring
             if (quantity <= 0L)
                 return Reject(ref result, ScoreAwardRejection.InvalidQuantity);
 
-            if (rule.BaseMilliElectronVolts <= 0L)
+            if (rule.BaseMilliElectronVolts <= 0L || rewardScale <= 0 || double.IsNaN(rewardScale) || double.IsInfinity(rewardScale))
                 return Reject(ref result, ScoreAwardRejection.InvalidRewardValue);
 
             if (rule.repeatPolicy == ScoreRepeatPolicy.OncePerSourceToken &&
@@ -413,7 +426,10 @@ namespace Massive.Scoring
             if (dedupeKey != null && !_deduplicationKeys.Add(dedupeKey))
                 return Reject(ref result, ScoreAwardRejection.Duplicate);
 
-            long baseScore = EnergyScoreMath.SaturatingMultiply(rule.BaseMilliElectronVolts, quantity);
+            // Objective-specific growth is part of the base reward, before player/team
+            // multipliers. Default scale 1 preserves every existing reward source.
+            long baseScore = EnergyScoreMath.SaturatingScale(
+                EnergyScoreMath.SaturatingMultiply(rule.BaseMilliElectronVolts, quantity), rewardScale);
             double personalMultiplier = 1;
             PlayerScoreChain chain = null;
 
@@ -605,6 +621,7 @@ namespace Massive.Scoring
 
         private void OnPlayerDeathResolved(PlayerDeathContext death)
         {
+            RecordPlayerDeath(death);
             PlayerControllerScript killer = death.killer;
             PlayerControllerScript victim = death.victim;
 

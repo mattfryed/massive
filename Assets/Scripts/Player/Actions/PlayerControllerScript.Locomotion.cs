@@ -27,7 +27,8 @@ public partial class PlayerControllerScript
 
     private Vector3 ClampJoystickVelocity(Vector3 velocity, float multiplier)
     {
-        if (!Effective_clampSpeed) return velocity;
+        // Charging imposes its decreasing speed ceiling even when ordinary movement is uncapped.
+        if (!Effective_clampSpeed && !(attackController && attackController.IsCharging)) return velocity;
         Vector3 planar = new Vector3(velocity.x, 0, velocity.z);
         float max = multiplier <= 0 ? 0 : Mathf.Max(.1f, Effective_maxMoveSpeed * multiplier);
         if (planar.sqrMagnitude > max * max) planar = planar.normalized * max;

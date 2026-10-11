@@ -1698,10 +1698,10 @@ MonoBehaviour:
   powerUps: {fileID: 163557300}
   shieldAbility: {fileID: 163557299}
   aimDeadzone: 0.18
-  massScore: 0.5
+  massScore: 1
   massScoreMin: 0
   massScoreMax: 1
-  spawnMassScore01: 0.5
+  spawnMassScore01: 1
   massGainPerHit: 0.08
   massLossPerHit: 0.08
   shieldDrainPerSecond01: 0.004
@@ -14938,10 +14938,10 @@ MonoBehaviour:
   powerUps: {fileID: 378808300}
   shieldAbility: {fileID: 378808298}
   aimDeadzone: 0.18
-  massScore: 0.5
+  massScore: 1
   massScoreMin: 0
   massScoreMax: 1
-  spawnMassScore01: 0.5
+  spawnMassScore01: 1
   massGainPerHit: 0.08
   massLossPerHit: 0.08
   shieldDrainPerSecond01: 0.004
@@ -36332,10 +36332,10 @@ MonoBehaviour:
   powerUps: {fileID: 1010015678}
   shieldAbility: {fileID: 1010015676}
   aimDeadzone: 0.18
-  massScore: 0.5
+  massScore: 1
   massScoreMin: 0
   massScoreMax: 1
-  spawnMassScore01: 0.5
+  spawnMassScore01: 1
   massGainPerHit: 0.08
   massLossPerHit: 0.08
   shieldDrainPerSecond01: 0.004
@@ -38418,10 +38418,10 @@ MonoBehaviour:
   powerUps: {fileID: 1100856861}
   shieldAbility: {fileID: 1100856859}
   aimDeadzone: 0.18
-  massScore: 0.5
+  massScore: 1
   massScoreMin: 0
   massScoreMax: 1
-  spawnMassScore01: 0.5
+  spawnMassScore01: 1
   massGainPerHit: 0.08
   massLossPerHit: 0.08
   shieldDrainPerSecond01: 0.004

@@ -2,7 +2,7 @@ using System;
 using System.Collections;
 using UnityEngine;
 
-/// <summary>Visual-only growth. Authored particle values and scale are stage four.</summary>
+/// <summary>Animated star-body growth. Authored particle values and scale are stage four.</summary>
 public class NovaStarRumble : MonoBehaviour
 {
     [Serializable]
@@ -15,6 +15,7 @@ public class NovaStarRumble : MonoBehaviour
     public NovaStarController star;
     public ParticleSystem coronaPS;
     public ParticleSystem fuzzPS;
+    [Tooltip("Animated body root: core rendering and solid colliders grow together. Entry and attraction triggers stay outside this root.")]
     public Transform visualRoot;
     public StageLook[] stages = {
         new StageLook(.42f,.22f,.3f,.25f), new StageLook(.60f,.42f,.5f,.45f),

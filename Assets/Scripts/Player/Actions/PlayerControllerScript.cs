@@ -64,6 +64,7 @@ public partial class PlayerControllerScript : MonoBehaviour
 
     public void SetControlMode(PlayerControlMode mode)
     {
+        if (controlMode != mode) attackController?.CancelCharge();
         controlMode = mode;
 
         // If we switch back to Rewired at runtime, try to acquire it.
@@ -79,6 +80,7 @@ public partial class PlayerControllerScript : MonoBehaviour
 
     public void ClearScriptedInput()
     {
+        attackController?.CancelCharge();
         _scriptedInput = default;
         _hasScriptedInput = false;
     }
@@ -173,12 +175,13 @@ public partial class PlayerControllerScript : MonoBehaviour
     [Header("Mass / Integrity")]
     [Tooltip("Bounded body mass used for survivability and nugget density. It no longer converts to team score.")]
     [Range(0f, 1f)]
-    public float massScore = 0.5f;
+    public float massScore = 1f;
 
     public float massScoreMin = 0f;
     public float massScoreMax = 1f;
 
-    [SerializeField, Range(0f, 1f)] private float spawnMassScore01 = 0.5f;
+    [Tooltip("Health restored at match start and after respawning. 1 = 100% health.")]
+    [SerializeField, Range(0f, 1f)] private float spawnMassScore01 = 1f;
 
     [Tooltip("Mass restored to the attacker after a confirmed melee hit.")]
     [SerializeField] private float massGainPerHit = 0.08f;
@@ -371,8 +374,11 @@ private void ForceHiddenForSpawn()
 
     if (rb != null)
     {
-        rb.linearVelocity = Vector3.zero;
-        rb.angularVelocity = Vector3.zero;
+        if (!rb.isKinematic)
+        {
+            rb.linearVelocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+        }
         rb.isKinematic = true;
         rb.Sleep();
     }
@@ -398,8 +404,12 @@ private IEnumerator MatchSpawnRoutine()
 
     if (rb != null)
     {
-        rb.linearVelocity = Vector3.zero;
-        rb.angularVelocity = Vector3.zero;
+        // ForceHiddenForSpawn may already own the kinematic spawn lock.
+        if (!rb.isKinematic)
+        {
+            rb.linearVelocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+        }
         rb.isKinematic = true;
         rb.Sleep();
     }
@@ -535,6 +545,10 @@ if (showPlayerIdToastOnMatchStart)
 
     private void Update()
     {
+
+        if (_matchSpawning || _matchInputLocked || IsSingularityTransitControlled || temporarilyEliminated ||
+            isStunned || IsExternallyStunned || _worldGameplaySuppressed)
+            attackController?.CancelCharge();
 
         if (_matchSpawning)
         {
@@ -758,16 +772,9 @@ if (showPlayerIdToastOnMatchStart)
             consumedAttack = powerUps.HandleInput(puInput);
         }
 
-        // Attack trigger
-        if (!consumedAttack && attackDown && attackController != null)
-        {
-            attackController.RegisterAttackPress();
-
-            if (!shieldOn && !attackController.IsAttacking)
-                attackController.BeginAttack();
-
-            lastActivityTime = Time.time;
-        }
+        // Thrust charges on hold; later combo stages still consume press edges.
+        attackController?.HandleAttackInput(attackDown, attackHeld, attackUp,
+            !consumedAttack && !shieldOn && controlMode != PlayerControlMode.Disabled);
 
         if (attackDown || attackHeld || attackUp || shieldDown || shieldHeldInput || shieldOn || moveActive)
         lastActivityTime = Time.time;
@@ -797,6 +804,7 @@ if (showPlayerIdToastOnMatchStart)
         // Geometry can change independently from locomotion. When proportional
         // movement is enabled, scale propulsion and its speed ceiling together.
         float moveMul = ExternalMovementMultiplier * PlayerScaleAdjuster.MovementOf(this);
+        if (attackController) moveMul *= attackController.ChargeMovementMultiplier;
 
         if (attackController != null && attackController.IsAttacking)
             moveMul *= Effective_attackingMoveScale;
@@ -826,7 +834,7 @@ if (showPlayerIdToastOnMatchStart)
         ApplyJoystickReversal(ref vel, ref velXZ);
 
         rb.AddForce(CalculateJoystickAcceleration(input, velXZ, moveMul), ForceMode.Acceleration);
-        if (Effective_clampSpeed) rb.linearVelocity = ClampJoystickVelocity(rb.linearVelocity, moveMul);
+        rb.linearVelocity = ClampJoystickVelocity(rb.linearVelocity, moveMul);
         }
         // Shield visuals + drain
         if (shield != null)
@@ -1291,6 +1299,7 @@ isActive = timeSinceLastActivity <= idleTime;
         }
 
         transform.position = pos;
+        Massive.Scoring.MatchScoreService.Instance?.ResetPlayerDistanceSample(this);
         Physics.SyncTransforms();
     }
 
@@ -1613,6 +1622,7 @@ public void SetWorldGameplaySuppressed(bool suppressed)
 
 private void OnDisable()
 {
+    attackController?.CancelCharge();
     if (LatticeMotor) LatticeMotor.Release();
     ReleaseSingularityTransitOnDisable();
     ResetEnemyHitFeedback();

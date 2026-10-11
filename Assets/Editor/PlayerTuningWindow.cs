@@ -298,6 +298,23 @@ namespace Massive.EditorTools
             using (var d = new SerializedObject(tuning))
             {
                 d.Update(); var c = d.FindProperty("combat");
+                EditorGUILayout.LabelField("Thrust charge", EditorStyles.boldLabel);
+                Field(c, "thrustChargeEnabled", "Enable hold to charge");
+                DrawSeconds(c.FindPropertyRelative("thrustChargeMaxSeconds"), "Maximum hold / auto-fire");
+                Field(c, "thrustChargeMaxDistanceMultiplier", "Full charge distance multiplier");
+                Field(c, "thrustChargeMaxDamageMultiplier", "Full charge damage multiplier");
+                Field(c, "thrustChargeVibrationAmplitude", "Full charge vibration amplitude");
+                Field(c, "thrustChargeVibrationFrequency", "Full charge vibration frequency (Hz)");
+                Field(c, "thrustChargeMinMoveMultiplier", "Movement at full charge");
+                Field(c, "thrustChargeGuideEnabled", "Show path chevrons");
+                Field(c, "thrustChargeGuideArrowCount", "Maximum chevrons");
+                Field(c, "thrustChargeGuideDistanceFraction", "Guide / max charged distance");
+                Field(c, "thrustChargeGuideStrokeWidth", "Chevron stroke width");
+                Field(c, "thrustChargeGuideArrowLength", "Chevron length");
+                Field(c, "thrustChargeGuideArrowWidth", "Chevron width");
+                Field(c, "thrustChargeGuideRevealSeconds", "Stroke grow-in seconds");
+                Field(c, "thrustChargeGuideColor", "Chevron color");
+                EditorGUILayout.HelpBox("Release fires Thrust; reaching the maximum hold fires automatically. Distance and damage scale linearly. Swipe and Repulsor still use fresh button presses. LATTICE rounds charged travel to whole nodes.", MessageType.None);
                 EditorGUILayout.LabelField("Thrust steering", EditorStyles.boldLabel);
                 Field(c, "thrustMaxTurnDegrees", "Max turn from start (each side, degrees)");
                 EditorGUILayout.HelpBox("Thrust can aim within this angle on either side of its starting heading. The center stays fixed for the whole stage. The limit includes the damage hitbox and attack visuals; subsequent stages accept a new direction.", MessageType.None);
