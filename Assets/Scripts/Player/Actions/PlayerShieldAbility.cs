@@ -275,6 +275,14 @@ namespace Massive.Player
             return true;
         }
 
+        public void PlayCoreParryFeedback()
+        {
+            if (!IsParryWindow) return;
+            if (ringsVfx && !SuppressDefaultShieldVfx) ringsVfx.PlayParryBlast(CurrentStrength01);
+            if (nuggets) nuggets.PlayParryFeedback(durationSeconds, CurrentStrength01);
+            AudioSystem.I?.Play(AudioEventId.Player_Parry, transform.position);
+        }
+
         private void CompleteParry(PlayerControllerScript attacker, Vector3 impactPosition, float strength)
         {
             attacker.Stun(impactPosition, strength);

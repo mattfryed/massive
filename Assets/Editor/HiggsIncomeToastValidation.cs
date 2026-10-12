@@ -56,6 +56,7 @@ public static class HiggsIncomeToastValidation
             try { checks.Add(HiggsValidation.RunRules()); }
             catch (InvalidOperationException e) when (e.Message == "HIGGS validation failed: player-facing regulation is 120 seconds")
             { checks.Add("BASELINE: " + e.Message); }
+            checks.Add(HiggsValidation.RunForgivenessRules());
             checks.Add(HiggsLevelValidation.Authored());
             var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(HiggsStageSetup.KnotPath);
             var toast = new SerializedObject(prefab.GetComponent<SymmetryKnotController>()).FindProperty("incomeToastPrefab").objectReferenceValue;
@@ -250,8 +251,13 @@ public static class HiggsIncomeToastValidation
         until = Time.unscaledTime + .4f;
         while (Time.unscaledTime < until) yield return null;
         Check(Hidden(knot), "Outro completes even while gameplay is paused");
-        Pose(light, new Vector3(100, 0, 100)); Pose(ally, new Vector3(110, 0, 100)); knot.TickGameplay(.1f, true);
-        Check(Cleared(toast) && knot.State.IncomeTicks == 0, "Vacancy resets growth");
+        Pose(light, new Vector3(100, 0, 100)); Pose(ally, new Vector3(110, 0, 100)); knot.TickGameplay(.25f, true);
+        Check(knot.IsFlowing && knot.State.OwnerTeam == 1 && knot.State.IncomeTicks == incomeTicks + 1 &&
+            toast.TeamID == 1 && toast.MilliElectronVoltsPerSecond == 1120,
+            "Forgiven vacancy continues the original team's income toast and growth");
+        knot.TickGameplay(1.25f, true);
+        Check(Cleared(toast) && knot.State.IncomeTicks == 0 && knot.State.OwnerTeam == -1,
+            "Expired vacancy forgiveness clears the toast and resets growth");
         Pose(dark, Vector3.zero); knot.TickGameplay(.1f, true);
         Check(toast.TeamID == 2 && toast.RequestedContent == SymmetryKnotIncomeToast.Content.Capturing,
             "Takeover shows the new team's capture status");

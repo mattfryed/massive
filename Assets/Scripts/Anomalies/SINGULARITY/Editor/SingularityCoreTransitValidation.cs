@@ -131,6 +131,22 @@ namespace Massive.Singularity.Editor
                 portal.UnregisterCore(b);
                 check(captures == 0, "All repeated and interrupted sequences remain non-scoring");
 
+                Vector3 shotPosition = surface.transform.TransformPoint(new Vector3(surface.Width, 0f, 0f));
+                Vector3 shotVelocity = surface.transform.TransformVector(Vector3.right * 10f);
+                a.Body.position = shotPosition; a.Body.linearVelocity = shotVelocity;
+                a.ConstrainMotion();
+                check(surface.transform.InverseTransformPoint(a.Body.position).x < surface.Width * .5f,
+                    "Possession shot keeps its radius inside chart side wall");
+                check(surface.transform.InverseTransformVector(a.Body.linearVelocity).x < 0f,
+                    "Possession shot reflects at the chart side wall");
+                shotPosition = surface.transform.TransformPoint(new Vector3(0f, 0f, surface.FrontHeight * 5f));
+                a.Body.position = shotPosition;
+                a.ConstrainMotion();
+                Vector3 wrapped = a.Body.position;
+                a.ConstrainMotion();
+                check(Vector3.Distance(wrapped, a.Body.position) < .0001f,
+                    "Possession shot wraps the periodic seam into a stable chart coordinate");
+
                 string report = "SINGULARITY Core transit: PASS " + checks +
                     " isolated checks (both-face capture, shared curves, shape, lease, lifecycle interruption, no scoring and re-entry).";
                 Debug.Log(report);
@@ -157,10 +173,9 @@ namespace Massive.Singularity.Editor
             serialized.FindProperty("playSpawnAnimationOnEnable").boolValue = false;
             serialized.ApplyModifiedPropertiesWithoutUndo();
             obj.SetActive(true);
-            // Ordinary runtime Awake is not invoked in an Editor preview scene.
-            // SendMessage also skips inactive GameObjects, so activate first:
-            // otherwise the uncaptured lifecycle baseline is Vector3.zero.
-            core.SendMessage("Awake");
+            // A preview scene does not run this runtime behaviour. Invoke its
+            // initialization directly: SendMessage asserts ShouldRunBehaviour in Edit Mode.
+            typeof(AmplifierCoreGameplay).GetMethod("Awake", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).Invoke(core, null);
             core.CompleteSpawnImmediately();
             if (obj.transform.localScale.sqrMagnitude < .01f || visual.transform.localScale.sqrMagnitude < .01f)
                 throw new InvalidOperationException("Core validation fixture failed to initialize nonzero lifecycle scales.");

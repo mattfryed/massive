@@ -11,6 +11,20 @@ float4x4 _SingularityWorldToLocal, _SingularityLocalToWorld;
 float4x4 _SingularitySourceToWorld, _SingularityViewProjection;
 float4 _SingularityPortalCenter; // chart-local XYZ, enabled
 float4 _SingularityPortalShape;  // chart XZ direction, uniform scale, axial stretch
+// The Core borrows the portal's tidal deformation on every level. This
+// per-draw opt-in precedes folding; inactive players retain the original path.
+float4 _AmplifierTransitCenter;
+float4 _AmplifierTransitShape;
+float4x4 _AmplifierSourceToWorld, _AmplifierViewProjection;
+float3 AmplifierTransitWorld(float3 world)
+{
+    if (_AmplifierTransitCenter.w < .5) return world;
+    float2 offset = world.xz - _AmplifierTransitCenter.xz;
+    float2 along = _AmplifierTransitShape.xy * dot(offset, _AmplifierTransitShape.xy);
+    float stretch = max(1, _AmplifierTransitShape.w);
+    world.xz = _AmplifierTransitCenter.xz + (along * stretch + (offset - along) * rsqrt(stretch)) * _AmplifierTransitShape.z;
+    return world;
+}
 
 float4 SingularitySample(float distance)
 {
@@ -20,6 +34,7 @@ float4 SingularitySample(float distance)
 float3 SingularityMapWorld(float3 world, out float brightness)
 {
     brightness = 1;
+    world = AmplifierTransitWorld(world);
     if (_SingularityEnabled < .5) return world;
     float3 chart = mul(_SingularityWorldToLocal, float4(world, 1)).xyz;
     if (_SingularityPortalCenter.w > .5)
@@ -57,6 +72,11 @@ float3 SingularityMapWorld(float3 world)
 float4 SingularityClipLocal(float3 local, float4x4 originalMVP, out float brightness)
 {
     brightness = 1;
+    if (_AmplifierTransitCenter.w > .5)
+    {
+        float3 world = mul(_AmplifierSourceToWorld, float4(local, 1)).xyz;
+        return mul(_AmplifierViewProjection, float4(SingularityMapWorld(world, brightness), 1));
+    }
     if (_SingularityEnabled < .5) return mul(originalMVP, float4(local, 1));
     float3 world = mul(_SingularitySourceToWorld, float4(local, 1)).xyz;
     return mul(_SingularityViewProjection, float4(SingularityMapWorld(world, brightness), 1));

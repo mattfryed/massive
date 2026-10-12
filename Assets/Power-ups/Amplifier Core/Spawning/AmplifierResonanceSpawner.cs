@@ -181,7 +181,7 @@ namespace Massive.Multiplier
         }
         public void RetireCurrentPair()
         {
-            if (!running || ActivePattern == null || Phase == AmplifierEncounterPhase.Dissolving) return;
+            if (!running || ActivePattern == null || Phase == AmplifierEncounterPhase.Dissolving || (ActiveCore && ActiveCore.IsPossessionBusy)) return;
             // This is a preview/timeout retirement, never a synthetic score or goal capture.
             if (coreVisual != null) coreVisual.SetTimeoutWarning(0f);
             if (ActiveCore != null && !ActiveCore.HasBeenCaptured) ActiveCore.BeginTimeoutDespawn();
@@ -212,7 +212,7 @@ namespace Massive.Multiplier
                         activeAge += Mathf.Max(0f, dt);
                         float warning = EvaluateTimeoutWarning(activeAge, Effective_maximumActiveSeconds, Effective_timeoutWarningSeconds);
                         if (coreVisual != null) coreVisual.SetTimeoutWarning(warning);
-                        if (Effective_maximumActiveSeconds > 0f && activeAge >= Effective_maximumActiveSeconds) RetireCurrentPair();
+                        if (Effective_maximumActiveSeconds > 0f && activeAge >= Effective_maximumActiveSeconds && !ActiveCore.IsPossessionBusy) RetireCurrentPair();
                         else Status = warning > 0f ? "Core unstable — sequence nearing time-out" : "Pair active — capture the Core to advance";
                     }
                     break;

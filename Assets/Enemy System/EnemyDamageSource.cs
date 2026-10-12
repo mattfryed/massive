@@ -9,5 +9,6 @@ namespace Massive.Enemies
         Environmental = 4,
         LifetimeExpired = 5,
         Repulsor = 6,
+        AmplifierShot = 7,
     }
 }

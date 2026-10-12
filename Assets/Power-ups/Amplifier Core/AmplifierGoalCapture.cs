@@ -94,7 +94,7 @@ namespace Massive.Multiplier
             for (int i = cores.Count - 1; i >= 0; i--)
             {
                 AmplifierCoreGameplay core = cores[i];
-                if (core == null || core.gameObject.scene != gameObject.scene || core.IsCaptured || core.IsInExternalTransit || core.Body == null)
+                if (core == null || core.gameObject.scene != gameObject.scene || core.IsCaptured || core.IsInExternalTransit || core.IsOccupied || core.Body == null || core.Body.isKinematic)
                     continue;
 
                 Vector3 delta = CapturePoint.position - core.Body.worldCenterOfMass;
@@ -130,7 +130,7 @@ namespace Massive.Multiplier
         private void OnTriggerEnter(Collider other)
         {
             AmplifierCoreGameplay core = other.GetComponentInParent<AmplifierCoreGameplay>();
-            if (core != null)
+            if (core != null && !core.IsOccupied && core.Body && !core.Body.isKinematic)
             {
                 var service = MatchScoreService.Instance;
                 if (service != null && service.IsScoringOpen && service.IsTeamAmplifierMaxed(teamID))

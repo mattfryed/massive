@@ -28,9 +28,17 @@ namespace Massive.Player
         public float Stroke01(int index)
         {
             if (!IsVisible || index < 0 || index >= ArrowCount) return 0f;
-            float slot = attack.Effective_thrustChargeMaxSeconds / ArrowCount;
-            float duration = Mathf.Min(attack.Effective_thrustChargeGuideRevealSeconds, slot);
-            return Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((attack.ChargeElapsed - slot * index) / duration));
+            return Reveal01(index, ArrowCount, attack.ChargeElapsed, attack.Effective_thrustChargeMaxSeconds,
+                attack.Effective_thrustChargeGuideRevealSeconds);
+        }
+
+        /// <summary>Shared with Core possession: identical outward reveal and open-chevron shape.</summary>
+        public static float Reveal01(int index, int count, float elapsed, float chargeDuration, float revealDuration)
+        {
+            if (count < 1 || index < 0 || index >= count) return 0f;
+            float slot = Mathf.Max(.001f, chargeDuration) / count;
+            float duration = Mathf.Max(.001f, Mathf.Min(revealDuration, slot));
+            return Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((elapsed - slot * index) / duration));
         }
 
         public bool TryGetArrow(int index, out Vector3 left, out Vector3 tip, out Vector3 right, out float width)
@@ -44,22 +52,30 @@ namespace Massive.Player
         bool ArrowGeometry(int index, Vector3 origin, Vector3 direction, float maxDistance,
             out Vector3 left, out Vector3 tip, out Vector3 right, out float width)
         {
-            left = tip = right = Vector3.zero; width = 0f;
             float envelope = Stroke01(index);
-            if (envelope <= 0f) return false;
             float size = PlayerScaleAdjuster.SizeOf(this);
-            float reach = maxDistance * attack.Effective_thrustChargeGuideDistanceFraction;
             float start = PlayerScaleAdjuster.BodyRadiusOf(owner) + .08f * size;
+            return BuildArrow(attack, index, ArrowCount, envelope, size, start, origin, direction, maxDistance,
+                out left, out tip, out right, out width);
+        }
+
+        public static bool BuildArrow(PlayerAttackController style, int index, int count, float envelope,
+            float size, float start, Vector3 origin, Vector3 direction, float maxDistance,
+            out Vector3 left, out Vector3 tip, out Vector3 right, out float width)
+        {
+            left = tip = right = Vector3.zero; width = 0f;
+            if (!style || envelope <= 0f || count < 1 || index < 0 || index >= count) return false;
+            float reach = maxDistance * style.Effective_thrustChargeGuideDistanceFraction;
             if (reach <= start) return false;
-            float spacing = (reach - start) / ArrowCount;
-            float depth = Mathf.Min(attack.Effective_thrustChargeGuideArrowLength * size, spacing * .8f);
-            float halfWidth = attack.Effective_thrustChargeGuideArrowWidth * size * .5f;
+            float spacing = (reach - start) / count;
+            float depth = Mathf.Min(style.Effective_thrustChargeGuideArrowLength * size, spacing * .8f);
+            float halfWidth = style.Effective_thrustChargeGuideArrowWidth * size * .5f;
             origin.y += .03f * size;
             tip = origin + direction * (start + spacing * (index + 1));
             Vector3 side = Vector3.Cross(Vector3.up, direction).normalized * halfWidth;
             left = tip - direction * depth + side;
             right = tip - direction * depth - side;
-            width = attack.Effective_thrustChargeGuideStrokeWidth * size * envelope;
+            width = style.Effective_thrustChargeGuideStrokeWidth * size * envelope;
             return width > .00001f;
         }
 

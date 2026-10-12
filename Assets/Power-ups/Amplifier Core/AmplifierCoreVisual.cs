@@ -12,6 +12,14 @@ namespace Massive.Multiplier
         private static readonly int CellScaleId = Shader.PropertyToID("_CellScale");
         private static readonly int BandWidthId = Shader.PropertyToID("_BandWidth");
         private static readonly int TimeoutWarningId = Shader.PropertyToID("_TimeoutWarning");
+        private static readonly int PossessionMarkerId = Shader.PropertyToID("_PossessionMarker");
+        private static readonly int PossessionClearanceId = Shader.PropertyToID("_PossessionClearance");
+        private static readonly int PossessionMarker2Id = Shader.PropertyToID("_PossessionMarker2");
+        private static readonly int PossessionOffsetsId = Shader.PropertyToID("_PossessionMarkerOffsets");
+        private Vector4 _possessionMarker;
+        private Vector4 _possessionMarker2;
+        private Vector4 _possessionMarkerOffsets;
+        private float _possessionClearance = .16f;
 
         [Header("Visual Parts")]
         [SerializeField] private Transform energyCore;
@@ -125,6 +133,37 @@ namespace Massive.Multiplier
             _excitement01 = Mathf.Clamp01(normalizedExcitement);
         }
 
+        public void SetPossessionMarker(float scale, float outline, bool lightTeam, float flowDeflection, float clearance = .16f)
+        {
+            _possessionMarker = new Vector4(scale, outline, lightTeam ? 1f : 0f, flowDeflection);
+            _possessionMarker2 = _possessionMarkerOffsets = Vector4.zero;
+            _possessionClearance = Mathf.Clamp(clearance, .03f, .5f);
+            ApplyShellRevealProperties();
+        }
+
+        public void SetPossessionMarkers(float lightScale, float darkScale, bool contested, float fullScale,
+            float outline, float flowDeflection, float clearance)
+        {
+            _possessionClearance = Mathf.Clamp(clearance, .03f, .5f);
+            // Both circles and their clearances must fit within the shell, even
+            // when a large single-player marker size has been authored.
+            float radius = contested ? Mathf.Min(fullScale, .94f / (2f + _possessionClearance)) : fullScale;
+            float offset = contested ? radius * (1f + _possessionClearance) + .02f : 0f;
+            float step = Mathf.Max(0f, Time.deltaTime) * 4f;
+            _possessionMarkerOffsets.x = Mathf.MoveTowards(_possessionMarkerOffsets.x, -offset, step);
+            _possessionMarkerOffsets.y = Mathf.MoveTowards(_possessionMarkerOffsets.y, offset, step);
+            float light = Mathf.Min(lightScale, radius), dark = Mathf.Min(darkScale, radius);
+            if (light > 0f && dark > 0f)
+            {
+                float available = Mathf.Max(0f, _possessionMarkerOffsets.y - _possessionMarkerOffsets.x - .02f);
+                float fit = Mathf.Min(1f, available / ((light + dark) * (1f + _possessionClearance)));
+                light *= fit; dark *= fit;
+            }
+            _possessionMarker = new Vector4(light, outline, 1f, flowDeflection);
+            _possessionMarker2 = new Vector4(dark, outline, 0f, flowDeflection);
+            ApplyShellRevealProperties();
+        }
+
         /// <summary>Independent of attraction excitement, so goal proximity cannot erase the time-out cue.</summary>
         public void SetTimeoutWarning(float normalizedWarning)
         {
@@ -168,6 +207,8 @@ namespace Massive.Multiplier
             _coreReveal01 = 1f;
             _excitement01 = 0f;
             _timeoutWarning01 = 0f;
+            _possessionMarker = Vector4.zero;
+            _possessionMarker2 = _possessionMarkerOffsets = Vector4.zero;
 
             if (energyCore != null)
                 energyCore.localScale = _energyBaseScale;
@@ -219,6 +260,10 @@ namespace Massive.Multiplier
                 return;
 
             shellRenderer.GetPropertyBlock(_shellProperties);
+            _shellProperties.SetVector(PossessionMarkerId, _possessionMarker);
+            _shellProperties.SetVector(PossessionMarker2Id, _possessionMarker2);
+            _shellProperties.SetVector(PossessionOffsetsId, _possessionMarkerOffsets);
+            _shellProperties.SetFloat(PossessionClearanceId, _possessionClearance);
             Material material = shellRenderer.sharedMaterial;
             float eased = SmoothStep01(_shellReveal01);
 

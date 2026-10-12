@@ -369,6 +369,7 @@ MonoBehaviour:
   despawnFadeSeconds: 1
   captureRampSeconds: 2
   captureRadius: 1.15
+  vacancyForgivenessSeconds: 1.5
   playerLayerMask:
     serializedVersion: 2
     m_Bits: 4294967295

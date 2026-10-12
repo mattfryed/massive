@@ -20,6 +20,7 @@ namespace Massive.Settings
     [System.Serializable]
     public sealed class AmplifierCoreGameplaySettings
     {
+        public AmplifierPossessionSettings possession = new AmplifierPossessionSettings();
         [Header("Size & Motion")]
         [Tooltip("Scales the shell, energy core, and physical collider together. 1 preserves the authored size. Mass remains an independent setting.")]
         [SerializeField, Min(0.05f)] public float coreScale = 1f;

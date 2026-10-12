@@ -37,6 +37,18 @@ namespace Massive.Resonance
         private ResonancePatternController pattern;
         public int MagneticTurnarounds { get; private set; }
 
+        public bool IsTurningCore(AmplifierCoreGameplay core)
+        {
+            foreach (var actor in actors) if (actor.core == core) return actor.magnetic;
+            return false;
+        }
+
+        public void ReleaseCoreTurn(AmplifierCoreGameplay core)
+        {
+            foreach (var actor in actors)
+                if (actor.core == core) { actor.magnetic = false; actor.cooldown = .08f; }
+        }
+
         public void Initialize(ResonancePatternController owner) { pattern = owner; }
 
         private Actor GetActor(Rigidbody body, PlayerControllerScript player, AmplifierCoreGameplay core, EnemyBase enemy = null)

@@ -20,7 +20,7 @@ namespace Massive.Multiplier
         {
             ResolveReferences();
             if (!owner || _transitOwner || !isActiveAndEnabled || presentationOnly || IsCaptured ||
-                body == null || body.isKinematic) return false;
+                body == null || IsPossessionBusy || (body.isKinematic && !UsesPossession)) return false;
             _transitOwner = owner;
             _transitKinematic = body.isKinematic;
             _transitDetectCollisions = body.detectCollisions;

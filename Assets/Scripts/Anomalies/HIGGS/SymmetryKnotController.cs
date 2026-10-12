@@ -13,6 +13,8 @@ public class SymmetryKnotController : MonoBehaviour
     [SerializeField, Min(0)] private float captureRampSeconds = 2f;
     [Header("Capture")]
     [SerializeField, Min(.1f)] private float captureRadius = 1.15f;
+    [Tooltip("Keep control and income after the team leaves an empty Knot. Opposing presence cancels forgiveness immediately.")]
+    [SerializeField, Min(0)] private float vacancyForgivenessSeconds = 1.5f;
     [SerializeField] private LayerMask playerLayerMask = ~0;
     [Header("Energy (one team stream; no personal multiplier or charge)")]
     [SerializeField, ScoreRewardKey] private string rewardKey = ScoreRewardKeys.HiggsControlTick;
@@ -23,7 +25,7 @@ public class SymmetryKnotController : MonoBehaviour
     [SerializeField, Min(.1f)] private float incomeDoublingSeconds = 2f;
     [Tooltip("Maximum sustained-control multiplier before the team Amplifier. Set to 1 for flat income.")]
     [SerializeField, Min(1)] private float maximumIncomeMultiplier = 8f;
-    [Tooltip("Off: contest pauses income growth. Vacancy and team changes always reset it.")]
+    [Tooltip("Off: contest pauses income growth. Expired vacancy forgiveness and team changes reset it.")]
     [SerializeField] private bool resetIncomeOnContest;
     [Header("Control feedback")]
     [SerializeField] private SymmetryKnotIncomeToast incomeToastPrefab;
@@ -47,7 +49,7 @@ public class SymmetryKnotController : MonoBehaviour
         visual.Initialize(position, captureRadius);
         visual.SetOwner(-1, null, false, 0);
         state = new SymmetryKnotCaptureState(visual.SpawnFadeSeconds, unclaimedSeconds,
-            claimedSeconds, captureRampSeconds, tickIntervalSeconds, despawnFadeSeconds, resetIncomeOnContest);
+            claimedSeconds, captureRampSeconds, tickIntervalSeconds, despawnFadeSeconds, resetIncomeOnContest, vacancyForgivenessSeconds);
         sourceToken = "higgs:" + GetInstanceID();
         retiringVisual = false; AwardedMilliElectronVolts = 0;
         IsFlowing = false;
@@ -75,17 +77,17 @@ public class SymmetryKnotController : MonoBehaviour
         int mask = running && !IsRetiring ? EvaluateTeamMask() : 0;
         bool closingMatch = scores == null || !scores.IsScoringOpen;
         int ticks = state.Tick(dt, mask, running || (IsRetiring && closingMatch && Time.timeScale > 0));
-        var mouth = GetGoalMouth(state.OwnerTeam);
+        var awardMouth = GetGoalMouth(state.AwardTeam);
         // Pay each completed interval at its own exponential rate. Slow frames must
         // never apply the last/highest rate retroactively to a whole batch of ticks.
         for (int i = 0; i < ticks && running; i++)
         {
-            if (scores.TryAwardToTeam(rewardKey, state.OwnerTeam, null,
+            if (scores.TryAwardToTeam(rewardKey, state.AwardTeam, null,
                 sourceToken, transform.position, out var award, 1,
-                IncomeMultiplierAtTick(state.IncomeTicks - ticks + i)))
+                IncomeMultiplierAtTick(state.FirstAwardTickIndex + i)))
             {
                 AwardedMilliElectronVolts = EnergyScoreMath.SaturatingAdd(AwardedMilliElectronVolts, award.finalMilliElectronVolts);
-                if (mouth != null) mouth.ReceiveEnergy(award);
+                if (awardMouth != null) awardMouth.ReceiveEnergy(award);
                 EnsureIncomeToast();
                 if (incomeToast != null) incomeToast.Show(award, (float)state.TickSeconds);
             }
@@ -101,6 +103,7 @@ public class SymmetryKnotController : MonoBehaviour
             if (incomeToast != null) incomeToast.ShowCapturing(state.OwnerTeam);
         }
         else if (!IsFlowing && incomeToast != null) incomeToast.Hide();
+        var mouth = GetGoalMouth(state.OwnerTeam);
         visual.SetOwner(IsRetiring ? -1 : state.OwnerTeam, mouth != null ? mouth.FlowAnchor : null,
             state.Contested, running && !IsRetiring ? state.Hold01 : 0);
         if (IsRetiring && !retiringVisual)

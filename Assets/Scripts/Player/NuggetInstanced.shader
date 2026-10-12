@@ -66,7 +66,7 @@ Shader "MASSIVE/NuggetInstanced"
                 float s = _DotRadius * _PlayerSize;
                 o.brightness = 1;
                 float3 world = Pw + _CamRightWS * (corner.x * s) + _CamUpWS * (corner.y * s);
-                if (_SingularityEnabled > .5)
+                if (_SingularityEnabled > .5 || _AmplifierTransitCenter.w > .5)
                     world = SingularityMapWorld(Pw + float3(corner.x * s, 0, corner.y * s), o.brightness);
 
                 o.pos = UnityWorldToClipPos(world);
@@ -139,7 +139,7 @@ return float4(_Color.rgb * fa * i.brightness, fa); // premultiplied, with opacit
 
                 float s = (_DotRadius + _OutlineWidth) * _PlayerSize;
                 float3 world = Pw + _CamRightWS*(corner.x*s) + _CamUpWS*(corner.y*s);
-                if (_SingularityEnabled > .5)
+                if (_SingularityEnabled > .5 || _AmplifierTransitCenter.w > .5)
                     world = SingularityMapWorld(Pw + float3(corner.x * s, 0, corner.y * s), o.brightness);
 
                 o.pos = UnityWorldToClipPos(world);

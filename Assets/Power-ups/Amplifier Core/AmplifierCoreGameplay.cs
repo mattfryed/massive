@@ -140,6 +140,7 @@ namespace Massive.Multiplier
 
         private void OnDisable()
         {
+            ResetPossession();
             RevokeExternalTransit();
             ActiveCoresInternal.Remove(this);
             if (_lifecycleRoutine != null)
@@ -181,6 +182,7 @@ namespace Massive.Multiplier
 
         private void FixedUpdate()
         {
+            if (UsesPossession) { TickPossessionFlight(); return; }
             if (presentationOnly || IsCaptured || IsInExternalTransit)
                 return;
 
@@ -273,6 +275,13 @@ namespace Massive.Multiplier
                 _incomingVelocity -= (1f + Effective_wallRestitution) * towardWall * normal;
                 _incomingVelocity = LimitPlanarSpeed(_incomingVelocity, Effective_maximumPlanarSpeed);
                 SetVelocity(body, _incomingVelocity);
+                if (UsesPossession && IsLaunched)
+                {
+                    // Frictionless walls cannot generate rolling torque on their
+                    // own. The collision's change in travel steers the shell spin.
+                    Vector3 roll = Vector3.Cross(Vector3.up, _incomingVelocity) * (Mathf.Clamp01(Possession.rollingSpin) / CoreRadius);
+                    body.angularVelocity = Vector3.Lerp(body.angularVelocity, roll, .65f);
+                }
                 body.WakeUp();
             }
         }
@@ -297,12 +306,13 @@ namespace Massive.Multiplier
 
         public bool TryCapture(AmplifierGoalCapture goal)
         {
-            if (presentationOnly || IsCaptured || IsInExternalTransit || goal == null)
+            if (presentationOnly || IsCaptured || IsInExternalTransit || IsOccupied || goal == null)
                 return false;
 
             if (!goal.TryAdvanceTeamAmplifier())
                 return false;
 
+            ResetPossession();
             _captured = true;
             goal.PlayCaptureFeedback();
             StartLifecycle(CaptureRoutine(goal.CapturePoint));
@@ -313,7 +323,7 @@ namespace Massive.Multiplier
         /// <summary>Retire an unclaimed Core in place. Never awards a multiplier or self-respawns.</summary>
         public bool BeginTimeoutDespawn()
         {
-            if (!Application.isPlaying || presentationOnly || _captured || _isDespawning || !isActiveAndEnabled) return false;
+            if (!Application.isPlaying || presentationOnly || _captured || _isDespawning || IsPossessionBusy || !isActiveAndEnabled) return false;
             // A timeout owns the lifecycle even during a portal sequence. Release
             // its deformation before CaptureRoutine snapshots the visual scale.
             RevokeExternalTransit();
@@ -325,6 +335,7 @@ namespace Massive.Multiplier
 
         public void CompleteSpawnImmediately()
         {
+            ResetPossession();
             RevokeExternalTransit();
             if (_lifecycleRoutine != null)
             {
@@ -352,6 +363,7 @@ namespace Massive.Multiplier
 
         private IEnumerator SpawnRoutine()
         {
+            ResetPossession();
             RevokeExternalTransit();
             _captured = false;
             _isDespawning = false;
@@ -460,6 +472,7 @@ namespace Massive.Multiplier
 
         public bool TryApplyAttackImpact(PlayerAttackController attack)
         {
+            if (UsesPossession) return TryEnterFromThrust(attack);
             if (!CanReceiveImpact || Time.time < _nextAttackImpactTime)
                 return false;
             if (attack == null || !attack.isActiveAndEnabled || !attack.IsAttacking || attack.CurrentStage == null)
@@ -502,7 +515,7 @@ namespace Massive.Multiplier
             return true;
         }
 
-        private bool CanReceiveImpact => isActiveAndEnabled && !presentationOnly &&
+        private bool CanReceiveImpact => !UsesPossession && isActiveAndEnabled && !presentationOnly &&
             !IsCaptured && !IsInExternalTransit && body != null && !body.isKinematic &&
             collisionShape != null && collisionShape.enabled;
 

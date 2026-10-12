@@ -306,6 +306,7 @@ private bool _matchInputLocked;
     public bool IsExternallyStunned => Time.time < externalStunUntil;
     public void ExternalStun(float seconds)
     {
+        if (IsInsideAmplifier) return;
         externalStunUntil = Mathf.Max(externalStunUntil, Time.time + Mathf.Max(0f, seconds));
     }
 
@@ -330,7 +331,7 @@ private bool _matchInputLocked;
     private int _lifeSequence = 1;
     public int LifeSequence => _lifeSequence;
 
-    public bool IsInvulnerable => Time.time < _invulnUntil;
+    public bool IsInvulnerable => IsInsideAmplifier || Time.time < _invulnUntil;
     // Initial match arrival has its own flag; normal respawn remains eliminated until assembly completes.
     public bool IsSpawning => _matchSpawning || temporarilyEliminated;
 
@@ -536,6 +537,7 @@ if (showPlayerIdToastOnMatchStart)
 
     // Match spawning is a new movement owner. Release a portal lease before
     // spawn code freezes physics and installs its own lifecycle state.
+    ReleaseAmplifierOnDisable();
     ReleaseSingularityTransitOnDisable();
     EnsureLifeFxCached();
     ForceHiddenForSpawn();
@@ -545,6 +547,7 @@ if (showPlayerIdToastOnMatchStart)
 
     private void Update()
     {
+        TickAmplifierTransit();
 
         if (_matchSpawning || _matchInputLocked || IsSingularityTransitControlled || temporarilyEliminated ||
             isStunned || IsExternallyStunned || _worldGameplaySuppressed)
@@ -711,6 +714,7 @@ if (showPlayerIdToastOnMatchStart)
             }
         }
         InputApplied?.Invoke(input);
+        if (RouteAmplifierInput(ref input)) return;
 
         // A tap keeps its original parry lifetime; holding extends full damage protection.
         bool shieldDown = input.shieldDown;
@@ -786,7 +790,7 @@ if (showPlayerIdToastOnMatchStart)
 
     private void FixedUpdate()
     {
-        if (_worldGameplaySuppressed || _matchInputLocked || IsSingularityTransitControlled)
+        if (_worldGameplaySuppressed || _matchInputLocked || IsSingularityTransitControlled || IsInsideAmplifier)
         {
             ProtectActionMomentum(.2f);
             if (LatticeMotor) LatticeMotor.Release();
@@ -1047,7 +1051,7 @@ if (showPlayerIdToastOnMatchStart)
             worldPosition = transform.position
         };
 
-        if (temporarilyEliminated || (respectInvulnerability && IsInvulnerable) || requestedLoss01 <= 0f)
+        if (IsInsideAmplifier || temporarilyEliminated || (respectInvulnerability && IsInvulnerable) || requestedLoss01 <= 0f)
             return result;
 
         // Includes hazards/projectiles that intentionally bypass respawn invulnerability.
@@ -1386,7 +1390,7 @@ private void SetCollidersEnabled(bool enabled)
     // ===== Stun =====
     public void Stun(Vector3 shieldPosition, float strength01 = 1f)
     {
-        if (temporarilyEliminated) return;
+        if (temporarilyEliminated || IsInsideAmplifier) return;
 
         float s = Mathf.Clamp01(strength01);
         float duration = stunTime * s;
@@ -1624,6 +1628,7 @@ private void OnDisable()
 {
     attackController?.CancelCharge();
     if (LatticeMotor) LatticeMotor.Release();
+    ReleaseAmplifierOnDisable();
     ReleaseSingularityTransitOnDisable();
     ResetEnemyHitFeedback();
     activePlayers.Remove(this);

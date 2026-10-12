@@ -125,6 +125,45 @@ MonoBehaviour:
     gridWavelength: 3
     gridCurl: 1.1
   core:
+    possession:
+      mode: 1
+      possessionSeconds: 5
+      fullChargeSeconds: 2
+      minimumRange: 5
+      maximumRange: 26
+      shotSpeed: 16
+      maximumFlightSeconds: 15
+      settledSpeed: 0.15
+      rollingSpin: 0.45
+      npcDamageMultiplier: 1
+      npcPushSpeed: 8
+      contestSeconds: 3
+      progressPerPress: 0.085
+      pressesPerSecond: 6
+      loserStunSeconds: 0.8
+      winnerAimSeconds: 2.5
+      reentryDelay: 0.8
+      ejectionRecoil: 2
+      parryRangeRetention: 0.8
+      blockRangeRetention: 0.35
+      blockSpeedRetention: 0.5
+      playerMarkerScale: 0.33
+      playerMarkerOutline: 0.075
+      markerFlowDeflection: 1
+      animatePlayerTransit: 1
+      entrySeconds: 0.38
+      exitSeconds: 0.32
+      transitExponent: 3.5
+      transitMinimumScale: 0.045
+      transitMaximumStretch: 3
+      showTrajectory: 1
+      previewLength: 14
+      previewDeflections: 2
+      dotSpacing: 0.45
+      dotRadius: 0.045
+      meterWidth: 2.4
+      meterHeight: 0.18
+      meterOffset: 0.5
     coreScale: 0.75
     mass: 5
     linearDrag: 0.42

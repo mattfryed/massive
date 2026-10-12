@@ -15,17 +15,21 @@ public sealed class SymmetryKnotCaptureState
     public float FirstArrivalSeconds { get; private set; } = -1;
     public int OwnershipChanges { get; private set; }
     public int IncomeTicks { get; private set; }
+    // The last Tick's award survives ownership loss at the exact end of forgiveness.
+    public int AwardTeam { get; private set; } = -1;
+    public int FirstAwardTickIndex { get; private set; }
     public double TickSeconds => interval;
 
-    private readonly double formation, claimed, ramp, interval, outro;
+    private readonly double formation, claimed, ramp, interval, outro, vacancyForgiveness;
     private double age, expiresAt, hold, retiringAge;
     private double tickTime;
+    private double forgivenessRemaining;
     private int lastClaimedTeam = -1;
     private readonly bool resetIncomeOnContest;
 
     public SymmetryKnotCaptureState(float formationSeconds, float unclaimedSeconds,
         float claimedSeconds, float rampSeconds, float tickSeconds, float outroSeconds,
-        bool resetIncomeOnContest = false)
+        bool resetIncomeOnContest = false, float vacancyForgivenessSeconds = 1.5f)
     {
         formation = Math.Max(0, formationSeconds);
         expiresAt = formation + Math.Max(.01f, unclaimedSeconds);
@@ -34,12 +38,14 @@ public sealed class SymmetryKnotCaptureState
         interval = Math.Max(.02f, tickSeconds);
         outro = Math.Max(.01f, outroSeconds);
         this.resetIncomeOnContest = resetIncomeOnContest;
+        vacancyForgiveness = Math.Max(0, vacancyForgivenessSeconds);
         Phase = formation > 0 ? Stage.Forming : Stage.Active;
     }
 
     // teamMask: 0 empty, 1 Light, 2 Dark, 3 contested. Extra players cannot increase income.
     public int Tick(float dt, int teamMask, bool clockRunning)
     {
+        AwardTeam = -1; FirstAwardTickIndex = 0;
         if (!clockRunning || dt <= 0 || float.IsNaN(dt) || float.IsInfinity(dt) || Phase == Stage.Finished) return 0;
         if (Phase == Stage.Retiring)
         {
@@ -59,6 +65,11 @@ public sealed class SymmetryKnotCaptureState
         teamMask &= 3;
         Contested = teamMask == 3;
         int candidate = teamMask == 1 ? 1 : teamMask == 2 ? 2 : -1;
+        bool forgivenVacancy = teamMask == 0 && OwnerTeam > 0 && forgivenessRemaining > 0;
+        if (forgivenVacancy) candidate = OwnerTeam;
+        // Only uncontested physical presence renews grace. An opponent cancels
+        // it immediately, so an emptied contest cannot resume remote control.
+        else forgivenessRemaining = candidate > 0 ? vacancyForgiveness : 0;
         if (teamMask != 0 && FirstArrivalSeconds < 0) FirstArrivalSeconds = (float)age;
         if (!Contested && candidate != OwnerTeam)
         {
@@ -85,13 +96,24 @@ public sealed class SymmetryKnotCaptureState
         }
         else if (OwnerTeam > 0)
         {
-            UncontestedSeconds += (float)activeDt;
-            double warmup = Math.Min(activeDt, Math.Max(0, ramp - hold));
-            hold += activeDt;
-            tickTime += activeDt - warmup;
+            double controlDt = forgivenVacancy ? Math.Min(activeDt, forgivenessRemaining) : activeDt;
+            UncontestedSeconds += (float)controlDt;
+            double warmup = Math.Min(controlDt, Math.Max(0, ramp - hold));
+            hold += controlDt;
+            tickTime += controlDt - warmup;
             ticks = (int)Math.Floor((tickTime + 0.000001) / interval);
             tickTime = Math.Max(0, tickTime - ticks * (double)interval);
+            AwardTeam = OwnerTeam; FirstAwardTickIndex = IncomeTicks;
             IncomeTicks += ticks;
+            if (forgivenVacancy)
+            {
+                forgivenessRemaining = Math.Max(0, forgivenessRemaining - activeDt);
+                if (forgivenessRemaining <= .000001)
+                {
+                    forgivenessRemaining = 0;
+                    OwnerTeam = -1; hold = 0; tickTime = 0; IncomeTicks = 0;
+                }
+            }
         }
         age += activeDt;
         // Caller delivers ticks earned before the exact deadline, then retires presentation.
@@ -103,5 +125,6 @@ public sealed class SymmetryKnotCaptureState
     {
         if (Phase == Stage.Finished || Phase == Stage.Retiring) return;
         Phase = Stage.Retiring; OwnerTeam = -1; Contested = false; hold = 0; tickTime = 0; IncomeTicks = 0;
+        forgivenessRemaining = 0;
     }
 }

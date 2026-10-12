@@ -144,6 +144,8 @@ void HandlePreCull(Camera cam)
 {
     if (sim == null || nuggetMat == null || quadMesh == null || _args == null || _pos == null) return;
     _mpb.SetFloat(SingularityEnabledId, 0f);
+    if (playerController) playerController.ApplyAmplifierTransitProperties(_mpb, Matrix4x4.identity,
+        GL.GetGPUProjectionMatrix(cam.projectionMatrix, true) * cam.worldToCameraMatrix);
     _mpb.SetVector(ShieldFeedbackId, new Vector4(stunFeedback * stunShudderAmplitude, ParryFeedback01, Time.time, parryRimPadding));
     _mpb.SetVector(ShieldBlob0Id, new Vector4(baseRadius, outlineHalf, idleWobble, deformAmt));
     _mpb.SetVector(ShieldBlob1Id, new Vector4(deformDir.x, deformDir.y, teardropK1, teardropK2));

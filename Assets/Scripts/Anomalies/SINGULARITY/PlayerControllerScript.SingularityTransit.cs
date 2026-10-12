@@ -13,7 +13,7 @@ public partial class PlayerControllerScript
 
     public bool IsSingularityTransitControlled => singularityTransitOwner != null;
     public bool CanStartSingularityTransit => isActiveAndEnabled && !temporarilyEliminated &&
-        !_matchSpawning && !_matchInputLocked && !_worldGameplaySuppressed && !IsSingularityTransitControlled;
+        !_matchSpawning && !_matchInputLocked && !_worldGameplaySuppressed && !IsSingularityTransitControlled && !IsInsideAmplifier;
     public bool CanContinueSingularityTransit => isActiveAndEnabled && !temporarilyEliminated &&
         !_matchSpawning && !_matchInputLocked && !_worldGameplaySuppressed &&
         LifeSequence == singularityTransitLife;

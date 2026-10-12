@@ -16,6 +16,10 @@ Shader "MASSIVE/Amplifier Core/Neutral Shell"
         _RimLight ("Black Edge Definition", Range(0.0, 1.0)) = 0.32
         [HideInInspector] _TimeoutWarning ("Sequence Time-out Instability", Float) = 0
         [HideInInspector] _SingularityBrightness ("Surface Brightness", Float) = 1
+        [HideInInspector] _PossessionMarker ("Player Marker: Scale, Outline, Light Team, Flow", Vector) = (0, 0, 0, 0)
+        [HideInInspector] _PossessionMarker2 ("Second Player Marker", Vector) = (0, 0, 0, 0)
+        [HideInInspector] _PossessionMarkerOffsets ("Player Marker Horizontal Offsets", Vector) = (0, 0, 0, 0)
+        [HideInInspector] _PossessionClearance ("Player Marker Opening Clearance", Float) = 0.16
 
         [Header(Layered Thickness)]
         _ShellThickness ("Shell Thickness", Range(0.0, 0.12)) = 0.075
@@ -58,6 +62,29 @@ Shader "MASSIVE/Amplifier Core/Neutral Shell"
         float _SingularityBrightness;
         float _ShellThickness;
         float _DepthSteps;
+        float4 _PossessionMarker;
+        float4 _PossessionMarker2;
+        float4 _PossessionMarkerOffsets;
+        float _PossessionClearance;
+
+        float3 MarkerViewAxis()
+        {
+            // Orthographic and perspective cameras share the same centered,
+            // view-facing badge. Object rotation never rotates it off the front.
+            float3 worldForward = UNITY_MATRIX_V[2].xyz;
+            return normalize(mul((float3x3)unity_WorldToObject, worldForward));
+        }
+
+        float3 MarkerRightAxis()
+        {
+            return normalize(mul((float3x3)unity_WorldToObject, UNITY_MATRIX_V[0].xyz));
+        }
+
+        float MarkerDistance(float3 objectPosition, float offset)
+        {
+            float3 axis = MarkerViewAxis();
+            return length(objectPosition - axis * dot(objectPosition, axis) - MarkerRightAxis() * offset);
+        }
 
         struct appdata
         {
@@ -68,6 +95,7 @@ Shader "MASSIVE/Amplifier Core/Neutral Shell"
         {
             float4 position : SV_POSITION;
             float3 objectPosition : TEXCOORD0;
+            float3 markerPosition : TEXCOORD1;
         };
 
         v2f BuildVertex(appdata input, float layer01)
@@ -77,6 +105,9 @@ Shader "MASSIVE/Amplifier Core/Neutral Shell"
             layeredVertex.xyz *= 1.0 - saturate(_ShellThickness) * layer01;
             output.position = UnityObjectToClipPos(layeredVertex);
             output.objectPosition = input.vertex.xyz;
+            // Actual projected position of this slice, in outer-shell radii.
+            // Normalizing in the fragment would shrink the opening on recessed layers.
+            output.markerPosition = normalize(input.vertex.xyz) * (1.0 - saturate(_ShellThickness) * layer01);
             return output;
         }
 
@@ -94,6 +125,8 @@ Shader "MASSIVE/Amplifier Core/Neutral Shell"
             out float localThreshold)
         {
             float3 spherePosition = normalize(objectPosition);
+            // Keep the authored flow intact. Possession changes the shape of its
+            // empty cells below; it does not radially displace or swirl the noise.
             float3 p = spherePosition * _CellScale + _PatternOffset.xyz;
             float flowTime = _Time.y * _FlowSpeed;
 
@@ -125,18 +158,61 @@ Shader "MASSIVE/Amplifier Core/Neutral Shell"
             localThreshold *= 1.0 + instability * 0.17 * sin(p.x * 2.3 + p.z * 1.7 + warningTime * 21.7);
         }
 
+        float MarkerOpening(float3 markerPosition, float4 marker, float offset)
+        {
+            if (marker.x <= .001) return -100;
+            return (marker.x * (1.0 + _PossessionClearance) - MarkerDistance(markerPosition, offset)) * _CellScale;
+        }
+
+        float MergeEmptyCells(float a, float b, float blendWidth)
+        {
+            // Positive values are empty shell. A smooth union joins the marker's
+            // cell to passing gaps, reshaping their shared contour into necks and
+            // saddles instead of leaving a repelled circular halo.
+            float h = saturate(.5 + .5 * (a - b) / blendWidth);
+            return lerp(b, a, h) + blendWidth * h * (1.0 - h);
+        }
+
+        float ShellDistance(float field, float threshold, float3 markerPosition)
+        {
+            float a = MarkerOpening(markerPosition, _PossessionMarker, _PossessionMarkerOffsets.x);
+            float b = MarkerOpening(markerPosition, _PossessionMarker2, _PossessionMarkerOffsets.y);
+            float flow = max(_PossessionMarker.x > .001 ? _PossessionMarker.w : 0,
+                             _PossessionMarker2.x > .001 ? _PossessionMarker2.w : 0);
+            // One joint field for both players: order-independent, without a
+            // pinched ribbon trapped between sequentially subtracted circles.
+            float rounding = lerp(.04, 1.8, saturate(flow * .5));
+            float opening = MergeEmptyCells(a, b, rounding * .65);
+            return MergeEmptyCells(abs(field) - threshold, opening, rounding);
+        }
+
+        bool RenderMarker(float3 position, float4 marker, float offset, out fixed4 color)
+        {
+            float distance = MarkerDistance(position, offset);
+            float aa = max(fwidth(distance), .001);
+            float interior = 1.0 - smoothstep(marker.x * (1.0 - marker.y) - aa,
+                marker.x * (1.0 - marker.y) + aa, distance);
+            float value = lerp(1.0 - marker.z, marker.z, interior);
+            color = fixed4(value.xxx * saturate(_SingularityBrightness), 1);
+            return marker.x > .001 && distance < marker.x + aa;
+        }
+
         fixed4 RenderOuter(v2f input) : SV_Target
         {
+            fixed4 markerColor;
+            if (RenderMarker(input.markerPosition, _PossessionMarker, _PossessionMarkerOffsets.x, markerColor)) return markerColor;
+            if (RenderMarker(input.markerPosition, _PossessionMarker2, _PossessionMarkerOffsets.y, markerColor)) return markerColor;
             float signedShellField;
             float localThreshold;
             EvaluateShell(input.objectPosition, signedShellField, localThreshold);
-            clip(localThreshold - abs(signedShellField));
+            float shellDistance = ShellDistance(signedShellField, localThreshold, input.markerPosition);
+            clip(-shellDistance);
 
             // Black follows each ribbon's local cross-section. A guaranteed
             // edge and broader underside create binary dimensional shading
             // without a global dark hemisphere.
             float signedAcrossRibbon = signedShellField / max(localThreshold, 0.0001);
-            float edge01 = saturate(abs(signedAcrossRibbon));
+            float edge01 = saturate(max(abs(signedAcrossRibbon), 1.0 + shellDistance / max(localThreshold, .0001)));
 
             float outlineStart = lerp(0.97, 0.82, _RimLight);
             float blackOutline = step(outlineStart, edge01);
@@ -162,7 +238,7 @@ Shader "MASSIVE/Amplifier Core/Neutral Shell"
             float signedShellField;
             float localThreshold;
             EvaluateShell(input.objectPosition, signedShellField, localThreshold);
-            clip(localThreshold - abs(signedShellField));
+            clip(-ShellDistance(signedShellField, localThreshold, input.markerPosition));
 
             // Recessed slices are the exact neutral-black interior wall.
             return fixed4(_BlackColor.rgb * saturate(_SingularityBrightness), _BlackColor.a);

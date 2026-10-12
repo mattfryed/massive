@@ -30,8 +30,8 @@ public static class HiggsValidation
         Check(s.Tick(.25f,1,true)==1, "same owner resumes after contest");
         float remaining=s.SecondsRemaining;
         Check(s.Tick(100,1,false)==0 && s.SecondsRemaining==remaining, "pause freezes lifetime and reward");
-        s.Tick(.1f,0,true);
-        Check(s.OwnerTeam==-1 && s.Hold01==0, "vacating clears ownership and ramp");
+        s.Tick(1.5f,0,true);
+        Check(s.OwnerTeam==-1 && s.Hold01==0, "expired vacancy forgiveness clears ownership and ramp");
         s.Tick(.1f,2,true);
         Check(s.OwnershipChanges==1 && s.Hold01<1, "owner change starts a fresh lock");
 
@@ -73,6 +73,62 @@ public static class HiggsValidation
     }
 
     // Run in the actual HIGGS scene after it starts. Uses actual player colliders and the real score service.
+    [MenuItem("MASSIVE/HIGGS/Validate Vacancy Forgiveness")]
+    public static string RunForgivenessRules()
+    {
+        passed = 0;
+        var s = State();
+        Check(s.Tick(1,0,true)==0 && s.OwnerTeam==-1, "empty unclaimed Knot never gains control");
+        foreach (int team in new[]{1,2})
+        {
+            s=State(); s.Tick(2,team,true); s.Tick(.5f,team,true);
+            Check(s.Tick(1,0,true)==4 && s.OwnerTeam==team && s.Hold01==1 && s.IncomeTicks==6,
+                "team "+team+" retains control and growing income during forgiveness");
+            float remaining=s.SecondsRemaining;
+            Check(s.Tick(100,0,false)==0 && s.OwnerTeam==team && s.SecondsRemaining==remaining,
+                "pause freezes forgiveness for team "+team);
+            Check(s.Tick(.25f,team,true)==1 && s.IncomeTicks==7,
+                "return preserves lock and income for team "+team);
+            Check(s.Tick(1.5f,0,true)==6 && s.OwnerTeam==-1 && s.Hold01==0 && s.IncomeTicks==0 &&
+                s.AwardTeam==team && s.FirstAwardTickIndex==7,
+                "renewed grace ends exactly and keeps final award attribution for team "+team);
+            Check(s.Tick(.25f,0,true)==0 && s.AwardTeam==-1,
+                "continued vacancy cannot renew grace for team "+team);
+            Check(s.Tick(.25f,team,true)==0 && s.Hold01<1 && s.IncomeTicks==0,
+                "return after expiry starts a fresh lock for team "+team);
+        }
+        s=State(); s.Tick(1,1,true);
+        Check(s.Tick(.5f,0,true)==0 && s.Hold01==.75f,
+            "forgiveness preserves capture progress without early income");
+        s=State(); s.Tick(2,1,true); s.Tick(.5f,0,true);
+        Check(s.Tick(.25f,2,true)==0 && s.OwnerTeam==2 && s.Hold01<1 && s.IncomeTicks==0,
+            "opponent entering alone immediately takes over and starts its lock");
+        s=State(); s.Tick(2,1,true); s.Tick(.5f,0,true);
+        Check(s.Tick(.25f,3,true)==0 && s.Contested, "opposing presence immediately contests forgiven control");
+        Check(s.Tick(.25f,0,true)==0 && s.OwnerTeam==-1 && s.IncomeTicks==0,
+            "an emptied contest cannot restore cancelled forgiveness");
+        s=State(unclaimed:3,claimed:3); s.Tick(2,1,true); s.Tick(.75f,1,true);
+        Check(s.Tick(2,0,true)==1 && s.Phase==SymmetryKnotCaptureState.Stage.Retiring,
+            "forgiveness cannot extend the Knot lifetime");
+        s=State(); s.Tick(2,1,true); s.Tick(.25f,0,true); s.Retire();
+        Check(s.Tick(1,0,true)==0 && s.OwnerTeam==-1, "retirement cancels forgiveness");
+        s=new SymmetryKnotCaptureState(0,6,10,2,.25f,1,false,0); s.Tick(2,1,true);
+        Check(s.Tick(.25f,0,true)==0 && s.OwnerTeam==-1, "zero forgiveness restores immediate loss");
+        foreach(int fps in new[]{30,60,120})
+        {
+            s=State(); s.Tick(2,1,true); int total=0;
+            for(int i=0;i<fps*2;i++) total+=s.Tick(1f/fps,0,true);
+            Check(total==6 && s.OwnerTeam==-1, "forgiveness frame partition equivalence at "+fps+" fps");
+        }
+        s=State(); s.Tick(2,1,true);
+        Check(s.Tick(3,0,true)==6 && s.OwnerTeam==-1 && s.FirstAwardTickIndex==0,
+            "slow frame crossing grace expiry pays only the retained interval");
+        var prefab=AssetDatabase.LoadAssetAtPath<GameObject>(HiggsStageSetup.KnotPath);
+        Check(Mathf.Approximately(new SerializedObject(prefab.GetComponent<SymmetryKnotController>())
+            .FindProperty("vacancyForgivenessSeconds").floatValue,1.5f), "authored forgiveness is 1.5 seconds");
+        return passed+" HIGGS vacancy forgiveness checks passed";
+    }
+
     public static string RunPlayChecks()
     {
         if (!Application.isPlaying) throw new InvalidOperationException("Enter HIGGS Play Mode first.");
@@ -145,6 +201,51 @@ public static class HiggsValidation
             Check(scores.GetTeamScore(1)==snapshot && scores.GetTeamScore(2)==0,"closed scoring cannot be bypassed");
             knot.Retire(); knot.TickGameplay(1,true);
             Check(!knot.IsFlowing,"retired conduit has no active flow");
+
+            // Exercise forgiveness through the actual boundary query, accepted awards,
+            // exponential progression, flow and goal receipts, including the final frame.
+            incomeSettings.Update();
+            incomeSettings.FindProperty("maximumIncomeMultiplier").floatValue=8;
+            incomeSettings.ApplyModifiedPropertiesWithoutUndo();
+            foreach(var player in players)
+            {
+                player.isActive=true; player.temporarilyEliminated=false;
+                player.transform.position=new Vector3(100+player.playerID*10,0,100);
+            }
+            scores.ResetForMatch(true); knot.Initialize(Vector3.zero);
+            light.transform.position=Vector3.zero; Physics.SyncTransforms();
+            long receiptBefore=mouth.ReceivedMilliElectronVolts;
+            knot.TickGameplay(1,true); knot.TickGameplay(2,true); knot.TickGameplay(.5f,true);
+            light.transform.position=new Vector3(knot.CaptureRadius+.1f,0,0); Physics.SyncTransforms();
+            knot.TickGameplay(1,true);
+            Check(knot.EvaluateTeamMask()==0 && knot.State.OwnerTeam==1 && knot.IsFlowing &&
+                knot.State.IncomeTicks==6 && scores.GetTeamScore(1)==188,
+                "empty boundary preserves control, flow and exponential income during grace");
+            knot.TickGameplay(100,false);
+            Check(knot.State.OwnerTeam==1 && scores.GetTeamScore(1)==188, "pause freezes live grace");
+            knot.TickGameplay(.5f,true);
+            Check(knot.State.OwnerTeam==-1 && knot.State.IncomeTicks==0 && !knot.IsFlowing &&
+                scores.GetTeamScore(1)==276 && mouth.ReceivedMilliElectronVolts-receiptBefore==276,
+                "exact grace expiry pays the final growing ticks to the original team and mouth");
+            knot.TickGameplay(.5f,true);
+            Check(scores.GetTeamScore(1)==276, "empty Knot stops income after forgiveness");
+            light.transform.position=Vector3.zero; Physics.SyncTransforms(); knot.TickGameplay(.25f,true);
+            Check(knot.State.OwnerTeam==1 && knot.State.Hold01<1 && scores.GetTeamScore(1)==276,
+                "late physical return must lock again");
+            knot.Initialize(Vector3.zero); scores.ResetForMatch(true);
+            knot.TickGameplay(1,true); knot.TickGameplay(2,true);
+            light.transform.position=new Vector3(100,0,100); Physics.SyncTransforms(); knot.TickGameplay(.5f,true);
+            light.transform.position=Vector3.zero; Physics.SyncTransforms(); knot.TickGameplay(.25f,true);
+            Check(knot.State.Hold01==1 && knot.State.IncomeTicks==3 && scores.GetTeamScore(1)==82,
+                "physical return within grace continues the existing lock and income");
+            light.transform.position=new Vector3(100,0,100); Physics.SyncTransforms(); knot.TickGameplay(.25f,true);
+            dark.transform.position=Vector3.zero; Physics.SyncTransforms(); knot.TickGameplay(.25f,true);
+            Check(knot.State.OwnerTeam==2 && knot.State.Hold01<1 && scores.GetTeamScore(1)==114 &&
+                scores.GetTeamScore(2)==0 && !knot.IsFlowing,
+                "opponent physically entering during grace stops original income immediately");
+            dark.transform.position=new Vector3(100,0,100); Physics.SyncTransforms();
+            scores.CloseScoring(); knot.TickGameplay(1,true);
+            Check(scores.GetTeamScore(2)==0 && !knot.IsFlowing, "closed scoring bypasses no grace award gate");
         }
         finally { Object.Destroy(knot.gameObject); }
         return passed+" HIGGS physics/scoring integration checks passed (staged fixture; exit Play Mode)";
