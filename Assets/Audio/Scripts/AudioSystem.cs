@@ -52,10 +52,12 @@ private static void ResetStatics()
         }
 
         if (database != null) database.Build();
+        SceneSfxPolicy.SilenceChanged += StopAllSfx;
     }
 
     private void OnDestroy()
     {
+        SceneSfxPolicy.SilenceChanged -= StopAllSfx;
         if (I == this) I = null;
     }
 
@@ -77,6 +79,7 @@ private static void ResetStatics()
 
     private void PlayCueInternal(AudioCue cue, Vector3 position, bool force2D)
     {
+        if (SceneSfxPolicy.IsSuppressed) return;
         float now = Time.unscaledTime;
 
         if (cue.cooldownSeconds > 0f &&
@@ -117,6 +120,15 @@ private static void ResetStatics()
 
         float pitchAbs = Mathf.Max(0.01f, Mathf.Abs(src.pitch));
         StartCoroutine(ReleaseAfter(src, cue, clip.length / pitchAbs));
+    }
+
+    private void StopAllSfx()
+    {
+        StopAllCoroutines();
+        foreach (var source in _pool)
+            if (source) { source.Stop(); source.clip = null; }
+        _activeCounts.Clear();
+        _nextAllowedTime.Clear();
     }
 
     private AudioSource GetFreeSource()

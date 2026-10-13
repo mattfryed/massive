@@ -29,6 +29,35 @@ The top-down diagram shows the selected player's body, weapon reach and authored
 - **Impact & recovery:** Repulsor size, NPC damage, player knockback/stun/mass loss, body pulse, movement recovery and grid response. Target filters and scene bindings remain local.
 - **Appearance:** existing shared melee layer controls.
 
+## Shield response
+
+**Impact & recovery > Shield response** exposes immediate parry counters, tap
+recovery (0.5 s), sustained-hold recovery (2 s), and movement while shielding
+(55%). These values save globally, including edits during Play Mode. The movement
+value is also available under Movement.
+
+After a confirmed parry, a fresh Attack press during that active Shield ends
+protection and immediately starts an uncharged Thrust, bypassing the ordinary
+attack cooldown and charge wait. The press is consumed once; continuing to hold
+Attack does not queue Swipe or another Thrust. A further fresh press can continue
+the normal combo. Equipped attack replacements retain their input priority.
+Unsuccessful taps and ordinary blocks cannot cancel into a counter.
+
+Releasing Shield within its opening parry window uses the short recovery once
+Shield ends. Holding beyond that window uses sustained recovery, including when
+countering out of the hold. Recovery is separate from the existing strength
+recharge: rapid taps still produce weaker parries. The opening parry window,
+three-second maximum damage block, and per-component strength curve are unchanged.
+Confirmed melee, player-projectile/beam, Decoherence, Core, and opening-window
+enemy-reflection contacts can earn the counter. Enemy attack responses, reflection
+direction/damage, and charge rewards are unchanged.
+
+The Player Shield Ability inspector exposes the shared controls and a local
+opt-out. Its existing activationCooldownSeconds serialization is retained as the
+local sustained-hold recovery. Old pseudo/local actors retain their authored local
+rules; actors participating in Shared Gameplay use the shared response settings.
+Shield end, stun, disable, death and a new activation clear an unused counter.
+
 ## Comparison and persistence
 
 **Store A/B** holds a temporary session comparison; **Apply A/B** changes the shared settings and supports Undo. **Save snapshot** creates a reusable asset with embedded copies of all four profiles; assign it to the snapshot field and use **Apply** to restore its values. Saved snapshots preserve referenced materials/prefabs across reloads. Applying a snapshot writes its attack values into the currently selected live attack profile. A/B slots clear when the window closes or scripts reload. Undo/Redo includes timeline edits, numeric controls and snapshot application.

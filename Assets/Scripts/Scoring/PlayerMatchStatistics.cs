@@ -12,5 +12,6 @@ namespace Massive.Scoring
         public int enemiesKilled;
         // One Unity world unit is one meter; retain precision until presentation.
         public double distanceTraveledMeters;
+        public TimeWeightedMultiplier personalMultiplier;
     }
 }

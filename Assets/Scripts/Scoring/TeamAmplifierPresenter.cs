@@ -19,11 +19,16 @@ namespace Massive.Scoring
         private Coroutine _bindRoutine;
 
         public int TeamID => teamID;
+        private System.Func<int> demonstrationMultiplier;
+        private Renderer demonstrationBadgeSource;
+        public void ConfigureDemonstration(int team, ScoreVoidMetaballsVisual surface, System.Func<int> multiplier, Renderer badgeSource = null)
+        { teamID = team; goalSurface = surface; demonstrationMultiplier = multiplier; demonstrationBadgeSource = badgeSource; }
 
         private void OnEnable()
         {
             InitializeGoalNumber();
-            if (Application.isPlaying && _bindRoutine == null)
+            if (demonstrationMultiplier != null) SetMultiplier(demonstrationMultiplier());
+            else if (Application.isPlaying && _bindRoutine == null)
                 _bindRoutine = StartCoroutine(BindWhenAvailable());
         }
 

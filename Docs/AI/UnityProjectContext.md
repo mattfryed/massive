@@ -2514,3 +2514,189 @@ Library/CosmosInstructionsValidation. The original Attract scene was restored in
 Edit Mode. No standalone build was run. Refresh from saved gameplay tuning with
 MASSIVE > COSMOS > Instructions > Build Supernova Close-up; rerun via Validate
 Supernova Loop. Quiet Seconds and Universe Age live on the demo component.
+
+### Amplifier possession aim guide: continuous motion and arena masking (2026-10-12)
+
+The Core's current Possession Shot mode owns Thrust entry, occupant input, charge,
+contests and physical launch. Its dotted guide is a straight direction display,
+not a physics prediction. AmplifierPossessionPresentation still had an 80 ms
+prediction timer, which held old directions despite continuous player aim input.
+It now rebuilds every LateUpdate, ordered after AmplifierCoreGameplay consumes
+the current input. Dot spacing, charge growth and SINGULARITY chart mapping remain
+unchanged. The dots now use LessEqual depth testing instead of Always so the
+depth-writing exterior arena masks occlude them.
+
+MASSIVE > Amplifier > Validate Aim Guide Motion and Masking uses the existing
+disposable possession fixture. Before the fix it reproduced stalled small-angle
+updates, stale rendered aim, and exterior leakage through rectangular, goal-cap,
+and oval masks. Afterward, 18 checks passed: immediate small-angle updates, 40
+rendered frames within 0.020 degrees of the Core's current aim, actual GPU mask
+occlusion with interior dots retained, trajectory toggles, charge and launch.
+Unity 6000.0.28f1 DX11 compiled without errors; validation logged no runtime errors.
+Evidence and before/after captures: Library/AmplifierAimGuideValidation. Original
+Attract scene restored in Edit Mode with its unsaved state preserved. Validation
+used scripted player input; no physical joystick or standalone build test.
+
+### Personal multiplier outline and HUD shimmer (2026-10-13)
+
+Player outlines and personal multiplier bars now share a drifting cyan/magenta/gold
+shimmer derived from the Amplifier goal corona palette. It begins at 8x with 25%
+strength, grows continuously to full strength at 16x, and clears below threshold,
+on death/reset and when disabled. Controls are in MASSIVE > Player Tuning >
+Appearance > Personal multiplier shimmer; PlayerTuningProfile owns their persistent
+values. Goal palette changes remain shared. Existing widget glow opacity/spread,
+pulse/sweep and tint controls remain available.
+
+The new PlayerBlobVector pass expands the same deformed silhouette and uses its
+existing folded-surface projection, preserving fill, nuggets, team styling and
+collision geometry. Draws follow Thrust and both Decoherence copies. The HUD's
+old maximum-only white glow now uses the shared threshold and multicolor shader.
+No scene/prefab edits or scoring changes were required.
+
+Unity 6000.0.28f1 DX11 compiled in an isolated project copy. All 15 focused checks
+passed, including GPU color/intensity samples for bodies and bars, independent
+player chains, full HUD width, disable/re-enable reuse, actual death and respawn,
+reset and global toggle. Captures of 1x/8x/12x/16x, drift, Thrust and Decoherence
+were reviewed. No runtime errors occurred. Evidence and source hashes are under
+Library/MultiplierShimmerValidation. PlayerMultiplierShimmerValidation.RunBatch
+runs in a disposable batch project; the user's open scene was not interrupted.
+A fixed-frame respawn wait in the fixture raced real-time life FX; the final
+fixture waits for actual respawn completion and passed. No standalone build or
+SINGULARITY gameplay run was performed; folded projection reuse was reviewed.
+
+The existing broad MultiplierIntegrationSmokeTests suite separately fails before
+presentation checks: its Drone score expectations assume 0.25 charge per defeat,
+while the current economy asset grants 1. This unrelated tuning/test mismatch is
+preserved in legacy-scoring.txt; no reward settings were changed to satisfy it.
+
+### Results: time-weighted multiplier breakdowns (2026-10-13)
+
+PostGame-V2 now shows AVG AMPLIFIER xN.N below each exact team total and
+AVG MULTIPLIER xN.N below each player's contribution. The final team total
+retains its existing size and prominence. Team 1 stays right-aligned and Team 2
+left-aligned. Solo results retain personal averages for P1/P3 while hiding player
+headings and duplicated individual scores. The static winner void is unchanged.
+The new labels use the font's native x and a simple fade; the mathematical multiply
+sign required a fallback font whose glyph disappeared during repeated UI updates.
+
+MatchScoreService integrates multiplier * elapsed seconds at personal-chain changes,
+team Amplifier changes, scoring boundaries and snapshot reads. It records direct
+boosts, fractional charge, non-scoring periods and resets/deaths without depending
+on score-award frequency. Personal histories live in PlayerMatchStatistics; team
+histories live in MatchResult. TimeWeightedMultiplier holds copied duration and
+integral values, with x1 for zero-duration/older snapshots. Scores and reward tuning
+are unchanged. ResetForMatch clears histories and rebinds chain listeners.
+
+Regulation uses scaled game time, excluding normal pauses. Scoring-closed countdowns,
+finale entry and transitions are excluded. Respawn time counts at the reset personal
+multiplier. Core Collapse bonus gameplay uses its unscaled clock because
+LevelSceneContext intentionally freezes arena physics during that active phase.
+Switching clock domains flushes the old interval and rebases the timestamp.
+
+Unity 6000.0.28f1 DX11 compiled in an isolated copy. All 60 results checks passed,
+covering weighted arithmetic, sampling independence, fractional/direct boosts,
+no-award intervals, actual death, pause, bonus with frozen arena time, final-interval
+capture, reset/snapshot independence, result transport, real scene flow, both modes,
+large score fitting, zero/legacy results and label geometry. The updated averages
+were visually inspected at 1920x1080. Reports, source hashes, original backups,
+scene reference audit and captures: Library/PostGameMultiplierValidation.
+No standalone build or physical-controller playtest was run. Existing unrelated
+compiler warnings and the fixture's temporary default-profile warning remain.
+
+The scene was authored through Unity in the disposable copy, retaining existing
+object IDs. Only six labels, their parent child lists and controller bindings were
+added; Unity refreshed two existing diagnostic lastBallCount values to the already
+configured static value 1. PostGameResultsSetup.AddMultiplierBreakdown is a one-time
+additive authoring helper. No live editor scene was switched for validation.
+
+### Player Tuning multiplier preview — 2026-10-13
+
+MASSIVE / Player Tuning / Appearance / Personal multiplier shimmer now includes a
+Live preview · world scale foldout. PlayerTuningWindow.MultiplierPreview.cs owns
+preview controls and lifecycle; PlayerMultiplierShimmerPreview.cs draws the real
+body and HUD shaders through a private PreviewRenderUtility/CommandBuffer. The
+explicit-clock PlayerMultiplierShimmer.Apply overload shares runtime parameters.
+The PlayerActor prefab supplies the resting outline dimensions/material; its saved
+root size is replaced with the selected player slot's global size, or its local
+size when global sizing is disabled. PLAYING FIELD supplies HUD dimensions and
+material; ScoreEconomyProfile supplies multiplier-to-progress mapping. Both samples
+use 100 GUI points per world unit at 100% zoom, with a one-unit grid/ruler and
+separate clipping panes. Zoom/Fit, multiplier scrub/presets, pause, and slot selection
+are preview-only. No actors are instantiated and no scene or score is changed.
+Nuggets, movement deformation and camera post-processing are outside this rest-pose
+preview. Closing/reloading the window releases its camera, meshes and material.
+
+Unity 6000.0.28f1 DX11: 19 focused checks passed in an isolated batch copy, including
+GPU diameter measurements, size/zoom scaling, live reach, shader intensity/clock,
+HUD size independence, disabled behavior, editor GUI repaint, pause, cleanup and
+unchanged shared tuning/scene state. Render captures were visually inspected.
+Evidence and source hashes: Library/MultiplierShimmerPreviewValidation.
+
+### Equipped Decoherence / Time Dilation appearance — 2026-10-13
+
+Decoherence now keeps two faint, breathing body contours visible while equipped.
+They open into the existing shield split; a successful phase-through briefly
+increases the split separation for both the body and its nuggets. The central
+body, shield timing and attacker stun mechanics are preserved.
+
+Time Dilation now draws three fading historical body outlines along the actual
+movement path instead of enabling the attack particle trail continuously. A
+bounded 128-pose history samples at up to 100 Hz and interpolates echoes by age.
+Two short perimeter marks sweep while idle and turn toward the trailing echoes
+while moving. The old lunge outline trail is suppressed while these echoes are
+enabled. Death, hiding, replacement and expiry remove the new appearance;
+teleports clear history. Core possession and singularity transit suppress it.
+
+PlayerVisualController.PowerUps.cs owns the additional rendering through the
+existing command buffers and body shader. EQUIPPED_ARCS is appended after the
+existing multiplier shimmer pass, preserving all prior pass indices. The new
+passes use the body's depth test and folded-surface projection. Shared definition
+fields appear under MASSIVE / Power-up Settings / Decoherence and Time Dilation,
+covering visibility, opacity, spacing/scale, widths and animation timing. The
+separate equipment indicator remains deferred at the user's request.
+
+Unity 6000.0.28f1 DX11 compiled and passed 47 focused checks in a disposable scene,
+including real player rendering on both teams, curved path sampling, phase pulse,
+movement multiplier, replacement, expiry, hidden/death state and teleport cleanup.
+Render captures were visually inspected. Re-run with MASSIVE / Power-ups /
+Validate Equipped Appearance; report and PNGs are under
+Library/PowerUpEquippedVisualValidation. Authored scenes and definition assets
+were not rewritten. No standalone build or physical-controller playtest was run.
+
+### Shield response and parry counters — 2026-10-13
+
+Player Tuning / Impact & recovery / Shield response now owns three shared
+response controls: parryCounterThrust (true), tapActivationCooldownSeconds (0.5),
+and holdActivationCooldownSeconds (2). The existing movement.shieldMoveMultiplier
+is 0.55. The Shield inspector joins ISharedSettingsConsumer with the usual local
+opt-out and pseudo/local exclusion; its old activationCooldownSeconds field is
+preserved as the local hold-recovery value. No scene/prefab wiring was changed.
+
+A confirmed parry enables a fresh Attack press to end the active Shield and start
+an uncharged Thrust immediately, bypassing normal attack cooldown/charge delay.
+The input owner consumes the press once before normal attack handling. Attack
+replacement power-ups keep priority. Ordinary attacks retain charge behavior;
+failed parries, ordinary blocks and pre-held Attack cannot counter. Confirmations
+cover delayed melee resolution, player projectile/beam, Decoherence interception,
+Core parries and opening-window enemy projectile reflection. Enemy responses and
+reflection mechanics are unchanged. Delayed parries retain an activation sequence
+so they cannot grant a counter to a later Shield. The original stun and VFX remain.
+
+Releasing within the opening parry window uses tap recovery at Shield exit;
+holding beyond it latches hold recovery, including a counter/release in the same
+input frame. Existing 0.65s tap/parry duration, 3s max hold, strength curve and
+4s canonical soft recharge remain local and unchanged. Shield end, stun, disable,
+death and new activation clear counter permission. Continued held input cannot
+re-arm Shield or chain the counter attack.
+
+Unity 6000.0.28f1 DX11 compiled in an isolated project. 58 Play Mode assertions
+passed using canonical PlayerActors and scripted player input, including short/long
+recovery, full block/expiry, original strength recharge, fresh-edge countering,
+uncharged damage, no accidental combo, ordinary charged attacks, shared/local
+settings, paused timers, actual locomotion (55.1% of unshielded speed), confirmed
+reflection/Core/Decoherence contacts, Particle Accelerator input priority, actual
+sword/shield collision, stun, disable and death. No runtime errors were recorded.
+No physical-controller playtest or standalone build was run. Evidence, exact source
+hashes and originals: Library/ShieldResponseValidation. The first two harness runs
+were corrected for a physics speed-cap assumption and a parent-versus-child shield
+collider reference; their reports are retained beside the passing report.

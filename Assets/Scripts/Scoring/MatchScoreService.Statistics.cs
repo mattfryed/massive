@@ -13,6 +13,8 @@ namespace Massive.Scoring
             public Vector3 previousPosition;
             public int previousLife;
             public bool hasPosition;
+            public PlayerScoreChain chain;
+            public double currentMultiplier = 1d;
         }
 
         private readonly Dictionary<int, PlayerStatisticsState> _statistics = new();
@@ -35,6 +37,8 @@ namespace Massive.Scoring
 
         private void ResetStatistics()
         {
+            foreach (var state in _statistics.Values)
+                if (state.chain) state.chain.Changed -= OnPlayerMultiplierChanged;
             _statistics.Clear();
             _countedDeaths.Clear();
             _countedEnemyDefeats.Clear();
@@ -101,7 +105,10 @@ namespace Massive.Scoring
             EnsurePlayerStatistics(player).totals.enemiesKilled++;
         }
 
-        public PlayerMatchStatistics[] GetStatisticsSnapshot() =>
-            _statistics.Values.OrderBy(state => state.totals.playerID).Select(state => state.totals).ToArray();
+        public PlayerMatchStatistics[] GetStatisticsSnapshot()
+        {
+            SampleMultiplierStatistics();
+            return _statistics.Values.OrderBy(state => state.totals.playerID).Select(state => state.totals).ToArray();
+        }
     }
 }

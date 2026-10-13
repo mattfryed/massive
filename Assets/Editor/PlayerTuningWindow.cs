@@ -54,6 +54,7 @@ namespace Massive.EditorTools
             Undo.undoRedoPerformed -= Repaint;
             SceneView.duringSceneGui -= DrawSceneOverlay;
             visualBindings.Dispose();
+            ReleaseMultiplierPreview();
             if (comparisonA) comparisonA.ReleaseTemporary();
             if (comparisonB) comparisonB.ReleaseTemporary();
         }
@@ -79,6 +80,7 @@ namespace Massive.EditorTools
         {
             double now = EditorApplication.timeSinceStartup;
             float dt = Mathf.Min(.1f, (float)(now - lastTick)); lastTick = now;
+            TickMultiplierPreview(now, dt);
             if (!playing || !tuning || !tuning.attackProfile || EditorApplication.isCompiling) return;
             cursor += dt * playbackRate;
             float end = PreviewLength();
@@ -327,6 +329,19 @@ namespace Massive.EditorTools
         }
         private void DrawImpact()
         {
+            EditorGUILayout.LabelField("Shield response", EditorStyles.boldLabel);
+            using (var d = new SerializedObject(tuning))
+            {
+                d.Update();
+                var s = d.FindProperty("shield");
+                Field(s, "parryCounterThrust", "Attack immediately after a parry");
+                DrawSeconds(s.FindPropertyRelative("tapActivationCooldownSeconds"), "Tap shield recovery");
+                DrawSeconds(s.FindPropertyRelative("holdActivationCooldownSeconds"), "Held shield recovery");
+                Field(d.FindProperty("movement"), "shieldMoveMultiplier", "Movement while shielding");
+                if (d.ApplyModifiedProperties()) PlayerTuningEditing.Save(tuning);
+            }
+            EditorGUILayout.HelpBox("A fresh Attack press after a confirmed parry ends the active Shield and fires an uncharged Thrust. Equipped attack replacements keep their normal input priority. Releasing within the opening parry window uses tap recovery; holding beyond it uses held recovery. Recovery starts when Shield ends. Parry duration, maximum hold and strength recharge remain on Player Shield Ability.", MessageType.None);
+            EditorGUILayout.Space(8);
             if (tuning.attackProfile)
                 using (var d = new SerializedObject(tuning.attackProfile))
                 {
@@ -353,6 +368,11 @@ namespace Massive.EditorTools
         }
         private void DrawAppearance()
         {
+            EditorGUILayout.LabelField("Personal multiplier shimmer", EditorStyles.boldLabel);
+            EditorGUILayout.HelpBox("Player outlines and multiplier bars share the Amplifier goal corona palette. Strength starts at 8x and reaches full intensity at 16x by default.", MessageType.None);
+            DrawMultiplierPreview();
+            using (var data = new SerializedObject(tuning)) SharedSettingsEditing.DrawGroup(data, "multiplierShimmer");
+            EditorGUILayout.Space(8);
             if (!visuals) return;
             selectedStage = GUILayout.Toolbar(Mathf.Clamp(selectedStage, 0, 2), StageNames);
             using (var d = new SerializedObject(visuals))

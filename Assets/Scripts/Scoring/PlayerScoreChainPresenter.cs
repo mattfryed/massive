@@ -155,7 +155,7 @@ namespace Massive.Scoring
 
             float progress = chain != null ? chain.Progress01 : 0f;
             SetProgressTarget(progress);
-            if (chain == null || !chain.IsAtMaxMultiplier)
+            if (PlayerMultiplierShimmer.Strength(chain) <= 0f)
                 HideMaximumEffects();
         }
 

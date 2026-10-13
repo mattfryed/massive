@@ -29,24 +29,44 @@ factor before score rounding. Personal multipliers still reset on death and matc
 reset. The profile's optional hit penalty applies to fractional progress as well;
 charge loss can cross control points, including leaving the cap.
 
-## HUD controls
+## Player and HUD shimmer
 
-Open `Assets/Prefabs/PLAYING FIELD.prefab`, then
+Open **MASSIVE / Player Tuning / Appearance / Personal multiplier shimmer**.
+The player's outline and personal multiplier bar begin shimmering at **8x** with
+25% strength, then grow continuously to full strength at **16x**. The effect uses
+that player's actual fractional multiplier, independently of team Amplifiers.
+
+Controls include the enabled switch, onset/full-strength multipliers, starting
+intensity, outline opacity/reach, bar intensity, pattern scale/contrast/curl, and
+drift speed. Changes save globally, including during Play Mode. Colors come from
+the shared Amplifier goal corona's cyan/magenta/gold palette.
+
+The **Live preview · world scale** foldout in that section renders the actual body
+and HUD shimmer shaders in Edit Mode and Play Mode. Scrub the preview multiplier,
+choose a player slot, pause the animation, or use Zoom / Fit. PlayerActor's resting
+outline uses that slot's global size (or the prefab's local size when globals are
+disabled); the PLAYING FIELD bar uses its authored dimensions and continuous
+multiplier progress. Both share one world-unit scale, with a one-unit grid and
+ruler. Samples have separate clipping panes so zoom cannot overlap them. The
+preview does not include nuggets, movement deformation or camera post-processing.
+Preview controls never alter live scores, scenes or prefab assets. Shimmer tuning
+below the preview still saves globally, and changes appear immediately.
+
+The outline adds drifting filaments outside the actual deformed player silhouette.
+It follows attacks, charge vibration, Decoherence copies and the existing folded
+surface projection. Fill, nuggets, collision geometry and scoring are unchanged.
+The HUD replaces its old white maximum-only glow with the same multicolor shimmer
+starting at 8x. Text and bar fill stay steady. Reset, death, disable and falling
+below the threshold remove the effect; respawning does not retain it.
+
+Per-widget controls remain on **Player Score Chain Presenter / Multiplier Shimmer
+Glow** in `Assets/Prefabs/PLAYING FIELD.prefab`, under
 `UI / Text Objects / TEAM_01` or `TEAM_02` and a `Player N multiplier` object.
-Its **Player Score Chain Presenter / Maximum Multiplier Effects** provides:
-
-- Enabled switch and color.
-- Pulse frequency and glow opacity/spread.
-- Sweep duration in seconds (lower is faster).
-- Shared glow material, `MultiplierMaximumGlow.mat`.
+These retain the material/tint, pulse frequency, glow opacity/spread and sweep
+duration. Glow objects and meshes are reused; no materials are created per frame.
 
 The fixed white number badge reserves space for decimals. The remaining bar grows
-from minimum to maximum, without resetting at the former tier boundaries. Its
-track now matches the full visible frame. At the cap, one soft glow pulses behind
-the bar with a traveling highlight; the number and white fill remain steady.
-Effects start once the animated fill reaches maximum and hide immediately on
-reset or disable. Each view reuses its glow object and releases its mesh on
-destruction; no materials or objects are created each frame.
+from minimum to maximum, without resetting at the former tier boundaries.
 
 Validation: `MASSIVE / Scoring / Run Multiplier Integration Smoke Tests` covers
 fractional score math, custom caps, continuous progress, all four HUD widgets,

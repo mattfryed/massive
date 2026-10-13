@@ -103,6 +103,51 @@ public static class PostGameResultsSetup
         EditorSceneManager.SaveScene(scene);
     }
     static TMP_Text Text(Transform root, string name) => root.Find(name).GetComponent<TMP_Text>();
+
+    // One-time additive migration. Run in the disposable validation copy, then
+    // copy only the reviewed scene back; never overwrite subsequent authoring.
+    public static void AddMultiplierBreakdown()
+    {
+        var scene = EditorSceneManager.OpenScene(ScenePath);
+        var controller = Object.FindFirstObjectByType<PostGameScreenController>();
+        if ((TMP_Text)typeof(PostGameScreenController).GetField("averageLightAmplifierText", Fields).GetValue(controller)) return;
+        foreach (int team in new[] { 1, 2 })
+        {
+            var root = scene.GetRootGameObjects().Single(go => go.name == "TEAM_0" + team).transform;
+            var average = CopyMultiplierText(Text(root, "unit scale"), "AVERAGE AMPLIFIER", .40f);
+            average.text = "AVG AMPLIFIER  x1.0";
+            Set(controller, team == 1 ? "averageLightAmplifierText" : "averageDarkAmplifierText", average);
+        }
+        var views = (PostGamePlayerStatsView[])typeof(PostGameScreenController).GetField("playerStats", Fields).GetValue(controller);
+        foreach (var view in views)
+        {
+            view.averageMultiplier = CopyMultiplierText(view.individualScore, "AVERAGE MULTIPLIER", .48f);
+            view.averageMultiplier.text = "AVG MULTIPLIER  x1.0";
+        }
+        EditorUtility.SetDirty(controller);
+        EditorSceneManager.MarkSceneDirty(scene);
+        EditorSceneManager.SaveScene(scene);
+    }
+
+    static TMP_Text CopyMultiplierText(TMP_Text source, string name, float offset)
+    {
+        var copy = Object.Instantiate(source.gameObject, source.transform.parent, false);
+        copy.name = name;
+        var text = copy.GetComponent<TMP_Text>();
+        text.rectTransform.anchoredPosition += Vector2.down * offset;
+        text.fontSize = 2.4f;
+        text.fontSizeMin = 2f;
+        text.fontSizeMax = 2.4f;
+        text.enableAutoSizing = true;
+        text.characterSpacing = 0f;
+        text.color = Color.white;
+        // Subordinate breakdown labels fade in without changing the score animation.
+        var transition = new SerializedObject(copy.GetComponent<TMPTextTransition>());
+        transition.FindProperty("inEffects").intValue = (int)TMPTextTransition.Effects.Alpha;
+        transition.ApplyModifiedPropertiesWithoutUndo();
+        return text;
+    }
+
     static void Set(object target, string name, object value) => target.GetType().GetField(name, Fields).SetValue(target, value);
 }
 #endif

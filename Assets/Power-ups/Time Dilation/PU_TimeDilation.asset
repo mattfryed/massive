@@ -20,3 +20,14 @@ MonoBehaviour:
   worldLifetimeSeconds: 12
   effectDurationSeconds: 8
   moveSpeedMultiplier: 2
+  showMotionEchoes: 1
+  echoCount: 3
+  echoSpacingSeconds: 0.1037
+  echoOpacity: 0.5
+  echoWidthScale: 0.85
+  echoFullSpeed: 3
+  showPerimeterMarks: 1
+  perimeterOpacity: 0.8
+  perimeterScale: 1.16
+  perimeterArcDegrees: 28
+  perimeterCycleSeconds: 1.25

@@ -14,6 +14,18 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   sharedEnabled: 1
   attackProfile: {fileID: 11400000, guid: f8da97854828d82479cb4fca1898b16f, type: 2}
+  multiplierShimmer:
+    enabled: 1
+    startsAtMultiplier: 8
+    fullIntensityMultiplier: 16
+    startingIntensity: 0.447
+    outlineOpacity: 0.895
+    outlineReach: 0.344
+    barIntensity: 2.802
+    patternScale: 0.832
+    contrast: 0.284
+    curl: 1
+    driftSpeed: 2.412
   movement:
     movePower: 24
     maxMoveSpeed: 7.5
@@ -24,9 +36,9 @@ MonoBehaviour:
     idleBrake: 33
     moveDeadzone: 0.05
     attackingMoveScale: 0.6
-    shieldMoveMultiplier: 0.15
+    shieldMoveMultiplier: 0.55
   combat:
-    attackCooldown: 0.5
+    attackCooldown: 0.15
     comboInputBuffer: 0.15
     useSharedComboWindow: 1
     sharedComboWindowSeconds: 0.15
@@ -61,22 +73,26 @@ MonoBehaviour:
     thrustChargeMaxSeconds: 3
     thrustChargeMaxDistanceMultiplier: 3
     thrustChargeMaxDamageMultiplier: 2
-    thrustChargeVibrationAmplitude: .08
+    thrustChargeVibrationAmplitude: 0.08
     thrustChargeVibrationFrequency: 28
-    thrustChargeMinMoveMultiplier: .25
+    thrustChargeMinMoveMultiplier: 0.25
     thrustChargeGuideEnabled: 1
     thrustChargeGuideArrowCount: 5
-    thrustChargeGuideDistanceFraction: .5
-    thrustChargeGuideStrokeWidth: .035
-    thrustChargeGuideArrowLength: .25
-    thrustChargeGuideArrowWidth: .4
-    thrustChargeGuideRevealSeconds: .15
+    thrustChargeGuideDistanceFraction: 0.5
+    thrustChargeGuideStrokeWidth: 0.035
+    thrustChargeGuideArrowLength: 0.25
+    thrustChargeGuideArrowWidth: 0.4
+    thrustChargeGuideRevealSeconds: 0.15
     thrustChargeGuideColor: {r: 1, g: 1, b: 1, a: 0.85}
     visualDirectionFollowsCombatFacing: 1
     lockOnEnabled: 1
     lockOnConeHalfAngleDeg: 25
     lockOnMaxDistanceOverride: 0
     lockOnDirectionBlend: 0.85
+  shield:
+    parryCounterThrust: 1
+    tapActivationCooldownSeconds: 0.5
+    holdActivationCooldownSeconds: 2
   repulsor:
     applyKnockback: 1
     knockbackVelocity: 12

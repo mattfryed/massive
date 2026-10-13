@@ -25,6 +25,7 @@ public class SfxPlayerScript : MonoBehaviour
     /// </summary>
     public void SafePlay(string sfxName)
     {
+        if (SceneSfxPolicy.IsSuppressed) return;
         // 1) Prefer the new centralized system (AudioDatabase -> AudioCue -> AudioSystem pool)
         if (AudioSystem.I != null && AudioSystem.I.database != null)
         {

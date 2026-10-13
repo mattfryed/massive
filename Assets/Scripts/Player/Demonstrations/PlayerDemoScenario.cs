@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace Massive.Demonstrations
 {
-    public enum PlayerDemoKind { MovementAndCombo, Block, PowerUp, CombatPair, SoloCombo }
+    public enum PlayerDemoKind { MovementAndCombo, Block, PowerUp, CombatPair, SoloCombo, AmplifierGoal }
     public enum CombatDemoDefense { TapParry, HeldBlock, None, DecoherenceParry }
 
     [CreateAssetMenu(menuName = "MASSIVE/Demonstrations/Player Scenario")]
@@ -11,6 +11,7 @@ namespace Massive.Demonstrations
     {
         public GameObject playerPrefab;
         public PlayerDemoKind kind;
+        [Min(.1f)] public float actorScale = 1f;
         [Tooltip("Power-up demos claim the ordinary pickup with a real melee attack before using the effect.")]
         public PowerUpDefinition powerUp;
         [Min(.1f)] public float readablePause = 1.2f;
@@ -19,6 +20,13 @@ namespace Massive.Demonstrations
         [Range(0f, 1f)] public float acceleratorChargeFraction = .35f;
         [Min(1f)] public float acceleratorTargetDistance = 4f;
         [Min(.1f)] public float viewPadding = .2f;
+        [Header("Amplifier demonstration")]
+        public Massive.Multiplier.AmplifierCoreGameplay amplifierCorePrefab;
+        public GameObject teamGoalPrefab;
+        [Tooltip("Demo-only wait after capture; normal Core spawn and capture effects are retained.")]
+        [Min(0f)] public float amplifierRespawnDelay = 5f;
+        public Massive.Scoring.ScoreEconomyProfile scoreEconomy;
+        public TMPro.TMP_FontAsset labelFont;
         [Header("Combat pair")]
         public CombatDemoDefense defense;
         public DecoherencePowerUpDefinition defenderPowerUp;

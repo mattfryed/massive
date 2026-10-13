@@ -5,6 +5,7 @@ using UnityEngine.SceneManagement;
 using Rewired;
 
 [DisallowMultipleComponent]
+[DefaultExecutionOrder(-10000)]
 public class HowToPlayScreenController : MonoBehaviour
 {
     [Header("Flow")]
@@ -46,8 +47,20 @@ public class HowToPlayScreenController : MonoBehaviour
     // Transition completion flags
     private bool _introOutDone;
 
+    private void OnEnable()
+    {
+        if (gameObject.scene.name == SceneFlow.HowToPlayScene)
+            SceneSfxPolicy.BeginSilence(this);
+    }
+
+    // Keep the scene silent even if its input/continue controller is disabled.
+    private void OnDestroy() => SceneSfxPolicy.EndSilence(this);
+    private void OnApplicationQuit() => SceneSfxPolicy.EndSilence(this);
+
     private void Awake()
     {
+        if (gameObject.scene.name == SceneFlow.HowToPlayScene)
+            SceneSfxPolicy.BeginSilence(this);
         // Ensure initial visibility
         if (introPromptRoot != null) introPromptRoot.SetActive(true);
         if (pressAnyPromptRoot != null) pressAnyPromptRoot.SetActive(false);

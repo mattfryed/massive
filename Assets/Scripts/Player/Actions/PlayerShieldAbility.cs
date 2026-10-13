@@ -7,7 +7,7 @@ namespace Massive.Player
 {
     /// <summary>Tap for the original parry; keep holding for a limited, full damage block.</summary>
     [DisallowMultipleComponent]
-    public sealed class PlayerShieldAbility : MonoBehaviour
+    public sealed partial class PlayerShieldAbility : MonoBehaviour
     {
         [Header("Refs")]
         [SerializeField] private PlayerControllerScript owner;
@@ -18,8 +18,10 @@ namespace Massive.Player
         public bool SuppressDefaultShieldVfx { get; set; } = false;
 
         [Header("Timing")]
-        [Tooltip("Hard lockout after the shield ends. During this time, Shield cannot be activated at all.")]
-        [SerializeField, Min(0f)] private float activationCooldownSeconds = 0.35f;
+        [Tooltip("Local sustained-hold recovery. Shared gameplay uses Player Tuning / Shield. Existing serialized hold values are preserved.")]
+        [SerializeField, Min(0f)] private float activationCooldownSeconds = 2f;
+        [SerializeField, Min(0f)] private float tapActivationCooldownSeconds = .5f;
+        [SerializeField] private bool parryCounterThrust = true;
 
 
         [Tooltip("Tap lifetime and opening parry window, including when held.")]
@@ -62,7 +64,9 @@ namespace Massive.Player
         public float CooldownSeconds => cooldownSeconds;
         public float DurationSeconds => durationSeconds;
 
-        public float ActivationCooldownSeconds => activationCooldownSeconds;
+        public float ActivationCooldownSeconds => sustainedHold ? HoldActivationCooldownSeconds : TapActivationCooldownSeconds;
+        public bool CanParryCounter => IsActive && successfulParry && ParryCounterEnabled;
+        public bool UsedSustainedHold => sustainedHold;
         public float ActivationCooldownRemaining => Mathf.Max(0f, nextAllowedActivateTime - Time.time);
 
         /// <summary>
@@ -91,7 +95,8 @@ namespace Massive.Player
 
         private float lastUseTime = -999f;
         private float endTime;
-        private bool inputHeld, released;
+        private bool inputHeld, released, sustainedHold, successfulParry;
+        private uint activationSequence;
         private PlayerNuggetsGPU nuggets;
         private readonly HashSet<PlayerControllerScript> pendingParries = new HashSet<PlayerControllerScript>();
         private Vector3 lastFaceDirWS = Vector3.right;
@@ -160,6 +165,7 @@ namespace Massive.Player
         private void Update()
         {
             if (!IsActive) return;
+            TrackSustainedHold();
 
             if (owner != null)
             {
@@ -226,6 +232,7 @@ namespace Massive.Player
         public void SetHeld(bool held)
         {
             if (!IsActive || released) return;
+            TrackSustainedHold(); // Include the held interval up to this release/exit frame.
             inputHeld = held;
             if (!held) released = true;
             endTime = lastUseTime + (held ? Mathf.Max(.05f, maxHoldSeconds) : Mathf.Max(.05f, durationSeconds));
@@ -234,16 +241,35 @@ namespace Massive.Player
             if (Time.time >= endTime) ForceStopShield();
         }
 
+        private void TrackSustainedHold()
+        {
+            if (IsActive && inputHeld && Time.time >= lastUseTime + durationSeconds)
+                sustainedHold = true;
+        }
+
+        // Called only by confirmed impact paths; ordinary blocks do not earn a counter.
+        public void NotifySuccessfulParry()
+        {
+            if (IsParryWindow && CurrentStrength01 > .0001f) successfulParry = true;
+        }
+
+        internal bool TryReleaseForParryCounter()
+        {
+            if (!CanParryCounter || !attackController || !attackController.CanStartParryCounter) return false;
+            ForceStopShield(); // Clears protection before either melee or a replacement power-up fires.
+            return true;
+        }
+
         /// <summary>Reserve the opening parry at contact; ordinary attack movement closes part of the gap.</summary>
         public bool QueueMeleeParry(PlayerControllerScript attacker, Action<float, bool> onImpact)
         {
             if (!IsParryWindow || !attacker || attacker.IsStunned || !pendingParries.Add(attacker)) return false;
-            StartCoroutine(ApproachThenParry(attacker, CurrentStrength01, BlocksAllDamage, onImpact));
+            StartCoroutine(ApproachThenParry(attacker, CurrentStrength01, BlocksAllDamage, activationSequence, onImpact));
             return true;
         }
 
         private IEnumerator ApproachThenParry(PlayerControllerScript attacker, float strength, bool fullyBlocked,
-            Action<float, bool> onImpact)
+            uint sequence, Action<float, bool> onImpact)
         {
             float distance = PlanarDistance(attacker.transform.position, transform.position);
             float bodyDistance = PlayerScaleAdjuster.BodyRadiusOf(attacker) + PlayerScaleAdjuster.BodyRadiusOf(owner);
@@ -259,7 +285,7 @@ namespace Massive.Player
 
                 if (!attacker || !owner || owner.temporarilyEliminated || attacker.temporarilyEliminated || attacker.IsStunned)
                     yield break;
-                CompleteParry(attacker, transform.position, strength);
+                CompleteParry(attacker, transform.position, strength, sequence);
                 onImpact?.Invoke(strength, fullyBlocked);
             }
             finally { pendingParries.Remove(attacker); }
@@ -271,22 +297,26 @@ namespace Massive.Player
         public bool TryParryProjectile(PlayerControllerScript attacker, Vector3 impactPosition)
         {
             if (!IsParryWindow || !attacker) return false;
-            CompleteParry(attacker, impactPosition, CurrentStrength01);
+            CompleteParry(attacker, impactPosition, CurrentStrength01, activationSequence);
             return true;
         }
 
         public void PlayCoreParryFeedback()
         {
             if (!IsParryWindow) return;
+            NotifySuccessfulParry();
             if (ringsVfx && !SuppressDefaultShieldVfx) ringsVfx.PlayParryBlast(CurrentStrength01);
             if (nuggets) nuggets.PlayParryFeedback(durationSeconds, CurrentStrength01);
             AudioSystem.I?.Play(AudioEventId.Player_Parry, transform.position);
         }
 
-        private void CompleteParry(PlayerControllerScript attacker, Vector3 impactPosition, float strength)
+        private void CompleteParry(PlayerControllerScript attacker, Vector3 impactPosition, float strength, uint sequence)
         {
             attacker.Stun(impactPosition, strength);
             if (strength <= .0001f) return;
+            // A reserved melee parry may resolve after the opening window. It must
+            // still belong to this activation, never a later shield or a stopped one.
+            if (IsActive && sequence == activationSequence) successfulParry = true;
             if (ringsVfx && !SuppressDefaultShieldVfx) ringsVfx.PlayParryBlast(strength);
             if (nuggets) nuggets.PlayParryFeedback(attacker.stunTime * strength, strength);
             AudioSystem.I?.Play(AudioEventId.Player_Parry, transform.position);
@@ -304,6 +334,8 @@ namespace Massive.Player
         {
             inputHeld = false;
             released = false;
+            sustainedHold = successfulParry = false;
+            activationSequence++;
             lastUseTime = Time.time;
             endTime = Time.time + Mathf.Max(0.05f, durationSeconds);
 
@@ -325,11 +357,13 @@ namespace Massive.Player
 
         public void ForceStopShield()
         {
+            successfulParry = false;
             if (!IsActive) return;
+            TrackSustainedHold();
 
-
-            // Start hard lockout AFTER the shield finishes.
-            nextAllowedActivateTime = Time.time + Mathf.Max(0f, activationCooldownSeconds);
+            // Both recoveries start at exit. Releasing a tap early cannot make it
+            // a hold, and countering out of a long hold cannot claim tap recovery.
+            nextAllowedActivateTime = Time.time + ActivationCooldownSeconds;
 
             IsActive = false;
             inputHeld = false;

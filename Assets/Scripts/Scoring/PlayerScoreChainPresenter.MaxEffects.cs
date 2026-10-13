@@ -5,7 +5,7 @@ namespace Massive.Scoring
 {
     public sealed partial class PlayerScoreChainPresenter
     {
-        [Header("Maximum Multiplier Effects")]
+        [Header("Multiplier Shimmer Glow")]
         [SerializeField] private bool maximumEffectsEnabled = true;
         [SerializeField] private Material maximumGlowMaterial;
         [SerializeField] private Color maximumEffectColor = Color.white;
@@ -29,8 +29,8 @@ namespace Massive.Scoring
 
         private void UpdateMaximumEffects()
         {
-            if (!maximumEffectsEnabled || maximumGlowMaterial == null || progressRectangle == null ||
-                chain == null || !chain.IsAtMaxMultiplier || _displayedProgress < 0.999f)
+            float strength = PlayerMultiplierShimmer.Strength(chain);
+            if (!maximumEffectsEnabled || maximumGlowMaterial == null || progressRectangle == null || strength <= 0f)
             {
                 HideMaximumEffects();
                 return;
@@ -58,6 +58,8 @@ namespace Massive.Scoring
             _maximumGlowProperties.SetVector(BarSizeId, new Vector4(width, height, spread, 0f));
             _maximumGlowProperties.SetColor(GlowTintId, maximumEffectColor);
             _maximumGlowProperties.SetVector(GlowStrengthId, new Vector4(maximumGlowOpacity, pulse, 0f, 0f));
+            PlayerMultiplierShimmer.Apply(_maximumGlowProperties, chain,
+                strength * PlayerMultiplierShimmer.Settings.barIntensity, spread);
             _maximumGlowProperties.SetFloat(SweepPhaseId, Mathf.Repeat(elapsed / Mathf.Max(0.1f, maximumSweepSeconds), 1f));
             _maximumGlowRenderer.SetPropertyBlock(_maximumGlowProperties);
         }

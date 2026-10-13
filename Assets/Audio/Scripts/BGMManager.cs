@@ -140,7 +140,12 @@ private static void Bootstrap() => EnsureExists();
     private void OnDestroy()
     {
         SceneManager.sceneLoaded -= OnSceneLoaded;
-        if (Instance == this) Instance = null;
+        if (Instance == this)
+        {
+            SceneSfxPolicy.UnregisterMusicSource(sourceA);
+            SceneSfxPolicy.UnregisterMusicSource(sourceB);
+            Instance = null;
+        }
     }
 
     private void Start()
@@ -178,6 +183,7 @@ private static void Bootstrap() => EnsureExists();
         src.dopplerLevel = 0f;
         src.loop = true;
         src.volume = 0f;
+        SceneSfxPolicy.RegisterMusicSource(src);
     }
 
     private void ApplyMusicForScene(string sceneName)

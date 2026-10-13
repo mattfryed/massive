@@ -152,7 +152,7 @@ public float gameplayFacingMaxYawSpeed = 2500f;
     public Vector3 DecoPreJitterWS           => _decoPreJitterWS;
     public Vector3 DecoGhostJitterA_WS       => _decoGhostJitterA_WS;
     public Vector3 DecoGhostJitterB_WS       => _decoGhostJitterB_WS;
-    public float  DecoSplitSeparationWorld   => decoSplitSeparationWorld * Massive.Player.PlayerScaleAdjuster.SizeOf(this);
+    public float  DecoSplitSeparationWorld   => decoSplitSeparationWorld * Massive.Player.PlayerScaleAdjuster.SizeOf(this) * DecoherencePhaseScale;
     public float  DecoGhostOpacity           => decoGhostOpacity;
     public float  DecoSplitFillAlpha         => decoSplitFillAlpha;
 
@@ -289,6 +289,7 @@ float _gameplayYawVelDeg;
 
     void OnDisable()
     {
+        ClearEquippedVisualHistory();
         ClearEnemyDamageFeedback();
         Camera.onPreCull -= HandlePreCull;
         Camera.onPreRender -= HandlePreRender;
@@ -728,8 +729,10 @@ public void SetMoveInput(Vector2 stick)
     Matrix4x4 P = GL.GetGPUProjectionMatrix(cam.projectionMatrix, true);
     const int SEG = 128;
 
+    DrawEquippedPowerUpVisuals(cb, P * V);
+
     // --- Ghost trail (outline only) ---
-    if (_ghosts != null && _ghosts.Count > 0)
+    if (!TimeDilationEchoesVisible && _ghosts != null && _ghosts.Count > 0)
     {
         Color baseOutline = IsTeam2() ? team2_Outline : team1_Outline;
         float now = Time.time;
@@ -802,6 +805,7 @@ public void SetMoveInput(Vector2 stick)
             _mainProps.Clear();
             _mainProps.SetMatrix("_MVP", MVP);
             ApplySingularityProjection(_mainProps, M, P * V);
+            DrawMultiplierShimmer(cb, _mainProps);
             DrawFoldedOutlineDepth(cb, _mainProps);
 
             cb.DrawProcedural(
@@ -876,6 +880,7 @@ public void SetMoveInput(Vector2 stick)
                 _mainProps.SetColor(_OutlineColor, outline);
                 _mainProps.SetColor(_FillColor, fill);
 
+                DrawMultiplierShimmer(cb, _mainProps);
                 DrawFoldedOutlineDepth(cb, _mainProps);
 
                 cb.DrawProcedural(
@@ -912,6 +917,7 @@ public void SetMoveInput(Vector2 stick)
                 _mainProps.SetColor(_OutlineColor, outline);
                 _mainProps.SetColor(_FillColor, fill);
 
+                DrawMultiplierShimmer(cb, _mainProps);
                 DrawFoldedOutlineDepth(cb, _mainProps);
 
                 cb.DrawProcedural(

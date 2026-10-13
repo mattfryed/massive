@@ -236,7 +236,10 @@ private static IEnumerator IgnoreCollisionsCo(PlayerControllerScript a, PlayerCo
         public bool TryHandleShieldImpact(PlayerControllerScript attacker, Collider shieldCollider, Vector3 attackDirWS)
         {
             if (!HasActive || _ability == null) return false;
-            return _ability.TryHandleShieldImpact(attacker, shieldCollider, attackDirWS);
+            bool handled = _ability.TryHandleShieldImpact(attacker, shieldCollider, attackDirWS);
+            if (handled && shieldCollider)
+                shieldCollider.GetComponentInParent<Massive.Player.PlayerShieldAbility>()?.NotifySuccessfulParry();
+            return handled;
         }
 
         // Ability helpers (called from abilities)

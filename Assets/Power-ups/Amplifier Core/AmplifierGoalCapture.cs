@@ -35,6 +35,13 @@ namespace Massive.Multiplier
 
         public void SetTreatments(AmplifierGoalTreatments value) { treatments = value; }
 
+        private Transform demonstrationRoot;
+        private System.Func<bool> demonstrationCapture;
+        public void ConfigureDemonstration(Transform scope, System.Func<bool> capture)
+        { demonstrationRoot = scope; demonstrationCapture = capture; }
+        public bool AcceptsCore(AmplifierCoreGameplay core) => core && core.DemonstrationRoot == demonstrationRoot;
+        private bool ScoringOpen => demonstrationRoot || (MatchScoreService.Instance && MatchScoreService.Instance.IsScoringOpen);
+        private bool Capped => !demonstrationRoot && MatchScoreService.Instance && MatchScoreService.Instance.IsTeamAmplifierMaxed(teamID);
         public int TeamID => teamID;
         public float AttractionRadius => attractionRadius;
         public Transform CapturePoint => capturePoint != null ? capturePoint : transform;
@@ -55,10 +62,9 @@ namespace Massive.Multiplier
         // component's FixedUpdate happened first this tick.
         public static bool IsDrivingCore(AmplifierCoreGameplay core)
         {
-            var service = MatchScoreService.Instance;
-            if (!service || !service.IsScoringOpen || !core || core.IsOccupied || core.IsCaptured || core.IsInExternalTransit) return false;
+            if (!core || core.IsOccupied || core.IsCaptured || core.IsInExternalTransit) return false;
             foreach (var goal in ActiveGoals)
-                if (goal && goal.isActiveAndEnabled && goal.FieldAffects(core, service.IsTeamAmplifierMaxed(goal.teamID))) return true;
+                if (goal && goal.isActiveAndEnabled && goal.ScoringOpen && goal.AcceptsCore(core) && goal.FieldAffects(core, goal.Capped)) return true;
             return false;
         }
 
@@ -94,13 +100,13 @@ namespace Massive.Multiplier
         private void FixedUpdate()
         {
             MatchScoreService service = MatchScoreService.Instance;
-            if (service == null || !service.IsScoringOpen)
+            if (!ScoringOpen)
             {
                 _rejectedCores.Clear();
                 return;
             }
 
-            bool capped = service.IsTeamAmplifierMaxed(teamID);
+            bool capped = Capped;
             // Re-arm only after leaving the field of rejection, with a little margin to
             // avoid repeat notices from jitter at the edge or multiple child colliders.
             float rearmDistance = attractionRadius + .5f;
@@ -119,7 +125,7 @@ namespace Massive.Multiplier
             for (int i = cores.Count - 1; i >= 0; i--)
             {
                 AmplifierCoreGameplay core = cores[i];
-                if (core == null || core.gameObject.scene != gameObject.scene || core.IsCaptured || core.IsInExternalTransit || core.IsOccupied || core.Body == null)
+                if (!AcceptsCore(core) || core.gameObject.scene != gameObject.scene || core.IsCaptured || core.IsInExternalTransit || core.IsOccupied || core.Body == null)
                     continue;
 
                 Vector3 delta = CapturePoint.position - core.Body.worldCenterOfMass;
@@ -158,10 +164,10 @@ namespace Massive.Multiplier
         private void OnTriggerEnter(Collider other)
         {
             AmplifierCoreGameplay core = other.GetComponentInParent<AmplifierCoreGameplay>();
-            if (core != null && !core.IsOccupied && core.Body && !core.Body.isKinematic)
+            if (ScoringOpen && AcceptsCore(core) && !core.IsOccupied && core.Body && !core.Body.isKinematic)
             {
                 var service = MatchScoreService.Instance;
-                if (service != null && service.IsScoringOpen && service.IsTeamAmplifierMaxed(teamID))
+                if (Capped)
                 {
                     NotifyRejection(core, service);
                     if (Effective_repelWhenMaxed) RepelCore(core, 0f);
@@ -217,6 +223,7 @@ namespace Massive.Multiplier
 
         public bool TryAdvanceTeamAmplifier()
         {
+            if (demonstrationRoot) return demonstrationCapture?.Invoke() == true;
             MatchScoreService service = MatchScoreService.Instance;
             return service != null && service.AdvanceTeamAmplifier(teamID);
         }

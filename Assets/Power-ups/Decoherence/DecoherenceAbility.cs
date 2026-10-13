@@ -30,6 +30,7 @@ namespace Massive.PowerUps
 
             _shield = _defender.GetComponent<PlayerShieldAbility>();
             _visuals = _defender.visualsController;
+            if (_visuals) _visuals.SetDecoherenceEquipped(_def);
 
             // Cache nugget renderers (optional)
             _nuggetRenderers.Clear();
@@ -61,7 +62,10 @@ namespace Massive.PowerUps
 
             // Ensure visuals are restored
             if (_visuals != null)
+            {
                 _visuals.SetDecoherenceSplitActive(false);
+                _visuals.SetDecoherenceEquipped(null);
+            }
 
             SetNuggetsVisible(true);
 
@@ -113,6 +117,7 @@ namespace Massive.PowerUps
             // if (d > _def.distanceWindow) return false;
 
             attacker.ExternalStun(_def.attackerStunSeconds);
+            if (_visuals) _visuals.PlayDecoherencePhasePulse();
 
             // Move attacker through the defender
             Vector3 dir = attackDirWS;

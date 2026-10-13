@@ -26,3 +26,11 @@ MonoBehaviour:
   attackerStunSeconds: 0.55
   passThroughDistance: 1
   ignoreCollisionSeconds: 0.25
+  showEquippedContours: 1
+  contourOpacity: 0.38
+  contourSeparation: 0.24
+  contourScale: 1.08
+  contourWidthScale: 0.65
+  contourCycleSeconds: 1.8
+  phasePulseSeconds: 0.28
+  phaseSeparationBoost: 0.3

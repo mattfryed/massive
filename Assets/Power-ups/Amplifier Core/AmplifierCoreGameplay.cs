@@ -302,7 +302,7 @@ namespace Massive.Multiplier
 
         public bool TryCapture(AmplifierGoalCapture goal)
         {
-            if (presentationOnly || IsCaptured || IsInExternalTransit || IsOccupied || goal == null)
+            if (presentationOnly || IsCaptured || IsInExternalTransit || IsOccupied || goal == null || !goal.AcceptsCore(this))
                 return false;
 
             if (!goal.TryAdvanceTeamAmplifier())
@@ -606,6 +606,13 @@ namespace Massive.Multiplier
             transform.localPosition = _spawnLocalPosition;
             transform.localRotation = _spawnLocalRotation;
             transform.localScale = _spawnLocalScale;
+            // With automatic transform sync disabled, the re-enabled trigger can
+            // otherwise report the previous goal contact before the body catches up.
+            if (body)
+            {
+                body.position = transform.position;
+                body.rotation = transform.rotation;
+            }
         }
 
         private void ResolveReferences()

@@ -7,9 +7,22 @@ namespace Massive.Settings
     public sealed class PlayerTuningProfile : SharedSettingsProfile
     {
         public PlayerAttackProfile attackProfile;
+        public Massive.Scoring.PlayerMultiplierShimmerSettings multiplierShimmer = new();
         public PlayerLocomotionSettings movement = new PlayerLocomotionSettings();
         public PlayerCombatSettings combat = new PlayerCombatSettings();
+        public PlayerShieldResponseSettings shield = new PlayerShieldResponseSettings();
         public PlayerRepulsorImpactSettings repulsor = new PlayerRepulsorImpactSettings();
+    }
+
+    [System.Serializable]
+    public sealed class PlayerShieldResponseSettings
+    {
+        [Tooltip("A fresh Attack press after a confirmed parry can end this Shield and fire an uncharged Thrust immediately.")]
+        public bool parryCounterThrust = true;
+        [Tooltip("Shield reactivation lockout after releasing within the opening parry window.")]
+        [Min(0)] public float tapActivationCooldownSeconds = .5f;
+        [Tooltip("Shield reactivation lockout after holding beyond the opening parry window, including a counterattack exit.")]
+        [Min(0)] public float holdActivationCooldownSeconds = 2f;
     }
 
     [System.Serializable]
@@ -38,7 +51,7 @@ namespace Massive.Settings
         [Min(0)] public float idleBrake = 8f;
         [Range(.05f, .6f)] public float moveDeadzone = .15f;
         [Range(.1f, 1)] public float attackingMoveScale = .6f;
-        [Range(.05f, 1)] public float shieldMoveMultiplier = .4f;
+        [Range(.05f, 1)] public float shieldMoveMultiplier = .55f;
     }
 
     [System.Serializable]

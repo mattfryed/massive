@@ -1268,7 +1268,7 @@ PrefabInstance:
         type: 3}
       propertyPath: encounterTimeline
       value: 
-      objectReference: {fileID: 11400000, guid: e91f94d516b612949995b684f0da3422,
+      objectReference: {fileID: 11400000, guid: f17da9455a31ece42b89a3bfbf992c1a,
         type: 2}
     - target: {fileID: 6249206849909281475, guid: 95745a854c6dd214cb04a0c9f69cc005,
         type: 3}

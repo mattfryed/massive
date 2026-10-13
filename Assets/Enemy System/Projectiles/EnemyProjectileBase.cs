@@ -165,6 +165,7 @@ namespace Massive.Enemies
             if (player == null || player.IsSpawning || (Owner && !Owner.SharesSimulationWith(player))) return false;
             if (shieldAbility == null && !player.shieldOn) return false;
             ReflectedBy = player;
+            shieldAbility?.NotifySuccessfulParry();
 
             ReflectFrom(other.transform.position);
             return true;

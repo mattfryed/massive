@@ -6,13 +6,13 @@ using UnityEngine.Rendering;
 namespace Massive.Multiplier
 {
     /// <summary>Aim dots that grow with charge, plus a contest-only team ring. No colliders.</summary>
+    [DefaultExecutionOrder(100)] // After the Core consumes this frame's player aim in LateUpdate.
     public sealed class AmplifierPossessionPresentation : ImmediateModeShapeDrawer
     {
         private AmplifierCoreGameplay core;
         private Massive.Singularity.SingularityAmplifierAdapter surface;
         private readonly List<Vector3> path = new List<Vector3>(256);
         private readonly List<Vector3> aimDots = new List<Vector3>(128);
-        private float nextPrediction;
         private AmplifierCoreControlUI controlUI;
         public AmplifierCoreControlUI ControlUI => controlUI;
         private Vector3 drawOrigin;
@@ -60,7 +60,7 @@ namespace Massive.Multiplier
         {
             core = GetComponent<AmplifierCoreGameplay>();
             surface = GetComponent<Massive.Singularity.SingularityAmplifierAdapter>();
-            path.Clear(); aimDots.Clear(); nextPrediction = 0f;
+            path.Clear(); aimDots.Clear();
             useCullingMasks = true;
             base.OnEnable();
         }
@@ -76,13 +76,11 @@ namespace Massive.Multiplier
         private void LateUpdate()
         {
             if (!core || !core.IsOccupied) { controlUI?.Hide(); return; }
-            if (Time.unscaledTime >= nextPrediction)
-            {
-                nextPrediction = Time.unscaledTime + .08f;
-                if (core.ControlState == AmplifierControlState.Aiming && core.Possession.showTrajectory) core.BuildTrajectory(path);
-                else path.Clear();
-                RefreshAimDots();
-            }
+            // This is a lightweight direction guide, not a throttled physics prediction.
+            // Rebuild every frame so small stick changes remain continuous.
+            if (AimGuideVisible) core.BuildTrajectory(path);
+            else path.Clear();
+            RefreshAimDots();
             var camera = Camera.main;
             if (!camera) return;
             if (controlUI == null) controlUI = new AmplifierCoreControlUI(transform);
@@ -106,7 +104,8 @@ namespace Massive.Multiplier
                 Draw.ResetAllDrawStates();
                 drawOrigin = Map(transform.position);
                 Draw.Matrix = Matrix4x4.Translate(drawOrigin);
-                Draw.ZTest = CompareFunction.Always;
+                // Arena exterior masks write depth; the world-space guide must respect it.
+                Draw.ZTest = CompareFunction.LessEqual;
                 Draw.ThicknessSpace = ThicknessSpace.Meters;
                 Draw.LineGeometry = LineGeometry.Volumetric3D;
                 Draw.LineEndCaps = LineEndCap.Round;

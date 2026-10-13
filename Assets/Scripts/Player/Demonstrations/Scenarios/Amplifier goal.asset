@@ -1,0 +1,35 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c2cd4f1b547996549870d557e152628a, type: 3}
+  m_Name: Amplifier goal
+  m_EditorClassIdentifier: 
+  playerPrefab: {fileID: 8984405948043393506, guid: ef11db7a22c9ebf43826b8f6ab3469f3,
+    type: 3}
+  kind: 5
+  actorScale: 2
+  powerUp: {fileID: 0}
+  readablePause: 1.5
+  actionTimeout: 15
+  movementDistance: 2
+  acceleratorChargeFraction: 0.35
+  acceleratorTargetDistance: 4
+  viewPadding: 0.2
+  amplifierCorePrefab: {fileID: 4806869977781991097, guid: dfbc6addaf7ae3d438f832d0003ac5ac,
+    type: 3}
+  teamGoalPrefab: {fileID: 4934459106185372993, guid: fd73f47d79d8be64083cac630d65b043,
+    type: 3}
+  amplifierRespawnDelay: 5
+  scoreEconomy: {fileID: 11400000, guid: f9d2e6b7c77a7304cbc60aa75b489131, type: 2}
+  labelFont: {fileID: 11400000, guid: 13b46f913b61e2d4195306f4c4e38dbd, type: 2}
+  defense: 0
+  defenderPowerUp: {fileID: 0}
+  heldBlockLead: 0.15

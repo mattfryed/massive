@@ -8,6 +8,8 @@ public struct MatchResult
 
     public long lightMilliElectronVolts;
     public long darkMilliElectronVolts;
+    public TimeWeightedMultiplier lightAmplifier;
+    public TimeWeightedMultiplier darkAmplifier;
     public bool hasBonusBreakdown;
     public long regulationLightMilliElectronVolts, regulationDarkMilliElectronVolts;
     public long bonusLightMilliElectronVolts, bonusDarkMilliElectronVolts;

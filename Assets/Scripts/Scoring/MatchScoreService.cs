@@ -50,7 +50,14 @@ namespace Massive.Scoring
         private bool _scoringOpen;
         private bool _bonusScoringOnly;
         public bool IsBonusScoringOnly => _bonusScoringOnly;
-        public void SetBonusScoringOnly(bool value) => _bonusScoringOnly = value;
+        public void SetBonusScoringOnly(bool value)
+        {
+            if (_bonusScoringOnly == value) return;
+            SampleMultiplierStatistics();
+            _bonusScoringOnly = value;
+            // Clock domains differ while the bonus holds the arena at timeScale 0.
+            _lastMultiplierSampleTime = MultiplierTime;
+        }
         private bool _chainClockRunning;
 
         public event Action<TeamScoreSnapshot> TeamScoreChanged;
@@ -148,10 +155,12 @@ namespace Massive.Scoring
             if (player == null || player.IsPseudoPlayer || _registeredPlayers.Contains(player))
                 return;
 
+            SampleMultiplierStatistics();
             _registeredPlayers.Add(player);
             EnsurePlayerStatistics(player);
             player.DeathResolved += OnPlayerDeathResolved;
             EnsureAndConfigureChain(player, reset: true);
+            TrackPlayerMultiplier(player);
         }
 
         public void UnregisterPlayer(PlayerControllerScript player)
@@ -160,6 +169,7 @@ namespace Massive.Scoring
                 return;
 
             player.DeathResolved -= OnPlayerDeathResolved;
+            StopTrackingPlayerMultiplier(player);
         }
 
         public void ResetForMatch(bool openScoring)
@@ -175,6 +185,7 @@ namespace Massive.Scoring
             _warnedMissingChainPlayerIds.Clear();
             _scoringOpen = openScoring;
             _bonusScoringOnly = false;
+            ResetMultiplierStatistics();
             _chainClockRunning = openScoring;
             SampleDistances();
 
@@ -183,6 +194,7 @@ namespace Massive.Scoring
                 PlayerScoreChain chain = player != null ? player.GetComponent<PlayerScoreChain>() : null;
                 if (chain != null)
                     chain.Configure(profile.ChainSettings, reset: true);
+                if (player != null) TrackPlayerMultiplier(player);
             }
 
             ScoresReset?.Invoke();
@@ -194,6 +206,7 @@ namespace Massive.Scoring
 
         public void SetScoringState(bool scoringOpen, bool chainClockRunning)
         {
+            SampleMultiplierStatistics();
             bool opening = !_scoringOpen && scoringOpen;
             if (_scoringOpen != scoringOpen)
             {
@@ -251,6 +264,7 @@ namespace Massive.Scoring
 
         public void ResetMultipliers()
         {
+            SampleMultiplierStatistics();
             foreach (PlayerControllerScript player in _registeredPlayers)
             {
                 PlayerScoreChain chain = player != null
@@ -294,6 +308,7 @@ namespace Massive.Scoring
             if (currentIndex == previousIndex)
                 return false;
 
+            SampleMultiplierStatistics();
             if (teamID == 1)
                 _lightAmplifierTierIndex = currentIndex;
             else

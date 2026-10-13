@@ -8,7 +8,7 @@ namespace Massive.Demonstrations
 {
     /// <summary>Owns a complete, repeatable demonstration. Every action goes through PlayerInputFrame.</summary>
     [DisallowMultipleComponent]
-    public sealed class PlayerDemoDirector : MonoBehaviour
+    public sealed partial class PlayerDemoDirector : MonoBehaviour
     {
         [SerializeField] private PlayerDemoScenario scenario;
         [SerializeField] private bool playOnEnable = true;
@@ -125,6 +125,8 @@ namespace Massive.Demonstrations
                 primaryHome = transform.position - Vector3.right * (comboTravel * PlayerScaleAdjuster.ActionReachOf(primary) * .5f);
                 primary.transform.position = primaryHome;
             }
+            if (scenario.kind == PlayerDemoKind.AmplifierGoal) PrepareAmplifier();
+            if (failed) yield break;
             session.SetActive(true);
             yield return null;
             yield return null;
@@ -146,7 +148,8 @@ namespace Massive.Demonstrations
                 failed = blocked = shot = receivedHit = projectileContact = false;
                 targetDied = targetRespawned = false;
                 LastComboStage = -1;
-                if (scenario.kind == PlayerDemoKind.CombatPair) yield return CombatPairDemo();
+                if (scenario.kind == PlayerDemoKind.AmplifierGoal) yield return AmplifierDemo();
+                else if (scenario.kind == PlayerDemoKind.CombatPair) yield return CombatPairDemo();
                 else if (scenario.kind == PlayerDemoKind.Block) yield return BlockDemo();
                 else if (scenario.kind == PlayerDemoKind.PowerUp) yield return PowerUpDemo();
                 else yield return ComboDemo();
@@ -186,7 +189,7 @@ namespace Massive.Demonstrations
             var actor = go.GetComponent<PlayerControllerScript>();
             actor.ConfigureDemonstration(session.transform, slot, team);
             var scale = go.GetComponent<PlayerScaleAdjuster>();
-            if (scale) scale.ApplyScale();
+            if (scale) scale.SetDemonstrationScale(scenario.actorScale);
             foreach (var interactor in go.GetComponentsInChildren<GridInteractor>(true)) interactor.grid = demoGrid;
             foreach (var pulse in go.GetComponentsInChildren<PlayerRepulsorGridPulse>(true)) pulse.BindGrid(demoGrid);
             actor.InputApplied += OnInput;
@@ -205,7 +208,9 @@ namespace Massive.Demonstrations
         private void FrameStage()
         {
             if (presentationCamera && presentationCamera.TryGetComponent<PlayerDemoView>(out var view)) view.RefreshRect();
-            if (scenario.kind == PlayerDemoKind.MovementAndCombo)
+            if (scenario.kind == PlayerDemoKind.AmplifierGoal)
+                { FrameView(Vector3.left * 5f, 14f, 4.1f); FrameAmplifierGrid(); }
+            else if (scenario.kind == PlayerDemoKind.MovementAndCombo)
             {
                 var profile = primary.attackController.Profile;
                 float travel = 0f;
@@ -219,14 +224,37 @@ namespace Massive.Demonstrations
             else if (scenario.powerUp is ParticleAcceleratorPowerUpDefinition accelerator)
             {
                 // Include the energy ring, muzzle and impact; the camera stays still all loop.
+                // The real opponent intercepts the beam. Frame the encounter rather
+                // than the weapon's entire empty maximum range.
                 float distance = accelerator.maxDistance * PlayerScaleAdjuster.ProjectileReachOf(primary);
-                float right = Mathf.Max(pickupGap + distance + 1.5f, partnerHome.x - primaryHome.x + 2f);
+                bool pane = scenario.kind == PlayerDemoKind.PowerUp && presentationCamera &&
+                    presentationCamera.GetComponent<PlayerDemoView>()?.worldHeight > 0f;
+                float right = pane ? partnerHome.x - primaryHome.x + 2f :
+                    Mathf.Max(pickupGap + distance + 1.5f, partnerHome.x - primaryHome.x + 2f);
                 FrameView(Vector3.right * ((right - 2f) * .5f), right + 2f, 4.4f);
+                if (pane) CreateAcceleratorEndWall();
             }
             else if (scenario.powerUp is DecoherencePowerUpDefinition)
                 FrameView(Vector3.right * pickupGap * .5f, pickupGap + 3.6f, 4.6f);
             else
                 FrameView(Vector3.right * pickupGap * .25f, Mathf.Max(pickupGap + 2.4f, scenario.movementDistance * 2f + 2.4f), 3.4f);
+        }
+        private void CreateAcceleratorEndWall()
+        {
+            // A real arena edge catches the lingering beam after the target dies.
+            // Keep its normal impact/retraction inside the pane without changing weapon reach.
+            float halfHeight = presentationCamera.orthographicSize;
+            var wall = new GameObject("Demonstration arena edge");
+            wall.transform.SetParent(session.transform, false);
+            wall.transform.position = presentationCamera.transform.position +
+                Vector3.right * (halfHeight * presentationCamera.aspect - .5f);
+            wall.transform.position = new Vector3(wall.transform.position.x, primaryHome.y, primaryHome.z);
+            var collider = wall.AddComponent<BoxCollider>();
+            collider.size = new Vector3(.12f, 2f, halfHeight * 2f);
+            var line = wall.AddComponent<Shapes.Line>();
+            line.Start = new Vector3(0, .1f, -halfHeight + .15f);
+            line.End = new Vector3(0, .1f, halfHeight - .15f);
+            line.Thickness = .025f; line.Color = new Color(1f, 1f, 1f, .5f);
         }
         private void OnInput(PlayerInputFrame input)
         {
@@ -256,6 +284,7 @@ namespace Massive.Demonstrations
         }
         private void Cleanup()
         {
+            if (amplifierTreatments) amplifierTreatments.enabled = false;
             Neutral();
             // Deactivation stops physics and callbacks immediately; Destroy finishes at frame end.
             if (primary && primary.powerUps) primary.powerUps.Clear();
@@ -535,6 +564,8 @@ namespace Massive.Demonstrations
             float aspect = presentationCamera.aspect;
             presentationCamera.transform.position = transform.position + localCenter + Vector3.up * 30f;
             presentationCamera.orthographicSize = Mathf.Max(height * .5f, width * .5f / Mathf.Max(.1f, aspect)) + scenario.viewPadding;
+            var framing = presentationCamera.GetComponent<PlayerDemoView>();
+            if (framing && framing.worldHeight > 0f) presentationCamera.orthographicSize = framing.worldHeight * .5f;
             if (demoGrid)
             {
                 demoGrid.transform.position = transform.position + localCenter + Vector3.down * .08f;

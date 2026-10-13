@@ -45,12 +45,14 @@ Shader "MASSIVE/PlayerBlobVector"
         HLSLINCLUDE
         #pragma target 4.5
         #include "UnityCG.cginc"
+        #include "../Scoring/MultiplierShimmer.hlsl"
         #include "../Anomalies/SINGULARITY/SingularitySurfaceMapping.cginc"
 
         static const uint SEG = 128u;
 
         float4x4 _MVP;
         float4   _OutlineColor, _FillColor;
+        float4   _EquippedArcs;
 
         float    _Radius;
         float    _OutlineHalf;
@@ -352,6 +354,67 @@ Shader "MASSIVE/PlayerBlobVector"
                 // The procedural ring is a fan: discard its empty interior.
                 clip(ringCoverage(i) - .001);
                 return 0;
+            }
+            ENDHLSL
+        }
+        Pass
+        {
+            Name "MULTIPLIER_SHIMMER"
+            ZWrite Off
+            ZTest LEqual
+            Blend SrcAlpha OneMinusSrcAlpha
+
+            HLSLPROGRAM
+            #pragma vertex vert_shimmer
+            #pragma fragment frag_shimmer
+            v2f_ring vert_shimmer(uint vid : SV_VertexID)
+            {
+                v2f_ring o;
+                uint tri = vid / 3u, corner = vid % 3u;
+                uint idx = corner == 1u ? tri : tri + 1u;
+                float angle = (idx % SEG)/(float)SEG * 6.2831853;
+                float2 p = fanPos(tri, corner, angle, expectedRadius(angle) + _MultiplierShimmer.y);
+                o.lp = p;
+                o.pos = SingularityClipLocal(float3(p.x, 0, p.y), _MVP, o.brightness);
+                return o;
+            }
+            fixed4 frag_shimmer(v2f_ring i) : SV_Target
+            {
+                float stretch = max(_Stretch, 1e-5);
+                float2 p = float2(i.lp.x, i.lp.y/stretch);
+                float angle = atan2(p.y, p.x);
+                float scale = rsqrt(stretch);
+                float distance = (length(p) - expectedRadius(angle)*scale);
+                // Keep the center transparent, even while Decoherence fades its body fill.
+                float interior = smoothstep(-max(.001, _OutlineHalf)*scale, 0, distance);
+                float4 color = MultiplierShimmer(angle, distance/max(.001, _MultiplierShimmer.y*scale));
+                color.a *= interior * _OutlineColor.a;
+                color.rgb *= i.brightness;
+                return color;
+            }
+            ENDHLSL
+        }
+        // Two small marks follow the exact deformed body perimeter, including
+        // folded-surface projection. They never write depth or alter the body.
+        Pass
+        {
+            Name "EQUIPPED_ARCS"
+            ZWrite Off
+            ZTest LEqual
+            Blend SrcAlpha OneMinusSrcAlpha
+            HLSLPROGRAM
+            #pragma vertex vert_equipped_arcs
+            #pragma fragment frag_equipped_arcs
+            v2f_ring vert_equipped_arcs(uint vid : SV_VertexID) { return ringVertex(vid); }
+            fixed4 frag_equipped_arcs(v2f_ring i) : SV_Target
+            {
+                float angle = atan2(i.lp.y / max(_Stretch, 1e-4), i.lp.x);
+                float delta = min(abs(wrapToPi(angle - _EquippedArcs.x)), abs(wrapToPi(angle - _EquippedArcs.y)));
+                float arc = 1 - smoothstep(_EquippedArcs.z * .55, _EquippedArcs.z, delta);
+                float4 color = _OutlineColor;
+                color.a *= ringCoverage(i) * arc;
+                color.rgb *= i.brightness;
+                return color;
             }
             ENDHLSL
         }

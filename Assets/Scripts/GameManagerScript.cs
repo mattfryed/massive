@@ -521,6 +521,8 @@ public class GameManagerScript : MonoBehaviour
             winner = winner,
             lightMilliElectronVolts = finalLightMilliElectronVolts,
             darkMilliElectronVolts = finalDarkMilliElectronVolts,
+            lightAmplifier = scoreService.GetTeamAmplifierStatistics(1),
+            darkAmplifier = scoreService.GetTeamAmplifierStatistics(2),
             hasBonusBreakdown = _finaleStarted,
             regulationLightMilliElectronVolts = _regulationLightScore,
             regulationDarkMilliElectronVolts = _regulationDarkScore,

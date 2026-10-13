@@ -43,6 +43,7 @@ public static class PostGameResultsValidation
         try
         {
             PostGameResultsSetup.Build();
+            PostGameResultsSetup.AddMultiplierBreakdown();
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene);
             EditorSceneManager.SaveScene(SceneManager.GetActiveScene(), "Assets/PostGameStatsFixture.unity");
             SessionState.SetBool(Key, true);
@@ -56,7 +57,7 @@ public static class PostGameResultsValidation
         if (state == PlayModeStateChange.EnteredPlayMode)
         {
             checks.Clear(); errors.Clear(); routines.Clear(); routines.Push(Checks());
-            deadline = EditorApplication.timeSinceStartup + 180; nextFrame = 0;
+            deadline = EditorApplication.timeSinceStartup + 300; nextFrame = 0;
             Application.logMessageReceived += Log; EditorApplication.update += Tick;
         }
         if (state == PlayModeStateChange.EnteredEditMode)
@@ -124,6 +125,7 @@ public static class PostGameResultsValidation
         var scores = new GameObject("Fixture scores").AddComponent<MatchScoreService>(); scores.Configure(profile);
         var players = Enumerable.Range(0, 4).Select(Player).ToArray();
         foreach (var player in players) scores.RegisterPlayer(player);
+        yield return MultiplierChecks(scores, players);
         scores.ResetForMatch(true); yield return Seconds(.1f);
         Check(scores.GetStatisticsSnapshot().Length == 4, "Zero-score players are present in the results snapshot");
         Place(players[0], new Vector3(3, 0, 4)); yield return Seconds(.08f);
@@ -139,7 +141,10 @@ public static class PostGameResultsValidation
         Check(Math.Abs(Stats(scores, 0).distanceTraveledMeters - 10) < .001, "Pause leaves distance unchanged");
 
         // Use the real player damage/death pipeline, including attribution and respawn.
+        scores.GetPlayerChain(2).AdvanceToNextStep();
         players[2].ApplyExternalMassDelta(-1f, players[0].gameObject, true, true);
+        Check((double)GetStatisticsState(scores, 2).GetType().GetField("currentMultiplier").GetValue(GetStatisticsState(scores, 2)) == 1d,
+            "Actual death immediately records the baseline personal multiplier for respawn");
         Check(Stats(scores, 2).deaths == 1 && Stats(scores, 0).playerKills == 1, "Attributed player death records one kill and one death");
         players[2].ApplyExternalMassDelta(-1f, players[0].gameObject, true, true);
         Check(Stats(scores, 2).deaths == 1 && Stats(scores, 0).playerKills == 1, "Repeated damage to a dead player cannot double count");
@@ -158,12 +163,16 @@ public static class PostGameResultsValidation
         scores.AdvanceTeamAmplifier(1);
         scores.TryAwardToPlayer(ScoreRewardKeys.MassNugget, players[0], "stats-pickup", Vector3.zero, out var award);
         Check(award.accepted && Stats(scores, 0).enemiesKilled == 1, "Pickup and multipliers cannot inflate kill counts");
+        Elapse(scores, .5);
         var snapshot = scores.GetStatisticsSnapshot();
         var managerObject = new GameObject("Result snapshot fixture"); managerObject.SetActive(false);
         var manager = managerObject.AddComponent<GameManagerScript>(); Set(manager, "scoreService", scores);
         var builtResult = (MatchResult)Call(manager, "BuildMatchResult", TeamSide.Light);
         Check(builtResult.playerStatistics.Length == 4 && builtResult.playerStatistics[0].enemiesKilled == 1 &&
             builtResult.playerContributions.Length > 0, "GameManager includes statistics and score contributions in MatchResult");
+        Check(builtResult.lightAmplifier.durationSeconds > 0 && builtResult.lightAmplifier.Average > 1 &&
+            builtResult.darkAmplifier.Average == 1 && builtResult.playerStatistics[0].personalMultiplier.Average > 1,
+            "GameManager transports independent team and personal time-weighted averages");
         Object.Destroy(managerObject);
         double distance = Stats(scores, 0).distanceTraveledMeters;
         scores.CloseScoring(); Place(players[0], Vector3.zero); yield return Seconds(.08f);
@@ -180,11 +189,12 @@ public static class PostGameResultsValidation
         {
             winner = TeamSide.Light, mode = GameMode.TwoVTwo, stageNumber = 3, stageTitle = "HIGGS",
             lightMilliElectronVolts = 2047987225019, darkMilliElectronVolts = 1832654098765,
+            lightAmplifier = Average(5.2), darkAmplifier = Average(3.8),
             playerStatistics = new[] {
-                new PlayerMatchStatistics { playerID=0,teamID=1,playerKills=3,deaths=2,enemiesKilled=36,distanceTraveledMeters=296.2 },
-                new PlayerMatchStatistics { playerID=1,teamID=1,playerKills=4,deaths=2,enemiesKilled=45,distanceTraveledMeters=387 },
-                new PlayerMatchStatistics { playerID=2,teamID=2,playerKills=2,deaths=4,enemiesKilled=29,distanceTraveledMeters=312 },
-                new PlayerMatchStatistics { playerID=3,teamID=2,playerKills=2,deaths=3,enemiesKilled=32,distanceTraveledMeters=358 } },
+                new PlayerMatchStatistics { playerID=0,teamID=1,playerKills=3,deaths=2,enemiesKilled=36,distanceTraveledMeters=296.2,personalMultiplier=Average(12.6) },
+                new PlayerMatchStatistics { playerID=1,teamID=1,playerKills=4,deaths=2,enemiesKilled=45,distanceTraveledMeters=387,personalMultiplier=Average(9.4) },
+                new PlayerMatchStatistics { playerID=2,teamID=2,playerKills=2,deaths=4,enemiesKilled=29,distanceTraveledMeters=312,personalMultiplier=Average(8.1) },
+                new PlayerMatchStatistics { playerID=3,teamID=2,playerKills=2,deaths=3,enemiesKilled=32,distanceTraveledMeters=358,personalMultiplier=Average(10.8) } },
             playerContributions = new[] {
                 new PlayerScoreContribution {playerID=0,teamID=1,finalMilliElectronVolts=1020000000000},
                 new PlayerScoreContribution {playerID=1,teamID=1,finalMilliElectronVolts=1027987225019},
@@ -199,6 +209,11 @@ public static class PostGameResultsValidation
         Set(ui, "autoReturnSeconds", 120f);
         yield return SettleText();
         var views = (PostGamePlayerStatsView[])Get(ui, "playerStats");
+        Check(((TMP_Text)Get(ui,"averageLightAmplifierText")).text == "AVG AMPLIFIER  x5.2" &&
+            ((TMP_Text)Get(ui,"averageDarkAmplifierText")).text == "AVG AMPLIFIER  x3.8", "Distinct team averages render below the unchanged totals");
+        Check(views[0].averageMultiplier.text == "AVG MULTIPLIER  x12.6" && views[1].averageMultiplier.text == "AVG MULTIPLIER  x9.4" &&
+            views[2].averageMultiplier.text == "AVG MULTIPLIER  x8.1" && views[3].averageMultiplier.text == "AVG MULTIPLIER  x10.8",
+            "Each personal average renders beside the correct contribution");
         Check(((TMP_Text)Get(ui,"scoreLightText")).text == "2,047,987,225,019" && ((TMP_Text)Get(ui,"scoreLightUnitText")).text == "meV", "Full exact team total and meV label");
         Check(views.All(v => v.root.gameObject.activeSelf && v.heading.text == "PLAYER " + (v.playerID+1) && v.individualScore.gameObject.activeSelf), "2v2 shows all four headings and contributions");
         Check(views[1].playerKills.text == "4" && views[1].deaths.text == "2" && views[1].enemiesKilled.text == "45" && views[1].distanceTraveled.text == "387m", "All per-player fields render the snapshot");
@@ -207,6 +222,14 @@ public static class PostGameResultsValidation
         Check(((TMP_Text)Get(ui,"modeText")).color.r < .1f && ((TMP_Text)Get(ui,"countdownText")).color.r < .1f,
             "Mode and countdown use black text inside the Light winner disc");
         foreach (var v in views) { v.individualScore.ForceMeshUpdate(); Check(!v.individualScore.isTextOverflowing, "Full contribution fits Player " + (v.playerID+1)); }
+        foreach (var v in views)
+        {
+            v.averageMultiplier.ForceMeshUpdate();
+            Check(!v.averageMultiplier.isTextOverflowing && v.averageMultiplier.textInfo.lineCount == 1 &&
+                v.averageMultiplier.horizontalAlignment == v.individualScore.horizontalAlignment &&
+                v.averageMultiplier.fontSize < v.individualScore.fontSize,
+                "Player " + (v.playerID+1) + " average fits on one smaller line with matching alignment");
+        }
         Capture("2v2-light.png");
 
         result.mode=GameMode.OneVOne; result.winner=TeamSide.Dark;
@@ -216,15 +239,124 @@ public static class PostGameResultsValidation
         Check(views[0].root.gameObject.activeSelf && views[2].root.gameObject.activeSelf && !views[1].root.gameObject.activeSelf && !views[3].root.gameObject.activeSelf, "1v1 uses P1/P3 and hides second players");
         Check(views[0].heading.text == "" && views[2].heading.text == "" && !views[0].individualScore.gameObject.activeSelf && !((GameObject)Get(ui,"individualScoreLabel")).activeSelf, "1v1 hides headings and individual score row");
         Check(views[0].root.anchoredPosition == views[0].soloPosition && views[2].root.anchoredPosition == views[2].soloPosition, "Solo stats align with team totals");
+        Check(views[0].averageMultiplier.gameObject.activeInHierarchy && views[2].averageMultiplier.gameObject.activeInHierarchy &&
+            !views[1].averageMultiplier.gameObject.activeInHierarchy && !views[3].averageMultiplier.gameObject.activeInHierarchy,
+            "1v1 retains personal averages for P1/P3 without individual score duplication");
+        Check(VisibleMultiplierGlyph(views[0].averageMultiplier) && VisibleMultiplierGlyph(views[2].averageMultiplier) &&
+            VisibleMultiplierGlyph((TMP_Text)Get(ui,"averageLightAmplifierText")) && VisibleMultiplierGlyph((TMP_Text)Get(ui,"averageDarkAmplifierText")),
+            "Multiplication symbols retain visible geometry and material after switching result modes");
         Check(((TMP_Text)Get(ui,"scoreDarkBreakdownText")).gameObject.activeSelf, "NOVA bonus breakdown remains available");
-        Capture("1v1-dark-bonus.png");
+        yield return CaptureFreshResult(result, "1v1-dark-bonus.png");
+        ui = Object.FindFirstObjectByType<PostGameScreenController>();
+        views = (PostGamePlayerStatsView[])Get(ui, "playerStats");
         result.mode=GameMode.TwoVTwo; result.winner=TeamSide.Tie; result.hasBonusBreakdown=false;
         result.playerStatistics=null; result.playerContributions=null; result.lightMilliElectronVolts=0; result.darkMilliElectronVolts=0;
+        result.lightAmplifier=default; result.darkAmplifier=default;
         Call(ui,"ApplyResult",result); Call(ui,"ApplyWinnerTheme",result); yield return SettleText();
         Check(views.All(v => v.playerKills.text == "0" && v.individualScore.text == "0" && v.distanceTraveled.text == "0m"), "Missing stats safely show zero and mode can be reapplied");
         Check(((TMP_Text)Get(ui,"winnerText")).text == "TIE", "Tie results retain existing winner behavior");
-        Capture("2v2-tie.png");
+        Check(views.All(v => v.averageMultiplier.text == "AVG MULTIPLIER  x1.0") &&
+            ((TMP_Text)Get(ui,"averageLightAmplifierText")).text == "AVG AMPLIFIER  x1.0",
+            "Older or empty results safely show baseline averages without NaN or zero multipliers");
+        Check(views.All(v => VisibleMultiplierGlyph(v.averageMultiplier)) &&
+            VisibleMultiplierGlyph((TMP_Text)Get(ui,"averageLightAmplifierText")) && VisibleMultiplierGlyph((TMP_Text)Get(ui,"averageDarkAmplifierText")),
+            "Multiplier markers survive a changed value and a second mode switch");
+        yield return CaptureFreshResult(result, "2v2-tie.png");
     }
+
+    static TimeWeightedMultiplier Average(double value) => new() { durationSeconds = 120, multiplierSeconds = value * 120 };
+    static bool VisibleMultiplierGlyph(TMP_Text text)
+    {
+        var glyph = text.textInfo.characterInfo.Take(text.textInfo.characterCount).Single(c => c.character == 'x');
+        var material = text.fontSharedMaterials[glyph.materialReferenceIndex];
+        return glyph.isVisible && glyph.materialReferenceIndex == 0 && text.textInfo.meshInfo[0].colors32[glyph.vertexIndex].a > 0 &&
+            (!material.HasProperty("_FaceDilate") || material.GetFloat("_FaceDilate") > -.5f);
+    }
+    static object GetStatisticsState(MatchScoreService scores, int id) => ((IDictionary)Get(scores, "_statistics"))[id];
+    static void Elapse(MatchScoreService scores, double seconds)
+    {
+        double now = scores.IsBonusScoringOnly ? Time.unscaledTimeAsDouble : Time.timeAsDouble;
+        Set(scores, "_lastMultiplierSampleTime", now - seconds);
+        Call(scores, "SampleMultiplierStatistics");
+    }
+    static IEnumerator MultiplierChecks(MatchScoreService scores, PlayerControllerScript[] players)
+    {
+        var average = default(TimeWeightedMultiplier);
+        average.Accumulate(2, 10); average.Accumulate(6, 30);
+        Check(average.Average == 5 && average.durationSeconds == 40, "Unequal durations weight the average by time, not event count");
+        var split = default(TimeWeightedMultiplier);
+        for (int i=0; i<100; i++) split.Accumulate(2, .1);
+        for (int i=0; i<300; i++) split.Accumulate(6, .1);
+        Check(Math.Abs(split.Average - average.Average) < 1e-10, "Changing sample frequency does not change the average");
+        scores.ResetForMatch(false); Elapse(scores, 50);
+        Check(scores.GetTeamAmplifierStatistics(1).durationSeconds == 0 && Stats(scores,0).personalMultiplier.Average == 1,
+            "Countdown or zero-duration results have no samples and display baseline x1");
+        scores.OpenScoring(); Elapse(scores, 10);
+        scores.GetPlayerChain(0).AdvanceToNextStep();
+        double personal = scores.GetPlayerChain(0).CurrentMultiplier;
+        scores.AdvanceTeamAmplifier(1);
+        double team = scores.GetTeamAmplifierMultiplier(1);
+        Elapse(scores, 30);
+        Check(Math.Abs(Stats(scores,0).personalMultiplier.Average - (10 + 30 * personal) / 40) < 1e-8 &&
+            Math.Abs(scores.GetTeamAmplifierStatistics(1).Average - (10 + 30 * team) / 40) < 1e-8 && scores.LightScoreMilliElectronVolts == 0,
+            "Direct player boosts and Core captures count during periods with no score awards");
+        Check(Stats(scores,1).personalMultiplier.Average == 1 && scores.GetTeamAmplifierStatistics(2).Average == 1,
+            "Teammate and opposing team averages remain independent");
+        var beforeReset = scores.GetStatisticsSnapshot();
+        scores.GetPlayerChain(0).ResetChain(); Elapse(scores, 10);
+        Check(Math.Abs(Stats(scores,0).personalMultiplier.Average - (20 + 30 * personal) / 50) < 1e-8,
+            "Reset/death baseline time lowers the personal average without erasing its history");
+        scores.CloseScoring(); Elapse(scores, 80);
+        scores.ResetMultipliers(); Elapse(scores, 20);
+        Check(scores.GetTeamAmplifierStatistics(1).durationSeconds == 50 &&
+            beforeReset[0].personalMultiplier.durationSeconds == 40, "Closed transitions freeze averages and previously copied snapshots");
+        scores.SetBonusScoringOnly(true); scores.OpenScoring(chainClockRunning:false); Elapse(scores, 10);
+        Check(Math.Abs(scores.GetTeamAmplifierStatistics(1).Average - (20 + 40 * team) / 60) < 1e-8 &&
+            Stats(scores,0).personalMultiplier.durationSeconds == 60, "Bonus gameplay counts at reset values even with the chain clock stopped");
+        Time.timeScale = 0; yield return null;
+        double bonusStart = Time.unscaledTimeAsDouble;
+        double bonusDuration = scores.GetTeamAmplifierStatistics(1).durationSeconds;
+        yield return Seconds(.12f);
+        Check(Math.Abs(scores.GetTeamAmplifierStatistics(1).durationSeconds - bonusDuration - (Time.unscaledTimeAsDouble - bonusStart)) < 1e-8,
+            "Core Collapse gameplay uses its live unscaled clock while arena physics are frozen");
+        Time.timeScale = 1;
+        scores.ResetForMatch(true);
+        scores.GetPlayerChain(0).ApplyAward(ScoreChainAwardMode.AdvanceAndRefresh, .25f);
+        personal = scores.GetPlayerChain(0).CurrentMultiplier; Elapse(scores, 2);
+        Check(personal > 1 && personal < 2 && Math.Abs(Stats(scores,0).personalMultiplier.Average - personal) < 1e-8,
+            "Fractional personal multipliers retain precision until display");
+        double started = Time.timeAsDouble;
+        yield return Seconds(.12f);
+        double elapsed = Time.timeAsDouble - started;
+        Check(Math.Abs(scores.GetTeamAmplifierStatistics(1).durationSeconds - 2 - elapsed) < 1e-8,
+            "Live game time accumulates without multiplier changes or scoring events");
+        Time.timeScale = 0; yield return null;
+        double paused = scores.GetTeamAmplifierStatistics(1).durationSeconds;
+        yield return Seconds(.12f);
+        Check(scores.GetTeamAmplifierStatistics(1).durationSeconds == paused, "Real pause time is excluded from the average denominator");
+        Time.timeScale = 1;
+        double beforeClose = ((TimeWeightedMultiplier)Get(scores, "_lightAmplifierStatistics")).durationSeconds;
+        Set(scores, "_lastMultiplierSampleTime", Time.timeAsDouble - 3);
+        scores.CloseScoring();
+        Check(Math.Abs(scores.GetTeamAmplifierStatistics(1).durationSeconds - beforeClose - 3) < 1e-8,
+            "Closing scoring integrates the final held interval before freezing the result");
+        scores.ResetForMatch(false);
+        Check(scores.GetTeamAmplifierStatistics(1).durationSeconds == 0 && scores.GetStatisticsSnapshot().All(s => s.personalMultiplier.durationSeconds == 0),
+            "Starting another match clears every team and personal average");
+    }
+    static IEnumerator CaptureFreshResult(MatchResult result, string file)
+    {
+        // Production enters a fresh scene for each result. Keep reapplication checks
+        // above, but capture the real entry path rather than old animated font caches.
+        GameFlowContext.Instance.SetLastMatchResult(result);
+        SceneFlow.GoToPostGame();
+        yield return Seconds(1);
+        var ui = Object.FindFirstObjectByType<PostGameScreenController>();
+        Set(ui, "autoReturnSeconds", 120f);
+        yield return SettleText();
+        Capture(file);
+    }
+
     static void Capture(string file)
     {
         var camera = Camera.main; var rt = new RenderTexture(1920,1080,24); var old = camera.targetTexture;

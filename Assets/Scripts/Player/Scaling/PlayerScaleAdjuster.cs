@@ -20,6 +20,10 @@ namespace Massive.Player
         private ParticleSystem[] attachedParticles;
         private PlayerControllerScript player;
         private bool resolvedPlayer;
+        private float demonstrationScale = 1f;
+        /// <summary>Runtime-only stage sizing, multiplied by the current shared player size.</summary>
+        public void SetDemonstrationScale(float multiplier)
+        { demonstrationScale = Mathf.Max(.1f, multiplier); ApplyScale(); }
 
         private PlayerGlobalModifiers.Slot GlobalSlot
         {
@@ -60,7 +64,7 @@ namespace Massive.Player
         public void ApplyScale()
         {
             Initialize();
-            Vector3 desired = referenceLocalScale * Size;
+            Vector3 desired = referenceLocalScale * Size * demonstrationScale;
             if (transform.localScale != desired) transform.localScale = desired;
             // Authored local particles must inherit the player's root scale. Generated
             // melee adapters own their calibrated birth frames and are deliberately excluded.

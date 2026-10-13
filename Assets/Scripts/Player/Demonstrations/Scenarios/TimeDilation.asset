@@ -15,6 +15,7 @@ MonoBehaviour:
   playerPrefab: {fileID: 8984405948043393506, guid: ef11db7a22c9ebf43826b8f6ab3469f3,
     type: 3}
   kind: 2
+  actorScale: 2
   powerUp: {fileID: 11400000, guid: 41ba2ea8ffebd4b11baac28294d05892, type: 2}
   readablePause: 1.2
   actionTimeout: 12
@@ -22,3 +23,10 @@ MonoBehaviour:
   acceleratorChargeFraction: 0.35
   acceleratorTargetDistance: 4
   viewPadding: 0.35
+  amplifierCorePrefab: {fileID: 0}
+  teamGoalPrefab: {fileID: 0}
+  scoreEconomy: {fileID: 0}
+  labelFont: {fileID: 0}
+  defense: 0
+  defenderPowerUp: {fileID: 0}
+  heldBlockLead: 0.15

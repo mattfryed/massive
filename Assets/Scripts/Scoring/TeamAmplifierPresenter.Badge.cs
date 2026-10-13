@@ -40,8 +40,8 @@ namespace Massive.Scoring
         bool EnsureBadge()
         {
             if (badgeCore && badgeDisc) return true;
-            Renderer source = null;
-            if (legacyRenderers != null) foreach (var candidate in legacyRenderers)
+            Renderer source = demonstrationBadgeSource;
+            if (!source && legacyRenderers != null) foreach (var candidate in legacyRenderers)
                 if (candidate && candidate.sharedMaterial && candidate.sharedMaterial.shader.name == "MASSIVE/Amplifier Core/Energy")
                 { source = candidate; break; }
             var sourceFilter = source ? source.GetComponent<MeshFilter>() : null;

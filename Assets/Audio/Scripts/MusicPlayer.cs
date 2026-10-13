@@ -16,6 +16,14 @@ public class MusicPlayer : MonoBehaviour
         b.loop = true;
         a.playOnAwake = false;
         b.playOnAwake = false;
+        SceneSfxPolicy.RegisterMusicSource(a);
+        SceneSfxPolicy.RegisterMusicSource(b);
+    }
+
+    private void OnDestroy()
+    {
+        SceneSfxPolicy.UnregisterMusicSource(a);
+        SceneSfxPolicy.UnregisterMusicSource(b);
     }
 
     public void Play(MusicCue cue)

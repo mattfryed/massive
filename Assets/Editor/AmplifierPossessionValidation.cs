@@ -54,6 +54,7 @@ public static partial class AmplifierPossessionValidation
         SessionState.SetBool(Key + ".CaptureOnly", false);
         SessionState.SetBool(Key + ".RecordContest", false);
         SessionState.SetBool(Key + ".PostContestOnly", false);
+        SessionState.SetBool(Key + ".AimGuideOnly", false);
         EditorSceneManager.playModeStartScene = AssetDatabase.LoadAssetAtPath<SceneAsset>(path);
         EditorApplication.isPlaying = true;
     }
@@ -114,6 +115,11 @@ public static partial class AmplifierPossessionValidation
         SessionState.SetString(Key + ".Result", (pass ? "PASSED" : "FAILED") + " (" + checks.Count + " checks)\n" +
             string.Join("\n", checks) + (error == null ? "" : "\n" + error) + "\n" + string.Join("\n", errors));
         if (pass) Debug.Log(Result); else Debug.LogError(Result);
+        if (SessionState.GetBool(Key + ".AimGuideOnly", false))
+        {
+            System.IO.Directory.CreateDirectory("Library/AmplifierAimGuideValidation");
+            System.IO.File.WriteAllText("Library/AmplifierAimGuideValidation/report.txt", Result);
+        }
         EditorApplication.isPlaying = false;
     }
     static void Check(bool pass, string label)
@@ -307,6 +313,11 @@ public static partial class AmplifierPossessionValidation
         try
         {
             yield return null; yield return null; core.CompleteSpawnImmediately();
+            if (SessionState.GetBool(Key + ".AimGuideOnly", false))
+            {
+                yield return AimGuideChecks(cam);
+                yield break;
+            }
             if (SessionState.GetBool(Key + ".RecordContest", false))
             {
                 yield return ContestRecording(cam);
@@ -594,4 +605,3 @@ public static partial class AmplifierPossessionValidation
     }
 }
 #endif
-

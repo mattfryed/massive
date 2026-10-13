@@ -60,6 +60,18 @@ namespace Massive.Player
             if (up || !held) { CancelCharge(); BeginAttack(); }
         }
 
+        internal bool CanStartParryCounter => isActiveAndEnabled && !isAttacking &&
+            Profile != null && Profile.GetStage(0) != null && Profile.GetStage(0).StageType == AttackStageType.PrimaryLunge;
+
+        // Only the input owner calls this after consuming a confirmed Shield parry.
+        // It bypasses the normal fresh-attack cooldown and charge wait for this press.
+        internal void BeginParryCounterThrust()
+        {
+            if (!CanStartParryCounter) return;
+            CancelCharge();
+            StartStage(0);
+        }
+
         public void CancelCharge()
         {
             IsCharging = false;

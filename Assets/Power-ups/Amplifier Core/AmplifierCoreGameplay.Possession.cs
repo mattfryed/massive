@@ -61,7 +61,7 @@ namespace Massive.Multiplier
             if (IsCaptured || IsInExternalTransit) return;
             EnsurePossessionPhysics();
             var score = Massive.Scoring.MatchScoreService.Instance;
-            if (score && !score.IsScoringOpen)
+            if (!DemonstrationRoot && score && !score.IsScoringOpen)
             {
                 ResetPossession();
                 return;
@@ -123,7 +123,7 @@ namespace Massive.Multiplier
                 attack.StageNormalizedTime < attack.CurrentStage.ActivationStartNormalized ||
                 attack.StageNormalizedTime > attack.CurrentStage.ActivationEndNormalized) return false;
             var player = attack.GetComponentInParent<PlayerControllerScript>();
-            if (!player || !player.CanEnterAmplifier || player.gameObject.scene != gameObject.scene ||
+            if (!player || (DemonstrationRoot && player.SimulationRoot != DemonstrationRoot) || !player.CanEnterAmplifier || player.gameObject.scene != gameObject.scene ||
                 (pilot != null && pilot.player && pilot.player.teamID == player.teamID)) return false;
             // This method is also called by weapon contacts: only the body reaching the
             // Core admits a rider, never the far end of the Thrust's projected effect.

@@ -133,8 +133,11 @@ namespace Massive.Multiplier
             if (o == null) return;
             if (Application.isPlaying) Destroy(o); else DestroyImmediate(o);
         }
+        private System.Func<int, int> demonstrationLevel;
+        public void ConfigureDemonstration(System.Func<int, int> level) => demonstrationLevel = level;
         private int Level(int team)
         {
+            if (demonstrationLevel != null) return Mathf.Clamp(demonstrationLevel(team), 0, 3);
             if (preview) return team == previewTeam ? heldLevel : 0;
             var score = MatchScoreService.Instance;
             return score != null ? Mathf.Clamp(Mathf.RoundToInt(Mathf.Log(Mathf.Max(1, score.GetTeamAmplifierMultiplier(team)), 2)), 0, 3) : 0;

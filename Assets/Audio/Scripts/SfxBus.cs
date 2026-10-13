@@ -24,6 +24,19 @@ public class SfxBus : MonoBehaviour
         loopSource = Instantiate(oneShotPrefab, transform);
         loopSource.loop = true;
         loopSource.playOnAwake = false;
+        SceneSfxPolicy.SilenceChanged += StopAllSfx;
+    }
+
+    private void OnDestroy() => SceneSfxPolicy.SilenceChanged -= StopAllSfx;
+
+    private void StopAllSfx()
+    {
+        StopAllCoroutines();
+        foreach (var source in pool)
+            if (source) { source.Stop(); source.clip = null; }
+        StopLoop();
+        activeCounts.Clear();
+        lastPlayTime.Clear();
     }
 
     public void PlayOneShot(AudioCue cue, Vector3 pos)
@@ -51,7 +64,7 @@ public class SfxBus : MonoBehaviour
 
     public void PlayLoop(AudioCue cue)
     {
-        if (cue == null)
+        if (SceneSfxPolicy.IsSuppressed || cue == null)
         {
             StopLoop();
             return;
@@ -70,6 +83,7 @@ public class SfxBus : MonoBehaviour
 
     public void StopLoop()
     {
+        if (!loopSource) return;
         if (loopSource.isPlaying)
             loopSource.Stop();
         loopSource.clip = null;
@@ -101,7 +115,7 @@ public class SfxBus : MonoBehaviour
 
     private bool CanPlay(AudioCue cue)
     {
-        if (cue == null) return false;
+        if (SceneSfxPolicy.IsSuppressed || cue == null) return false;
 
         float now = Time.unscaledTime;
 

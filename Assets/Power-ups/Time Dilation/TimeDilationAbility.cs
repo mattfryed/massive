@@ -8,7 +8,7 @@ namespace Massive.PowerUps
     private readonly PlayerControllerScript _owner;
     private readonly PlayerPowerUpController _host;
 
-    private AttackTrailGPU _trail;
+    private PlayerVisualController _visuals;
 
     public TimeDilationAbility(TimeDilationPowerUpDefinition def, PlayerControllerScript owner, PlayerPowerUpController host)
     {
@@ -21,8 +21,8 @@ namespace Massive.PowerUps
     {
         _host.SetMovementMultiplier(_def.moveSpeedMultiplier);
 
-        _trail = _owner.GetComponentInChildren<AttackTrailGPU>(true);
-        if (_trail != null) _trail.SetExternalActive(true);
+        _visuals = _owner.visualsController;
+        if (_visuals) _visuals.SetTimeDilationEquipped(_def);
     }
 
         public void Tick(float dt) { }
@@ -44,7 +44,7 @@ namespace Massive.PowerUps
 
     public void OnUnequip()
     {
-        if (_trail != null) _trail.SetExternalActive(false);
+        if (_visuals) _visuals.SetTimeDilationEquipped(null);
         _host.SetMovementMultiplier(1f);
     }
     }

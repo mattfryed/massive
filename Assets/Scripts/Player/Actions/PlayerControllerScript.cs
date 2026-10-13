@@ -719,11 +719,16 @@ if (showPlayerIdToastOnMatchStart)
         // A tap keeps its original parry lifetime; holding extends full damage protection.
         bool shieldDown = input.shieldDown;
         bool shieldHeldInput = input.shieldHeld;
+        bool parryCounter = false;
 
         if (shieldAbility != null)
         {
             if (shieldDown)
                 shieldAbility.TryActivate();
+            // Consume a fresh Attack edge before releasing held Shield; otherwise
+            // releasing both buttons on this frame could erase the earned counter.
+            if (input.attackDown && controlMode != PlayerControlMode.Disabled)
+                parryCounter = shieldAbility.TryReleaseForParryCounter();
             shieldAbility.SetHeld(shieldHeldInput);
 
             shieldOn = shieldAbility.IsActive;
@@ -777,8 +782,11 @@ if (showPlayerIdToastOnMatchStart)
         }
 
         // Thrust charges on hold; later combo stages still consume press edges.
-        attackController?.HandleAttackInput(attackDown, attackHeld, attackUp,
-            !consumedAttack && !shieldOn && controlMode != PlayerControlMode.Disabled);
+        if (parryCounter && !consumedAttack)
+            attackController.BeginParryCounterThrust();
+        else
+            attackController?.HandleAttackInput(attackDown, attackHeld, attackUp,
+                !consumedAttack && !shieldOn && controlMode != PlayerControlMode.Disabled);
 
         if (attackDown || attackHeld || attackUp || shieldDown || shieldHeldInput || shieldOn || moveActive)
         lastActivityTime = Time.time;

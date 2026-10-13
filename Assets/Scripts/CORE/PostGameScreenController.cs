@@ -25,6 +25,8 @@ public class PostGameScreenController : MonoBehaviour
     [SerializeField] private bool displayExactMilliElectronVolts;
     [SerializeField] private PostGamePlayerStatsView[] playerStats;
     [SerializeField] private GameObject individualScoreLabel;
+    [SerializeField] private TMP_Text averageLightAmplifierText;
+    [SerializeField] private TMP_Text averageDarkAmplifierText;
 
     [Header("Optional UI")]
     [SerializeField] private TMP_Text modeText;        // "1v1" / "2v2"
@@ -132,6 +134,8 @@ public class PostGameScreenController : MonoBehaviour
 
         ApplyEnergyScore(scoreLightText, scoreLightUnitText, r.LightScore);
         ApplyEnergyScore(scoreDarkText, scoreDarkUnitText, r.DarkScore);
+        ApplyAverageMultiplier(averageLightAmplifierText, "AVG AMPLIFIER", r.lightAmplifier);
+        ApplyAverageMultiplier(averageDarkAmplifierText, "AVG AMPLIFIER", r.darkAmplifier);
         ApplyBreakdown(scoreLightBreakdownText, r.hasBonusBreakdown, r.regulationLightMilliElectronVolts, r.bonusLightMilliElectronVolts);
         ApplyBreakdown(scoreDarkBreakdownText, r.hasBonusBreakdown, r.regulationDarkMilliElectronVolts, r.bonusDarkMilliElectronVolts);
 
@@ -142,6 +146,12 @@ public class PostGameScreenController : MonoBehaviour
         if (individualScoreLabel) individualScoreLabel.SetActive(twoVTwo);
         if (playerStats != null)
             foreach (var view in playerStats) view.Apply(r);
+    }
+
+    public static void ApplyAverageMultiplier(TMP_Text text, string label, TimeWeightedMultiplier value)
+    {
+        if (!text) return;
+        text.text = label + "  x" + value.Average.ToString("0.0", CultureInfo.InvariantCulture);
     }
 
     private static void ApplyBreakdown(TMP_Text text, bool show, long regulation, long bonus)

@@ -512,6 +512,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   screenCamera: {fileID: 0}
+  worldHeight: 0
   lowerLeft: {x: 0, y: 0, z: 0}
   upperRight: {x: 0, y: 0, z: 0}
   captionPrefab: {fileID: 0}

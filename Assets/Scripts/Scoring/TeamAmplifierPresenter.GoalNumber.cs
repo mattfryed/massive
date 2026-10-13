@@ -59,6 +59,11 @@ namespace Massive.Scoring
 
         void LateUpdate()
         {
+            if (Application.isPlaying && demonstrationMultiplier != null)
+            {
+                int next = demonstrationMultiplier();
+                if (next != displayedMultiplier) SetMultiplier(next, true);
+            }
             if (Application.isPlaying && transitionActive) transitionElapsed += Time.unscaledDeltaTime;
             RefreshGoalNumber();
         }

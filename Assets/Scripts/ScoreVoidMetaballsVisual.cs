@@ -303,6 +303,12 @@ public class ScoreVoidMetaballsVisual : MonoBehaviour
     private long _scoreBeforePresentationPreview;
     private long _previewScore;
 
+    /// <summary>Keep native goal motion/geometry while detaching a tutorial's display from match scores.</summary>
+    public void ConfigureDemonstration(int team, float fill)
+    {
+        driveFromMatchScoreService = autoFindScoreService = driveFromScoreSource = readTeamFromScoreSource = false;
+        scoreService = null; scoreSource = null; teamIDOverride = team; score01Debug = Mathf.Clamp01(fill);
+    }
     public float TierProgress01 => _displayScore01;
     public long RawMilliElectronVolts => _rawMilliElectronVolts;
     public EnergyUnit CurrentUnit => _currentUnit;

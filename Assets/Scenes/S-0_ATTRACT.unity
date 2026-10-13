@@ -12230,12 +12230,38 @@ MonoBehaviour:
   spheresHeight: 0.2604
   sphereDiameter: 0.0578
   optionSpacing: 0.14
-  labelSize: 18
+  labelSize: 14
   sphereSpacing: 0.563
-  teamSpacing: 0.731
+  teamSpacing: 1.146
+  selectedLabelSizeIncrease: 4
+  selectionAnimationDuration: 0.25
+  selectionSizeEase:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
   beginPromptSize: 18
   beginPromptX: 0.5
-  beginPromptY: 0.2604
+  beginPromptY: 0.195
   beginPromptPrefab: {fileID: 5130827643780775028, guid: fbd949fa6785ab743a28b7887c984a2c,
     type: 3}
   playerMeshResolution: 32

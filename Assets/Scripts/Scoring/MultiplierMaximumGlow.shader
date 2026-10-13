@@ -19,6 +19,7 @@ Shader "MASSIVE/UI/Multiplier Maximum Glow"
             #pragma vertex vert
             #pragma fragment frag
             #include "UnityCG.cginc"
+            #include "MultiplierShimmer.hlsl"
             struct appdata { float4 vertex : POSITION; float2 uv : TEXCOORD0; };
             struct v2f { float4 vertex : SV_POSITION; float2 uv : TEXCOORD0; };
             float4 _Tint, _BarSize, _GlowStrength;
@@ -40,8 +41,10 @@ Shader "MASSIVE/UI/Multiplier Maximum Glow"
                 falloff *= 1.0 - smoothstep(spread * 0.75, spread, distance);
                 float sweepDistance = (p.x - (_SweepPhase - 0.5) * _BarSize.x) / max(0.001, _BarSize.y * 0.5);
                 float sweep = exp(-2.0 * sweepDistance * sweepDistance) * sin(_SweepPhase * UNITY_PI);
-                float alpha = falloff * _GlowStrength.x * (_GlowStrength.y + sweep * 1.8);
-                return fixed4(_Tint.rgb, saturate(alpha * _Tint.a));
+                float angle = atan2(p.y/max(.001, _BarSize.y), p.x/max(.001, _BarSize.x));
+                float4 shimmer = MultiplierShimmer(angle, distance/spread);
+                float alpha = falloff * _GlowStrength.x * (_GlowStrength.y + sweep * 1.8) * shimmer.a;
+                return fixed4(shimmer.rgb * _Tint.rgb, saturate(alpha * _Tint.a));
             }
             ENDCG
         }

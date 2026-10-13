@@ -8,6 +8,8 @@ namespace Massive.Demonstrations
     public sealed class PlayerDemoView : MonoBehaviour
     {
         public Camera screenCamera;
+        [Tooltip("Optional fixed world height. Matches actor scale across equally tall demo panes without changing gameplay scale.")]
+        [Min(0f)] public float worldHeight;
         public Vector3 lowerLeft;
         public Vector3 upperRight;
         public GameObject captionPrefab;
@@ -31,6 +33,8 @@ namespace Massive.Demonstrations
             if (!screenCamera) return;
             var a = screenCamera.WorldToViewportPoint(lowerLeft);
             var b = screenCamera.WorldToViewportPoint(upperRight);
+            // Derive framing from the source projection, independent of Game view or capture resolution.
+            view.aspect = screenCamera.aspect * Mathf.Abs(b.x-a.x) / Mathf.Max(.0001f, Mathf.Abs(b.y-a.y));
             var r = screenCamera.rect;
             view.rect = new Rect(r.x + Mathf.Min(a.x,b.x) * r.width, r.y + Mathf.Min(a.y,b.y) * r.height,
                 Mathf.Abs(b.x-a.x) * r.width, Mathf.Abs(b.y-a.y) * r.height);

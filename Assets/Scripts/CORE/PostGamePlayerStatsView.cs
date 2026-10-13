@@ -12,6 +12,7 @@ public sealed class PostGamePlayerStatsView
     public RectTransform root;
     public TMP_Text heading;
     public TMP_Text individualScore;
+    public TMP_Text averageMultiplier;
     public TMP_Text playerKills;
     public TMP_Text deaths;
     public TMP_Text enemiesKilled;
@@ -41,6 +42,7 @@ public sealed class PostGamePlayerStatsView
             foreach (var entry in result.playerContributions)
                 if (entry.playerID == playerID && entry.teamID == teamID) { score = entry.finalMilliElectronVolts; break; }
         if (individualScore) individualScore.text = Math.Max(0L, score).ToString("N0", CultureInfo.InvariantCulture);
+        PostGameScreenController.ApplyAverageMultiplier(averageMultiplier, "AVG MULTIPLIER", stats.personalMultiplier);
         if (playerKills) playerKills.text = stats.playerKills.ToString(CultureInfo.InvariantCulture);
         if (deaths) deaths.text = stats.deaths.ToString(CultureInfo.InvariantCulture);
         if (enemiesKilled) enemiesKilled.text = stats.enemiesKilled.ToString(CultureInfo.InvariantCulture);
