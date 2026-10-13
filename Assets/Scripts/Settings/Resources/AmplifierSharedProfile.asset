@@ -73,7 +73,7 @@ MonoBehaviour:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    firstTextGrowSeconds: 0.05
+    firstTextGrowSeconds: 0.35
     firstTextGrowEasing:
       serializedVersion: 2
       m_Curve:

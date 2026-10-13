@@ -14,61 +14,61 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   species:
   - name: Structure
-    count: 1020
+    count: 1471
     color: {r: 0.25, g: 0.9, b: 0.68, a: 1}
-    diameter: 0.032084446
+    diameter: 0.02671564
     sizeVariation: 0.12
     forceMultiplier: 1
     dragMultiplier: 1
     speedMultiplier: 1
     agitationMultiplier: 1
   - name: Motor
-    count: 582
+    count: 840
     color: {r: 0.85, g: 0.3, b: 0.78, a: 1}
-    diameter: 0.04812667
+    diameter: 0.04007346
     sizeVariation: 0.12
-    forceMultiplier: 1
+    forceMultiplier: 4
     dragMultiplier: 1
     speedMultiplier: 1
     agitationMultiplier: 1
   - name: Catalyst
-    count: 438
+    count: 631
     color: {r: 1, g: 0.8, b: 0.25, a: 1}
-    diameter: 0.032084446
+    diameter: 0.02671564
     sizeVariation: 0.12
-    forceMultiplier: 1
+    forceMultiplier: 2
     dragMultiplier: 1
     speedMultiplier: 1
     agitationMultiplier: 1
   - name: Nutrient
-    count: 1360
+    count: 3404
     color: {r: 0.25, g: 0.6, b: 1, a: 1}
-    diameter: 0.032084446
+    diameter: 0.02671564
     sizeVariation: 0.12
     forceMultiplier: 1
     dragMultiplier: 1
     speedMultiplier: 1
     agitationMultiplier: 1
   - name: Inert
-    count: 600
-    color: {r: 0.88, g: 0.9, b: 0.94, a: 1}
-    diameter: 0.032084446
+    count: 4654
+    color: {r: 0.4743769, g: 0.3726415, b: 1, a: 1}
+    diameter: 0.02671564
     sizeVariation: 0.12
-    forceMultiplier: 1
+    forceMultiplier: 4
     dragMultiplier: 1
     speedMultiplier: 1
     agitationMultiplier: 1
   seed: 1729
   initialCoverage: 1
-  initialSpeed: 0.032084446
-  interactionRadius: 1.0267023
-  separation: 0.16683912
-  force: 2.5667558
-  repulsion: 15.400536
+  initialSpeed: 0.02671564
+  interactionRadius: 0.8549005
+  separation: 0.13892134
+  force: 2.1372514
+  repulsion: 12.823508
   drag: 25
-  speedLimit: 0.32084447
-  agitation: 0.11550402
-  maximumForce: 28.876001
+  speedLimit: 0.26715642
+  agitation: 0.09617632
+  maximumForce: 24.044077
   attraction:
   - 0.18
   - 0.5
@@ -95,15 +95,15 @@ MonoBehaviour:
   - 0
   - 0
   - -0.08
-  particleGap: 0.0077002672
+  particleGap: 0.0064117536
   coreRangeMultiplier: 3
-  coreRepulsion: 51.335114
+  coreRepulsion: 42.745026
   coreDamping: 6
   wallBounce: 0.35
   backend: 0
   simulationHz: 60
   maximumStepsPerFrame: 3
-  connectionRadius: 0.3529289
+  connectionRadius: 0.29387203
   connectionSizeMultiplier: 5
   minimumLocalNeighbours: 3
   minimumBody: 16
@@ -111,7 +111,7 @@ MonoBehaviour:
   minimumMotorFraction: 0.08
   recognitionInterval: 0.2
   maturationSeconds: 1.5
-  feedingRadius: 0.19250669
+  feedingRadius: 0.16029385
   feedingApproachSeconds: 0.45
   particleShrinkSeconds: 0.25
   particleGrowSeconds: 0.45
