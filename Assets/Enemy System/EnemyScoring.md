@@ -17,10 +17,26 @@ availability, timing, and population caps.
    The sword hurtbox already passes its owner. Enemy projectiles retain the last
    reflecting player and damage their firing enemy when reflected back into it.
 
-The existing Dyson definition selects `ENEMY_DYSON_DEFEAT`: initially 1 eV, using
-the earning player's current multiplier, then advancing their chain. The generic
-`ENEMY_DEFEAT` row remains available; its expected count is zero to avoid counting
-the same planned Dyson encounters twice. Reward values are placeholders.
+The main Score Economy Profile, Action Test Economy, and runtime defaults use
+these ruleset-version-6 defeat rewards. Each award uses the earning player's
+current multiplier; its charge increases the multiplier for subsequent awards.
+
+| Enemy | Reward key | Base score | Personal charge |
+| --- | --- | --- | --- |
+| Drone | `ENEMY_DRONE_DEFEAT` | 100 meV | 0.25 |
+| Ranged Drone | `ENEMY_RANGED_DRONE_DEFEAT` | 200 meV | 0.35 |
+| Seeker | `ENEMY_SEEKER_DEFEAT` | 400 meV | 0.5 |
+| Particle Beam Turret | `ENEMY_PARTICLE_BEAM_TURRET_DEFEAT` | 1.2 eV | 1 |
+| Carrier | `ENEMY_CARRIER_DEFEAT` | 2 eV | 1.5 |
+| Dyson Sphere | `ENEMY_DYSON_DEFEAT` | 4 eV | 2 |
+| Amplified Dyson Sphere | `ENEMY_AMPLIFIED_DYSON_DEFEAT` | 7 eV | 2 |
+
+All seven rewards use personal and team multipliers and OncePerSourceToken.
+The generic `ENEMY_DEFEAT` row remains available at 1 eV / 1 charge for legacy
+consumers. New rows have zero expected occurrences until encounter budgets are
+authored; existing projection counts are retained. These counts do not control
+spawning. This pass changes only defeat scores and charges: loot, pickup rewards,
+health, round duration, multiplier growth curve and caps retain their tuning.
 
 ## Award contract
 

@@ -3,6 +3,7 @@ using System;
 using System.Linq;
 using Massive.Demonstrations;
 using Massive.Enemies;
+using Massive.Scoring;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -28,7 +29,7 @@ public static class SeekerSetup
             definition = Object.Instantiate(AssetDatabase.LoadAssetAtPath<EnemyDefinition>(DronePrototypeSetup.DefinitionPath));
             definition.name = "ED_Seeker"; definition.id = "SEEKER"; definition.category = EnemyCategory.Melee;
             definition.moveSpeed = 3.8f; definition.turnSpeed = 280f; definition.spawnRadiusWorld = .85f;
-            definition.maxAliveOverride = 12; definition.defeatRewardKey = "ENEMY_DEFEAT";
+            definition.maxAliveOverride = 12; definition.defeatRewardKey = ScoreRewardKeys.SeekerDefeat;
             AssetDatabase.CreateAsset(definition, DefinitionPath);
         }
         var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath);

@@ -12,6 +12,7 @@
 #pragma kernel DescribeGroups
 #pragma kernel Metabolize
 #pragma kernel Aggregate
+#pragma kernel SteerGroups
 #pragma kernel SelectEmission
 #pragma kernel Forces
 #pragma kernel Integrate
@@ -22,11 +23,16 @@ RWStructuredBuffer<Particle> _Particles;
 RWStructuredBuffer<Particle> _Sorted;
 RWStructuredBuffer<uint> _Order, _Indices, _Counts, _Offsets, _Cursors, _BlockSums, _Neighbours;
 RWStructuredBuffer<float2> _Forces;
+RWStructuredBuffer<float2> _Swimming;
 RWStructuredBuffer<uint> _Claims, _Intake;
 globallycoherent RWStructuredBuffer<uint> _Parents;
 RWStructuredBuffer<uint> _Heads, _Next;
 RWStructuredBuffer<Group> _Groups;
-// 16 counters followed by 32 events of 8 words. Only this compact mailbox is read back during play.
+RWStructuredBuffer<Bud> _Buds;
+StructuredBuffer<Bud> _ReadBuds;
+StructuredBuffer<uint> _BudAcks;
+// 16 counters, 32 events of 8 words, then 32 buds of 16 words (3,136 bytes total).
+// Only this bounded mailbox is read back during play.
 RWStructuredBuffer<uint> _Mail;
 StructuredBuffer<Influence> _Influences;
 RWStructuredBuffer<uint2> _Hits;
@@ -34,9 +40,12 @@ StructuredBuffer<Particle> _ReadParticles, _ReadSorted;
 StructuredBuffer<uint> _ReadOrder, _ReadCounts, _ReadOffsets, _ReadBlockSums, _ReadParents, _ReadHeads, _ReadNext, _ReadClaims, _ReadIntake;
 StructuredBuffer<uint> _ReadIndices, _ReadNeighbours;
 StructuredBuffer<float2> _ReadForces;
+StructuredBuffer<float2> _ReadSwimming;
 StructuredBuffer<Group> _ReadGroups;
 uint _Count, _BodyCount, _Columns, _Rows, _CellCount, _BlockCount, _Tick, _Seed, _InfluenceCount, _EmissionLimit;
-float _Dt, _CellSize;
+uint _AllowNewBuds, _CancelBuds;
+float4 _Telegraph; // enabled windup seconds, retract seconds
+float _Dt, _CellSize, _Age;
 float2 _HalfSize;
 float4 _ForceSettings; // attraction radius, separation, global response, short-range repulsion
 float4 _Core;          // preferred gap, core reach multiplier, strength, closing damping
@@ -47,6 +56,9 @@ float4 _Lifecycle;     // feeding approach, shrink, grow durations
 float4 _Metabolism;    // maturation seconds, processing per second, reserve capacity, feeding radius
 float4 _Waste;         // cost, organism cooldown, field cooldown, nutrient return delay
 float4 _Motor;         // unfed response, fuel per catalyst
+float4 _Swim;          // enabled cruising speed, response seconds, turn rate radians, wander strength
+float4 _SwimStyle;     // wander seconds, pulse amount, pulse seconds, food bias
+float4 _SwimRange;     // food sensing distance, wall margin
 float4 _Species[5];    // force multiplier, precomputed drag factor, speed cap, agitation
 float4 _Attraction[10]; // two vectors per five-column row
 float4 _Origin, _AxisX, _AxisY;
@@ -231,10 +243,11 @@ void Metabolize(uint id : SV_DispatchThreadID)
 void Aggregate(uint id : SV_DispatchThreadID)
 {
     if(id>=_BodyCount)return;Group g=_Groups[id];if(g.size==0)return;
-    g.reserve=0;g.waste=0;g.center=0;g.velocity=0;g.mature=0;g.cooling=0;
+    g.reserve=0;g.waste=0;g.center=0;g.velocity=0;g.mature=0;g.cooling=0;g.swimming=0;
     for(uint i=_ReadHeads[id];i!=NONE;i=_ReadNext[i])
     {
         Particle p=_ReadParticles[i];g.reserve+=p.reserve;g.waste+=p.waste;g.center+=p.position;g.velocity+=p.velocity;
+        g.swimming+=_ReadSwimming[i];
         if(p.species==2){g.mature|=p.maturity>=_Metabolism.x?1u:0u;g.cooling|=(p.cooldown>0||p.disruption>0)?1u:0u;}
     }
     _Groups[id]=g;
@@ -242,20 +255,132 @@ void Aggregate(uint id : SV_DispatchThreadID)
     {
         InterlockedAdd(_Mail[7],1);
         if(g.mature!=0 && g.reserve>0)InterlockedAdd(_Mail[8],1);
-        if(g.mature!=0 && g.cooling==0 && g.waste>=_Waste.x)InterlockedMin(_Mail[9],id);
+        bool budding=false;
+        uint budMask=_Mail[14];
+        while(budMask!=0)
+        { uint slot=firstbitlow(budMask);budMask&=budMask-1;Bud b=_ReadBuds[slot]; if((b.phase==1||b.phase==2)&&_ReadParents[b.anchor]==id){budding=true;break;} }
+        if(!budding && g.mature!=0 && g.cooling==0 && g.waste>=_Waste.x)InterlockedMin(_Mail[9],id);
     }
+}
+float SwimRandom(uint key) { return (Hash(key)&0xffffffu)/16777216.0; }
+float TurnTo(float2 heading,float2 target) { return atan2(heading.x*target.y-heading.y*target.x,dot(heading,target)); }
+[numthreads(128,1,1)]
+void SteerGroups(uint id : SV_DispatchThreadID)
+{
+    if(id>=_BodyCount)return;Group g=_Groups[id];if(g.size==0)return;
+    float blend=1-exp(-_Dt/_Swim.y);float2 previous=g.swimming/g.size;
+    if(_Swim.x<=0 || g.viable==0 || g.mature==0)
+    {g.swimming=previous*(1-blend);_Groups[id]=g;return;}
+    // Union chooses the lowest stable particle ID; direction memory comes from all members.
+    uint key=Hash(id^_Seed);float phase=SwimRandom(key)*6.28318530718;
+    float2 heading=dot(previous,previous)>0.0000000001?normalize(previous):float2(cos(phase),sin(phase));
+    float time=_Age/_SwimStyle.x;uint segment=(uint)floor(time);float t=frac(time);t=t*t*(3-2*t);
+    float noise=lerp(SwimRandom(key^Hash(segment)),SwimRandom(key^Hash(segment+1)),t)*2-1;
+    float rate=noise*_Swim.w*_Swim.z;float2 center=g.center/g.size,food=0;
+    if(_SwimStyle.w>0)
+    {
+        int2 lo,hi;Range(center,_SwimRange.x,lo,hi);
+        for(int y=lo.y;y<=hi.y;y++)for(int x=lo.x;x<=hi.x;x++)
+        {
+            uint c=y*_Columns+x,begin=Start(c),end=begin+_ReadCounts[c];
+            for(uint k=begin;k<end;k++)
+            {
+                Particle q=_ReadSorted[k];if(q.species!=3 || q.returnIn>0 || q.feedingPhase!=0)continue;
+                float2 delta=q.position-center;float d=length(delta);if(d<=0.00001 || d>=_SwimRange.x)continue;
+                float weight=1-d/_SwimRange.x;food+=delta*(weight*weight/d);
+            }
+        }
+        if(dot(food,food)>0.00000001)rate+=clamp(TurnTo(heading,food),-1,1)*_Swim.z*_SwimStyle.w;
+    }
+    float margin=_SwimRange.y+sqrt(float(g.size))*_Motion.z;
+    float2 danger=saturate(1-(_HalfSize-abs(center))/margin),wall=-sign(center)*danger*danger;
+    if(dot(wall,wall)>0.00000001)rate+=clamp(TurnTo(heading,wall),-1,1)*_Swim.z*max(danger.x,danger.y)*2;
+    float angle=clamp(rate,-_Swim.z,_Swim.z)*_Dt,c=cos(angle),s=sin(angle);
+    float2 direction=float2(heading.x*c-heading.y*s,heading.x*s+heading.y*c);
+    float speed=_Swim.x*(1+_SwimStyle.y*sin(_Age*6.28318530718/_SwimStyle.z+phase));
+    g.swimming=direction*lerp(length(previous),speed,blend);_Groups[id]=g;
+}
+void EmitReward(uint root,float cost,float2 pos,float2 vel,uint slot,uint serial)
+{
+    uint sequence=_Mail[2];Group g=_ReadGroups[root];
+    _Mail[9]=root;_Mail[10]=asuint(cost/g.waste);_Mail[12]=asuint(asfloat(_Mail[12])+cost);
+    uint offset=16+(sequence%32)*8;
+    _Mail[offset]=sequence+1;_Mail[offset+1]=asuint(pos.x);_Mail[offset+2]=asuint(pos.y);
+    _Mail[offset+3]=asuint(vel.x);_Mail[offset+4]=asuint(vel.y);_Mail[offset+5]=asuint(cost);
+    _Mail[offset+6]=slot;_Mail[offset+7]=serial;
+    _Mail[2]=sequence+1;
+}
+void WriteBud(uint slot,Bud b)
+{
+    _Buds[slot]=b;
+    uint o=272+slot*16;
+    _Mail[o]=b.serial;_Mail[o+1]=b.phase;_Mail[o+2]=b.anchor;_Mail[o+3]=b.root;
+    _Mail[o+4]=asuint(b.position.x);_Mail[o+5]=asuint(b.position.y);
+    _Mail[o+6]=asuint(b.velocity.x);_Mail[o+7]=asuint(b.velocity.y);
+    _Mail[o+8]=asuint(b.direction.x);_Mail[o+9]=asuint(b.direction.y);
+    _Mail[o+10]=asuint(b.elapsed);_Mail[o+11]=asuint(b.duration);_Mail[o+12]=asuint(b.cost);
+    _Mail[o+13]=asuint(b.cancelFrom);_Mail[o+14]=asuint(b.retractElapsed);_Mail[o+15]=asuint(b.radius);
 }
 [numthreads(1,1,1)]
 void SelectEmission(uint id : SV_DispatchThreadID)
 {
-    uint root=_Mail[9],sequence=_Mail[2];
-    if(root==NONE||asfloat(_Mail[11])>0||sequence>=_EmissionLimit){_Mail[9]=NONE;return;}
-    Group g=_ReadGroups[root];float fraction=_Waste.x/g.waste;
-    _Mail[10]=asuint(fraction);_Mail[11]=asuint(_Waste.z);_Mail[12]=asuint(asfloat(_Mail[12])+_Waste.x);
-    uint offset=16+(sequence%32)*8;float2 pos=g.center/g.size,vel=g.velocity/g.size;
-    _Mail[offset]=sequence+1;_Mail[offset+1]=asuint(pos.x);_Mail[offset+2]=asuint(pos.y);
-    _Mail[offset+3]=asuint(vel.x);_Mail[offset+4]=asuint(vel.y);_Mail[offset+5]=asuint(_Waste.x);
-    _Mail[2]=sequence+1;
+    uint candidate=_Mail[9];_Mail[9]=NONE;
+    uint active=0,freeSlot=NONE,mask=0;
+    for(uint slot=0;slot<32;slot++)
+    {
+        Bud b=_Buds[slot];
+        if(b.phase>=3 && _BudAcks[slot]==b.serial)b.phase=0;
+        if(b.phase==1 || b.phase==2)
+        {
+            Particle anchor=_ReadParticles[b.anchor];uint root=_ReadParents[b.anchor];Group g=_ReadGroups[root];
+            b.position=anchor.position;b.velocity=anchor.velocity;b.root=root;
+            if(b.phase==1)
+            {
+                bool valid=_CancelBuds==0 && g.viable!=0 && anchor.maturity>=_Metabolism.x && g.waste>=b.cost && _Mail[9]!=root;
+                for(uint i=_ReadHeads[root];valid && i!=NONE;i=_ReadNext[i])
+                    if(_ReadParticles[i].disruption>0 || _ReadParticles[i].cooldown>0)valid=false;
+                for(uint earlier=0;valid && earlier<slot;earlier++)
+                { Bud other=_Buds[earlier];if(other.phase==1 && _ReadParents[other.anchor]==root)valid=false; }
+                if(!valid){b.phase=2;b.cancelFrom=saturate(b.elapsed/b.duration);b.retractElapsed=0;}
+                else
+                {
+                    b.elapsed=min(b.duration,b.elapsed+_Dt);
+                    if(b.elapsed>=b.duration && _Mail[9]==NONE && _Mail[2]<_EmissionLimit)
+                    {EmitReward(root,b.cost,b.position,b.velocity,slot,b.serial);b.phase=3;}
+                }
+            }
+            else { b.retractElapsed=min(_Telegraph.y,b.retractElapsed+_Dt);if(b.retractElapsed>=_Telegraph.y)b.phase=4; }
+        }
+        if(b.phase==1||b.phase==2||b.phase==4)active++;
+        if(b.phase==1||b.phase==2)mask|=1u<<slot;
+        if(b.phase==0 && freeSlot==NONE)freeSlot=slot;
+        WriteBud(slot,b);
+    }
+    if(_AllowNewBuds!=0 && _CancelBuds==0 && candidate!=NONE && candidate!=_Mail[9] && asfloat(_Mail[11])<=0 && _Mail[2]+active<_EmissionLimit)
+    {
+        Group g=_ReadGroups[candidate];
+        if(_Telegraph.x<=0 && _Mail[9]==NONE)
+        {EmitReward(candidate,_Waste.x,g.center/g.size,g.velocity/g.size,NONE,0);_Mail[11]=asuint(_Waste.z);}
+        else if(_Telegraph.x>0 && freeSlot!=NONE)
+        {
+            uint chosen=NONE;float outermost=-1;bool valid=true;float2 center=g.center/g.size;
+            for(uint i=_ReadHeads[candidate];i!=NONE;i=_ReadNext[i])
+            {
+                Particle p=_ReadParticles[i];if(p.disruption>0){valid=false;break;}
+                float distance=dot(p.position-center,p.position-center);
+                if(p.species==2 && p.maturity>=_Metabolism.x && (distance>outermost || (distance==outermost && i<chosen))) {chosen=i;outermost=distance;}
+            }
+            if(valid && chosen!=NONE)
+            {
+                Particle p=_ReadParticles[chosen];float2 direction=p.position-center;
+                if(dot(direction,direction)<.000001)direction=dot(p.velocity,p.velocity)>.000001?-p.velocity:float2(1,0);
+                Bud b=(Bud)0;b.serial=_Buds[freeSlot].serial+1;b.phase=1;b.anchor=chosen;b.root=candidate;
+                b.position=p.position;b.velocity=p.velocity;b.direction=normalize(direction);b.duration=_Telegraph.x;b.cost=_Waste.x;b.radius=p.radius;
+                WriteBud(freeSlot,b);mask|=1u<<freeSlot;_Mail[11]=asuint(_Waste.z);
+            }
+        }
+    }
+    _Mail[14]=mask;
 }
 [numthreads(128,1,1)]
 void Forces(uint id : SV_DispatchThreadID)
@@ -361,7 +486,15 @@ void Integrate(uint id : SV_DispatchThreadID)
     }
     p.reserve+=_ReadIntake[id];
     if(id<_BodyCount && _ReadParents[id]==_Mail[9]){p.waste*=1-asfloat(_Mail[10]);p.cooldown=_Waste.y;}
-    p.velocity=Limit((p.velocity+_ReadForces[id]*_Dt)*_Species[p.species].y,_Species[p.species].z);
+    float2 previousSwim=0,swimming=0;
+    if(id<_BodyCount)
+    {
+        previousSwim=_Swimming[id];swimming=_ReadGroups[_ReadParents[id]].swimming;
+        if(p.disruption>0)swimming=previousSwim*exp(-_Dt/_Swim.y);
+        _Swimming[id]=swimming;
+    }
+    // Shared swimming advects the soft body; local force and collision responses remain relative motion.
+    p.velocity=Limit((p.velocity-previousSwim+_ReadForces[id]*_Dt)*_Species[p.species].y+swimming,_Species[p.species].z);
     float2 bound=_HalfSize-p.radius-0.0002;p.position+=p.velocity*_Dt;
     if(p.position.x<-bound.x||p.position.x>bound.x){p.position.x=clamp(p.position.x,-bound.x,bound.x);p.velocity.x*=-_Motion.y;}
     if(p.position.y<-bound.y||p.position.y>bound.y){p.position.y=clamp(p.position.y,-bound.y,bound.y);p.velocity.y*=-_Motion.y;}

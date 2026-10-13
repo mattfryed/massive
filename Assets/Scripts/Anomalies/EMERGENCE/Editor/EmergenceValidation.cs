@@ -103,7 +103,10 @@ namespace Massive.Emergence.Editor
             Check(context.level.iconPrefab && context.level.instructionsPanelPrefab && context.level.audioProfile, "icon, instructions and audio assigned");
             Check(!all.Any(t => t.name.Contains("PULSAR")) && EmergenceLevelSetup.All<PulsarRhythmSession>(scene).Length == 0 && EmergenceLevelSetup.All<AttractScript>(scene).Length == 0, "PULSAR-specific body and rhythm removed");
             Check(field.profile && field.particleMaterial && field.arena && field.scores && field.nuggetPrefab && field.players.Length == 4, "ecology has explicit arena, scoring, pickup and roster references");
+            Check(field.match == context.match, "ecology uses the scene match owner for pre-regulation simulation");
             Check(field.nuggetPrefab.scoreRewardKey == ScoreRewardKeys.MassNugget && field.nuggetPrefab.rewardMultiplier == 1, "metabolic nugget uses standard mass and score economy");
+            Check(field.matterNuggletPrefab && field.amplifierNuggletPrefab && field.amplifierNuggetPrefab && field.profile.pickupChances.IsValid,
+                "all four weighted pickup types are assigned");
             Check(EmergenceLevelSetup.All<MatchScoreService>(scene).Length == 1 && EmergenceLevelSetup.All<MatchTimerPresenter>(scene).Length == 1 && EmergenceLevelSetup.All<AmplifierGoalCapture>(scene).Length == 2, "single score authority, timer and two goals");
             Check(EmergenceLevelSetup.All<EnemyDirector>(scene).Single().encounterTimeline && EmergenceLevelSetup.All<AmplifierResonanceSpawner>(scene).Single().scoreService == field.scores, "shared enemies and Amplifier encounter retained");
             foreach (var pair in new[] { new[] { "00_Systems/MatchRuntime", "MatchRuntime" }, new[] { "GameplayObjects/Players", "Players_Gameplay" }, new[] { "02_Arena/Surface", "Arena_Planar_Surface" }, new[] { "02_Arena/BoundsAndCollision", "Arena_Planar_Bounds" }, new[] { "02_Arena/Goals", "TeamGoals_Planar" }, new[] { "04_UI/MatchHUD", "MatchHUD" } })
@@ -122,7 +125,7 @@ namespace Massive.Emergence.Editor
             }
             Check(true, count + " serialized reference slots checked");
             var catalog = AssetDatabase.LoadAssetAtPath<LevelCatalog>("Assets/Scripts/CORE/LevelCatalog.asset");
-            Check(!catalog.Levels.Contains(context.level) && EditorBuildSettings.scenes.Count(s => s.enabled && s.path == scene.path) == 1, "development scene is absent from level selection and available for direct loading");
+            Check(catalog.Levels.Count(l => l == context.level) == 1 && EditorBuildSettings.scenes.Count(s => s.enabled && s.path == scene.path) == 1, "EMERGENCE appears once in level selection and has one enabled gameplay scene");
             Check(!ShaderUtil.ShaderHasError(field.particleMaterial.shader), "particle shader compiles");
         }
 
@@ -159,7 +162,7 @@ namespace Massive.Emergence.Editor
             {
                 // Other work in the shared Editor may compile. Hold reloads only for this bounded fixture.
                 EditorApplication.LockReloadAssemblies(); SessionState.SetBool(Key + ".reloadHeld", true);
-                checks.Clear(); errors.Clear(); errorCount = 0; frame = -1; deadline = EditorApplication.timeSinceStartup + 180;
+                checks.Clear(); errors.Clear(); errorCount = 0; frame = -1; deadline = EditorApplication.timeSinceStartup + 300;
                 Application.runInBackground = true; Application.logMessageReceived += Log;
                 routine = Flatten(BothModes()); EditorApplication.update += Tick;
             }
@@ -244,17 +247,39 @@ namespace Massive.Emergence.Editor
             var context = EmergenceLevelSetup.All<LevelSceneContext>(scene).Single();
             var field = EmergenceLevelSetup.All<EmergenceField>(scene).Single();
             var gm = context.match; var scores = field.scores;
-            var settings = new SerializedObject(gm); settings.FindProperty("allPlayersInactiveHoldSeconds").floatValue = 600; settings.ApplyModifiedPropertiesWithoutUndo();
-            yield return null;
-            Check(field.Simulation != null && field.Simulation.Age == 0 && field.NuggetsReleased == 0, "countdown holds simulation and rewards");
+            var settings = new SerializedObject(gm); settings.FindProperty("allPlayersInactiveHoldSeconds").floatValue = 600;
+            // Give the shared Editor room to observe pause/resume before the real phase transition.
+            // This disposable fixture never saves its longer countdown to the scene or prefab.
+            settings.FindProperty("preMatchCountdownSeconds").floatValue = 10; settings.ApplyModifiedPropertiesWithoutUndo();
+            yield return Until(() => field.Simulation != null && field.Simulation.Age > 0, 1, "scene startup advances the ecology");
+            Check(gm.Phase == MatchRuntimePhase.Preparing || gm.Phase == MatchRuntimePhase.Countdown, "ecology starts before regulation");
+            var startupModel = field.Simulation;
+            yield return Until(() => gm.Phase == MatchRuntimePhase.Countdown, 15, "normal startup reaches countdown");
+            float countdownAge = field.Simulation.Age;
+            Time.timeScale = 0; yield return Wait(.2f);
+            Check(field.Simulation.Age == countdownAge, "time pause also freezes pre-regulation ecology");
+            Time.timeScale = 1; yield return Wait(.25f);
+            Check(gm.Phase == MatchRuntimePhase.Countdown && field.Simulation.Age > countdownAge,
+                "countdown advances the same ecology (phase=" + gm.Phase + ", age=" + countdownAge.ToString("F3") + " -> " + field.Simulation.Age.ToString("F3") + ")");
+            Check(field.NuggetsReleased == 0 && field.ActiveNuggets == 0 && field.Simulation.Secreted == 0 && field.Simulation.PendingCount == 0 &&
+                field.Simulation.RewardBuds.All(b => b.phase == 0) && scores.LightScoreMilliElectronVolts == 0 && scores.DarkScoreMilliElectronVolts == 0,
+                "countdown cannot start reward buds, emit pickups or award score");
+            Check(field.WakeContacts == 0 && field.AttackContacts == 0 && field.RepulsorContacts == 0, "countdown does not apply player disturbances");
             yield return Until(() => gm.Phase == MatchRuntimePhase.Regulation, 20, "normal match reaches regulation");
+            Check(field.Simulation == startupModel && field.Simulation.Age > countdownAge, "regulation continues the developed ecosystem without resetting it");
             var players = field.players.Where(p => p.isActiveAndEnabled && !p.IsPseudoPlayer).ToArray();
             Check(players.Length == (SessionState.GetInt(Key + ".mode", 0) == 0 ? 2 : 4) && Rewired.ReInput.isReady && context.roster.IsRosterReady, "real roster and Rewired initialize in requested mode");
             Check(context.stageTitleText.text == "EMERGENCE" && context.stageNumberText.text == "STAGE_010" && context.spawners.activeInHierarchy, "HUD identity and phase-gated spawning");
-            yield return Until(() => field.Simulation.BodyCount > 0 && field.Simulation.Consumed > 0, 10, "live colonies form and feed");
+            // Larger authored Minimum Body values need more time to assemble from the dispersed soup.
+            yield return Until(() => field.Simulation.BodyCount > 0 && field.Simulation.Consumed > 0, 45, "live colonies form and feed");
             var director = EmergenceLevelSetup.All<EnemyDirector>(scene).Single();
             yield return Until(() => director.TotalSpawned > 0, 15, "inherited enemy timeline spawns real enemies");
-            yield return Until(() => field.NuggetsReleased > 0, 25, "natural metabolism emits shared mass pickups");
+            // Ecology catch-up is capped per frame; a busy shared Editor can advance the
+            // unscaled match clock considerably faster than the particle simulation.
+            float emissionDeadline = Time.unscaledTime + 60;
+            while (field.NuggetsReleased == 0 && Time.unscaledTime < emissionDeadline) yield return null;
+            Check(field.NuggetsReleased > 0, "natural metabolism emits shared mass pickups (ecology age=" + field.Simulation.Age.ToString("F2") +
+                ", running=" + field.IsRunning + ", phase=" + gm.Phase + ", consumed=" + field.Simulation.Consumed + ", secreted=" + field.Simulation.Secreted + ")");
             Check(field.Simulation.ProductiveBodies > 0, "at least one live productive body");
             ScreenCapture.CaptureScreenshot(Folder + (players.Length == 2 ? "/one-v-one.png" : "/two-v-two.png")); yield return Wait(.3f);
             float age = field.Simulation.Age; int emitted = field.NuggetsReleased;
@@ -269,7 +294,11 @@ namespace Massive.Emergence.Editor
             scores.SetScoringState(true, false);
             var player = players[0];
             foreach (var p in players.Skip(1)) Move(p, new Vector3(11, 0, 4));
-            var pickup = field.Nuggets.First(n => n && n.gameObject.activeSelf && !n.IsDespawning);
+            // The random harvest can contain only amplifiers. Exercise fixed-score rules with an explicit matter fixture.
+            var pickup = Object.Instantiate(field.nuggetPrefab, field.transform);
+            pickup.Eject(new Vector3(0, 0, 4), Vector3.zero, 10);
+            // Let the shared spawn collection lock expire before placing the body on the pickup.
+            yield return Wait(.4f);
             player.massScore = player.massScoreMax; long before = scores.GetTeamScore(player.teamID);
             Move(player, pickup.transform.position);
             yield return Until(() => pickup.LastScoreAward.accepted, 3, "player body collects metabolic nugget through shared scoring");
@@ -281,6 +310,7 @@ namespace Massive.Emergence.Editor
             Check(!pickup.gameObject.activeSelf && scores.GetTeamScore(player.teamID) == after, "pooled pickup expires without scoring");
             pickup.Eject(player.transform.position, Vector3.zero, 5); yield return Wait(.7f);
             Check(pickup.LastScoreAward.accepted && scores.GetTeamScore(player.teamID) > after, "pooled reuse starts a fresh single-award life");
+            Object.Destroy(pickup.gameObject);
             scores.SetScoringState(true, true);
             var attack = player.GetComponent<PlayerAttackController>();
             int wakes = field.WakeContacts; Move(player, Colony(field)); yield return Wait(.3f);

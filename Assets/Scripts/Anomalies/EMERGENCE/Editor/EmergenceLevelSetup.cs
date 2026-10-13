@@ -58,7 +58,8 @@ namespace Massive.Emergence.Editor
             definition.anomalyTypeName = "ACTIVE MATTER"; definition.audioProfile = sourceDef.audioProfile;
             var stage = Asset<StageProfile>(Folder + "/StageProfile-EMERGENCE.asset");
             stage.stageId = "STAGE_010"; stage.displayName = "EMERGENCE"; stage.anomalyPool.Clear(); EditorUtility.SetDirty(stage);
-            definition.iconPrefab = CreateIcon(previewProfile, material);
+            definition.iconPrefab = EmergenceLevelIconAssets.CreateOrUpdate();
+            bool instructionsMissing = !AssetDatabase.LoadAssetAtPath<GameObject>(EmergenceInstructionsSetup.PanelPath);
             definition.instructionsPanelPrefab = CreateInstructions(sourceDef, definition.iconPrefab);
             var nugget = CreateNugget();
             if (!File.Exists(ScenePath))
@@ -96,8 +97,8 @@ namespace Massive.Emergence.Editor
                     var go = new GameObject("EMERGENCE Particle Ecology"); go.transform.SetParent(levelContent, false);
                     var field = go.AddComponent<EmergenceField>();
                     field.profile = profile; field.particleMaterial = material; field.arena = All<ArenaBoundsFromVectorGrid>(scene).Single();
-                    field.scores = All<MatchScoreService>(scene).Single(); field.anomalies = context.anomalies;
-                    field.players = All<PlayerControllerScript>(scene); field.nuggetPrefab = nugget;
+                    field.scores = All<MatchScoreService>(scene).Single(); field.match = context.match; field.anomalies = context.anomalies;
+                    field.players = All<PlayerControllerScript>(scene); ConfigurePickups(field);
                     field.RebuildPreview();
                     EditorSceneManager.MarkSceneDirty(scene);
                     if (!EditorSceneManager.SaveScene(scene)) throw new IOException("Could not save EMERGENCE.");
@@ -109,20 +110,54 @@ namespace Massive.Emergence.Editor
             def.FindProperty("gameplayScene.sceneAsset").objectReferenceValue = AssetDatabase.LoadAssetAtPath<SceneAsset>(ScenePath);
             def.FindProperty("gameplayScene.sceneName").stringValue = Path.GetFileNameWithoutExtension(ScenePath); def.ApplyModifiedPropertiesWithoutUndo();
             EditorUtility.SetDirty(definition);
-            var catalog = AssetDatabase.LoadAssetAtPath<LevelCatalog>("Assets/Scripts/CORE/LevelCatalog.asset");
-            // Development-only: never reintroduce the level to the public carousel.
-            if (catalog.Levels.Contains(definition))
-            {
-                var so = new SerializedObject(catalog); var list = so.FindProperty("levels");
-                for (int i = list.arraySize - 1; i >= 0; i--) if (list.GetArrayElementAtIndex(i).objectReferenceValue == definition)
-                { list.GetArrayElementAtIndex(i).objectReferenceValue = null; list.DeleteArrayElementAtIndex(i); }
-                so.ApplyModifiedPropertiesWithoutUndo(); AssetDatabase.SaveAssetIfDirty(catalog);
-            }
+            EmergenceLevelIconAssets.Register(definition);
             // Append only: shared SceneFlow uses names and all existing build indices remain unchanged.
             if (!EditorBuildSettings.scenes.Any(s => s.path == ScenePath))
                 EditorBuildSettings.scenes = EditorBuildSettings.scenes.Concat(new[] { new EditorBuildSettingsScene(ScenePath, true) }).ToArray();
             foreach (var asset in new Object[] { profile, previewProfile, definition, stage, material }) AssetDatabase.SaveAssetIfDirty(asset);
-            Debug.Log("EMERGENCE development scene ready; hidden from level selection. Existing open scenes were preserved.");
+            if (instructionsMissing) EmergenceInstructionsSetup.Install();
+            Debug.Log("EMERGENCE ready in the level carousel. Existing open scenes were preserved.");
+        }
+        public static void ConfigurePickups(EmergenceField field)
+        {
+            field.nuggetPrefab = CreateNugget();
+            field.matterNuggletPrefab = CreatePickupVariant(false, true);
+            field.amplifierNuggletPrefab = CreatePickupVariant(true, true);
+            field.amplifierNuggetPrefab = CreatePickupVariant(true, false);
+        }
+        static EmergenceMassNugget CreatePickupVariant(bool amplifier, bool small)
+        {
+            string name = "Metabolic " + (amplifier ? "Amplifier " : "Matter ") + (small ? "Nugglet" : "Nugget");
+            string path = Folder + "/" + name + ".prefab";
+            var existing = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            if (existing) return existing.GetComponent<EmergenceMassNugget>();
+            var scene = EditorSceneManager.NewPreviewScene();
+            try
+            {
+                var root = (GameObject)PrefabUtility.InstantiatePrefab(CreateNugget().gameObject, scene);
+                if (amplifier)
+                {
+                    PrefabUtility.UnpackPrefabInstance(root, PrefabUnpackMode.Completely, InteractionMode.AutomatedAction);
+                    for (int i = root.transform.childCount - 1; i >= 0; i--) Object.DestroyImmediate(root.transform.GetChild(i).gameObject);
+                    var visual = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Power-ups/Amplifier Nuggets/Amplifier Nugget Visual.prefab");
+                    if (!visual) throw new InvalidOperationException("Assign the shared amplifier nugget visual asset.");
+                    var child = (GameObject)PrefabUtility.InstantiatePrefab(visual, scene);
+                    child.transform.SetParent(root.transform, false);
+                    child.transform.localPosition = Vector3.zero;
+                    child.SetActive(true);
+                }
+                root.name = name;
+                root.transform.localScale = Vector3.one * (small ? 1f / 3 : 1);
+                foreach (var ps in root.GetComponentsInChildren<ParticleSystem>(true))
+                { var main = ps.main; main.scalingMode = ParticleSystemScalingMode.Hierarchy; }
+                var pickup = root.GetComponent<EmergenceMassNugget>();
+                pickup.rewardMultiplier = small ? .1f : 1;
+                pickup.scoreRewardKey = amplifier ? "" : small ? ScoreRewardKeys.MassNugglet : ScoreRewardKeys.MassNugget;
+                pickup.personalMultiplierGain = amplifier ? (small ? .1f : 1) : 0;
+                root.SetActive(false);
+                return PrefabUtility.SaveAsPrefabAsset(root, path).GetComponent<EmergenceMassNugget>();
+            }
+            finally { EditorSceneManager.ClosePreviewScene(scene); }
         }
         static EmergenceMassNugget CreateNugget()
         {
@@ -139,24 +174,6 @@ namespace Massive.Emergence.Editor
                 return PrefabUtility.SaveAsPrefabAsset(root, path).GetComponent<EmergenceMassNugget>();
             }
             finally { PrefabUtility.UnloadPrefabContents(root); }
-        }
-        static GameObject CreateIcon(EmergenceProfile profile, Material material)
-        {
-            string path = Folder + "/LS_EMERGENCE Icon.prefab";
-            var existing = AssetDatabase.LoadAssetAtPath<GameObject>(path); if (existing) return existing;
-            var scene = EditorSceneManager.NewPreviewScene();
-            try
-            {
-                var root = new GameObject("LS_EMERGENCE Icon"); SceneManager.MoveGameObjectToScene(root, scene);
-                var selection = root.AddComponent<LevelIcon>();
-                var visual = new GameObject("Living Colony"); SceneManager.MoveGameObjectToScene(visual, scene); visual.transform.SetParent(root.transform, false);
-                visual.transform.localScale = Vector3.one * .32f; visual.transform.localRotation = Quaternion.Euler(75, 0, 18);
-                var field = visual.AddComponent<EmergenceField>(); field.presentationOnly = true;
-                field.presentationHalfSize = new Vector2(3.5f, 2.8f); field.profile = profile; field.particleMaterial = material;
-                Set(selection, "visualsRoot", visual.transform);
-                return PrefabUtility.SaveAsPrefabAsset(root, path);
-            }
-            finally { EditorSceneManager.ClosePreviewScene(scene); }
         }
         static GameObject CreateInstructions(LevelDefinition source, GameObject icon)
         {

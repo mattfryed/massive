@@ -4,6 +4,14 @@ using UnityEngine;
 
 namespace Massive.Enemies
 {
+    public struct EnemyDamageContext
+    {
+        public EnemyBase enemy;
+        public PlayerControllerScript creditedPlayer;
+        public EnemyDamageSource source;
+        public float amount, healthRemaining;
+    }
+
     public struct EnemyDefeatContext
     {
         public EnemyBase enemy;
@@ -64,6 +72,7 @@ namespace Massive.Enemies
 
         public event Action<EnemyBase, EnemyDamageSource> Died;
         public event Action<EnemyDefeatContext> Defeated;
+        public event Action<EnemyDamageContext> Damaged;
         public string SourceLifeToken { get; private set; }
 
         private Rigidbody _rb;
@@ -211,11 +220,15 @@ namespace Massive.Enemies
             if (creditedPlayer && !SharesSimulationWith(creditedPlayer)) return;
             if (SimulationRoot && DemonstrationCounterkill && creditedPlayer == DemonstrationTarget)
                 amountMassEq = HealthRemaining;
+            float actualDamage = Mathf.Min(HealthRemaining, amountMassEq);
             HealthRemaining -= amountMassEq;
 
             // Optional SFX
             if (Definition != null)
                 TryPlaySfx(Definition.sfxHit);
+
+            Damaged?.Invoke(new EnemyDamageContext { enemy = this, creditedPlayer = creditedPlayer,
+                source = source, amount = actualDamage, healthRemaining = HealthRemaining });
 
             if (HealthRemaining <= 0f)
                 ResolveDeath(source, creditedPlayer, defeated: true);

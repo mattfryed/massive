@@ -30,8 +30,9 @@ also upgrades older Ranged Drone prefabs without changing their combat tuning.
 checks with the canonical player, including movement contact, firing, sword credit
 and death cleanup, and restores the previously open scene.
 
-Health, sword damage and reward match ED_Drone: one health, one sword hit and the
-shared ENEMY_DRONE_DEFEAT reward (100 meV base, with normal score multipliers).
+Health and sword damage match ED_Drone: one health and one sword hit. Its separate
+ENEMY_RANGED_DRONE_DEFEAT reward grants 200 meV base and 0.35 personal charge,
+with normal score multipliers.
 EnemyBase, EnemyHurtbox and EnemyScoreReward retain all damage/death/credit authority.
 
 The projectile prefab uses the shared MetaballSDF material and EnemyProjectileBase

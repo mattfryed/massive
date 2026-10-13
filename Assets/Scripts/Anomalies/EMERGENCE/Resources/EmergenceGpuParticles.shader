@@ -14,6 +14,9 @@ Shader "MASSIVE/Emergence/GPU Particles"
             #include "UnityCG.cginc"
             #include "EmergenceGpuCommon.hlsl"
             StructuredBuffer<Particle> _Particles;
+            StructuredBuffer<Bud> _Buds;
+            StructuredBuffer<uint> _BudMail;
+            float4 _BudVisual; // pulse strength, radius, retract seconds
             float4 _Colors[5], _WasteColor, _DisruptionColor;
             float4 _Origin, _AxisX, _AxisY;
             float _WasteColorAt;
@@ -23,7 +26,16 @@ Shader "MASSIVE/Emergence/GPU Particles"
             {
                 const float2 corners[6] = { float2(-1,-1), float2(1,1), float2(1,-1), float2(-1,-1), float2(-1,1), float2(1,1) };
                 Particle p = _Particles[instance];
-                float2 uv = corners[vertex], pos = p.position + uv * p.radius * p.visualScale;
+                float pulse=0;uint mask=p.species<3?_BudMail[14]:0;
+                while(mask!=0)
+                {
+                    uint slot=firstbitlow(mask);mask&=mask-1;Bud b=_Buds[slot];
+                    float t=b.phase==2?b.cancelFrom:saturate(b.elapsed/max(.05,b.duration));
+                    float wave=sin(t*6.28318530718)*(1-t);
+                    if(b.phase==2){float q=saturate(b.retractElapsed/_BudVisual.z);wave*=1-q*q*(3-2*q);}
+                    float weight=saturate(1-length(p.position-b.position)/_BudVisual.y);pulse+=wave*weight*weight;
+                }
+                float2 uv = corners[vertex], pos = p.position + uv * p.radius * p.visualScale * (1+clamp(pulse,-1,1)*_BudVisual.x);
                 float3 world = _Origin.xyz + _AxisX.xyz * pos.x + _AxisY.xyz * pos.y;
                 v2f o; o.vertex = mul(UNITY_MATRIX_VP, float4(world, 1)); o.uv = uv;
                 o.color = _Colors[p.species];

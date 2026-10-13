@@ -17,7 +17,7 @@ namespace Massive.Emergence
             public Vector2 feedingStart;
             public bool Alive => returnIn <= 0;
         }
-        public struct Secretion { public Vector2 position, velocity; }
+        public struct Secretion { public Vector2 position, velocity; public int budSlot; public uint budSerial; }
         public readonly Particle[] Particles;
         public readonly Vector2 HalfSize;
         public int Count => Particles.Length;
@@ -63,6 +63,7 @@ namespace Massive.Emergence
             groupReserve = new float[n]; groupWaste = new float[n]; viable = new bool[n];
             edible = new bool[n];
             forces = new Vector2[n]; centers = new Vector2[n]; velocities = new Vector2[n];
+            swimVelocity = new Vector2[n]; groupSwim = new Vector2[n]; matureGroups = new bool[n]; identities = new int[n];
             cellSize = Mathf.Max((2 * maximumRadius + contactGap) * coreRangeMultiplier, Mathf.Max(settings.interactionRadius, Mathf.Max(settings.connectionRadius, settings.feedingRadius)));
             columns = Mathf.CeilToInt(HalfSize.x * 2 / cellSize) + 1; rows = Mathf.CeilToInt(HalfSize.y * 2 / cellSize) + 1;
             heads = new int[columns * rows];
@@ -155,6 +156,8 @@ namespace Massive.Emergence
             if (recognitionIn <= 0) { Recognize(); recognitionIn = profile.recognitionInterval; }
             Array.Clear(groupReserve, 0, groupReserve.Length); Array.Clear(groupWaste, 0, groupWaste.Length);
             Array.Clear(centers, 0, centers.Length); Array.Clear(velocities, 0, velocities.Length);
+            Array.Clear(groupSwim, 0, groupSwim.Length); Array.Clear(matureGroups, 0, matureGroups.Length);
+            for (int i = 0; i < bodyParticles; i++) identities[i] = int.MaxValue;
             for (int i = 0; i < bodyParticles; i++)
             {
                 var p = Particles[i]; int r = Root(i);
@@ -163,7 +166,10 @@ namespace Massive.Emergence
                 if (p.species == 2 && p.maturity >= profile.maturationSeconds)
                 { float processed = Mathf.Min(p.reserve, profile.processingPerSecond * dt); p.reserve -= processed; p.waste += processed; }
                 groupReserve[r] += p.reserve; groupWaste[r] += p.waste; centers[r] += p.position; velocities[r] += p.velocity; Particles[i] = p;
+                groupSwim[r] += swimVelocity[i]; identities[r] = Mathf.Min(identities[r], i);
+                matureGroups[r] |= p.species == 2 && p.maturity >= profile.maturationSeconds;
             }
+            SteerOrganisms(dt);
             float radius = profile.interactionRadius, radius2 = radius * radius, feed2 = profile.feedingRadius * profile.feedingRadius;
             float coreReach = (2 * maximumRadius + contactGap) * coreRangeMultiplier;
             float queryRadius2 = Mathf.Max(radius2, Mathf.Max(coreReach * coreReach, feed2));
@@ -222,9 +228,15 @@ namespace Massive.Emergence
                 var p = Particles[i]; if (!p.Alive) continue;
                 var s = profile.species[p.species];
                 float damp = Mathf.Exp(-profile.drag * s.dragMultiplier * dt);
-                p.velocity = Vector2.ClampMagnitude((p.velocity + forces[i] * dt) * damp, profile.speedLimit * s.speedMultiplier);
+                Vector2 previousSwim = i < bodyParticles ? swimVelocity[i] : Vector2.zero;
+                Vector2 swimming = i < bodyParticles ? groupSwim[Root(i)] : Vector2.zero;
+                if (i < bodyParticles && p.disruption > 0) swimming = previousSwim * Mathf.Exp(-dt / profile.swimResponseSeconds);
+                // Advect the soft body coherently; drag continues to act on its relative particle motion.
+                p.velocity = Vector2.ClampMagnitude((p.velocity - previousSwim + forces[i] * dt) * damp + swimming, profile.speedLimit * s.speedMultiplier);
+                if (i < bodyParticles) swimVelocity[i] = swimming;
                 MoveWithinBounds(ref p, dt); Particles[i] = p;
             }
+            AdvanceRewardBuds(dt);
             ProductiveBodies = 0;
             for (int r = 0; r < bodyParticles; r++)
             {
@@ -233,8 +245,10 @@ namespace Massive.Emergence
                 for (int i = 0; i < bodyParticles; i++) if (Root(i) == r && Particles[i].species == 2)
                 { mature |= Particles[i].maturity >= profile.maturationSeconds; cooling |= Particles[i].cooldown > 0 || Particles[i].disruption > 0; }
                 if (mature && groupReserve[r] > 0) ProductiveBodies++;
-                if (!allowSecretion || !mature || cooling || secretionGate > 0 || queued == pending.Length || groupWaste[r] < profile.materialPerNugget) continue;
-                pending[(readIndex + queued++) % pending.Length] = new Secretion { position = centers[r] / sizes[r], velocity = velocities[r] / sizes[r] };
+                if (!allowSecretion || !mature || cooling || secretionGate > 0 || queued == pending.Length || groupWaste[r] < profile.materialPerNugget || HasBud(r)) continue;
+                if (profile.enableRewardTelegraph) { StartRewardBud(r); continue; }
+                if (queued + AttachedBudCount >= EmissionSlots) continue;
+                pending[(readIndex + queued++) % pending.Length] = new Secretion { position = centers[r] / sizes[r], velocity = velocities[r] / sizes[r], budSlot = -1 };
                 float fraction = profile.materialPerNugget / groupWaste[r];
                 for (int i = 0; i < bodyParticles; i++) if (Root(i) == r)
                 { var p = Particles[i]; p.waste *= 1 - fraction; p.cooldown = profile.secretionInterval; Particles[i] = p; }
@@ -242,7 +256,13 @@ namespace Massive.Emergence
             }
         }
         public bool TryDequeue(out Secretion value)
-        { if (queued == 0) { value = default; return false; } value = pending[readIndex]; readIndex = (readIndex + 1) % pending.Length; queued--; return true; }
+        {
+            for (int i = 0; i < RewardBuds.Length; i++) if (RewardBuds[i].phase == 4) RewardBuds[i].phase = 0;
+            if (queued == 0) { value = default; return false; }
+            value = pending[readIndex]; readIndex = (readIndex + 1) % pending.Length; queued--;
+            if (value.budSerial != 0 && RewardBuds[value.budSlot].serial == value.budSerial) RewardBuds[value.budSlot].phase = 0;
+            return true;
+        }
 
         public int Disturb(Vector2 origin, float radius, float impulse, float disruption, Vector2 drift)
         {

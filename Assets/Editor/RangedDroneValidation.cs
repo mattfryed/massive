@@ -93,8 +93,8 @@ public static partial class RangedDroneValidation
         var normal = AssetDatabase.LoadAssetAtPath<GameObject>(DronePrototypeSetup.PrefabPath);
         var normalDefinition = AssetDatabase.LoadAssetAtPath<EnemyDefinition>(DronePrototypeSetup.DefinitionPath);
         var normalVisual = normal.GetComponent<DroneVisuals>();
-        Check(drone.definition.healthMassEq == normalDefinition.healthMassEq && drone.definition.damageTakenPerSwordHit == normalDefinition.damageTakenPerSwordHit && drone.definition.defeatRewardKey == normalDefinition.defeatRewardKey,
-            "Ranged Drone shares normal Drone health, sword damage and central score reward");
+        Check(drone.definition.healthMassEq == normalDefinition.healthMassEq && drone.definition.damageTakenPerSwordHit == normalDefinition.damageTakenPerSwordHit && drone.definition.defeatRewardKey == Massive.Scoring.ScoreRewardKeys.RangedDroneDefeat,
+            "Ranged Drone shares normal Drone health and sword damage, with its own central score reward");
         Check(ranged.transform.localScale == normal.transform.localScale && visual.radius == normalVisual.radius && visual.noseLength == normalVisual.noseLength && visual.tailLengthRatio == normalVisual.tailLengthRatio,
             "Canonical Drone scale, six-facet geometry and tail proportions preserved");
         Check(visual.floatingFrontFaces && !normalVisual.floatingFrontFaces && normal.GetComponent<RangedDroneController>() == null,

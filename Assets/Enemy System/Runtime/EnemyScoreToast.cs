@@ -38,18 +38,21 @@ namespace Massive.Enemies
         }
 
         public static EnemyScoreToast ShowPickup(EnemyScoreToast prefab, ScoreAwardResult award,
-            float restored, float range, Vector3 position, Scene scene)
+            float restored, float range, Vector3 position, Scene scene, double multiplierGained = 0)
         {
-            if (!award.accepted || award.finalMilliElectronVolts <= 0)
+            bool scored = award.accepted && award.finalMilliElectronVolts > 0;
+            if (!scored && multiplierGained <= 0)
                 return ShowMass(prefab, restored, range, position, scene);
 
-            string text = ScoreText(award.finalMilliElectronVolts) + " SCORE";
+            string text = scored ? ScoreText(award.finalMilliElectronVolts) + " SCORE" : "";
+            if (multiplierGained > 0)
+                text += (scored ? "\n" : "") + "+" + multiplierGained.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) + "× MULTIPLIER";
             if (restored > 0f && range > 0f)
             {
                 string percent = (restored / range * 100f).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
                 text += "\n<size=80%>+" + percent + "% MASS</size>";
             }
-            return ShowValue(prefab, text, award.finalMilliElectronVolts, restored, position, scene);
+            return ShowValue(prefab, text, scored ? award.finalMilliElectronVolts : 0, restored, position, scene);
         }
 
         private static string ScoreText(long value)

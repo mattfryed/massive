@@ -93,6 +93,8 @@ namespace Massive.Emergence.Editor
                     p.minimumBody=3;p.minimumStructureFraction=0;p.minimumMotorFraction=0;
                     p.force=p.repulsion=p.coreRepulsion=p.coreDamping=0;p.maturationSeconds=.1f;
                     p.processingPerSecond=6;p.materialPerNugget=2;p.secretionInterval=.02f;p.fieldSecretionInterval=.02f;p.nutrientReturnSeconds=50;
+                    // Isolate mailbox capacity from the separately tested windup delay.
+                    p.enableRewardTelegraph=false;
                     using(var gpu=new EmergenceGpuSimulation(p,new Vector2(4,4)))
                     {
                         var state=gpu.Particles;for(int i=0;i<state.Length;i++)state[i].position=new Vector2((i%8)*.015f,(i/8)*.015f);

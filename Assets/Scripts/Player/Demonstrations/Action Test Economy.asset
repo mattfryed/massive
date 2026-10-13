@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Action Test Economy
   m_EditorClassIdentifier: 
   rulesetId: MASSIVE_SCORE_V1
-  rulesetVersion: 5
+  rulesetVersion: 6
   regulationDurationSeconds: 1200
   chainSettings:
     multiplierSteps: 0100000002000000040000000800000010000000
@@ -103,13 +103,13 @@ MonoBehaviour:
     expectedOccurrencesPerRound: 20
   - key: ENEMY_DYSON_DEFEAT
     enabled: 1
-    amount: 1
+    amount: 4
     unit: 1
     multiplierEligible: 1
     ignoreAllMultipliers: 0
     bonusOnly: 0
     chainEffect: 2
-    chainCharge: 1
+    chainCharge: 2
     repeatPolicy: 1
     feedbackId: ENEMY_DEFEAT
     expectedOccurrencesPerRound: 20
@@ -160,4 +160,64 @@ MonoBehaviour:
     chainCharge: 0
     repeatPolicy: 1
     feedbackId: MASS_PICKUP
+    expectedOccurrencesPerRound: 0
+  - key: ENEMY_RANGED_DRONE_DEFEAT
+    enabled: 1
+    amount: 200
+    unit: 0
+    multiplierEligible: 1
+    ignoreAllMultipliers: 0
+    bonusOnly: 0
+    chainEffect: 2
+    chainCharge: 0.35
+    repeatPolicy: 1
+    feedbackId: ENEMY_DEFEAT
+    expectedOccurrencesPerRound: 0
+  - key: ENEMY_SEEKER_DEFEAT
+    enabled: 1
+    amount: 400
+    unit: 0
+    multiplierEligible: 1
+    ignoreAllMultipliers: 0
+    bonusOnly: 0
+    chainEffect: 2
+    chainCharge: 0.5
+    repeatPolicy: 1
+    feedbackId: ENEMY_DEFEAT
+    expectedOccurrencesPerRound: 0
+  - key: ENEMY_PARTICLE_BEAM_TURRET_DEFEAT
+    enabled: 1
+    amount: 1200
+    unit: 0
+    multiplierEligible: 1
+    ignoreAllMultipliers: 0
+    bonusOnly: 0
+    chainEffect: 2
+    chainCharge: 1
+    repeatPolicy: 1
+    feedbackId: ENEMY_DEFEAT
+    expectedOccurrencesPerRound: 0
+  - key: ENEMY_CARRIER_DEFEAT
+    enabled: 1
+    amount: 2
+    unit: 1
+    multiplierEligible: 1
+    ignoreAllMultipliers: 0
+    bonusOnly: 0
+    chainEffect: 2
+    chainCharge: 1.5
+    repeatPolicy: 1
+    feedbackId: ENEMY_DEFEAT
+    expectedOccurrencesPerRound: 0
+  - key: ENEMY_AMPLIFIED_DYSON_DEFEAT
+    enabled: 1
+    amount: 7
+    unit: 1
+    multiplierEligible: 1
+    ignoreAllMultipliers: 0
+    bonusOnly: 0
+    chainEffect: 2
+    chainCharge: 2
+    repeatPolicy: 1
+    feedbackId: ENEMY_DEFEAT
     expectedOccurrencesPerRound: 0

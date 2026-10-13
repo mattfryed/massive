@@ -240,17 +240,78 @@ MonoBehaviour:
     numberScale: 0.17
     lightNumberHorizontalOffset: -0.12
     darkNumberHorizontalOffset: 0.12
+    levelOffsetsInitialized: 1
     overallScale: 1
     levelScales:
     - multiplier: 2
       scale: 0.28
+      whiteCircleScale: 0.53
+      numberScale: 0.17
+      horizontalOffset: -0.12
     - multiplier: 4
       scale: 0.44
+      whiteCircleScale: 0.53
+      numberScale: 0.17
+      horizontalOffset: -0.12
     - multiplier: 8
       scale: 0.64
+      whiteCircleScale: 0.53
+      numberScale: 0.17
+      horizontalOffset: -0.12
     outwardOffset: 0
     verticalOffset: 0
     ringInset: 0.025
+    animateChanges: 1
+    growthSeconds: 0.45
+    growthEasing:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 0
+        outSlope: 3.5
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    firstTextGrowSeconds: 0.35
+    firstTextGrowEasing:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 0
+        outSlope: 3.5
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
   goalSurface: {fileID: 0}
 --- !u!1 &242612390297644060
 GameObject:
@@ -3922,17 +3983,78 @@ MonoBehaviour:
     numberScale: 0.17
     lightNumberHorizontalOffset: -0.12
     darkNumberHorizontalOffset: 0.12
+    levelOffsetsInitialized: 1
     overallScale: 1
     levelScales:
     - multiplier: 2
       scale: 0.28
+      whiteCircleScale: 0.53
+      numberScale: 0.17
+      horizontalOffset: -0.12
     - multiplier: 4
       scale: 0.44
+      whiteCircleScale: 0.53
+      numberScale: 0.17
+      horizontalOffset: -0.12
     - multiplier: 8
       scale: 0.64
+      whiteCircleScale: 0.53
+      numberScale: 0.17
+      horizontalOffset: -0.12
     outwardOffset: 0
     verticalOffset: 0
     ringInset: 0.025
+    animateChanges: 1
+    growthSeconds: 0.45
+    growthEasing:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 0
+        outSlope: 3.5
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    firstTextGrowSeconds: 0.35
+    firstTextGrowEasing:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 0
+        outSlope: 3.5
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
   goalSurface: {fileID: 0}
 --- !u!1 &5210171823913304503
 GameObject:

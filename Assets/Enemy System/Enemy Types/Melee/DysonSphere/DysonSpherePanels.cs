@@ -238,6 +238,7 @@ namespace Massive.Enemies
         private readonly List<int> _dead = new(20);
 
         private int _builtForMaxPanels = -1;
+        private bool _builtForShimmer;
         private float _builtForRadius = -1f;
         private int _lastDesiredAlive = -1;
         private bool _didInitialSync = false;
@@ -399,6 +400,7 @@ namespace Massive.Enemies
         {
             // Ensure Shapes deregisters correctly.
             base.OnDisable();
+            ReleaseGpuEnergyOutlines();
 
             // In edit mode, keep things tidy when the component is disabled.
             if (!Application.isPlaying)
@@ -659,10 +661,11 @@ namespace Massive.Enemies
             int mp = SnapPanelCount(maxPanels);
             float r = Mathf.Max(0.01f, radius);
 
-            if (!force && mp == _builtForMaxPanels && Mathf.Abs(r - _builtForRadius) < 0.0001f && _panels.Count > 0)
+            if (!force && mp == _builtForMaxPanels && _builtForShimmer == shimmerEnabled && Mathf.Abs(r - _builtForRadius) < 0.0001f && _panels.Count > 0)
                 return;
 
             _builtForMaxPanels = mp;
+            _builtForShimmer = shimmerEnabled;
             _builtForRadius = r;
             _lastDesiredAlive = -1;
             _didInitialSync = false;
@@ -772,7 +775,8 @@ namespace Massive.Enemies
                 // Start fully built; spawn-in will animate vertices down to 0 if enabled.
                 Vector3[] mv = { la, lb, lc };
                 mesh.vertices = mv;
-                mesh.triangles = new[] { 0, 1, 2 };
+                // Legacy Unlit/Color always culls backfaces. Flipping panels need a real reverse face.
+                mesh.triangles = shimmerEnabled ? new[] { 0, 1, 2, 2, 1, 0 } : new[] { 0, 1, 2 };
                 mesh.normals = new[] { Vector3.forward, Vector3.forward, Vector3.forward };
                 mesh.RecalculateBounds();
                 mf.sharedMesh = mesh;
@@ -1166,7 +1170,7 @@ namespace Massive.Enemies
                     }
 
                     p.tf.localPosition = pos;
-                    p.tf.localRotation = rot;
+                    p.tf.localRotation = ApplyShimmer(p, rot, now);
                     p.tf.localScale = new Vector3(scale, scale, scale);
 
                     p.alpha01 = 1f;
@@ -1253,10 +1257,11 @@ namespace Massive.Enemies
         // Outlines (Shapes)
         // -------------------------
 
-        private void OnDestroy() { base.OnDisable(); }
+        private void OnDestroy() { base.OnDisable(); ReleaseGpuEnergyOutlines(); }
 
         public override void DrawShapes(Camera cam)
         {
+            ClearGpuEnergyCamera(cam);
             if (!this || !isActiveAndEnabled) return;
             if (!Application.isPlaying && !generateInEditMode) return;
             if (_panels.Count == 0) return;
@@ -1268,6 +1273,8 @@ namespace Massive.Enemies
                 Draw.LineGeometry = lineGeometry;
                 Draw.ThicknessSpace = thicknessSpace;
                 Draw.Thickness = Mathf.Max(0.0001f, outlineThickness);
+                if (energyOutlines) PrepareEnergyOutlines(PoseTime);
+                BeginGpuEnergyOutlines(cam);
 
                 Color oc = outlineColor;
 
@@ -1300,6 +1307,8 @@ namespace Massive.Enemies
                     Vector3 a0 = m.MultiplyPoint3x4(av);
                     Vector3 b0 = m.MultiplyPoint3x4(bv);
                     Vector3 c0 = m.MultiplyPoint3x4(cv);
+                    // Sample color before camera-facing depth offsets, keeping one field across adjacent faces.
+                    Vector3 fieldA = a0, fieldB = b0, fieldC = c0;
 
                     // Lift outlines slightly off the face plane so they don't get swallowed by the fill mesh.
                     float offMag = Mathf.Max(0f, outlineSurfaceOffset);
@@ -1308,6 +1317,14 @@ namespace Massive.Enemies
                         Vector3 nLocal = (p.tf.localRotation * Vector3.forward);
                         if (nLocal.sqrMagnitude < 0.000001f) nLocal = p.baseNormalLocal;
                         nLocal.Normalize();
+                        // Flipping faces are solid on both sides. Keep the stroke on the
+                        // camera-facing side so a reversed fill cannot hide its own outline.
+                        if (shimmerEnabled && cam != null)
+                        {
+                            Vector3 towardCamera = cam.orthographic ? -cam.transform.forward : cam.transform.position - p.tf.position;
+                            if (Vector3.Dot(transform.TransformDirection(nLocal), towardCamera) < 0f)
+                                nLocal = -nLocal;
+                        }
                         Vector3 off = nLocal * offMag;
                         a0 += off;
                         b0 += off;
@@ -1320,10 +1337,11 @@ namespace Massive.Enemies
                     float e01 = Mathf.Clamp01(p.spawnEdge01);
                     float t3 = e01 * 3f;
 
-                    DrawEdge(a0, b0, t3 - 0f);
-                    DrawEdge(b0, c0, t3 - 1f);
-                    DrawEdge(c0, a0, t3 - 2f);
+                    DrawEnergyEdge(a0, b0, fieldA, fieldB, t3 - 0f, a);
+                    DrawEnergyEdge(b0, c0, fieldB, fieldC, t3 - 1f, a);
+                    DrawEnergyEdge(c0, a0, fieldC, fieldA, t3 - 2f, a);
                 }
+                SubmitGpuEnergyOutlines();
             }
         }
 

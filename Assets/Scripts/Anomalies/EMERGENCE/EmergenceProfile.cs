@@ -96,6 +96,28 @@ namespace Massive.Emergence
         [Min(1)] public float nutrientReturnSeconds = 22;
         [Range(0, 1)] public float unfedMotorResponse = .2f;
         [Min(.1f)] public float motorFuelPerCatalyst = 2;
+        [Header("Organism swimming")]
+        [Tooltip("Mature, viable organisms swim together even with no food reserves. Particle forces still shape and deform them.")]
+        public bool enableSwimming = true;
+        [Tooltip("Cruising speed as a fraction of Speed Limit. The final particle speed still obeys its normal limit.")]
+        [Range(0, 1)] public float swimSpeedFraction = .65f;
+        [Tooltip("Seconds for swimming to ease in or out. Also smooths speed changes after organisms split or merge.")]
+        [Min(.05f)] public float swimResponseSeconds = .6f;
+        [Tooltip("Maximum steering rate in degrees per second.")]
+        [Min(0)] public float swimTurnSpeed = 90;
+        [Tooltip("Wandering turn strength as a fraction of the steering rate. Independent of food and reserves.")]
+        [Range(0, 1)] public float swimWanderStrength = .55f;
+        [Tooltip("Seconds between smoothly changing random wandering turns.")]
+        [Min(.1f)] public float swimWanderSeconds = 3.5f;
+        [Tooltip("Fractional rhythmic variation in cruising speed. Zero gives steady swimming.")]
+        [Range(0, .5f)] public float swimPulseAmount = .12f;
+        [Min(.1f)] public float swimPulseSeconds = 2;
+        [Tooltip("Food steering strength as a fraction of the steering rate. Zero disables food seeking without stopping swimming.")]
+        [Range(0, 1)] public float swimFoodBias = .3f;
+        [Tooltip("Food sensing distance from the organism center, as a multiple of Interaction Radius. Only free, fully grown nutrients count.")]
+        [Min(.1f)] public float swimSenseRadiusMultiple = 2.5f;
+        [Tooltip("Distance at which organisms begin turning from walls, as a multiple of Interaction Radius, plus estimated body radius.")]
+        [Min(.1f)] public float swimWallRangeMultiple = 1.5f;
         [Header("Player disturbance")]
         [Min(0)] public float wakeStrength = 12;
         [Min(0)] public float attackImpulse = 3.5f;
@@ -110,13 +132,36 @@ namespace Massive.Emergence
         [Header("Pickups")]
         [Range(4, 64)] public int nuggetCapacity = 24;
         [Min(1)] public float nuggetLifetime = 18;
+        [Tooltip("Outward speed added when a completed bud detaches (also used for immediate secretion).")]
         [Min(0)] public float nuggetEjectionSpeed = .8f;
+        [Tooltip("Relative chances after a conversion succeeds. Normalized automatically; zero excludes a type. Does not change conversion speed or material cost.")]
+        public EmergenceDropWeights pickupChances = new EmergenceDropWeights();
+        [Header("Reward budding telegraph")]
+        public bool enableRewardTelegraph = true;
+        [Tooltip("Time from the first local pulse to release. Material stays in the organism until release.")]
+        [Min(.05f)] public float budWindupSeconds = .8f;
+        [Tooltip("Maximum local visual size change. Does not modify particle forces, positions or collision radii.")]
+        [Range(0, .5f)] public float budPulseStrength = .22f;
+        [Min(.01f)] public float budPulseRadius = .5f;
+        [Tooltip("Fraction of the windup at which the reward starts growing.")]
+        [Range(0, .95f)] public float budGrowthStart = .2f;
+        [Tooltip("Fraction of the windup at which the reward reaches full size.")]
+        [Range(.05f, 1)] public float budGrowthEnd = .9f;
+        [Tooltip("Distance outside the emitting catalyst's surface for a full-size nugget. Scales with reward size so nugglets stay attached.")]
+        [Min(0)] public float budAttachmentDistance = .4f;
+        [Tooltip("Time for an interrupted bud to shrink back. Its stored material remains available.")]
+        [Min(.05f)] public float budRetractSeconds = .25f;
         public int BodyParticleCount => species[0].count + species[1].count + species[2].count;
         public int ParticleCount { get { int n = 0; foreach (var s in species) n += s.count; return n; } }
         public float MaximumRadius { get { float r = 0; foreach (var s in species) r = Mathf.Max(r, s.diameter * (1 + s.sizeVariation) * .5f); return r; } }
 
         public string ConfigurationError()
         {
+            if (pickupChances == null || !pickupChances.IsValid) return "Pickup chances must be finite and nonnegative, with at least one greater than zero.";
+            foreach (float value in new[] { budWindupSeconds, budPulseStrength, budPulseRadius, budGrowthStart, budGrowthEnd, budAttachmentDistance, budRetractSeconds })
+                if (!Finite(value) || value < 0) return "Budding settings must be finite and nonnegative.";
+            if (budWindupSeconds < .05f || budPulseStrength > .5f || budPulseRadius < .01f || budRetractSeconds < .05f ||
+                budGrowthStart >= budGrowthEnd || budGrowthEnd > 1) return "Check bud timing: windup/retract >= 0.05s, growth start < end <= 1, and pulse strength <= 0.5.";
             if (species == null || species.Length != SpeciesCount) return "Five species are required: structure, motor, catalyst, nutrient, inert.";
             foreach (var s in species)
                 if (s == null || s.count < 0 || !Finite(s.diameter) || s.diameter < .005f || !Finite(s.sizeVariation) || s.sizeVariation < 0 || s.sizeVariation > .75f ||
@@ -135,6 +180,12 @@ namespace Massive.Emergence
                 return "Check positive simulation distances, capacities, times and update rate; interaction radius must exceed separation.";
             if (coreRangeMultiplier < 1 || coreRangeMultiplier > 4)
                 return "Core range multiplier must be between 1 and 4.";
+            foreach (float value in new[] { swimSpeedFraction, swimResponseSeconds, swimTurnSpeed, swimWanderStrength, swimWanderSeconds,
+                swimPulseAmount, swimPulseSeconds, swimFoodBias, swimSenseRadiusMultiple, swimWallRangeMultiple })
+                if (!Finite(value) || value < 0) return "Swimming settings must be finite and nonnegative.";
+            if (swimSpeedFraction > 1 || swimResponseSeconds < .05f || swimWanderStrength > 1 || swimWanderSeconds < .1f ||
+                swimPulseAmount > .5f || swimPulseSeconds < .1f || swimFoodBias > 1 || swimSenseRadiusMultiple < .1f || swimWallRangeMultiple < .1f)
+                return "Check swimming fractions (0–1), pulse amount (0–0.5), response (at least 0.05s), periods and range multiples (at least 0.1).";
             if (!Finite(connectionSizeMultiplier) || connectionSizeMultiplier < 1 || minimumLocalNeighbours < 0 || minimumLocalNeighbours > 12 ||
                 !Finite(feedingApproachSeconds) || feedingApproachSeconds < .05f || !Finite(particleShrinkSeconds) || particleShrinkSeconds < .05f ||
                 !Finite(particleGrowSeconds) || particleGrowSeconds < .05f)

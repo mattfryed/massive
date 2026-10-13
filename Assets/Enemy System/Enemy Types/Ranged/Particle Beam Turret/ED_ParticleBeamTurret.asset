@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: PARTICLE_BEAM_TURRET
   category: 1
-  defeatRewardKey: ENEMY_DEFEAT
+  defeatRewardKey: ENEMY_PARTICLE_BEAM_TURRET_DEFEAT
   prefab: {fileID: 190710617876989708, guid: 6c8a509ff0d5aeb4f8cac43612d9657c, type: 3}
   spawnWeight: 1
   spawnRadiusWorld: 1

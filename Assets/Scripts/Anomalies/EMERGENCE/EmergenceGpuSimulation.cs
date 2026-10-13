@@ -7,7 +7,7 @@ using Object = UnityEngine.Object;
 
 namespace Massive.Emergence
 {
-    /// <summary>GPU-owned ecology. Runtime readback is one 1,088-byte mailbox, never the particle population.</summary>
+    /// <summary>GPU-owned ecology. Runtime readback is one bounded status/bud mailbox, never the particle population.</summary>
     public sealed class EmergenceGpuSimulation : IEmergenceSimulation
     {
         [StructLayout(LayoutKind.Sequential)]
@@ -19,12 +19,16 @@ namespace Massive.Emergence
         [StructLayout(LayoutKind.Explicit)]
         struct Bits { [FieldOffset(0)] public uint u; [FieldOffset(0)] public float f; }
         enum Pass { BeginTick, Interactions, ClearCells, CountCells, ScanCells, ScanBlocks, Scatter,
-            InitGroups, Connect, Compress, LinkMembers, DescribeGroups, Metabolize, Aggregate, SelectEmission, Forces, Integrate }
-        const int MailWords = 16 + 32 * 8;
+            InitGroups, Connect, Compress, LinkMembers, DescribeGroups, Metabolize, Aggregate, SteerGroups, SelectEmission, Forces, Integrate }
+        const int BudOffset = 16 + 32 * 8, MailWords = BudOffset + EmergenceBud.Capacity * 16;
+        readonly uint[] budAcks = new uint[EmergenceBud.Capacity];
+        bool cancelBuds;
+        public EmergenceBud[] RewardBuds { get; } = new EmergenceBud[EmergenceBud.Capacity];
+        public void CancelRewardBuds() => cancelBuds = true;
         readonly EmergenceProfile profile;
         readonly ComputeShader compute;
         readonly Dictionary<string, ComputeBuffer> buffers = new Dictionary<string, ComputeBuffer>();
-        readonly int[] kernels = new int[17];
+        readonly int[] kernels = new int[18];
         readonly uint[] mail = new uint[MailWords];
         readonly Queue<EmergenceSimulation.Secretion> pending = new Queue<EmergenceSimulation.Secretion>(32);
         readonly Vector4[] species = new Vector4[EmergenceProfile.SpeciesCount], attraction = new Vector4[EmergenceProfile.SpeciesCount * 2], colors = new Vector4[EmergenceProfile.SpeciesCount];
@@ -75,10 +79,13 @@ namespace Massive.Emergence
                 Blocks=Shader.PropertyToID("_BlockCount"), CellSize=Shader.PropertyToID("_CellSize"), Half=Shader.PropertyToID("_HalfSize"),
                 Seed=Shader.PropertyToID("_Seed"), Tick=Shader.PropertyToID("_Tick"), Dt=Shader.PropertyToID("_Dt"),
                 Influences=Shader.PropertyToID("_InfluenceCount"), EmissionLimit=Shader.PropertyToID("_EmissionLimit"),
+                Telegraph=Shader.PropertyToID("_Telegraph"), AllowNewBuds=Shader.PropertyToID("_AllowNewBuds"), CancelBuds=Shader.PropertyToID("_CancelBuds"),
+                Buds=Shader.PropertyToID("_Buds"), BudMail=Shader.PropertyToID("_BudMail"), BudVisual=Shader.PropertyToID("_BudVisual"),
                 Force=Shader.PropertyToID("_ForceSettings"), Core=Shader.PropertyToID("_Core"), Motion=Shader.PropertyToID("_Motion"),
                 Ecology=Shader.PropertyToID("_Ecology"), Recognition=Shader.PropertyToID("_Recognition"), Lifecycle=Shader.PropertyToID("_Lifecycle"),
                 Metabolism=Shader.PropertyToID("_Metabolism"), Waste=Shader.PropertyToID("_Waste"),
                 Motor=Shader.PropertyToID("_Motor"), Species=Shader.PropertyToID("_Species"), Attraction=Shader.PropertyToID("_Attraction"),
+                Age=Shader.PropertyToID("_Age"), Swim=Shader.PropertyToID("_Swim"), SwimStyle=Shader.PropertyToID("_SwimStyle"), SwimRange=Shader.PropertyToID("_SwimRange"),
                 Origin=Shader.PropertyToID("_Origin"), AxisX=Shader.PropertyToID("_AxisX"), AxisY=Shader.PropertyToID("_AxisY"),
                 Particles=Shader.PropertyToID("_Particles"), Colors=Shader.PropertyToID("_Colors"),
                 WasteColor=Shader.PropertyToID("_WasteColor"), DisruptionColor=Shader.PropertyToID("_DisruptionColor"),
@@ -109,9 +116,12 @@ namespace Massive.Emergence
                 Allocate("Particles", Count, 72); Allocate("Sorted", Count, 72); Allocate("Order", Count, 4); Allocate("Indices", Count, 4);
                 Allocate("Counts", cellCount, 4); Allocate("Offsets", cellCount, 4); Allocate("Cursors", cellCount, 4); Allocate("BlockSums", blockCount, 4);
                 Allocate("Forces", Count, 8); Allocate("Claims", Count, 4); Allocate("Intake", Count, 4);
-                Allocate("Parents", bodyCount, 4); Allocate("Heads", bodyCount, 4); Allocate("Next", bodyCount, 4); Allocate("Groups", bodyCount, 48);
+                Allocate("Parents", bodyCount, 4); Allocate("Heads", bodyCount, 4); Allocate("Next", bodyCount, 4); Allocate("Groups", bodyCount, 56);
+                Allocate("Swimming", bodyCount, 8); buffers["Swimming"].SetData(new Vector2[Mathf.Max(1,bodyCount)]);
                 Allocate("Neighbours", bodyCount, 4);
                 Allocate("Mail", MailWords, 4); Allocate("Influences", 4, 160); Allocate("Hits", Count * 4, 8);
+                Allocate("Buds", EmergenceBud.Capacity, 64); Allocate("BudAcks", EmergenceBud.Capacity, 4);
+                buffers["Buds"].SetData(RewardBuds); buffers["BudAcks"].SetData(budAcks);
                 ParticleBuffer.SetData(EmergenceParticleSeed.Create(profile, HalfSize));
                 buffers["Mail"].SetData(mail); buffers["Hits"].SetData(new uint[Count * 8]);
                 Bind(Pass.BeginTick,"Mail"); Bind(Pass.Interactions,"Particles Mail Influences Hits");
@@ -123,14 +133,16 @@ namespace Massive.Emergence
                 Bind(Pass.Compress,"Parents"); Bind(Pass.LinkMembers,"ReadParents Heads Next");
                 Bind(Pass.DescribeGroups,"ReadHeads ReadNext ReadParticles Groups");
                 Bind(Pass.Metabolize,"Particles ReadGroups ReadParents");
-                Bind(Pass.Aggregate,"Groups ReadHeads ReadNext ReadParticles Mail");
-                Bind(Pass.SelectEmission,"ReadGroups Mail");
+                Bind(Pass.Aggregate,"Groups ReadHeads ReadNext ReadParticles ReadSwimming ReadBuds ReadParents Mail");
+                Bind(Pass.SteerGroups,"Groups ReadSorted ReadCounts ReadOffsets ReadBlockSums");
+                Bind(Pass.SelectEmission,"ReadGroups ReadParticles ReadParents ReadHeads ReadNext Buds BudAcks Mail");
                 Bind(Pass.Forces,"ReadParticles ReadSorted ReadOrder ReadCounts ReadOffsets ReadBlockSums ReadGroups ReadParents Claims Intake Forces");
-                Bind(Pass.Integrate,"Particles ReadClaims ReadIntake ReadForces ReadParents ReadSorted ReadIndices ReadCounts ReadOffsets ReadBlockSums Mail");
+                Bind(Pass.Integrate,"Particles ReadClaims ReadIntake ReadForces ReadParents ReadGroups Swimming ReadSorted ReadIndices ReadCounts ReadOffsets ReadBlockSums Mail");
                 compute.SetInt(Id.Count,Count); compute.SetInt(Id.Body,bodyCount); compute.SetInt(Id.Columns,columns); compute.SetInt(Id.Rows,rows);
                 compute.SetInt(Id.Cells,cellCount); compute.SetInt(Id.Blocks,blockCount); compute.SetFloat(Id.CellSize,cellSize);
                 compute.SetVector(Id.Half,HalfSize); compute.SetInt(Id.Seed,profile.seed);
                 properties.SetBuffer(Id.Particles,ParticleBuffer); SetPlane(Vector3.zero,Vector3.right,Vector3.forward);
+                properties.SetBuffer(Id.Buds,buffers["Buds"]); properties.SetBuffer(Id.BudMail,buffers["Mail"]);
                 instances.Add(this);
             }
             catch { Dispose(); throw; }
@@ -154,6 +166,10 @@ namespace Massive.Emergence
             compute.SetVector(Id.Metabolism,new Vector4(profile.maturationSeconds,profile.processingPerSecond,profile.reservePerCatalyst,profile.feedingRadius));
             compute.SetVector(Id.Waste,new Vector4(profile.materialPerNugget,profile.secretionInterval,profile.fieldSecretionInterval,profile.nutrientReturnSeconds));
             compute.SetVector(Id.Motor,new Vector4(profile.unfedMotorResponse,profile.motorFuelPerCatalyst,0,0));
+            compute.SetFloat(Id.Age,Age+dt);
+            compute.SetVector(Id.Swim,new Vector4(profile.enableSwimming?profile.speedLimit*profile.swimSpeedFraction:0,profile.swimResponseSeconds,profile.swimTurnSpeed*Mathf.Deg2Rad,profile.swimWanderStrength));
+            compute.SetVector(Id.SwimStyle,new Vector4(profile.swimWanderSeconds,profile.swimPulseAmount,profile.swimPulseSeconds,profile.swimFoodBias));
+            compute.SetVector(Id.SwimRange,new Vector4(profile.interactionRadius*profile.swimSenseRadiusMultiple,profile.interactionRadius*profile.swimWallRangeMultiple,0,0));
             for(int i=0;i<EmergenceProfile.SpeciesCount;i++)
             {
                 var s=profile.species[i];species[i]=new Vector4(s.forceMultiplier,Mathf.Exp(-profile.drag*s.dragMultiplier*dt),profile.speedLimit*s.speedMultiplier,profile.agitation*s.agitationMultiplier);
@@ -177,8 +193,11 @@ namespace Massive.Emergence
             if(Error!=null)throw new InvalidOperationException(Error);
             if(dt<=0||dt>.05f)throw new ArgumentOutOfRangeException(nameof(dt));
             Parameters(dt); Age+=dt;
+            compute.SetVector(Id.Telegraph,new Vector4(profile.enableRewardTelegraph?profile.budWindupSeconds:0,profile.budRetractSeconds,0,0));
+            compute.SetInt(Id.AllowNewBuds,allowSecretion?1:0);compute.SetInt(Id.CancelBuds,cancelBuds?1:0);cancelBuds=false;
+            buffers["BudAcks"].SetData(budAcks);
             int capacity=Mathf.Clamp(EmissionSlots-pending.Count,0,32-pending.Count);
-            compute.SetInt(Id.EmissionLimit,allowSecretion?(int)receivedSequence+capacity:0);
+            compute.SetInt(Id.EmissionLimit,(int)receivedSequence+capacity);
             Dispatch(Pass.BeginTick,1,1);Dispatch(Pass.Interactions,Count);
             Dispatch(Pass.ClearCells,cellCount,256);Dispatch(Pass.CountCells,Count);
             Dispatch(Pass.ScanCells,cellCount,256);Dispatch(Pass.ScanBlocks,1,1);Dispatch(Pass.Scatter,Count);
@@ -188,7 +207,7 @@ namespace Massive.Emergence
                 Dispatch(Pass.InitGroups,bodyCount);Dispatch(Pass.Connect,bodyCount);Dispatch(Pass.Compress,bodyCount);
                 Dispatch(Pass.LinkMembers,bodyCount);Dispatch(Pass.DescribeGroups,bodyCount);recognitionIn=profile.recognitionInterval;
             }
-            Dispatch(Pass.Metabolize,bodyCount);Dispatch(Pass.Aggregate,bodyCount);Dispatch(Pass.SelectEmission,1,1);
+            Dispatch(Pass.Metabolize,bodyCount);Dispatch(Pass.Aggregate,bodyCount);Dispatch(Pass.SteerGroups,bodyCount);Dispatch(Pass.SelectEmission,1,1);
             Dispatch(Pass.Forces,Count);Dispatch(Pass.Integrate,Count);
         }
         public void RequestStatus()
@@ -205,18 +224,27 @@ namespace Massive.Emergence
         }
         void AcceptEvents()
         {
+            for(int i=0;i<RewardBuds.Length;i++)
+            {
+                int o=BudOffset+i*16;
+                RewardBuds[i]=new EmergenceBud { serial=mail[o],phase=mail[o+1],anchor=mail[o+2],root=mail[o+3],
+                    position=new Vector2(Float(mail[o+4]),Float(mail[o+5])),velocity=new Vector2(Float(mail[o+6]),Float(mail[o+7])),
+                    direction=new Vector2(Float(mail[o+8]),Float(mail[o+9])),elapsed=Float(mail[o+10]),duration=Float(mail[o+11]),
+                    cost=Float(mail[o+12]),cancelFrom=Float(mail[o+13]),retractElapsed=Float(mail[o+14]),radius=Float(mail[o+15]) };
+                if(RewardBuds[i].phase==4)budAcks[i]=RewardBuds[i].serial;
+            }
             uint total=mail[2];
             if(total-receivedSequence>32){Error="GPU ecology event mailbox overflowed.";return;}
             while(receivedSequence<total)
             {
                 int offset=16+(int)(receivedSequence%32)*8;
                 if(mail[offset]!=receivedSequence+1){Error="GPU ecology event sequence mismatch.";return;}
-                pending.Enqueue(new EmergenceSimulation.Secretion { position=new Vector2(Float(mail[offset+1]),Float(mail[offset+2])),velocity=new Vector2(Float(mail[offset+3]),Float(mail[offset+4])) });
+                pending.Enqueue(new EmergenceSimulation.Secretion { position=new Vector2(Float(mail[offset+1]),Float(mail[offset+2])),velocity=new Vector2(Float(mail[offset+3]),Float(mail[offset+4])),budSlot=(int)mail[offset+6],budSerial=mail[offset+7] });
                 receivedSequence++;
             }
         }
         public bool TryDequeue(out EmergenceSimulation.Secretion value)
-        { if(pending.Count==0){value=default;return false;}value=pending.Dequeue();return true; }
+        { if(pending.Count==0){value=default;return false;}value=pending.Dequeue();if(value.budSerial!=0)budAcks[value.budSlot]=value.budSerial;return true; }
         public void SynchronizeDiagnostics()
         { buffers["Mail"].GetData(mail);AcceptEvents(); }
 #if UNITY_EDITOR
@@ -230,6 +258,7 @@ namespace Massive.Emergence
             properties.SetVectorArray(Id.Colors,colors);properties.SetVector(Id.Origin,origin);properties.SetVector(Id.AxisX,axisX);properties.SetVector(Id.AxisY,axisY);
             properties.SetColor(Id.WasteColor,profile.wasteColor);properties.SetColor(Id.DisruptionColor,profile.disruptionColor);
             properties.SetFloat(Id.WasteAt,profile.wasteColorAt);properties.SetInt(Id.ShowWaste,profile.showWasteColor?1:0);properties.SetInt(Id.ShowDisruption,profile.showDisruptionColor?1:0);
+            properties.SetVector(Id.BudVisual,new Vector4(profile.budPulseStrength,profile.budPulseRadius,profile.budRetractSeconds,0));
             Vector3 extent=new Vector3(Mathf.Abs(axisX.x)*HalfSize.x+Mathf.Abs(axisY.x)*HalfSize.y,
                 Mathf.Abs(axisX.y)*HalfSize.x+Mathf.Abs(axisY.y)*HalfSize.y,Mathf.Abs(axisX.z)*HalfSize.x+Mathf.Abs(axisY.z)*HalfSize.y)+Vector3.one;
             Graphics.DrawProcedural(material,new Bounds(origin,extent*2),MeshTopology.Triangles,6,Count,camera,properties,ShadowCastingMode.Off,false,layer);

@@ -118,6 +118,25 @@ namespace Massive.Scoring
                 NotifyChanged("award");
         }
 
+        /// <summary>Add a literal multiplier amount, preserving the authored charge curve and cap.</summary>
+        public double AddMultiplier(double amount)
+        {
+            if (!_configured || IsAtMaxTier || double.IsNaN(amount) || double.IsInfinity(amount) || amount <= 0) return 0;
+            double before = CurrentMultiplier;
+            double target = Math.Min(MaximumMultiplier, before + amount);
+            while (_tierIndex < _settings.MaxIndex && target >= _settings.GetMultiplier(_tierIndex + 1)) _tierIndex++;
+            if (IsAtMaxTier) _charge = 0;
+            else
+            {
+                double lower = _settings.GetMultiplier(_tierIndex);
+                double span = _settings.GetMultiplier(_tierIndex + 1) - lower;
+                _charge = (float)((target - lower) / span * _settings.GetChargeRequired(_tierIndex));
+            }
+            double gained = Math.Max(0, CurrentMultiplier - before);
+            if (gained > 0) NotifyChanged("amplifier-pickup");
+            return gained;
+        }
+
         /// <summary>Complete the current interval to its next authored multiplier milestone.</summary>
         public bool AdvanceToNextStep()
         {

@@ -35,6 +35,16 @@ namespace Massive.Emergence
                 // Visible lifecycle scale is independent of whether a nutrient is still edible.
                 var p = Simulation.Particles[i]; Vector2 position = p.position;
                 float size = p.radius * p.visualScale;
+                if (p.species < 3)
+                {
+                    float pulse = 0;
+                    foreach (var bud in Simulation.RewardBuds) if (bud.Attached)
+                    {
+                        float weight = Mathf.Clamp01(1 - Vector2.Distance(position, bud.position) / profile.budPulseRadius);
+                        pulse += bud.Pulse(profile) * weight * weight;
+                    }
+                    size *= 1 + Mathf.Clamp(pulse, -1, 1) * profile.budPulseStrength;
+                }
                 Color color = profile.species[p.species].color;
                 if (profile.showWasteColor && p.species == 2) color = Color.Lerp(color, profile.wasteColor, Mathf.Clamp01(p.waste / profile.wasteColorAt));
                 if (profile.showDisruptionColor && p.disruption > 0) color = profile.disruptionColor;

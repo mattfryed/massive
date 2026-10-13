@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: RANGED_DRONE
   category: 1
-  defeatRewardKey: ENEMY_DRONE_DEFEAT
+  defeatRewardKey: ENEMY_RANGED_DRONE_DEFEAT
   prefab: {fileID: 4586558760272178436, guid: 8f1815cb19cebb34b8f2f4a5d108fc7d, type: 3}
   spawnWeight: 1
   spawnRadiusWorld: 0.55

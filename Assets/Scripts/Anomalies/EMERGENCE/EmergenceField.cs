@@ -11,9 +11,14 @@ namespace Massive.Emergence
         public Material particleMaterial;
         public ArenaBoundsFromVectorGrid arena;
         public MatchScoreService scores;
+        [Tooltip("Scene match owner. Ecology starts during preparation/countdown; rewards and player interactions wait for the active match clock.")]
+        public GameManagerScript match;
         public AnomalyManager anomalies;
         public PlayerControllerScript[] players;
         public EmergenceMassNugget nuggetPrefab;
+        public EmergenceMassNugget matterNuggletPrefab;
+        public EmergenceMassNugget amplifierNuggletPrefab;
+        public EmergenceMassNugget amplifierNuggetPrefab;
         [Tooltip("Menus/instructions only: no players, pickups, score or match authority.")]
         public bool presentationOnly;
         public Vector2 presentationHalfSize = new Vector2(6, 4);
@@ -21,8 +26,11 @@ namespace Massive.Emergence
 
         public IEmergenceSimulation Simulation { get; private set; }
         public bool UsesGpu => Simulation is EmergenceGpuSimulation;
+        bool IsPreparing => match && !match.IsStartupBlocked &&
+            (match.Phase == MatchRuntimePhase.Preparing || match.Phase == MatchRuntimePhase.Countdown);
+        bool GameplayClockRunning => !presentationOnly && !IsPreparing && scores && scores.IsScoringOpen && scores.IsChainClockRunning;
         public bool IsRunning => Application.isPlaying && isActiveAndEnabled &&
-            (presentationOnly || (Time.timeScale > 0 && scores && scores.IsScoringOpen && scores.IsChainClockRunning && (!anomalies || !anomalies.IsAnomalyRunning)));
+            (presentationOnly || (Time.timeScale > 0 && scores && (IsPreparing || GameplayClockRunning) && (!anomalies || !anomalies.IsAnomalyRunning)));
         public int NuggetsReleased { get; private set; }
         public int WakeContacts { get; private set; }
         public int AttackContacts { get; private set; }
@@ -33,6 +41,8 @@ namespace Massive.Emergence
         float StepSeconds => 1f / Mathf.Clamp(profile.simulationHz, 30, 120);
         float accumulator;
         EmergenceMassNugget[] nuggets;
+        EmergenceMassNugget[,] pickupPool;
+        System.Random pickupRandom;
         PlayerBinding[] bindings;
         Vector3 center, axisX = Vector3.right, axisY = Vector3.forward;
         bool reportedError;
@@ -45,7 +55,8 @@ namespace Massive.Emergence
             if (Simulation != null && (initializedInPlayMode != Application.isPlaying || Simulation is EmergenceGpuSimulation { IsDisposed: true })) ResetSimulationState();
             if (Simulation != null) return true;
             if (reportedError) return false;
-            if (!profile || !particleMaterial || (!presentationOnly && (!arena || !scores || !nuggetPrefab)))
+            if (!profile || !particleMaterial || (!presentationOnly && (!arena || !scores || !nuggetPrefab ||
+                !matterNuggletPrefab || !amplifierNuggletPrefab || !amplifierNuggetPrefab)))
             {
                 if (Application.isPlaying && !reportedError) { Debug.LogError("[EMERGENCE] Assign ecology, material, bounds, scoring and nugget references.", this); reportedError = true; }
                 return false;
@@ -58,8 +69,9 @@ namespace Massive.Emergence
                 arena.RefreshNow(); var b = arena.Current;
                 center = b.centerWS; center.y = .06f;
                 axisX = b.axisX_WS.normalized; axisY = b.axisY_WS.normalized;
+                // Use the playable arena edge; the solvers already keep each particle's radius inside it.
                 half = Vector2.Scale(b.halfSizeLocalInset, new Vector2(arena.Grid.transform.TransformVector(Vector3.right).magnitude,
-                    arena.Grid.transform.TransformVector(Vector3.up).magnitude)) - Vector2.one * .4f;
+                    arena.Grid.transform.TransformVector(Vector3.up).magnitude));
             }
             try
             {
@@ -70,10 +82,12 @@ namespace Massive.Emergence
             catch (System.Exception exception) { reportedError = true; Debug.LogError("[EMERGENCE] " + exception.Message, this); return false; }
             initializedInPlayMode = Application.isPlaying;
             if (presentationOnly) for (int i = 0; i < presentationWarmup / StepSeconds; i++) Simulation.Step(StepSeconds, false);
-            if (Application.isPlaying && !presentationOnly)
+            if (!presentationOnly)
             {
                 nuggets = new EmergenceMassNugget[Mathf.Clamp(profile.nuggetCapacity, 4, 64)];
-                bindings = new PlayerBinding[players == null ? 0 : players.Length];
+                pickupPool = new EmergenceMassNugget[4, nuggets.Length];
+                pickupRandom = new System.Random(unchecked(profile.seed ^ 0x51ECA7));
+                bindings = new PlayerBinding[!Application.isPlaying || players == null ? 0 : players.Length];
                 for (int i = 0; i < bindings.Length; i++) if (players[i]) bindings[i] = new PlayerBinding(players[i], UsesGpu ? 0 : Simulation.Count);
             }
             CreateMesh(); return true;
@@ -86,21 +100,24 @@ namespace Massive.Emergence
             if (!Initialize()) return;
             if (IsRunning)
             {
+                bool gameplay = GameplayClockRunning;
                 accumulator = Mathf.Min(accumulator + (presentationOnly ? Time.unscaledDeltaTime : Time.deltaTime), StepSeconds * Mathf.Clamp(profile.maximumStepsPerFrame, 1, 6));
                 while (accumulator >= StepSeconds)
                 {
                     stepWatch.Restart();
-                    if (!presentationOnly) ApplyPlayerInteractions(StepSeconds);
-                    if (Simulation is EmergenceGpuSimulation gpu) gpu.EmissionSlots = presentationOnly ? 0 : nuggets.Length - ActiveNuggets;
-                    Simulation.Step(StepSeconds, !presentationOnly && ActiveNuggets < nuggets.Length);
-                    if (!presentationOnly) ReleaseNuggets();
+                    if (gameplay) ApplyPlayerInteractions(StepSeconds);
+                    else if (Simulation is EmergenceGpuSimulation warmup) warmup.SetInfluences(null, 0);
+                    bool canEmit = gameplay && profile.pickupChances != null && profile.pickupChances.IsValid;
+                    Simulation.EmissionSlots = gameplay ? nuggets.Length - ReleasedPickupCount : 0;
+                    Simulation.Step(StepSeconds, canEmit && ActiveNuggets < nuggets.Length);
+                    if (gameplay) { UpdateRewardBuds(); ReleaseNuggets(); }
                     accumulator -= StepSeconds; stepWatch.Stop(); LastStepMilliseconds = (float)stepWatch.Elapsed.TotalMilliseconds;
                 }
             }
             if (Simulation is EmergenceGpuSimulation status)
             {
                 status.RequestStatus(); WakeContacts = status.WakeContacts; AttackContacts = status.AttackContacts; RepulsorContacts = status.RepulsorContacts;
-                if (IsRunning && !presentationOnly) ReleaseNuggets();
+                if ((!Application.isPlaying || (IsRunning && GameplayClockRunning)) && !presentationOnly) { UpdateRewardBuds(); ReleaseNuggets(); }
             }
             RenderParticles();
         }
@@ -109,23 +126,65 @@ namespace Massive.Emergence
         Vector2 PlaneVector(Vector3 v) => new Vector2(Vector3.Dot(v, axisX), Vector3.Dot(v, axisY));
         void ReleaseNuggets()
         {
-            while (ActiveNuggets < nuggets.Length && Simulation.TryDequeue(out var e))
+            if (profile.pickupChances == null || !profile.pickupChances.IsValid) return;
+            while (Simulation.TryDequeue(out var e))
             {
+                if (e.budSerial != 0)
+                {
+                    var bud = Simulation.RewardBuds[e.budSlot];
+                    var pickup = GetBudPickup(e.budSlot, bud);
+                    Vector3 tip = BudWorldPosition(bud, pickup);
+                    if (Application.isPlaying)
+                    {
+                        Vector2 velocity = e.velocity + bud.direction * profile.nuggetEjectionSpeed;
+                        pickup.ReleaseAttachedPresentation(tip, axisX * velocity.x + axisY * velocity.y, profile.nuggetLifetime);
+                        NuggetsReleased++;
+                    }
+                    else { pickup.UpdateAttachedPresentation(tip, 0); pickup.gameObject.SetActive(false); }
+                    budPickups[e.budSlot] = null;
+                    continue;
+                }
+                if (!Application.isPlaying) continue;
                 int slot = -1;
                 for (int i = 0; i < nuggets.Length; i++) if (!nuggets[i] || !nuggets[i].gameObject.activeSelf) { slot = i; break; }
-                if (slot < 0) break;
-                if (!nuggets[slot]) { nuggets[slot] = Instantiate(nuggetPrefab, transform); nuggets[slot].name = "Metabolic Mass Nugget"; }
+                if (slot < 0) throw new System.InvalidOperationException("EMERGENCE emission exceeded its reserved pickup capacity.");
+                var kind = profile.pickupChances.Select(pickupRandom.NextDouble());
+                nuggets[slot] = RentPickup(kind);
                 Vector2 direction = e.velocity.sqrMagnitude > .001f ? -e.velocity.normalized : new Vector2(Mathf.Cos(Simulation.Age * 2.4f), Mathf.Sin(Simulation.Age * 2.4f));
                 Vector3 point = arena.ClampWorldPointInside(WorldPosition(e.position + direction * .45f), .35f); point.y = 0;
                 Vector2 v = e.velocity + direction * profile.nuggetEjectionSpeed;
                 nuggets[slot].Eject(point, axisX * v.x + axisY * v.y, profile.nuggetLifetime); NuggetsReleased++;
             }
         }
+        EmergenceMassNugget RentPickup(EmergenceDropType kind)
+        {
+            int row = (int)kind;
+            for (int i = 0; i < nuggets.Length; i++)
+            {
+                var pickup = pickupPool[row, i];
+                if (pickup && pickup.gameObject.activeSelf) continue;
+                if (!pickup)
+                {
+                    var prefab = kind == EmergenceDropType.MatterNugglet ? matterNuggletPrefab :
+                        kind == EmergenceDropType.AmplifierNugglet ? amplifierNuggletPrefab :
+                        kind == EmergenceDropType.AmplifierNugget ? amplifierNuggetPrefab : nuggetPrefab;
+                    pickup = Instantiate(prefab, transform);
+                    pickup.name = prefab.name;
+                    pickupPool[row, i] = pickup;
+                }
+                // The same cached object may have occupied a different live slot last time.
+                for (int previous = 0; previous < nuggets.Length; previous++)
+                    if (nuggets[previous] == pickup) nuggets[previous] = null;
+                return pickup;
+            }
+            throw new System.InvalidOperationException("The active pickup cap must be checked before renting a pickup.");
+        }
         void OnDisable()
         {
             Camera.onPreCull -= RenderGpu;
             // Preserve the ecosystem on temporary disable; no fresh food or waste on re-enable.
             accumulator = 0;
+            Simulation?.CancelRewardBuds();
             if (nuggets != null) foreach (var n in nuggets) if (n) n.gameObject.SetActive(false);
             ReleaseMesh();
         }
@@ -140,11 +199,12 @@ namespace Massive.Emergence
         void ResetSimulationState()
         {
             ReleaseMesh(); Simulation?.Dispose(); Simulation = null; reportedError = false; accumulator = 0;
-            if (nuggets != null) foreach (var n in nuggets) if (n)
+            if (pickupPool != null) foreach (var n in pickupPool) if (n)
             {
                 if (Application.isPlaying) Destroy(n.gameObject); else DestroyImmediate(n.gameObject);
             }
-            nuggets = null; bindings = null;
+            nuggets = null; pickupPool = null; pickupRandom = null; bindings = null;
+            System.Array.Clear(budPickups, 0, budPickups.Length); System.Array.Clear(budSerials, 0, budSerials.Length);
             NuggetsReleased = WakeContacts = AttackContacts = RepulsorContacts = 0; LastStepMilliseconds = 0;
         }
         public void RebuildPreview()
@@ -158,12 +218,18 @@ namespace Massive.Emergence
         public void AdvanceEditorPreview(float dt, int steps)
         {
             if (Application.isPlaying || !isActiveAndEnabled || !Initialize()) return;
-            if (Simulation is EmergenceGpuSimulation preview) { preview.SetInfluences(null, 0); preview.EmissionSlots = 32; }
+            if (Simulation is EmergenceGpuSimulation preview) preview.SetInfluences(null, 0);
+            Simulation.EmissionSlots = presentationOnly ? 0 : nuggets.Length;
             stepWatch.Restart();
             for (int i = 0; i < steps; i++)
             {
-                Simulation.Step(dt);
-                while (Simulation.TryDequeue(out _)) { } // Count simulated waste without spawning scene objects.
+                Simulation.Step(dt, !presentationOnly);
+                if (!presentationOnly)
+                {
+                    UpdateRewardBuds();
+                    foreach (var pickup in budPickups) if (pickup) pickup.AdvanceAttachedPreview(dt);
+                    ReleaseNuggets(); // Attached preview objects never become collectible pickups.
+                }
             }
             if (Simulation is EmergenceGpuSimulation gpu) gpu.RequestStatus();
             stepWatch.Stop(); LastStepMilliseconds = (float)stepWatch.Elapsed.TotalMilliseconds / Mathf.Max(1, steps);

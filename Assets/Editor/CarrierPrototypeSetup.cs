@@ -3,6 +3,7 @@ using System;
 using System.Linq;
 using Massive.Demonstrations;
 using Massive.Enemies;
+using Massive.Scoring;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -31,7 +32,7 @@ public static class CarrierPrototypeSetup
         {
             def = ScriptableObject.CreateInstance<EnemyDefinition>();
             def.id = "CARRIER"; def.category = EnemyCategory.Melee;
-            def.defeatRewardKey = "ENEMY_DEFEAT"; def.healthMassEq = 6f;
+            def.defeatRewardKey = ScoreRewardKeys.CarrierDefeat; def.healthMassEq = 6f;
             def.damageTakenPerSwordHit = 1f; def.damageToPlayerMass01 = 0f;
             def.spawnRadiusWorld = 1.25f; def.maxAliveOverride = 2; def.moveSpeed = 0f;
             AssetDatabase.CreateAsset(def, DefinitionPath);

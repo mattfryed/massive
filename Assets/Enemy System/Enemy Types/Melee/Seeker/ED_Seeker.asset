@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: SEEKER
   category: 2
-  defeatRewardKey: ENEMY_DEFEAT
+  defeatRewardKey: ENEMY_SEEKER_DEFEAT
   prefab: {fileID: 997257329593762900, guid: 2553f8e62a166394ba6085fc68b77c89, type: 3}
   spawnWeight: 1
   spawnRadiusWorld: 0.85

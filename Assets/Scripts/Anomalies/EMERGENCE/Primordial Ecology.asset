@@ -23,7 +23,7 @@ MonoBehaviour:
     speedMultiplier: 1
     agitationMultiplier: 1
   - name: Motor
-    count: 840
+    count: 1240
     color: {r: 0.85, g: 0.3, b: 0.78, a: 1}
     diameter: 0.04007346
     sizeVariation: 0.12
@@ -32,11 +32,11 @@ MonoBehaviour:
     speedMultiplier: 1
     agitationMultiplier: 1
   - name: Catalyst
-    count: 631
+    count: 931
     color: {r: 1, g: 0.8, b: 0.25, a: 1}
     diameter: 0.02671564
     sizeVariation: 0.12
-    forceMultiplier: 2
+    forceMultiplier: 4
     dragMultiplier: 1
     speedMultiplier: 1
     agitationMultiplier: 1
@@ -54,7 +54,7 @@ MonoBehaviour:
     color: {r: 0.4743769, g: 0.3726415, b: 1, a: 1}
     diameter: 0.02671564
     sizeVariation: 0.12
-    forceMultiplier: 4
+    forceMultiplier: 6
     dragMultiplier: 1
     speedMultiplier: 1
     agitationMultiplier: 1
@@ -76,7 +76,7 @@ MonoBehaviour:
   - 0.03
   - -0.12
   - -0.25
-  - 0.12
+  - 0.32
   - 0.75
   - 0.08
   - -0.12
@@ -87,13 +87,13 @@ MonoBehaviour:
   - -0.12
   - -0.08
   - 0.02
-  - 0.6
+  - 0.03
   - -0.035
   - -0.12
+  - -0.08
   - 0
   - 0
-  - 0
-  - 0
+  - -0.2
   - -0.08
   particleGap: 0.0064117536
   coreRangeMultiplier: 3
@@ -106,7 +106,7 @@ MonoBehaviour:
   connectionRadius: 0.29387203
   connectionSizeMultiplier: 5
   minimumLocalNeighbours: 3
-  minimumBody: 16
+  minimumBody: 40
   minimumStructureFraction: 0.25
   minimumMotorFraction: 0.08
   recognitionInterval: 0.2
@@ -123,6 +123,17 @@ MonoBehaviour:
   nutrientReturnSeconds: 22
   unfedMotorResponse: 0.2
   motorFuelPerCatalyst: 2
+  enableSwimming: 1
+  swimSpeedFraction: 0.856
+  swimResponseSeconds: 0.6
+  swimTurnSpeed: 90
+  swimWanderStrength: 0.779
+  swimWanderSeconds: 3.5
+  swimPulseAmount: 0.12
+  swimPulseSeconds: 2
+  swimFoodBias: 0.3
+  swimSenseRadiusMultiple: 2.5
+  swimWallRangeMultiple: 1.5
   wakeStrength: 12
   attackImpulse: 3.5
   repulsorImpulse: 7
@@ -135,3 +146,16 @@ MonoBehaviour:
   nuggetCapacity: 24
   nuggetLifetime: 18
   nuggetEjectionSpeed: 0.8
+  pickupChances:
+    matterNugglet: 40
+    amplifierNugglet: 40
+    matterNugget: 10
+    amplifierNugget: 10
+  enableRewardTelegraph: 1
+  budWindupSeconds: 0.8
+  budPulseStrength: 0.22
+  budPulseRadius: 0.5
+  budGrowthStart: 0.2
+  budGrowthEnd: 0.9
+  budAttachmentDistance: 0.4
+  budRetractSeconds: 0.25

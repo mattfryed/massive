@@ -60,8 +60,9 @@ Current prefab tuning (all Inspector-adjustable, including the user's applied to
   block through the real player shield/mass-loss rules. Resonance remains a solid
   beam obstacle, as with the Particle Accelerator; the Ranged Drone bullet's
   pass-through behavior is specific to its projectile.
-- Three health, one damage per sword hit, generic ENEMY_DEFEAT reward from the
-  current score economy. These are prototype balance values on ED_ParticleBeamTurret.
+- Three health and one damage per sword hit on ED_ParticleBeamTurret.
+  ENEMY_PARTICLE_BEAM_TURRET_DEFEAT grants 1.2 eV base and 1 personal charge
+  through the current score economy.
 - A 2-second arrival warning, 1.1-second staggered face tracing, then collision and
   detection activate. On defeat, combat stops immediately and faces break up for
   0.8 seconds before shared destruction/bookkeeping completes.

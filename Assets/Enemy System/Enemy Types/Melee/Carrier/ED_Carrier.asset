@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: CARRIER
   category: 2
-  defeatRewardKey: ENEMY_DEFEAT
+  defeatRewardKey: ENEMY_CARRIER_DEFEAT
   prefab: {fileID: 2669939782710948891, guid: 699a38b7b73a376418f0507e2903d517, type: 3}
   spawnWeight: 1
   spawnRadiusWorld: 1.25

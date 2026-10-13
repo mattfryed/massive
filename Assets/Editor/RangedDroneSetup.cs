@@ -3,6 +3,7 @@ using System;
 using System.Linq;
 using Massive.Demonstrations;
 using Massive.Enemies;
+using Massive.Scoring;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -30,6 +31,7 @@ public static class RangedDroneSetup
         {
             definition = Object.Instantiate(sourceDefinition); definition.name = "ED_RangedDrone";
             definition.id = "RANGED_DRONE"; definition.category = EnemyCategory.Ranged;
+            definition.defeatRewardKey = ScoreRewardKeys.RangedDroneDefeat;
             definition.damageToPlayerMass01 = 0f;
             AssetDatabase.CreateAsset(definition, DefinitionPath);
         }

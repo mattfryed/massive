@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Massive.Demonstrations;
 using Massive.Enemies;
+using Massive.Scoring;
 using Massive.PowerUps;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -30,7 +31,7 @@ public static class ParticleBeamTurretSetup
             definition = Object.Instantiate(AssetDatabase.LoadAssetAtPath<EnemyDefinition>(DronePrototypeSetup.DefinitionPath));
             definition.name = "ED_ParticleBeamTurret"; definition.id = "PARTICLE_BEAM_TURRET";
             definition.category = EnemyCategory.Ranged; definition.healthMassEq = 3f;
-            definition.defeatRewardKey = "ENEMY_DEFEAT"; definition.moveSpeed = 0f;
+            definition.defeatRewardKey = ScoreRewardKeys.ParticleBeamTurretDefeat; definition.moveSpeed = 0f;
             definition.damageToPlayerMass01 = 0f; definition.spawnRadiusWorld = 1f; definition.maxAliveOverride = 8;
             AssetDatabase.CreateAsset(definition, DefinitionPath);
         }

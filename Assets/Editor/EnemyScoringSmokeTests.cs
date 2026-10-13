@@ -103,7 +103,10 @@ public static class EnemyScoringSmokeTests
             var profile = Object.Instantiate(profileAsset);
             owned.Add(profile);
             profile.TryGetReward(ScoreRewardKeys.DysonDefeat, out ScoreRewardRule rule);
-            check(rule != null && rule.BaseMilliElectronVolts == 1000, "Dyson central row is 1 eV");
+            check(rule != null && rule.BaseMilliElectronVolts == 4000 && rule.chainCharge == 2f,
+                "Dyson central row is 4 eV with 2 charge");
+            // Fixed tuning on this runtime copy keeps the transaction checks independent of balance changes.
+            rule.amount = 1; rule.unit = EnergyUnit.ElectronVolt; rule.chainCharge = 1f;
             var serviceGo = new GameObject("Test score service"); owned.Add(serviceGo);
             var service = serviceGo.AddComponent<MatchScoreService>();
             service.Configure(profile);

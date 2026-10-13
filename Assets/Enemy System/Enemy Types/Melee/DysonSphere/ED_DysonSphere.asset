@@ -17,7 +17,7 @@ MonoBehaviour:
   defeatRewardKey: ENEMY_DYSON_DEFEAT
   prefab: {fileID: 1731885047469493719, guid: 818055230c7d922428ef09863dffa079, type: 3}
   spawnWeight: 1
-  spawnRadiusWorld: 0.8
+  spawnRadiusWorld: 0.536
   maxAliveOverride: 0
   healthMassEq: 20
   damageTakenPerSwordHit: 1

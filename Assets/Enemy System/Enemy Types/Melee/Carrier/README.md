@@ -66,8 +66,8 @@ order while the assembly rotates. Existing live obstacle sweeps remain active
 during the launch. Resonance slowdown advances route time and distance together. The
 already-formed shell stays visible on release. Spawn and death rewards remain owned by
 the existing enemy/score systems. The Carrier has 6 health, takes the normal 1-point
-sword hit, awards the existing ENEMY_DEFEAT reward, and has no contact damage. These are
-initial prototype values, not final balance.
+sword hit, awards ENEMY_CARRIER_DEFEAT (2 eV base and 1.5 personal charge), and has
+no contact damage. Launched Drones retain their separate Drone defeat reward.
 
 Launched Drones are independent of Carrier death. Docked visuals disappear with the
 Carrier and never collide, register as live enemies, or award score. Pausing the shared

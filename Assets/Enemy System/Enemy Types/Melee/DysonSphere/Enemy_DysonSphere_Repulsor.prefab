@@ -324,12 +324,13 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   pulseEnabled: 1
-  intensity: 0.12
+  intensity: 0.0804
   travelRadius: 2.5
   duration: 0.45
-  packetWidth: 0.55
+  packetWidth: 0.36850002
   curl: 0.2
   grid: {fileID: 0}
+  foldedGrid: {fileID: 0}
   useSharedSettings: 0
 --- !u!1001 &794097036016522996
 PrefabInstance:
@@ -381,8 +382,28 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 5133644220517641625, guid: 9e6465d4250ed49cab65e21aa60ba643,
         type: 3}
+      propertyPath: lookAheadDistance
+      value: 2.211
+      objectReference: {fileID: 0}
+    - target: {fileID: 5133644220517641625, guid: 9e6465d4250ed49cab65e21aa60ba643,
+        type: 3}
       propertyPath: filterDroneContacts
       value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 5685928933529273545, guid: 9e6465d4250ed49cab65e21aa60ba643,
+        type: 3}
+      propertyPath: m_LocalScale.x
+      value: 0.67
+      objectReference: {fileID: 0}
+    - target: {fileID: 5685928933529273545, guid: 9e6465d4250ed49cab65e21aa60ba643,
+        type: 3}
+      propertyPath: m_LocalScale.y
+      value: 0.67
+      objectReference: {fileID: 0}
+    - target: {fileID: 5685928933529273545, guid: 9e6465d4250ed49cab65e21aa60ba643,
+        type: 3}
+      propertyPath: m_LocalScale.z
+      value: 0.67
       objectReference: {fileID: 0}
     - target: {fileID: 5685928933529273545, guid: 9e6465d4250ed49cab65e21aa60ba643,
         type: 3}
@@ -482,7 +503,7 @@ MonoBehaviour:
   hurtbox: {fileID: 4171996906849113619}
   ripple: {fileID: 1428682127888727890}
   detectionRange: 8
-  attackDistance: 1.5
+  attackDistance: 1.005
   chaseAcceleration: 10
   shellSpinDegreesPerSecond: {x: 0, y: 0, z: 22}
   chargeSeconds: 1.75

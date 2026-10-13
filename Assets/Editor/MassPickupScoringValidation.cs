@@ -194,6 +194,7 @@ public static class MassPickupScoringValidation
             Check(!pooled.gameObject.activeSelf && service.GetTeamScore(1) == beforeExpiry, "Uncollected pooled despawn awards nothing");
             Check(service.GetTelemetrySnapshot().Any(t => t.rewardKey == ScoreRewardKeys.MassNugget && t.lightAwardCount == 2),
                 "Pickup score is represented in existing economy telemetry");
+            Massive.Emergence.Editor.EmergencePickupValidation.Run(service, player, scope, physicsScene, Check);
         }
         finally
         {

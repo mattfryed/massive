@@ -60,7 +60,7 @@ GameObject:
   - component: {fileID: 4085046770199685826}
   - component: {fileID: 1323518053283491556}
   - component: {fileID: 848361012243193240}
-  - component: {fileID: 7643280804833038477}
+  - component: {fileID: 1027140953477195380}
   m_Layer: 0
   m_Name: Living Colony
   m_TagString: Untagged
@@ -76,9 +76,9 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1493882360808517839}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.60126656, y: -0.09523127, z: 0.12410781, w: 0.78358585}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 0.32, y: 0.32, z: 0.32}
+  m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 7417542427818889646}
@@ -99,13 +99,13 @@ MeshRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1493882360808517839}
   m_Enabled: 1
-  m_CastShadows: 1
-  m_ReceiveShadows: 1
+  m_CastShadows: 0
+  m_ReceiveShadows: 0
   m_DynamicOccludee: 1
   m_StaticShadowCaster: 0
   m_MotionVectors: 1
-  m_LightProbeUsage: 1
-  m_ReflectionProbeUsage: 1
+  m_LightProbeUsage: 0
+  m_ReflectionProbeUsage: 0
   m_RayTracingMode: 2
   m_RayTraceProcedural: 0
   m_RayTracingAccelStructBuildFlagsOverride: 0
@@ -114,7 +114,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 0}
+  - {fileID: 2100000, guid: fd9bd33b1540e1545bd63c1fa8a6bf9c, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -136,7 +136,7 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!114 &7643280804833038477
+--- !u!114 &1027140953477195380
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -145,16 +145,22 @@ MonoBehaviour:
   m_GameObject: {fileID: 1493882360808517839}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 751511104c24b884bb60b793157cef06, type: 3}
+  m_Script: {fileID: 11500000, guid: 9f8fd1552297fc64582cd316b953c395, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  profile: {fileID: 11400000, guid: 4580a7ec833f6f24fbce54b20e4d3a65, type: 2}
-  particleMaterial: {fileID: 2100000, guid: 62ebf9a8a3e38ce48be6a725f4c933b6, type: 2}
-  arena: {fileID: 0}
-  scores: {fileID: 0}
-  anomalies: {fileID: 0}
-  players: []
-  nuggetPrefab: {fileID: 0}
-  presentationOnly: 1
-  presentationHalfSize: {x: 3.5, y: 2.8}
-  presentationWarmup: 5
+  palette: {fileID: 11400000, guid: 0e880e4f2816a514994f5cde70d49f86, type: 2}
+  structureParticles: 206
+  motorParticles: 72
+  catalystParticles: 26
+  nutrientParticles: 11
+  formationRadius: 0.62
+  particleRadius: 0.0086
+  sizeVariation: 0.18
+  volumeTilt: {x: 16, y: 0, z: -12}
+  animate: 1
+  breathAmount: 0.035
+  breathSeconds: 4.8
+  internalMotion: 0.008
+  rockDegrees: 8
+  rockSeconds: 17
+  animateInEditor: 1

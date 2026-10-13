@@ -55,7 +55,9 @@ MonoBehaviour:
     pressureLimitMultiplier: 1.5
     reinforcementGrace: 1
   cues:
-  - label: Drone Paired Rows
+  - scaling: 0
+    reinforcementPairs: 1
+    label: Drone Paired Rows
     arrivalSeconds: 3
     formation: {fileID: 11400000, guid: 00c4829533153e24cb63ab0ac76036b2, type: 2}
     variants: []
@@ -68,7 +70,9 @@ MonoBehaviour:
     integrity: 0
     maxPositionAdjustment: 1
     blockedSlotGrace: 3
-  - label: Ranged Drone Paired Rows
+  - scaling: 0
+    reinforcementPairs: 1
+    label: Ranged Drone Paired Rows
     arrivalSeconds: 15
     formation: {fileID: 11400000, guid: acf60a7d12314a7d890fc87979355118, type: 2}
     variants: []
@@ -81,7 +85,9 @@ MonoBehaviour:
     integrity: 0
     maxPositionAdjustment: 1
     blockedSlotGrace: 3
-  - label: Seeker stagger
+  - scaling: 0
+    reinforcementPairs: 1
+    label: Seeker stagger
     arrivalSeconds: 27
     formation: {fileID: 11400000, guid: d3dfaa25813c50e4a8cec43650df16c5, type: 2}
     variants: []
@@ -94,7 +100,9 @@ MonoBehaviour:
     integrity: 0
     maxPositionAdjustment: 1
     blockedSlotGrace: 3
-  - label: Dyson flanks
+  - scaling: 0
+    reinforcementPairs: 1
+    label: Dyson flanks
     arrivalSeconds: 39
     formation: {fileID: 11400000, guid: 48354aa23c74a8149b943de5f43c0244, type: 2}
     variants: []
@@ -107,7 +115,9 @@ MonoBehaviour:
     integrity: 0
     maxPositionAdjustment: 1
     blockedSlotGrace: 3
-  - label: Wall turrets
+  - scaling: 0
+    reinforcementPairs: 1
+    label: Wall turrets
     arrivalSeconds: 51
     formation: {fileID: 11400000, guid: cac64f6e2b631614694479c7ff8b69ef, type: 2}
     variants: []
@@ -120,7 +130,9 @@ MonoBehaviour:
     integrity: 0
     maxPositionAdjustment: 1
     blockedSlotGrace: 3
-  - label: Carrier
+  - scaling: 0
+    reinforcementPairs: 1
+    label: Carrier
     arrivalSeconds: 62.75
     formation: {fileID: 11400000, guid: b1de5fbaabf87f541bcd20b9eb6a088f, type: 2}
     variants: []
@@ -133,7 +145,9 @@ MonoBehaviour:
     integrity: 0
     maxPositionAdjustment: 1
     blockedSlotGrace: 3
-  - label: Drone Center Ring
+  - scaling: 0
+    reinforcementPairs: 1
+    label: Drone Center Ring
     arrivalSeconds: 87
     formation: {fileID: 11400000, guid: 0f98c5891ec547ef83c51bad25c27f80, type: 2}
     variants: []
@@ -146,7 +160,9 @@ MonoBehaviour:
     integrity: 0
     maxPositionAdjustment: 1
     blockedSlotGrace: 3
-  - label: Ranged Drone Center Ring
+  - scaling: 0
+    reinforcementPairs: 1
+    label: Ranged Drone Center Ring
     arrivalSeconds: 111
     formation: {fileID: 11400000, guid: 568365a5236147d8b3e880c0c566b627, type: 2}
     variants: []
@@ -159,7 +175,9 @@ MonoBehaviour:
     integrity: 0
     maxPositionAdjustment: 1
     blockedSlotGrace: 3
-  - label: Drone Goal Phalanxes
+  - scaling: 0
+    reinforcementPairs: 1
+    label: Drone Goal Phalanxes
     arrivalSeconds: 135
     formation: {fileID: 11400000, guid: 0aa9e77d6e414cc2b0b0f4e14d47dc50, type: 2}
     variants: []
@@ -172,7 +190,9 @@ MonoBehaviour:
     integrity: 0
     maxPositionAdjustment: 1
     blockedSlotGrace: 3
-  - label: Ranged Drone Goal Phalanxes
+  - scaling: 0
+    reinforcementPairs: 1
+    label: Ranged Drone Goal Phalanxes
     arrivalSeconds: 159
     formation: {fileID: 11400000, guid: 0a70fffa1dcc47a4afbb515bc462a0cb, type: 2}
     variants: []
@@ -185,7 +205,9 @@ MonoBehaviour:
     integrity: 0
     maxPositionAdjustment: 1
     blockedSlotGrace: 3
-  - label: 05 Turret Top Bottom
+  - scaling: 0
+    reinforcementPairs: 1
+    label: 05 Turret Top Bottom
     arrivalSeconds: 99
     formation: {fileID: 11400000, guid: cac64f6e2b631614694479c7ff8b69ef, type: 2}
     variants: []
@@ -198,7 +220,9 @@ MonoBehaviour:
     integrity: 0
     maxPositionAdjustment: 1
     blockedSlotGrace: 3
-  - label: 02b Ranged Drone Center Ring
+  - scaling: 0
+    reinforcementPairs: 1
+    label: 02b Ranged Drone Center Ring
     arrivalSeconds: 126
     formation: {fileID: 11400000, guid: 568365a5236147d8b3e880c0c566b627, type: 2}
     variants: []
@@ -211,7 +235,9 @@ MonoBehaviour:
     integrity: 0
     maxPositionAdjustment: 1
     blockedSlotGrace: 3
-  - label: 03 Seeker Stagger
+  - scaling: 0
+    reinforcementPairs: 1
+    label: 03 Seeker Stagger
     arrivalSeconds: 121.5
     formation: {fileID: 11400000, guid: d3dfaa25813c50e4a8cec43650df16c5, type: 2}
     variants: []
@@ -224,7 +250,9 @@ MonoBehaviour:
     integrity: 0
     maxPositionAdjustment: 1
     blockedSlotGrace: 3
-  - label: 04 Dyson Flanks
+  - scaling: 0
+    reinforcementPairs: 1
+    label: 04 Dyson Flanks
     arrivalSeconds: 139.25
     formation: {fileID: 11400000, guid: 48354aa23c74a8149b943de5f43c0244, type: 2}
     variants: []
@@ -237,7 +265,9 @@ MonoBehaviour:
     integrity: 0
     maxPositionAdjustment: 1
     blockedSlotGrace: 3
-  - label: 01 Drone Paired Rows
+  - scaling: 0
+    reinforcementPairs: 1
+    label: 01 Drone Paired Rows
     arrivalSeconds: 150.5
     formation: {fileID: 11400000, guid: 00c4829533153e24cb63ab0ac76036b2, type: 2}
     variants: []
@@ -250,7 +280,9 @@ MonoBehaviour:
     integrity: 0
     maxPositionAdjustment: 1
     blockedSlotGrace: 3
-  - label: 02 Ranged Drone Paired Rows
+  - scaling: 0
+    reinforcementPairs: 1
+    label: 02 Ranged Drone Paired Rows
     arrivalSeconds: 150.5
     formation: {fileID: 11400000, guid: acf60a7d12314a7d890fc87979355118, type: 2}
     variants: []
@@ -263,7 +295,9 @@ MonoBehaviour:
     integrity: 0
     maxPositionAdjustment: 1
     blockedSlotGrace: 3
-  - label: 05c Turret Four Quadrants
+  - scaling: 0
+    reinforcementPairs: 1
+    label: 05c Turret Four Quadrants
     arrivalSeconds: 146.5
     formation: {fileID: 11400000, guid: ca905a6a4eb5c284baa61e35fbc7fa5b, type: 2}
     variants: []
@@ -276,7 +310,9 @@ MonoBehaviour:
     integrity: 0
     maxPositionAdjustment: 1
     blockedSlotGrace: 3
-  - label: 06b Carrier Lower Right
+  - scaling: 0
+    reinforcementPairs: 1
+    label: 06b Carrier Lower Right
     arrivalSeconds: 116.25
     formation: {fileID: 11400000, guid: 77a419de4de6db84fa5298b4252226ca, type: 2}
     variants: []
@@ -289,7 +325,9 @@ MonoBehaviour:
     integrity: 0
     maxPositionAdjustment: 1
     blockedSlotGrace: 3
-  - label: 02b Ranged Drone Center Ring
+  - scaling: 0
+    reinforcementPairs: 1
+    label: 02b Ranged Drone Center Ring
     arrivalSeconds: 90.25
     formation: {fileID: 11400000, guid: 568365a5236147d8b3e880c0c566b627, type: 2}
     variants: []
@@ -302,7 +340,9 @@ MonoBehaviour:
     integrity: 0
     maxPositionAdjustment: 1
     blockedSlotGrace: 3
-  - label: 03 Seeker Stagger
+  - scaling: 0
+    reinforcementPairs: 1
+    label: 03 Seeker Stagger
     arrivalSeconds: 165.25
     formation: {fileID: 11400000, guid: d3dfaa25813c50e4a8cec43650df16c5, type: 2}
     variants: []
@@ -319,6 +359,36 @@ MonoBehaviour:
       position: {x: 0.7315792, y: 0.17504057}
       overrideWallPosition: 0
       wallPosition: 0.5
+    fallback: {fileID: 0}
+    allowedLateness: 3
+    overrideSpawnPolicy: 0
+    integrity: 0
+    maxPositionAdjustment: 1
+    blockedSlotGrace: 3
+  - scaling: 0
+    reinforcementPairs: 1
+    label: Amplified Dyson Flanks
+    arrivalSeconds: 77.67917
+    formation: {fileID: 11400000, guid: 010297d139b71b641a92aed66ccbfef4, type: 2}
+    variants: []
+    allowHorizontalMirror: 0
+    flipWallOrientation: 0
+    placementOverrides: []
+    fallback: {fileID: 0}
+    allowedLateness: 3
+    overrideSpawnPolicy: 0
+    integrity: 0
+    maxPositionAdjustment: 1
+    blockedSlotGrace: 3
+  - scaling: 0
+    reinforcementPairs: 1
+    label: Amplified Dyson Flanks
+    arrivalSeconds: 152.59306
+    formation: {fileID: 11400000, guid: 010297d139b71b641a92aed66ccbfef4, type: 2}
+    variants: []
+    allowHorizontalMirror: 0
+    flipWallOrientation: 0
+    placementOverrides: []
     fallback: {fileID: 0}
     allowedLateness: 3
     overrideSpawnPolicy: 0

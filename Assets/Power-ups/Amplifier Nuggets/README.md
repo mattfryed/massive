@@ -3,7 +3,7 @@
 - **Amplifier Nugget Visual.prefab**: the existing black and white mass-pickup particle clouds plus a third prismatic cloud.
 - **Amplifier Nugglet Visual.prefab**: a variant at one-third linear scale, matching the existing mass nugglet ratio.
 
-These are visual-only prefabs. They have no pickup/reward script, colliders, rigidbody or automatic spawning. Mass + personal-multiplier rewards are intentionally left for a later gameplay pass. They do not inherit the mass pickups' mass + score reward behavior.
+These are visual-only prefabs. They have no pickup/reward script, colliders, rigidbody or automatic spawning. EMERGENCE now wraps this presentation in its own pooled gameplay prefabs: amplifier nuggets restore full nugget mass and add +1× personal multiplier; amplifier nugglets restore one tenth of that mass and add +0.1×. They do not grant the matter pickups' banked score. The shared personal cap applies. See `Assets/Scripts/Anomalies/EMERGENCE/README.md` for spawn weights and gameplay tuning.
 
 ## Preview and tuning
 

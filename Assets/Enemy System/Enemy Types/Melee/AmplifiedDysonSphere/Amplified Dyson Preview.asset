@@ -1,0 +1,50 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 56a5e36d7eb31914c8cd0d162729050c, type: 3}
+  m_Name: Amplified Dyson Preview
+  m_EditorClassIdentifier: 
+  duration: 30
+  fitRegulation: 0
+  maxAliveTotal: 4
+  populationLimits: []
+  maxPressure: 12
+  pressureCosts:
+  - enemy: {fileID: 11400000, guid: fa3972882a57fba418b8716077c624e5, type: 2}
+    cost: 6
+  twoVTwo:
+    enabled: 0
+    droneExtraFraction: 0.5
+    rangedExtraFraction: 0.25
+    seekerExtraPairs: 1
+    dysonExtraPairs: 1
+    completeTurretQuadrants: 1
+    advancedFrom: 0.5
+    totalLimitMultiplier: 1.5
+    typeLimitMultiplier: 1.5
+    pressureLimitMultiplier: 1.5
+    reinforcementGrace: 1
+  cues:
+  - scaling: 0
+    reinforcementPairs: 1
+    label: Amplified Dyson Flanks
+    arrivalSeconds: 3
+    formation: {fileID: 11400000, guid: 010297d139b71b641a92aed66ccbfef4, type: 2}
+    variants: []
+    allowHorizontalMirror: 0
+    flipWallOrientation: 0
+    placementOverrides: []
+    fallback: {fileID: 0}
+    allowedLateness: 2
+    overrideSpawnPolicy: 0
+    integrity: 0
+    maxPositionAdjustment: 1
+    blockedSlotGrace: 3

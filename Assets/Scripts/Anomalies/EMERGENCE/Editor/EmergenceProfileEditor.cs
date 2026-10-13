@@ -16,13 +16,27 @@ namespace Massive.Emergence.Editor
             EmergenceEditorPreview.DrawControls(PreviewField ? PreviewField : EmergenceEditorPreview.FindField((EmergenceProfile)target));
             DrawPopulationTools((EmergenceProfile)target);
             serializedObject.Update();
-            EditorGUILayout.HelpBox("Development level: hidden from level selection. Colors and force strengths update live. Structural changes rebuild an active editor preview automatically; during Play Mode they require restarting play. Particles use solid unlit colors; alpha is always one.", MessageType.Info);
+            EditorGUILayout.HelpBox("Colors and force strengths update live. Structural changes rebuild an active editor preview automatically; during Play Mode they require restarting play. Particles use solid unlit colors; alpha is always one.", MessageType.Info);
             var species = serializedObject.FindProperty("species");
             EditorGUILayout.LabelField("Species and appearance", EditorStyles.boldLabel);
             for (int i = 0; i < Mathf.Min(EmergenceProfile.SpeciesCount, species.arraySize); i++)
                 EditorGUILayout.PropertyField(species.GetArrayElementAtIndex(i), new GUIContent(Roles[i]), true);
             EditorGUILayout.HelpBox("Inert particles have no biological role: they cannot feed, be eaten, join organisms or produce nuggets. Their matrix row controls their response; their column controls how other species respond to them. Zero disables that species attraction only; soft repulsion, agitation and player pushes still apply.", MessageType.None);
-            DrawPropertiesExcluding(serializedObject, "m_Script", "species", "attraction");
+            DrawPropertiesExcluding(serializedObject, "m_Script", "species", "attraction", "pickupChances");
+            EditorGUILayout.Space();
+            EditorGUILayout.LabelField("Pickup type chances", EditorStyles.boldLabel);
+            var chances = serializedObject.FindProperty("pickupChances");
+            string[] fields = { "matterNugglet", "amplifierNugglet", "matterNugget", "amplifierNugget" };
+            double total = 0;
+            foreach (string name in fields) total += chances.FindPropertyRelative(name).floatValue;
+            foreach (string name in fields)
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    var value = chances.FindPropertyRelative(name);
+                    EditorGUILayout.PropertyField(value);
+                    GUILayout.Label(total > 0 ? (100 * value.floatValue / total).ToString("0.##") + "%" : "—", GUILayout.Width(55));
+                }
+            EditorGUILayout.HelpBox("Weights choose the type of each converted pickup. They normalize automatically; 0 excludes a type. Overall conversion rate and material cost are controlled separately above.", MessageType.None);
             EditorGUILayout.Space();
             EditorGUILayout.LabelField("Attraction / repulsion matrix", EditorStyles.boldLabel);
             EditorGUILayout.HelpBox("Each row responds to each column. Positive = attract; negative = repel; diagonal = same species. The two directions can differ. Size-based core repulsion acts independently of this matrix. Spacing is soft: dense clusters and impacts can briefly compress or overlap particles.", MessageType.None);

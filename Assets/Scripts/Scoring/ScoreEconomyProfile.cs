@@ -154,6 +154,11 @@ namespace Massive.Scoring
         public const string EnemyDefeat = "ENEMY_DEFEAT";
         public const string DysonDefeat = "ENEMY_DYSON_DEFEAT";
         public const string DroneDefeat = "ENEMY_DRONE_DEFEAT";
+        public const string RangedDroneDefeat = "ENEMY_RANGED_DRONE_DEFEAT";
+        public const string SeekerDefeat = "ENEMY_SEEKER_DEFEAT";
+        public const string ParticleBeamTurretDefeat = "ENEMY_PARTICLE_BEAM_TURRET_DEFEAT";
+        public const string CarrierDefeat = "ENEMY_CARRIER_DEFEAT";
+        public const string AmplifiedDysonDefeat = "ENEMY_AMPLIFIED_DYSON_DEFEAT";
         public const string PowerUpClaim = "POWER_UP_CLAIM";
         public const string EnergyPickupSmall = "ENERGY_PICKUP_SMALL";
         public const string MassNugget = "MASS_NUGGET";
@@ -168,7 +173,7 @@ namespace Massive.Scoring
     {
         [Header("Ruleset Identity")]
         [SerializeField] private string rulesetId = "MASSIVE_SCORE_V1";
-        [SerializeField, Min(1)] private int rulesetVersion = 5;
+        [SerializeField, Min(1)] private int rulesetVersion = 6;
 
         [Header("Round")]
         [SerializeField, Min(1f)] private float regulationDurationSeconds = 120f;
@@ -236,7 +241,7 @@ namespace Massive.Scoring
         public void ResetToRecommendedDefaults()
         {
             rulesetId = "MASSIVE_SCORE_V1";
-            rulesetVersion = 5;
+            rulesetVersion = 6;
             regulationDurationSeconds = 120f;
             chainSettings = ScoreChainSettings.RecommendedDefaults();
             teamAmplifierSettings = TeamAmplifierSettings.RecommendedDefaults();
@@ -272,11 +277,11 @@ namespace Massive.Scoring
                 new ScoreRewardRule
                 {
                     key = ScoreRewardKeys.DysonDefeat,
-                    amount = 1,
+                    amount = 4,
                     unit = EnergyUnit.ElectronVolt,
                     multiplierEligible = true,
                     chainEffect = ScoreChainAwardMode.AdvanceAndRefresh,
-                    chainCharge = 1f,
+                    chainCharge = 2f,
                     repeatPolicy = ScoreRepeatPolicy.OncePerSourceToken,
                     feedbackId = "ENEMY_DEFEAT",
                     expectedOccurrencesPerRound = 20
@@ -292,6 +297,36 @@ namespace Massive.Scoring
                     repeatPolicy = ScoreRepeatPolicy.OncePerSourceToken,
                     feedbackId = "ENEMY_DEFEAT",
                     expectedOccurrencesPerRound = 60
+                },
+                new ScoreRewardRule
+                {
+                    key = ScoreRewardKeys.RangedDroneDefeat, amount = 200, unit = EnergyUnit.MilliElectronVolt,
+                    multiplierEligible = true, chainEffect = ScoreChainAwardMode.AdvanceAndRefresh, chainCharge = .35f,
+                    repeatPolicy = ScoreRepeatPolicy.OncePerSourceToken, feedbackId = "ENEMY_DEFEAT"
+                },
+                new ScoreRewardRule
+                {
+                    key = ScoreRewardKeys.SeekerDefeat, amount = 400, unit = EnergyUnit.MilliElectronVolt,
+                    multiplierEligible = true, chainEffect = ScoreChainAwardMode.AdvanceAndRefresh, chainCharge = .5f,
+                    repeatPolicy = ScoreRepeatPolicy.OncePerSourceToken, feedbackId = "ENEMY_DEFEAT"
+                },
+                new ScoreRewardRule
+                {
+                    key = ScoreRewardKeys.ParticleBeamTurretDefeat, amount = 1200, unit = EnergyUnit.MilliElectronVolt,
+                    multiplierEligible = true, chainEffect = ScoreChainAwardMode.AdvanceAndRefresh, chainCharge = 1f,
+                    repeatPolicy = ScoreRepeatPolicy.OncePerSourceToken, feedbackId = "ENEMY_DEFEAT"
+                },
+                new ScoreRewardRule
+                {
+                    key = ScoreRewardKeys.CarrierDefeat, amount = 2, unit = EnergyUnit.ElectronVolt,
+                    multiplierEligible = true, chainEffect = ScoreChainAwardMode.AdvanceAndRefresh, chainCharge = 1.5f,
+                    repeatPolicy = ScoreRepeatPolicy.OncePerSourceToken, feedbackId = "ENEMY_DEFEAT"
+                },
+                new ScoreRewardRule
+                {
+                    key = ScoreRewardKeys.AmplifiedDysonDefeat, amount = 7, unit = EnergyUnit.ElectronVolt,
+                    multiplierEligible = true, chainEffect = ScoreChainAwardMode.AdvanceAndRefresh, chainCharge = 2f,
+                    repeatPolicy = ScoreRepeatPolicy.OncePerSourceToken, feedbackId = "ENEMY_DEFEAT"
                 },
                 new ScoreRewardRule
                 {

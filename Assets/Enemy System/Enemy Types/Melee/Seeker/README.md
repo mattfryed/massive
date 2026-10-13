@@ -10,7 +10,7 @@ The gallery pauses this encounter during player demonstrations.
 `Seeker Controller` owns seeking, charging, firing (the lunge), glide, hit recovery,
 cooldown and stalking. `ED_Seeker` supplies shared health, contact damage, movement speed and
 score reward. Initial health is 1, contact damage is .04 player mass, and the
-reward uses the existing `ENEMY_DEFEAT` economy entry.
+reward uses `ENEMY_SEEKER_DEFEAT`: 400 meV base and 0.5 personal charge.
 
 | Control | Initial value |
 | --- | --- |

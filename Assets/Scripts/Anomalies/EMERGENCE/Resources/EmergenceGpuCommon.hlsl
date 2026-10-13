@@ -14,10 +14,17 @@ struct Group
     float reserve, waste;
     float2 center, velocity;
     uint mature, cooling;
+    float2 swimming;
 };
 struct Influence
 {
     float4 wake, drift, pulse;
     float4 swordCenter, swordX, swordY, swordZ, swordShape, attack;
     uint4 stamps;
+};
+struct Bud
+{
+    uint serial, phase, anchor, root;
+    float2 position, velocity, direction;
+    float elapsed, duration, cost, cancelFrom, retractElapsed, radius;
 };

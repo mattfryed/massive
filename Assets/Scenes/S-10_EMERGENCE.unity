@@ -782,6 +782,7 @@ MonoBehaviour:
   particleMaterial: {fileID: 2100000, guid: 62ebf9a8a3e38ce48be6a725f4c933b6, type: 2}
   arena: {fileID: 3193814615394803283}
   scores: {fileID: 1265043815}
+  match: {fileID: 1615618072}
   anomalies: {fileID: 984432099}
   players:
   - {fileID: 1052342290}
@@ -789,6 +790,12 @@ MonoBehaviour:
   - {fileID: 1052342288}
   - {fileID: 1052342287}
   nuggetPrefab: {fileID: 1100296074533697502, guid: 638ec97d5e866924195ebd4bc9456c8b,
+    type: 3}
+  matterNuggletPrefab: {fileID: 8052734425432143363, guid: 895f8657e7fd3e74182746678526e8f1,
+    type: 3}
+  amplifierNuggletPrefab: {fileID: 5078345355055310224, guid: 0e58bf8bac22c5a49b7038e5aa6f3564,
+    type: 3}
+  amplifierNuggetPrefab: {fileID: 2086504721235873173, guid: 664c030882b7195459fa0fdde970b87f,
     type: 3}
   presentationOnly: 0
   presentationHalfSize: {x: 6, y: 4}
@@ -1261,7 +1268,7 @@ PrefabInstance:
         type: 3}
       propertyPath: encounterTimeline
       value: 
-      objectReference: {fileID: 11400000, guid: f17da9455a31ece42b89a3bfbf992c1a,
+      objectReference: {fileID: 11400000, guid: e91f94d516b612949995b684f0da3422,
         type: 2}
     - target: {fileID: 6249206849909281475, guid: 95745a854c6dd214cb04a0c9f69cc005,
         type: 3}
@@ -2770,7 +2777,7 @@ PrefabInstance:
     - target: {fileID: 6025727498601605217, guid: dc26c7e57d78ca243ad76705b7893874,
         type: 3}
       propertyPath: m_text
-      value: PULSAR
+      value: EMERGENCE
       objectReference: {fileID: 0}
     - target: {fileID: 6057769792846198301, guid: dc26c7e57d78ca243ad76705b7893874,
         type: 3}

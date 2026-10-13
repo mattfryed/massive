@@ -17,6 +17,8 @@ namespace Massive.Emergence.Editor
         static EmergenceProfile Profile(int structure, int motor, int catalyst, int nutrient)
         {
             var p = ScriptableObject.CreateInstance<EmergenceProfile>();
+            // This fixture measures approach against a stationary catalyst; swimming has its own moving-feeding checks.
+            p.enableSwimming = false;
             int[] counts = { structure, motor, catalyst, nutrient };
             for (int i = 0; i < 4; i++) { p.species[i].count = counts[i]; p.species[i].diameter = .03f; p.species[i].sizeVariation = 0; }
             p.initialSpeed = p.agitation = p.force = p.repulsion = p.coreRepulsion = p.coreDamping = 0;

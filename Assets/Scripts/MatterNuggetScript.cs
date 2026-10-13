@@ -31,9 +31,14 @@ public class MatterNuggetScript : MonoBehaviour
     private Vector3 queuedPoint, queuedVelocity;
     private float queuedLifetime;
     private Vector3 incomingVelocity;
+    private bool attachedPresentation, originalKinematic;
+    private Vector3 originalScale;
+    public bool IsAttachedPresentation => attachedPresentation;
+    public Vector3 PresentationBaseScale { get { Initialize(); return originalScale; } }
     public float VisualScale { get; private set; }
     public float LastMassRestored { get; private set; }
     public ScoreAwardResult LastScoreAward { get; private set; }
+    public double LastMultiplierGained { get; private set; }
     public bool IsDespawning => ending;
 
     private static long nextSourceLife;
@@ -62,6 +67,7 @@ public class MatterNuggetScript : MonoBehaviour
     {
         if (body) return;
         body = GetComponent<Rigidbody>();
+        originalScale = transform.localScale; originalKinematic = body.isKinematic;
         body.sleepThreshold = 0f;
         particles = GetComponentsInChildren<ParticleSystem>(true);
         colliders = GetComponentsInChildren<Collider>(true);
@@ -82,11 +88,13 @@ public class MatterNuggetScript : MonoBehaviour
     }
 
     protected virtual void OnEnable() { Initialize(); activePickups.Add(this); BeginLife(lifetimeSeconds); }
-    protected virtual void OnDisable() { activePickups.Remove(this); }
+    protected virtual void OnDisable() { activePickups.Remove(this); RestoreAttachedPresentation(); }
     private void BeginLife(float seconds)
     {
+        RestoreAttachedPresentation();
         age = exitAge = 0f; lifetime = seconds; ending = queuedEjection = false; LastMassRestored = 0f;
         LastScoreAward = default;
+        LastMultiplierGained = 0;
         // Eject can recycle an active pooled object without an OnEnable. Each
         // actual spawn gets its own identity; collider callbacks share that identity.
         sourceLifeToken = "MASS-PICKUP-" + Interlocked.Increment(ref nextSourceLife);
@@ -98,6 +106,47 @@ public class MatterNuggetScript : MonoBehaviour
         foreach (var p in particles) { p.Clear(); p.Play(); }
         body.WakeUp();
     }
+
+    // Presentation can hold a pooled pickup before its collectible life starts.
+    public void BeginAttachedPresentation(Vector3 point)
+    {
+        Initialize(); transform.position = point; gameObject.SetActive(true); BeginLife(0);
+        attachedPresentation = true;
+        foreach (var collider in colliders) collider.enabled = false;
+        body.linearVelocity = Vector3.zero; body.angularVelocity = Vector3.zero; body.isKinematic = true;
+        SetAttachedAppearance(true);
+        UpdateAttachedPresentation(point, 0);
+    }
+    public void UpdateAttachedPresentation(Vector3 point, float scale)
+    {
+        if (!attachedPresentation) return;
+        transform.position = point; body.position = point;
+        scale = Mathf.Clamp01(scale);
+        transform.localScale = originalScale * Mathf.Max(.0001f, scale);
+        SetVisualSize(scale > 0 ? 1 : 0); VisualScale = scale;
+    }
+    public void AdvanceAttachedPreview(float dt)
+    {
+        if (Application.isPlaying || !attachedPresentation) return;
+        foreach (var p in particles) p.Simulate(dt, false, false, false);
+    }
+    public void ReleaseAttachedPresentation(Vector3 point, Vector3 velocity, float seconds)
+    {
+        if (!attachedPresentation) { Eject(point, velocity, seconds); return; }
+        RestoreAttachedPresentation();
+        age = Mathf.Max(.3f, spawnSeconds); lifetime = seconds > 0 ? seconds + age : 0;
+        for (int i = 0; i < colliders.Length; i++) colliders[i].enabled = colliderEnabled[i];
+        transform.position = point; body.position = point; body.linearVelocity = incomingVelocity = velocity;
+        SetVisualSize(1); body.WakeUp();
+    }
+    private void RestoreAttachedPresentation()
+    {
+        if (!attachedPresentation) return;
+        attachedPresentation = false; transform.localScale = originalScale;
+        if (body) body.isKinematic = originalKinematic;
+        SetAttachedAppearance(false);
+    }
+    protected virtual void SetAttachedAppearance(bool attached) { }
 
     public void Eject(Vector3 point, Vector3 velocity, float seconds)
     {
@@ -133,6 +182,7 @@ public class MatterNuggetScript : MonoBehaviour
 
     protected virtual void Update()
     {
+        if (attachedPresentation) return;
         if (ending)
         {
             exitAge += Time.deltaTime;
@@ -176,6 +226,7 @@ public class MatterNuggetScript : MonoBehaviour
 
     protected virtual void FixedUpdate()
     {
+        if (attachedPresentation) return;
         incomingVelocity = body.linearVelocity;
         if (body.linearDamping > 0f && incomingVelocity.sqrMagnitude < restSpeed * restSpeed)
             body.linearVelocity = incomingVelocity = Vector3.zero;
@@ -207,7 +258,7 @@ public class MatterNuggetScript : MonoBehaviour
     protected virtual void OnTriggerStay(Collider other) { TryCollect(other); }
     private void TryCollect(Collider other)
     {
-        if (ending || age < .3f || (lifetime > 0f && lifetime - age <= despawnSeconds)) return;
+        if (attachedPresentation || ending || age < .3f || (lifetime > 0f && lifetime - age <= despawnSeconds)) return;
         // Only the tagged physical body collects mass. Weapons, Repulsor and
         // shields share the player hierarchy but are not collection surfaces.
         if (!other || other.isTrigger || !other.CompareTag("Player")) return;
@@ -224,9 +275,11 @@ public class MatterNuggetScript : MonoBehaviour
             scores.TryAwardToPlayer(scoreRewardKey, player, sourceLifeToken, transform.position, out var award);
             LastScoreAward = award;
         }
+        LastMultiplierGained = ApplyPersonalMultiplierReward(player);
         EnemyScoreToast.ShowPickup(rewardToastPrefab, LastScoreAward, LastMassRestored, player.massScoreMax - player.massScoreMin,
-            transform.position, gameObject.scene);
+            transform.position, gameObject.scene, LastMultiplierGained);
     }
 
+    protected virtual double ApplyPersonalMultiplierReward(PlayerControllerScript player) => 0;
     protected virtual void FinishDespawn() { Destroy(gameObject); }
 }
