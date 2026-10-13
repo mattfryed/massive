@@ -8,8 +8,8 @@ namespace Massive.Scoring
     /// Event-driven view of one team's shared Amplifier multiplier.
     /// MatchScoreService remains the sole authority for the value.
     /// </summary>
-    [DisallowMultipleComponent]
-    public sealed class TeamAmplifierPresenter : MonoBehaviour
+    [ExecuteAlways, DisallowMultipleComponent]
+    public sealed partial class TeamAmplifierPresenter : MonoBehaviour
     {
         [SerializeField, Range(1, 2)] private int teamID = 1;
         [SerializeField] private TMP_Text multiplierText;
@@ -22,12 +22,14 @@ namespace Massive.Scoring
 
         private void OnEnable()
         {
-            if (_bindRoutine == null)
+            InitializeGoalNumber();
+            if (Application.isPlaying && _bindRoutine == null)
                 _bindRoutine = StartCoroutine(BindWhenAvailable());
         }
 
         private void OnDisable()
         {
+            ReleaseGoalNumber();
             Unbind();
 
             if (_bindRoutine != null)
@@ -71,7 +73,7 @@ namespace Massive.Scoring
         private void OnTeamAmplifierChanged(TeamAmplifierSnapshot snapshot)
         {
             if (snapshot.teamID == teamID)
-                SetMultiplier(snapshot.currentMultiplier);
+                SetMultiplier(snapshot.currentMultiplier, true);
         }
 
         private void Refresh()
@@ -81,10 +83,17 @@ namespace Massive.Scoring
                 : 1);
         }
 
-        private void SetMultiplier(int multiplier)
+        private void SetMultiplier(int multiplier, bool animate = false)
         {
+            int next = Mathf.Max(1, multiplier);
+            if (animate && next > displayedMultiplier && GoalNumberSettings.animateChanges)
+                BeginGoalTransition(displayedMultiplier, next);
+            else if (next != displayedMultiplier || !animate)
+                StopGoalTransition();
+            displayedMultiplier = next;
             if (multiplierText != null)
                 multiplierText.text = $"{multiplierPrefix}{Mathf.Max(1, multiplier)}";
+            RefreshGoalNumber();
         }
 
 #if UNITY_EDITOR

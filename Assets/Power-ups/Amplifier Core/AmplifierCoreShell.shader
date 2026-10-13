@@ -16,6 +16,11 @@ Shader "MASSIVE/Amplifier Core/Neutral Shell"
         _RimLight ("Black Edge Definition", Range(0.0, 1.0)) = 0.32
         [HideInInspector] _TimeoutWarning ("Sequence Time-out Instability", Float) = 0
         [HideInInspector] _SingularityBrightness ("Surface Brightness", Float) = 1
+        [HideInInspector] _PreviewTime ("Preview Clock (-1 uses game time)", Float) = -1
+        [HideInInspector] _CoreRipple ("Ejection ripple", Vector) = (0,0,0,0)
+        [HideInInspector] _CoreRipple2 ("Second ejection ripple", Vector) = (0,0,0,0)
+        [HideInInspector] _CoreRippleOrigin ("Ejection direction", Vector) = (1,0,0,0)
+        [HideInInspector] _CoreRippleOrigin2 ("Second ejection direction", Vector) = (-1,0,0,0)
         [HideInInspector] _PossessionMarker ("Player Marker: Scale, Outline, Light Team, Flow", Vector) = (0, 0, 0, 0)
         [HideInInspector] _PossessionMarker2 ("Second Player Marker", Vector) = (0, 0, 0, 0)
         [HideInInspector] _PossessionMarkerOffsets ("Player Marker Horizontal Offsets", Vector) = (0, 0, 0, 0)
@@ -45,6 +50,7 @@ Shader "MASSIVE/Amplifier Core/Neutral Shell"
         CGINCLUDE
         #pragma target 3.0
         #include "UnityCG.cginc"
+        #include "AmplifierCoreRipple.cginc"
 
         fixed4 _BlackColor;
         fixed4 _WhiteColor;
@@ -60,6 +66,7 @@ Shader "MASSIVE/Amplifier Core/Neutral Shell"
         float _RimLight;
         float _TimeoutWarning;
         float _SingularityBrightness;
+        float _PreviewTime;
         float _ShellThickness;
         float _DepthSteps;
         float4 _PossessionMarker;
@@ -102,12 +109,13 @@ Shader "MASSIVE/Amplifier Core/Neutral Shell"
         {
             v2f output;
             float4 layeredVertex = input.vertex;
-            layeredVertex.xyz *= 1.0 - saturate(_ShellThickness) * layer01;
+            float rippleScale = 1.0 + CoreRippleHeight(input.vertex.xyz);
+            layeredVertex.xyz *= (1.0 - saturate(_ShellThickness) * layer01) * rippleScale;
             output.position = UnityObjectToClipPos(layeredVertex);
             output.objectPosition = input.vertex.xyz;
             // Actual projected position of this slice, in outer-shell radii.
             // Normalizing in the fragment would shrink the opening on recessed layers.
-            output.markerPosition = normalize(input.vertex.xyz) * (1.0 - saturate(_ShellThickness) * layer01);
+            output.markerPosition = normalize(input.vertex.xyz) * (1.0 - saturate(_ShellThickness) * layer01) * rippleScale;
             return output;
         }
 
@@ -128,12 +136,14 @@ Shader "MASSIVE/Amplifier Core/Neutral Shell"
             // Keep the authored flow intact. Possession changes the shape of its
             // empty cells below; it does not radially displace or swirl the noise.
             float3 p = spherePosition * _CellScale + _PatternOffset.xyz;
-            float flowTime = _Time.y * _FlowSpeed;
+            p += spherePosition * CoreRippleHeight(spherePosition) * 5.0;
+            float clock = _PreviewTime >= 0 ? _PreviewTime : _Time.y;
+            float flowTime = clock * _FlowSpeed;
 
             // Spatially different, interfering motion grows stronger as expiry approaches.
             // This deforms the authored surface field, without vibrating the physical Core.
             float instability = clamp(_TimeoutWarning, 0.0, 2.0);
-            float warningTime = _Time.y;
+            float warningTime = clock;
             float3 jitter = float3(
                 sin(p.y * 2.9 + warningTime * 19.7) * sin(p.z * 1.7 - warningTime * 11.3),
                 sin(p.z * 3.1 - warningTime * 23.1) * sin(p.x * 2.3 + warningTime * 13.7),

@@ -5,7 +5,7 @@ using UnityEngine.Rendering;
 
 namespace Massive.Multiplier
 {
-    /// <summary>Aim dots that grow with charge, plus a contest-only team bar. No colliders.</summary>
+    /// <summary>Aim dots that grow with charge, plus a contest-only team ring. No colliders.</summary>
     public sealed class AmplifierPossessionPresentation : ImmediateModeShapeDrawer
     {
         private AmplifierCoreGameplay core;
@@ -13,12 +13,13 @@ namespace Massive.Multiplier
         private readonly List<Vector3> path = new List<Vector3>(256);
         private readonly List<Vector3> aimDots = new List<Vector3>(128);
         private float nextPrediction;
-        private TMPro.TextMeshPro caption;
-        private Transform captionRoot;
+        private AmplifierCoreControlUI controlUI;
+        public AmplifierCoreControlUI ControlUI => controlUI;
         private Vector3 drawOrigin;
 
-        public bool ContestBarVisible => Application.isPlaying && isActiveAndEnabled && core &&
-            core.ControlState == AmplifierControlState.Contested;
+        public bool ContestRingVisible => Application.isPlaying && isActiveAndEnabled && core &&
+            core.ControlState == AmplifierControlState.Contested && core.Possession.showContestRing;
+        public bool ContestBarVisible => ContestRingVisible; // Compatibility for existing diagnostic tools.
         public bool AimGuideVisible => Application.isPlaying && isActiveAndEnabled && core &&
             core.ControlState == AmplifierControlState.Aiming && core.Occupant &&
             core.Possession.showTrajectory;
@@ -32,15 +33,7 @@ namespace Massive.Multiplier
             if (index < 0 || index >= AimDotCount) return false;
             point = aimDots[index];
             var settings = core.Possession;
-            float progress = aimDots.Count > 1 ? index / (float)(aimDots.Count - 1) : 0f;
-            if (ChargeGuideVisible)
-            {
-                float spread = Mathf.Clamp(settings.dotChargeSpread, .02f, 1f);
-                float growth = aimDots.Count > 1 ? (core.Charge01 - progress * (1f - spread)) / spread : core.Charge01;
-                charge = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(growth));
-            }
-            radius = Mathf.Max(.01f, settings.dotRadius) * Mathf.Lerp(1f, Mathf.Clamp01(settings.dotEndScale), progress) *
-                Mathf.Lerp(1f, Mathf.Clamp(settings.chargedDotScale, 1f, 4f), charge);
+            radius = AmplifierCoreMotion.AimDotRadius(settings, index, aimDots.Count, core.Charge01, ChargeGuideVisible, out charge);
             return true;
         }
 
@@ -74,14 +67,15 @@ namespace Massive.Multiplier
 
         public override void OnDisable()
         {
-            if (captionRoot) captionRoot.gameObject.SetActive(false);
+            // Release owned resources before script reload as well as normal disable.
+            controlUI?.Dispose(); controlUI = null;
             path.Clear(); aimDots.Clear();
             base.OnDisable();
         }
 
         private void LateUpdate()
         {
-            if (!core || !core.IsOccupied) { if (captionRoot) captionRoot.gameObject.SetActive(false); return; }
+            if (!core || !core.IsOccupied) { controlUI?.Hide(); return; }
             if (Time.unscaledTime >= nextPrediction)
             {
                 nextPrediction = Time.unscaledTime + .08f;
@@ -89,32 +83,17 @@ namespace Massive.Multiplier
                 else path.Clear();
                 RefreshAimDots();
             }
-            if (!captionRoot)
-            {
-                captionRoot = new GameObject("Core control prompt", typeof(TMPro.TextMeshPro)).transform;
-                captionRoot.SetParent(transform, false);
-                captionRoot.gameObject.layer = gameObject.layer;
-                caption = captionRoot.GetComponent<TMPro.TextMeshPro>();
-                caption.fontSize = 2.2f;
-                caption.alignment = TMPro.TextAlignmentOptions.Center;
-                caption.textWrappingMode = TMPro.TextWrappingModes.NoWrap;
-                caption.color = Color.white;
-            }
-            captionRoot.gameObject.SetActive(true);
             var camera = Camera.main;
             if (!camera) return;
-            captionRoot.rotation = camera.transform.rotation;
-            captionRoot.localScale = new Vector3(1f / transform.lossyScale.x, 1f / transform.lossyScale.y, 1f / transform.lossyScale.z);
-            Vector3 center = Map(core.transform.position);
-            float radius = Radius;
-            captionRoot.position = center - camera.transform.up * (radius + core.Possession.meterOffset + (ContestBarVisible ? .38f : .08f));
-            if (core.ControlState == AmplifierControlState.Contested)
-                caption.SetText("ALTERNATE ATTACK / SHIELD  {0:1}s", core.ControlSecondsRemaining);
-            else if (core.Occupant && core.Occupant.IsAmplifierTransitioning)
-                caption.text = (core.Occupant.teamID == 1 ? "LIGHT" : "DARK") + "  ENTERING CORE";
-            else
-                caption.SetText((core.Occupant && core.Occupant.teamID == 1 ? "LIGHT" : "DARK") + "  HOLD / RELEASE ATTACK  {0:1}s", core.ControlSecondsRemaining);
+            if (controlUI == null) controlUI = new AmplifierCoreControlUI(transform);
+            var state = core.ControlState == AmplifierControlState.Contested ? AmplifierPromptState.Contested :
+                core.Occupant && core.Occupant.IsAmplifierTransitioning ? AmplifierPromptState.Entering :
+                core.IsContestWinnerAiming ? AmplifierPromptState.Winner : AmplifierPromptState.Aiming;
+            controlUI.Update(core.Possession, camera, Map(core.transform.position), Radius, state,
+                core.Occupant ? core.Occupant.teamID : 1, core.ControlSecondsRemaining, core.LightControl01);
         }
+
+        private void OnDestroy() { controlUI?.Dispose(); controlUI = null; }
 
         float Radius => core && core.GetComponent<Collider>() ? Mathf.Max(core.GetComponent<Collider>().bounds.extents.x, core.GetComponent<Collider>().bounds.extents.z) : .5f;
         Vector3 Map(Vector3 point) => surface && surface.IsRenderingOnSurface ? surface.MapChartPoint(point) : point;
@@ -122,7 +101,6 @@ namespace Massive.Multiplier
         public override void DrawShapes(Camera cam)
         {
             if (!core || !core.IsOccupied || !Application.isPlaying) return;
-            var settings = core.Possession;
             using (Draw.Command(cam))
             {
                 Draw.ResetAllDrawStates();
@@ -135,18 +113,6 @@ namespace Massive.Multiplier
                 for (int i = 0; i < AimDotCount; i++)
                     if (TryGetAimDot(i, out var point, out float dotSize, out _) && dotSize > .0001f)
                         Draw.Disc(Map(point) - drawOrigin, -cam.transform.forward, dotSize, Color.white);
-                if (!ContestBarVisible) return;
-                Vector3 middle = -cam.transform.up * (Radius + settings.meterOffset);
-                Vector3 left = middle - cam.transform.right * settings.meterWidth * .5f;
-                Vector3 right = middle + cam.transform.right * settings.meterWidth * .5f;
-                float height = Mathf.Max(.05f, settings.meterHeight);
-                Draw.Rectangle(middle, cam.transform.rotation, new Rect(-settings.meterWidth * .5f - .025f, -height * .5f - .025f, settings.meterWidth + .05f, height + .05f), Color.white);
-                Draw.Rectangle(middle, cam.transform.rotation, new Rect(-settings.meterWidth * .5f, -height * .5f, settings.meterWidth, height), Color.black);
-                float fill = LightBarFraction;
-                if (fill > .001f) Draw.Rectangle(middle, cam.transform.rotation, new Rect(-settings.meterWidth * .5f, -height * .5f, settings.meterWidth * fill, height), Color.white);
-                Vector3 mark = Vector3.Lerp(left, right, fill);
-                // A monochrome notch marks the moving split; black team stays legible on a black field.
-                Draw.Rectangle(mark, cam.transform.rotation, new Rect(-.0125f, -height * .75f, .025f, height * 1.5f), Color.white);
             }
         }
 

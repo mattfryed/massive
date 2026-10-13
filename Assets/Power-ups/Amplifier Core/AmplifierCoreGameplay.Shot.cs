@@ -21,7 +21,6 @@ namespace Massive.Multiplier
         private RaycastHit[] shotHits = new RaycastHit[128];
         private Collider[] shotOverlap = new Collider[128];
         private bool physicalShotActive;
-        private float shotOriginalDrag;
         private readonly Dictionary<Collider, bool> shotIgnoredActors = new Dictionary<Collider, bool>();
         private readonly List<Collider> shotActorScratch = new List<Collider>(32);
         private sealed class HitDistance : IComparer<RaycastHit>
@@ -44,16 +43,15 @@ namespace Massive.Multiplier
 
         private void BeginPhysicalShot(float range)
         {
-            shotOriginalDrag = body.linearDamping;
             physicalShotActive = true;
             body.isKinematic = false;
             collisionShape.isTrigger = possessionWasTrigger;
             float speed = LimitPlanarSpeed(aimDirection * Mathf.Max(.1f, Possession.shotSpeed), Effective_maximumPlanarSpeed).magnitude;
-            // The existing Core drag is the floor. Extra drag on a short charge
-            // gives it a shorter coast, without a hard range limit or damage change.
-            float drag = Mathf.Max(shotOriginalDrag, speed / (Mathf.Max(.1f, range) + speed * Time.fixedDeltaTime));
+            // Distance-driven shots include the stopping interval in their launch
+            // drag. Legacy mode retains the independent body-drag floor.
+            float drag = AmplifierCoreMotion.ShotDrag(speed, range, Time.fixedDeltaTime, Possession);
             flight = new ShotFlight { drag = drag, remaining = range };
-            body.linearDamping = drag;
+            body.linearDamping = AmplifierCoreMotion.CoastingDrag(drag, Effective_linearDrag, Possession);
             body.linearVelocity = aimDirection * speed;
             _incomingVelocity = body.linearVelocity;
             body.angularVelocity = Vector3.Cross(Vector3.up, body.linearVelocity) * (Mathf.Clamp01(Possession.rollingSpin) / CoreRadius);
@@ -69,6 +67,22 @@ namespace Massive.Multiplier
             foreach (var pair in shotIgnoredActors)
                 if (collisionShape && pair.Key) Physics.IgnoreCollision(collisionShape, pair.Key, pair.Value);
             shotIgnoredActors.Clear();
+        }
+
+        internal void WakeForGoalField()
+        {
+            if (!UsesPossession || IsOccupied || IsCaptured || IsInExternalTransit || !isActiveAndEnabled || !body) return;
+            EnsurePossessionPhysics();
+            if (IsLaunched) return;
+            ControlState = AmplifierControlState.Launched;
+            physicalShotActive = true;
+            flight = new ShotFlight();
+            shotOwner = null; // A goal pulling a resting Core is not a player's damage-dealing shot.
+            shotVictims.Clear(); shieldContacts.Clear();
+            body.isKinematic = false;
+            collisionShape.isTrigger = possessionWasTrigger;
+            body.linearVelocity = body.angularVelocity = Vector3.zero;
+            body.WakeUp();
         }
 
         private void RefreshShotActorFilters()
@@ -100,8 +114,7 @@ namespace Massive.Multiplier
             flight.age += dt;
             // A lifetime safety brake also eases out. Never teleport or zero a
             // moving shot just because its estimated range/time has elapsed.
-            bool braking = flight.age >= Mathf.Max(1f, Possession.maximumFlightSeconds);
-            body.linearDamping = braking ? Mathf.Max(flight.drag, 5f) : Mathf.Max(flight.drag, Effective_linearDrag);
+            body.linearDamping = AmplifierCoreMotion.Drag(flight.drag, Effective_linearDrag, flight.age, Possession);
             body.linearVelocity = LimitPlanarSpeed(body.linearVelocity, Effective_maximumPlanarSpeed);
             CheckShotActorContacts(dt);
             if (IsCaptured) return;
@@ -111,8 +124,8 @@ namespace Massive.Multiplier
             bool magnetic = false;
             foreach (var driver in shotPatterns)
                 if (driver && driver.IsTurningCore(this)) { magnetic = true; break; }
-            flight.stillAge = speed <= Mathf.Max(.01f, Possession.settledSpeed) && !magnetic ? flight.stillAge + dt : 0f;
-            if (flight.stillAge >= .3f) BecomeAvailable();
+            bool goalDriven = AmplifierGoalCapture.IsDrivingCore(this);
+            if (AmplifierCoreMotion.Settle(speed, magnetic || goalDriven, dt, ref flight.stillAge, Possession)) BecomeAvailable();
         }
 
         /// <summary>General straight aiming direction. It deliberately makes no
@@ -202,12 +215,13 @@ namespace Massive.Multiplier
             else if (shield.BlocksAllDamage)
             {
                 body.linearVelocity = velocity * Mathf.Clamp01(Possession.blockSpeedRetention);
-                flight.drag = Mathf.Max(flight.drag, flight.drag * Mathf.Clamp01(Possession.blockSpeedRetention) / Mathf.Max(.01f, Possession.blockRangeRetention));
+                float coastDrag = AmplifierCoreMotion.CoastingDrag(flight.drag, Effective_linearDrag, Possession);
+                flight.drag = Mathf.Max(coastDrag, coastDrag * Mathf.Clamp01(Possession.blockSpeedRetention) / Mathf.Max(.01f, Possession.blockRangeRetention));
             }
             else return false;
             foreach (var driver in shotPatterns) if (driver) driver.ReleaseCoreTurn(this);
             shieldContacts.Add(player);
-            flight.remaining = body.linearVelocity.magnitude / Mathf.Max(.01f, flight.drag);
+            flight.remaining = body.linearVelocity.magnitude / Mathf.Max(.01f, AmplifierCoreMotion.CoastingDrag(flight.drag, Effective_linearDrag, Possession));
             return true;
         }
 

@@ -272,8 +272,7 @@ namespace Massive.Multiplier
                 normal.Normalize();
                 float towardWall = Vector3.Dot(_incomingVelocity, normal);
                 if (towardWall >= 0f) continue;
-                _incomingVelocity -= (1f + Effective_wallRestitution) * towardWall * normal;
-                _incomingVelocity = LimitPlanarSpeed(_incomingVelocity, Effective_maximumPlanarSpeed);
+                _incomingVelocity = AmplifierCoreMotion.Bounce(_incomingVelocity, normal, Effective_wallRestitution, Effective_maximumPlanarSpeed);
                 SetVelocity(body, _incomingVelocity);
                 if (UsesPossession && IsLaunched)
                 {
@@ -288,10 +287,7 @@ namespace Massive.Multiplier
 
         private static Vector3 LimitPlanarSpeed(Vector3 velocity, float maximumSpeed)
         {
-            if (maximumSpeed <= 0f) return velocity;
-            Vector3 planar = new Vector3(velocity.x, 0f, velocity.z);
-            planar = Vector3.ClampMagnitude(planar, maximumSpeed);
-            return new Vector3(planar.x, velocity.y, planar.z);
+            return AmplifierCoreMotion.LimitSpeed(velocity, maximumSpeed);
         }
 
         public void SetAttractionExcitement(float excitement01)

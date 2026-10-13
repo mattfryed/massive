@@ -53,6 +53,7 @@ public static partial class AmplifierPossessionValidation
         SessionState.SetString(Key + ".Result", "RUNNING"); SessionState.SetBool(Key, true);
         SessionState.SetBool(Key + ".CaptureOnly", false);
         SessionState.SetBool(Key + ".RecordContest", false);
+        SessionState.SetBool(Key + ".PostContestOnly", false);
         EditorSceneManager.playModeStartScene = AssetDatabase.LoadAssetAtPath<SceneAsset>(path);
         EditorApplication.isPlaying = true;
     }
@@ -222,6 +223,69 @@ public static partial class AmplifierPossessionValidation
         e.ConfigureDemonstration(scope.transform, light); e.Init(def, null);
         return e;
     }
+
+    static IEnumerator StoppingChecks()
+    {
+        string savedPossession = JsonUtility.ToJson(core.Possession);
+        float savedDrag = core.Effective_linearDrag;
+        try
+        {
+            yield return ResetCore();
+            Set(core, "linearDrag", 3f); core.ApplyTuning();
+            yield return Enter(light); yield return Fire(light, .36f, Vector3.right);
+            yield return Wait(.1f);
+            float fastDragSpeed = core.ShotVelocity.magnitude;
+            Check(Mathf.Approximately(core.Body.linearDamping, 3f) && fastDragSpeed < 9f,
+                "Coasting drag actively slows a moving shot");
+            Set(core, "linearDrag", .1f); core.ApplyTuning();
+            yield return Wait(.1f);
+            Check(core.Body.linearDamping < 1f && core.ShotVelocity.magnitude > fastDragSpeed * .8f,
+                "Lowering drag during a shot removes the old body drag floor while preserving charge drag");
+
+            core.Possession.settledSpeed = .2f;
+            core.Possession.settlingSeconds = .5f;
+            core.Body.linearVelocity = Vector3.right * .1f;
+            yield return Wait(.15f);
+            Check(core.IsLaunched, "Custom settling time keeps a briefly slow shot in flight");
+            core.Body.linearVelocity = Vector3.right * 2f;
+            yield return Wait(.1f);
+            core.Body.linearVelocity = Vector3.right * .1f;
+            yield return Wait(.25f);
+            Check(core.IsLaunched, "Regaining speed resets the continuous settling interval");
+            yield return Until(() => !core.IsLaunched, .6f, "Shot rests after the configured continuous settling interval");
+            Check(core.Body.isKinematic, "Settled Core stops drifting and returns to available physics");
+
+            yield return ResetCore();
+            core.Possession.settlingSeconds = 0f;
+            yield return Enter(light); yield return Fire(light, .36f, Vector3.right);
+            yield return Wait(.1f);
+            Check(core.IsLaunched && core.ShotVelocity.magnitude > 1f, "Zero settling time never stops a shot above Stop Speed");
+            core.Body.linearVelocity = Vector3.right * .1f;
+            yield return Until(() => !core.IsLaunched, .2f, "Zero settling time rests a slow shot on its next physics step");
+
+            yield return ResetCore();
+            Set(core, "linearDrag", 0f); core.ApplyTuning();
+            core.Possession.minimumRange = core.Possession.maximumRange = 1000f;
+            core.Possession.settlingSeconds = .3f;
+            core.Possession.maximumFlightSeconds = 1f;
+            core.Possession.finalBrakeDrag = 0f;
+            yield return Enter(light); yield return Fire(light, .36f, Vector3.right);
+            yield return Wait(1.15f);
+            Check(core.IsLaunched && core.ShotVelocity.magnitude > 8f,
+                "Zero final brake drag leaves the physical coast intact after Brake After");
+            core.Possession.finalBrakeDrag = 8f;
+            yield return Wait(.1f);
+            Check(core.IsLaunched && core.ShotVelocity.magnitude < 7f && core.ShotVelocity.magnitude > .2f,
+                "Live Brake Drag change decelerates the shot instead of instantly stopping it");
+            yield return Until(() => !core.IsLaunched, 1.5f, "Configured final braking brings a long-coasting shot back to rest");
+        }
+        finally
+        {
+            JsonUtility.FromJsonOverwrite(savedPossession, core.Possession);
+            Set(core, "linearDrag", savedDrag); core.ApplyTuning();
+        }
+    }
+
     static IEnumerator Checks()
     {
         Check(SceneManager.GetActiveScene().path == SessionState.GetString(Key + ".Scene", ""), "Disposable scene isolates all gameplay checks");
@@ -246,6 +310,11 @@ public static partial class AmplifierPossessionValidation
             if (SessionState.GetBool(Key + ".RecordContest", false))
             {
                 yield return ContestRecording(cam);
+                yield break;
+            }
+            if (SessionState.GetBool(Key + ".PostContestOnly", false))
+            {
+                yield return PostContestInputChecks();
                 yield break;
             }
             yield return PresentationChecks(cam);
@@ -276,12 +345,12 @@ public static partial class AmplifierPossessionValidation
             var goal = goalGO.GetComponent<AmplifierGoalCapture>(); goal.GetComponent<Collider>().isTrigger = true;
             Check(!core.TryCapture(goal), "Goal cannot swallow a player inside the Core");
             var wall = Wall(new Vector3(3.5f, 0f, 0f), new Vector3(.2f, 4f, 15f));
-            Input(light, attack: true); yield return Wait(.36f);
+            Input(light, attack: true); yield return Wait(.16f);
             var path = new List<Vector3>(); core.BuildTrajectory(path);
             Check(path.Count > 8 && path.Last().x > 3.5f && path.All(v => Mathf.Abs(v.z) < .001f), "Aim guide stays straight and makes no wall-rebound promise");
             SaveFrame(cam, "01-aim");
-            Input(light, release: true);
-            yield return Until(() => core.IsLaunched, .3f, "Charged input launches");
+            yield return Until(() => core.IsLaunched, .3f, "Maximum charge launches automatically without releasing Attack");
+            Input(light);
             Check(light.IsAmplifierTransitioning && light.visualsController.enabled, "Shot starts visible tidal ejection instead of teleporting the shooter");
             Check(!core.Body.isKinematic && !core.GetComponent<Collider>().isTrigger, "Shot restores solid dynamic physics");
             Check(core.ShotRangeRemaining > 10f && !core.BeginTimeoutDespawn(), "Full charge grants range and protects the flight from encounter expiry");
@@ -298,6 +367,11 @@ public static partial class AmplifierPossessionValidation
             while (core.IsLaunched && Time.time < settleDeadline) { lastMovingSpeed = core.ShotVelocity.magnitude; yield return null; }
             Check(!core.IsLaunched && lastMovingSpeed <= core.Possession.settledSpeed + .01f, "Flight becomes enterable only after naturally slowing below the settling speed");
             Object.DestroyImmediate(wall); Object.DestroyImmediate(goalGO);
+            yield return StoppingChecks();
+            yield return DistanceChecks();
+            yield return GoalAndFeedbackChecks(service);
+            // Exercise contests, combat, shields and capture with the new tuning too.
+            core.Possession.distanceDrivenShots = true;
 
             yield return ResetCore(); yield return Enter(light);
             core.Possession.possessionSeconds = .25f; // Takes effect on the next entry.
@@ -320,10 +394,14 @@ public static partial class AmplifierPossessionValidation
             { Input(light, attack: i % 2 != 0, shield: i % 2 == 0); yield return Wait(.18f); }
             yield return Until(() => !dark.IsInsideAmplifier, .5f, "Contest loser finishes animated ejection");
             Check(core.Occupant == light && core.ControlState == AmplifierControlState.Aiming && dark.IsExternallyStunned, "Alternating inputs win control and eject/stun the loser");
+            Check(core.GetComponent<AmplifierCoreVisual>().EjectionRippleActive, "Contest loss ripples the Core while the winner retains possession");
             CheckPossessionMarkers(false, 1);
+            var winnerUI = core.GetComponent<AmplifierPossessionPresentation>().ControlUI;
+            Check(core.IsContestWinnerAiming && winnerUI.TextVisible && !winnerUI.RingVisible && winnerUI.Caption.text.Contains("LIGHT WINS"),
+                "Contest victory removes the ring and displays the winning team's aiming prompt");
             Input(light, release: true); yield return Wait(.08f);
             Check(!core.IsLaunched && core.Charge01 == 0f, "Contest button release cannot accidentally fire the winner's shot");
-            Input(light); yield return Wait(.03f);
+            Input(light); yield return Wait(core.PostContestGraceRemaining + core.Possession.postContestReleaseSeconds + .04f);
             yield return Fire(light, .1f, Vector3.right);
             Check(core.ShotRangeRemaining < 11f, "Shorter charge grants less distance at the same shot speed");
             Check(core.ShotVelocity.magnitude > 9.4f && core.ShotVelocity.magnitude <= 10f, "Short charge launches at the same initial speed before drag acts");
@@ -421,12 +499,12 @@ public static partial class AmplifierPossessionValidation
             Check(pattern.InteractiveSegments.Count > 0, "Resonance fixture builds actual curved contacts");
             yield return ResetCore(); yield return Enter(light);
             Vector3 oblique = new Vector3(1f, 0f, .14f).normalized;
-            Input(light, attack: true, aim: oblique); yield return Wait(.4f);
+            Input(light, attack: true, aim: oblique); yield return Wait(.16f);
             path.Clear(); core.BuildTrajectory(path);
             Check(path.Count > 15 && Vector3.Cross(path.Last() - path[0], oblique).magnitude < .01f, "Guide remains a straight general direction near Resonance");
             SaveFrame(cam, "04-resonance-guide");
-            Input(light, release: true, aim: oblique);
-            yield return Until(() => core.IsLaunched, .3f, "Resonance fixture launches through normal input");
+            yield return Until(() => core.IsLaunched, .3f, "Resonance fixture auto-fires through normal held input");
+            Input(light);
             yield return Until(() => core.ShotVelocity.x < 0f, 1.5f, "Physical shot follows the existing Resonance curved turnaround");
             Check(core.Body.angularVelocity.sqrMagnitude > .01f && !core.Body.isKinematic, "Resonance turnaround retains dynamic body and spin");
             pattern.magneticPath = ResonanceMagneticPath.StopAndReflect;
@@ -449,7 +527,9 @@ public static partial class AmplifierPossessionValidation
             yield return Until(() => core.HasBeenCaptured, .8f, "A launched Core still captures through the normal goal transaction");
             Check(service.GetTeamAmplifierMultiplier(2) == 2 && service.GetTeamAmplifierMultiplier(1) == 1, "Receiving goal team gets amplification regardless of shooter team");
             while (service.AdvanceTeamAmplifier(2)) { }
+            goalGO.SetActive(false);
             yield return ResetCore(); yield return Enter(light);
+            goalGO.SetActive(true);
             yield return Fire(light, .2f, Vector3.right);
             yield return Until(() => core.ShotVelocity.x < 0f, 1.4f, "Maxed goal repels a shot back into the field");
             Check(!core.HasBeenCaptured && service.IsTeamAmplifierMaxed(2), "Maxed goal cannot accept another multiplier");
@@ -463,6 +543,39 @@ public static partial class AmplifierPossessionValidation
         {
             Object.DestroyImmediate(scope); Object.DestroyImmediate(serviceGO);
             foreach (var item in owned) if (item) Object.DestroyImmediate(item); owned.Clear();
+        }
+    }
+
+    static IEnumerator DistanceChecks()
+    {
+        string savedPossession = JsonUtility.ToJson(core.Possession);
+        float savedDrag = core.Effective_linearDrag;
+        try
+        {
+            var settings = core.Possession;
+            settings.distanceDrivenShots = true; settings.minimumRange = 5f; settings.maximumRange = 15f;
+            settings.shotSpeed = 14f; settings.settledSpeed = 3f; settings.settlingSeconds = .3f;
+            settings.maximumFlightSeconds = 15f; settings.finalBrakeDrag = 5f;
+            Set(core, "linearDrag", 2.1f); core.ApplyTuning();
+            foreach (float charge in new[] { 0f, .5f, 1f })
+            {
+                yield return ResetCore(); yield return Enter(light);
+                // Fix charge exactly so frame duration cannot skew the requested distance.
+                Set(core, "chargeSeconds", charge * settings.fullChargeSeconds);
+                Set(core, "aimDirection", Vector3.right);
+                Vector3 origin = core.Body.position;
+                Invoke(core, "Launch");
+                Check(Mathf.Abs(core.ShotVelocity.magnitude - 14f) < .001f, "Distance-driven shot starts at the same speed at every charge");
+                yield return Until(() => !core.IsLaunched, 6f, "Distance-driven shot settles through gameplay physics");
+                float distance = Vector3.Distance(origin, core.Body.position), expected = Mathf.Lerp(5f, 15f, charge);
+                Check(Mathf.Abs(distance - expected) < .12f, $"Gameplay {charge:P0} charge travels {distance:0.000} of {expected:0.0} units");
+                Check(core.Body.isKinematic && core.ShotVelocity.sqrMagnitude < .0001f, "Distance tuning preserves a clear stop and available Core");
+            }
+        }
+        finally
+        {
+            JsonUtility.FromJsonOverwrite(savedPossession, core.Possession);
+            Set(core, "linearDrag", savedDrag); core.ApplyTuning();
         }
     }
     static void SaveFrame(Camera camera, string name)

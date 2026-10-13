@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5fbe94a6bd03940b9a5a78c567bc6665, type: 3}
+  m_Name: LevelDefinition-EMERGENCE
+  m_EditorClassIdentifier: 
+  levelNumber: 10
+  levelTitle: EMERGENCE
+  scaleExponent: -6
+  gameplayScene:
+    sceneName: S-10_EMERGENCE
+    sceneAsset: {fileID: 102900000, guid: 5708b8d2c13137e4aa309dd8d81f72b2, type: 3}
+  iconPrefab: {fileID: 142929105835982725, guid: b001851f3106cb94c87069cb5f1aee84,
+    type: 3}
+  instructionsPanelPrefab: {fileID: 5628863166494301820, guid: 0ff7bd35fba6c684f856f9af18c1f934,
+    type: 3}
+  anomalyTypeName: ACTIVE MATTER
+  audioProfile: {fileID: 11400000, guid: 7acbe58a564814946ab33dbd32f1afe0, type: 2}

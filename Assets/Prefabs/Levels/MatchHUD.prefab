@@ -226,6 +226,32 @@ MonoBehaviour:
   teamID: 2
   multiplierText: {fileID: 3403085005774604985}
   multiplierPrefix: x
+  useSharedSettings: 1
+  goalNumber:
+    enabled: 1
+    font: {fileID: 0}
+    prefix: 
+    lightColor: {r: 0, g: 0, b: 0, a: 1}
+    darkColor: {r: 0, g: 0, b: 0, a: 1}
+    outlineColor: {r: 0, g: 0, b: 0, a: 1}
+    outlineWidth: 0
+    whiteCircleScale: 0.53
+    whiteCircleColor: {r: 1, g: 1, b: 1, a: 1}
+    numberScale: 0.17
+    lightNumberHorizontalOffset: -0.12
+    darkNumberHorizontalOffset: 0.12
+    overallScale: 1
+    levelScales:
+    - multiplier: 2
+      scale: 0.28
+    - multiplier: 4
+      scale: 0.44
+    - multiplier: 8
+      scale: 0.64
+    outwardOffset: 0
+    verticalOffset: 0
+    ringInset: 0.025
+  goalSurface: {fileID: 0}
 --- !u!1 &242612390297644060
 GameObject:
   m_ObjectHideFlags: 0
@@ -3882,6 +3908,32 @@ MonoBehaviour:
   teamID: 1
   multiplierText: {fileID: 4747174431351530359}
   multiplierPrefix: x
+  useSharedSettings: 1
+  goalNumber:
+    enabled: 1
+    font: {fileID: 0}
+    prefix: 
+    lightColor: {r: 0, g: 0, b: 0, a: 1}
+    darkColor: {r: 0, g: 0, b: 0, a: 1}
+    outlineColor: {r: 0, g: 0, b: 0, a: 1}
+    outlineWidth: 0
+    whiteCircleScale: 0.53
+    whiteCircleColor: {r: 1, g: 1, b: 1, a: 1}
+    numberScale: 0.17
+    lightNumberHorizontalOffset: -0.12
+    darkNumberHorizontalOffset: 0.12
+    overallScale: 1
+    levelScales:
+    - multiplier: 2
+      scale: 0.28
+    - multiplier: 4
+      scale: 0.44
+    - multiplier: 8
+      scale: 0.64
+    outwardOffset: 0
+    verticalOffset: 0
+    ringInset: 0.025
+  goalSurface: {fileID: 0}
 --- !u!1 &5210171823913304503
 GameObject:
   m_ObjectHideFlags: 0

@@ -12,15 +12,27 @@ Shader "MASSIVE/Amplifier Core/Energy"
         _FresnelPower ("Fresnel Power", Range(0.5, 8.0)) = 2.6
         _Emission ("Neon Emission", Range(0.5, 5.0)) = 1.2
         [HideInInspector] _SingularityBrightness ("Surface Brightness", Float) = 1
+        [HideInInspector] _PreviewTime ("Preview Clock (-1 uses game time)", Float) = -1
+        [HideInInspector] _CoreRipple ("Ejection ripple", Vector) = (0,0,0,0)
+        [HideInInspector] _CoreRipple2 ("Second ejection ripple", Vector) = (0,0,0,0)
+        [HideInInspector] _CoreRippleOrigin ("Ejection direction", Vector) = (1,0,0,0)
+        [HideInInspector] _CoreRippleOrigin2 ("Second ejection direction", Vector) = (-1,0,0,0)
+        // Only the generated goal badge overrides these. Physical cores keep
+        // their existing opaque depth-writing path and do not use the goal mask.
+        [HideInInspector] _GoalClipEnabled ("Goal badge clip", Float) = 0
+        [HideInInspector] _SrcBlend ("Source blend", Float) = 1
+        [HideInInspector] _DstBlend ("Destination blend", Float) = 0
+        [HideInInspector] _ZWrite ("Depth write", Float) = 1
+        [HideInInspector] _ZTest ("Depth test", Float) = 4
     }
 
     SubShader
     {
         Tags { "Queue"="Geometry" "RenderType"="Opaque" }
         Cull Back
-        Blend Off
-        ZWrite On
-        ZTest LEqual
+        Blend [_SrcBlend] [_DstBlend]
+        ZWrite [_ZWrite]
+        ZTest [_ZTest]
         ColorMask RGBA
 
         Pass
@@ -30,6 +42,9 @@ Shader "MASSIVE/Amplifier Core/Energy"
             #pragma fragment frag
             #pragma target 3.0
             #include "UnityCG.cginc"
+            #include "AmplifierCoreRipple.cginc"
+            #include "../../Resources/TeamAmplifierGoalClip.cginc"
+            float _GoalClipEnabled;
 
             fixed4 _WarmColor;
             fixed4 _MagentaColor;
@@ -41,6 +56,7 @@ Shader "MASSIVE/Amplifier Core/Energy"
             float _FresnelPower;
             float _Emission;
             float _SingularityBrightness;
+            float _PreviewTime;
 
             struct appdata
             {
@@ -59,6 +75,7 @@ Shader "MASSIVE/Amplifier Core/Energy"
             v2f vert(appdata input)
             {
                 v2f output;
+                input.vertex.xyz *= 1.0 + CoreRippleHeight(input.vertex.xyz);
                 output.position = UnityObjectToClipPos(input.vertex);
                 output.objectPosition = input.vertex.xyz;
                 output.worldNormal = UnityObjectToWorldNormal(input.normal);
@@ -69,7 +86,7 @@ Shader "MASSIVE/Amplifier Core/Energy"
             fixed4 frag(v2f input) : SV_Target
             {
                 float3 p = normalize(input.objectPosition);
-                float time = _Time.y * _FlowSpeed;
+                float time = (_PreviewTime >= 0 ? _PreviewTime : _Time.y) * _FlowSpeed;
 
                 float warp =
                     sin(dot(p, float3(1.7, 2.3, -1.1)) * _PatternScale + time) +
@@ -105,7 +122,8 @@ Shader "MASSIVE/Amplifier Core/Energy"
                 float brightness = lerp(baseBrightness, 1.0, emission01);
                 float hdrPeak = lerp(1.0, 1.65, emission01);
 
-                return fixed4(chroma * brightness * hdrPeak * saturate(_SingularityBrightness), 1.0);
+                float alpha = _GoalClipEnabled > .5 ? TeamGoalCoverage(input.worldPosition) : 1;
+                return fixed4(chroma * brightness * hdrPeak * saturate(_SingularityBrightness), alpha);
             }
             ENDCG
         }

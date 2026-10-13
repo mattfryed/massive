@@ -39,14 +39,39 @@ namespace Massive.Multiplier
         public float AttractionRadius => attractionRadius;
         public Transform CapturePoint => capturePoint != null ? capturePoint : transform;
         private readonly List<AmplifierCoreGameplay> _rejectedCores = new List<AmplifierCoreGameplay>(4);
+        private static readonly List<AmplifierGoalCapture> ActiveGoals = new List<AmplifierGoalCapture>(4);
 
-        private void OnDisable() { _rejectedCores.Clear(); }
+        private void OnDisable() { _rejectedCores.Clear(); ActiveGoals.Remove(this); }
 
         private void OnEnable()
         {
+            if (!ActiveGoals.Contains(this)) ActiveGoals.Add(this);
             if (arenaBounds == null)
                 foreach (var candidate in FindObjectsByType<ArenaBoundsFromVectorGrid>(FindObjectsSortMode.None))
                     if (candidate.gameObject.scene == gameObject.scene) { arenaBounds = candidate; break; }
+        }
+
+        // Query geometry and scoring state directly, rather than relying on which
+        // component's FixedUpdate happened first this tick.
+        public static bool IsDrivingCore(AmplifierCoreGameplay core)
+        {
+            var service = MatchScoreService.Instance;
+            if (!service || !service.IsScoringOpen || !core || core.IsOccupied || core.IsCaptured || core.IsInExternalTransit) return false;
+            foreach (var goal in ActiveGoals)
+                if (goal && goal.isActiveAndEnabled && goal.FieldAffects(core, service.IsTeamAmplifierMaxed(goal.teamID))) return true;
+            return false;
+        }
+
+        private bool FieldAffects(AmplifierCoreGameplay core, bool capped)
+        {
+            if (!core.Body || core.gameObject.scene != gameObject.scene) return false;
+            Vector3 delta = CapturePoint.position - core.Body.worldCenterOfMass; delta.y = 0f;
+            float distance = delta.magnitude;
+            if (distance > attractionRadius) return false;
+            if (distance <= captureRadius) return !capped || Effective_repelWhenMaxed;
+            float proximity = Mathf.InverseLerp(attractionRadius, captureRadius, distance);
+            float shaped = Effective_pullByProximity != null ? Mathf.Max(0f, Effective_pullByProximity.Evaluate(proximity)) : proximity;
+            return shaped * (capped ? (Effective_repelWhenMaxed ? Effective_repulsionAcceleration : 0f) : Effective_pullAcceleration) > .0001f;
         }
 
         private void Reset()
@@ -94,7 +119,7 @@ namespace Massive.Multiplier
             for (int i = cores.Count - 1; i >= 0; i--)
             {
                 AmplifierCoreGameplay core = cores[i];
-                if (core == null || core.gameObject.scene != gameObject.scene || core.IsCaptured || core.IsInExternalTransit || core.IsOccupied || core.Body == null || core.Body.isKinematic)
+                if (core == null || core.gameObject.scene != gameObject.scene || core.IsCaptured || core.IsInExternalTransit || core.IsOccupied || core.Body == null)
                     continue;
 
                 Vector3 delta = CapturePoint.position - core.Body.worldCenterOfMass;
@@ -102,6 +127,9 @@ namespace Massive.Multiplier
                 float distance = delta.magnitude;
                 if (distance > attractionRadius)
                     continue;
+
+                if (core.Body.isKinematic && FieldAffects(core, capped)) core.WakeForGoalField();
+                if (core.Body.isKinematic) continue;
 
                 if (capped)
                 {

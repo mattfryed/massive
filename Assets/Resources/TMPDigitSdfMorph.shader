@@ -12,6 +12,7 @@ Shader "MASSIVE/UI/TMP Digit SDF Morph"
         _Morph ("Morph", Range(0,1)) = 0
         _EdgeSoftness ("Edge Softness", Range(0.25,3)) = 1
         _ContourBias ("Contour Bias", Range(-0.2,0.2)) = 0
+        [HideInInspector] _GoalClipEnabled ("Goal Clip", Float) = 0
 
         _StencilComp ("Stencil Comparison", Float) = 8
         _Stencil ("Stencil ID", Float) = 0
@@ -63,6 +64,8 @@ Shader "MASSIVE/UI/TMP Digit SDF Morph"
 
             #include "UnityCG.cginc"
             #include "UnityUI.cginc"
+            #include "TeamAmplifierGoalClip.cginc"
+            float _GoalClipEnabled;
 
             sampler2D _MainTex;
             fixed4 _Color;
@@ -88,12 +91,14 @@ Shader "MASSIVE/UI/TMP Digit SDF Morph"
                 fixed4 color : COLOR;
                 float2 uv : TEXCOORD0;
                 float4 worldPosition : TEXCOORD1;
+                float3 goalWorld : TEXCOORD2;
             };
 
             v2f vert(appdata_t input)
             {
                 v2f output;
                 output.worldPosition = input.vertex;
+                output.goalWorld = mul(unity_ObjectToWorld, input.vertex).xyz;
                 output.vertex = UnityObjectToClipPos(input.vertex);
                 output.uv = input.texcoord;
                 output.color = input.color * _Color;
@@ -122,6 +127,7 @@ Shader "MASSIVE/UI/TMP Digit SDF Morph"
                 float alpha = smoothstep(0.5 - antialias, 0.5 + antialias, distanceField);
                 fixed4 color = input.color;
                 color.a *= alpha;
+                if (_GoalClipEnabled > .5) color.a *= TeamGoalCoverage(input.goalWorld);
 
                 #ifdef UNITY_UI_CLIP_RECT
                     color.a *= UnityGet2DClipping(input.worldPosition.xy, _ClipRect);

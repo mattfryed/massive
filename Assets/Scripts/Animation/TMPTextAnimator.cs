@@ -99,6 +99,7 @@ namespace Massive.TextAnimation
 
         private PlaybackRequest _current;
         private Coroutine _routine;
+        private bool _manualPlayback;
         private int _nextRequestId = 1;
         private bool _hasAutoPlayed;
 
@@ -327,6 +328,37 @@ namespace Massive.TextAnimation
                 RestoreRuntimeBaseline(restoreVisibility);
         }
 
+        /// <summary>Starts the same preset pipeline with an externally supplied clock.
+        /// Used by composed animations and edit-mode previews; normal Play is unchanged.</summary>
+        public float BeginManual(TextAnimationPreset preset, TextAnimationContext context)
+        {
+            StopAll();
+            EnsureReferences();
+            if (!target || !preset) return 0;
+            var request = new PlaybackRequest { id = NextRequestId(), preset = preset, context = context.Sanitized() };
+            _current = request;
+            _requests.Add(request.id, request);
+            _manualPlayback = true;
+            _reportedSdfMorphFailures.Clear();
+            SetHardVisible(true);
+            CaptureBaseline(request.context, preset.characterSelection, preset.characterOrder,
+                preset.deterministicSeed + request.context.seedOffset);
+            PreparePreviousTextRenderer(request.context, preset);
+            CaptureMotionRootBaseline();
+            ApplyFrame(request, 0);
+            onPlayStarted?.Invoke();
+            return Mathf.Max(0, preset.delaySeconds) + GetCurrentTotalSeconds(preset);
+        }
+
+        public void SampleManual(float elapsed)
+        {
+            if (!_manualPlayback || _current == null) return;
+            float local = Mathf.Max(0, elapsed - Mathf.Max(0, _current.preset.delaySeconds));
+            float total = GetCurrentTotalSeconds(_current.preset);
+            if (local >= total) FinishCurrentImmediately(true, false);
+            else ApplyFrame(_current, local);
+        }
+
         public void CompleteCurrent()
         {
             if (_current != null)
@@ -443,6 +475,7 @@ namespace Massive.TextAnimation
 
         private void Begin(PlaybackRequest request)
         {
+            _manualPlayback = false;
             RestoreRuntimeBaseline(restoreVisibility: false);
             SetHardVisible(true);
 
@@ -566,6 +599,7 @@ namespace Massive.TextAnimation
             bool restoreBaseline,
             bool restoreVisibility)
         {
+            _manualPlayback = false;
             if (_current == null)
             {
                 if (restoreBaseline)
@@ -595,6 +629,7 @@ namespace Massive.TextAnimation
             bool invokeCompletion,
             bool startNextQueued)
         {
+            _manualPlayback = false;
             if (_current == null)
                 return;
 
@@ -1765,6 +1800,21 @@ namespace Massive.TextAnimation
             renderer.material.SetFloat("_Morph", Mathf.Clamp01(state.progress));
             renderer.material.SetFloat("_EdgeSoftness", Mathf.Max(0.25f, state.edgeSoftness));
             renderer.material.SetFloat("_ContourBias", state.contourBias);
+            // Optional world-space goal clipping follows the source TMP material.
+            // Ordinary scoreboard targets retain the existing shader and depth state.
+            var sourceMaterial = target.fontSharedMaterial;
+            bool goalClip = sourceMaterial && sourceMaterial.HasProperty("_GoalClipEnabled") &&
+                sourceMaterial.GetFloat("_GoalClipEnabled") > .5f;
+            renderer.material.SetFloat("_GoalClipEnabled", goalClip ? 1 : 0);
+            if (goalClip)
+            {
+                renderer.material.SetVector("_GoalOrigin", sourceMaterial.GetVector("_GoalOrigin"));
+                renderer.material.SetVector("_GoalRight", sourceMaterial.GetVector("_GoalRight"));
+                renderer.material.SetVector("_GoalUp", sourceMaterial.GetVector("_GoalUp"));
+                renderer.material.SetVector("_GoalShape", sourceMaterial.GetVector("_GoalShape"));
+                renderer.material.renderQueue = sourceMaterial.renderQueue;
+                renderer.material.SetInt("unity_GUIZTestMode", (int)UnityEngine.Rendering.CompareFunction.Always);
+            }
             renderer.root.SetActive(true);
             return true;
         }

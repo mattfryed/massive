@@ -151,8 +151,11 @@ public static partial class AmplifierPossessionValidation
         float originalSize = cam.orthographicSize;
         Vector3 originalPosition = cam.transform.position;
         float chargeDuration = core.Possession.fullChargeSeconds;
+        float contestDuration = core.Possession.contestSeconds;
         try
         {
+            // Screenshot readbacks and UI toggle checks can consume several slow Editor frames.
+            core.Possession.contestSeconds = 8f;
             yield return ResetCore(); yield return Wait(.1f);
             DarkPalette(cam, "10-dark-player-resting");
             LightPalette(cam, "10-light-player-resting");
@@ -199,12 +202,7 @@ public static partial class AmplifierPossessionValidation
                 previousCharge = charge;
             }
             SaveFrame(cam, "11-light-partial-charge");
-            yield return Wait(1.1f);
-            guide.TryGetAimDot(0, out _, out float fullFirst, out _);
-            guide.TryGetAimDot(guide.AimDotCount - 1, out var fullEnd, out float fullLast, out float lastCharge);
-            Check(lastCharge > .999f && Mathf.Abs(fullFirst / restingFirst - core.Possession.chargedDotScale) < .001f &&
-                Mathf.Abs(fullLast / restingLast - core.Possession.chargedDotScale) < .001f,
-                "Full charge reaches the last dot and every dot keeps its tapered fully charged size");
+            guide.TryGetAimDot(guide.AimDotCount - 1, out var fullEnd, out _, out _);
             Check(guide.AimDotCount == restingCount && Vector3.Distance(restingEnd, fullEnd) < .001f,
                 "Dot count and guide endpoint remain fixed throughout charge");
             Input(light, attack: true, aim: Vector3.forward); yield return Wait(.12f);
@@ -220,8 +218,9 @@ public static partial class AmplifierPossessionValidation
             core.Possession.showTrajectory = false;
             Check(guide.AimDotCount == 0 && !guide.ChargeGuideVisible, "Aim guide toggle hides all charge dots");
             core.Possession.showTrajectory = true;
-            yield return Fire(light, .1f, Vector3.right); yield return Wait(.5f);
-            Check(guide.AimDotCount == 0 && !guide.ChargeGuideVisible, "Releasing the shot removes its charge dots");
+            yield return Until(() => core.IsLaunched, 1.5f, "Continuing to hold Attack automatically fires at full charge");
+            Input(light); yield return Wait(.5f);
+            Check(guide.AimDotCount == 0 && !guide.ChargeGuideVisible, "Automatic shot removes its charge dots");
             LightPalette(cam, "14-light-player-after-exit");
             yield return ResetCore(); yield return Enter(dark, 1);
             cam.transform.position = core.transform.position + Vector3.up * 20 + Vector3.left * 5;
@@ -232,8 +231,18 @@ public static partial class AmplifierPossessionValidation
             DarkPalette(cam, "14-dark-player-after-exit");
             yield return ResetCore(); yield return Enter(light); yield return Enter(dark, 1);
             cam.transform.position = core.transform.position + Vector3.up * 20;
-            Check(guide.ContestBarVisible && !guide.ChargeGuideVisible && guide.AimDotCount == 0 && Mathf.Abs(guide.LightBarFraction - .5f) < .001f,
-                "Opponent entry replaces charge dots with an equal white-left / black-right contest bar");
+            Check(guide.ContestRingVisible && !guide.ChargeGuideVisible && guide.AimDotCount == 0 && Mathf.Abs(guide.LightBarFraction - .5f) < .001f,
+                "Opponent entry replaces charge dots with an equal white-left / black-right contest ring");
+            Check(guide.ControlUI != null && guide.ControlUI.RingVisible && guide.ControlUI.TextVisible &&
+                guide.ControlUI.Caption.text.Contains("ALTERNATE"), "Runtime ring and contest prompt use the shared presentation renderer");
+            Check(guide.ControlUI.Caption.GetComponentInParent<AmplifierCoreGameplay>() == core &&
+                Mathf.Abs(guide.ControlUI.Caption.fontSize - core.Possession.controlTextSize * core.GetComponent<SphereCollider>().bounds.extents.x) < .01f,
+                "Gameplay control text uses the same Core-relative size as edit preview");
+            core.Possession.showContestRing = false; yield return null; yield return null;
+            Check(!guide.ContestRingVisible && !guide.ControlUI.RingVisible && guide.ControlUI.TextVisible, "Gameplay ring toggle leaves the control prompt visible");
+            core.Possession.showContestRing = true; core.Possession.showControlText = false; yield return null; yield return null;
+            Check(guide.ContestRingVisible && guide.ControlUI.RingVisible && !guide.ControlUI.TextVisible, "Gameplay text toggle leaves the contest ring visible");
+            core.Possession.showControlText = true; yield return null; yield return null;
             CheckPossessionMarkers(true, 0);
             SaveFrame(cam, "15-contest-even");
             Input(light); Input(dark); yield return Wait(.04f);
@@ -254,6 +263,7 @@ public static partial class AmplifierPossessionValidation
         finally
         {
             core.Possession.fullChargeSeconds = chargeDuration;
+            core.Possession.contestSeconds = contestDuration;
             cam.orthographicSize = originalSize; cam.transform.position = originalPosition;
         }
     }

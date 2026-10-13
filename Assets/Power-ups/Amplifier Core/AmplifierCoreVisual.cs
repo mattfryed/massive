@@ -92,11 +92,16 @@ namespace Massive.Multiplier
 
         private void Update()
         {
+            AdvancePresentation(Time.deltaTime, Time.time);
+        }
+
+        /// <summary>Explicit clock for isolated editor previews as well as normal gameplay.</summary>
+        public void AdvancePresentation(float deltaTime, float elapsedTime)
+        {
             if (!_hasBaseline)
                 CaptureBaseline();
 
             float speedScale = Mathf.Lerp(1f, 2.4f, _excitement01);
-            float deltaTime = Time.deltaTime;
 
             if (energyCore != null)
             {
@@ -116,7 +121,7 @@ namespace Massive.Multiplier
 
             float pulseAmount = Effective_breatheAmplitude * Mathf.Lerp(1f, 2f, _excitement01);
             float pulse = 1f + Mathf.Sin(
-                (Time.time * Effective_breatheFrequency * Mathf.PI * 2f) + _phase) * pulseAmount;
+                (elapsedTime * Effective_breatheFrequency * Mathf.PI * 2f) + _phase) * pulseAmount;
 
             if (energyCore != null)
                 energyCore.localScale = _energyBaseScale * (pulse * _coreReveal01);
@@ -126,6 +131,7 @@ namespace Massive.Multiplier
                 float shellPulse = 1f + ((pulse - 1f) * 0.22f);
                 neutralShell.localScale = _shellBaseScale * shellPulse;
             }
+            ApplyInteractionFeedback(deltaTime, elapsedTime);
         }
 
         public void SetExcitement(float normalizedExcitement)
@@ -142,14 +148,14 @@ namespace Massive.Multiplier
         }
 
         public void SetPossessionMarkers(float lightScale, float darkScale, bool contested, float fullScale,
-            float outline, float flowDeflection, float clearance)
+            float outline, float flowDeflection, float clearance, float deltaTime = -1f)
         {
             _possessionClearance = Mathf.Clamp(clearance, .03f, .5f);
             // Both circles and their clearances must fit within the shell, even
             // when a large single-player marker size has been authored.
             float radius = contested ? Mathf.Min(fullScale, .94f / (2f + _possessionClearance)) : fullScale;
             float offset = contested ? radius * (1f + _possessionClearance) + .02f : 0f;
-            float step = Mathf.Max(0f, Time.deltaTime) * 4f;
+            float step = Mathf.Max(0f, deltaTime < 0f ? Time.deltaTime : deltaTime) * 4f;
             _possessionMarkerOffsets.x = Mathf.MoveTowards(_possessionMarkerOffsets.x, -offset, step);
             _possessionMarkerOffsets.y = Mathf.MoveTowards(_possessionMarkerOffsets.y, offset, step);
             float light = Mathf.Min(lightScale, radius), dark = Mathf.Min(darkScale, radius);
@@ -210,6 +216,8 @@ namespace Massive.Multiplier
             _possessionMarker = Vector4.zero;
             _possessionMarker2 = _possessionMarkerOffsets = Vector4.zero;
 
+            ResetInteractionFeedback();
+
             if (energyCore != null)
                 energyCore.localScale = _energyBaseScale;
             if (neutralShell != null)
@@ -238,6 +246,8 @@ namespace Massive.Multiplier
             ResolveRenderers();
             _energyBaseScale = energyCore != null ? energyCore.localScale : Vector3.one;
             _shellBaseScale = neutralShell != null ? neutralShell.localScale : Vector3.one;
+            energyRestPosition = energyCore != null ? energyCore.localPosition : Vector3.zero;
+            shellRestPosition = neutralShell != null ? neutralShell.localPosition : Vector3.zero;
             _energyRendererWasEnabled = energyRenderer == null || energyRenderer.enabled;
             _shellRendererWasEnabled = shellRenderer == null || shellRenderer.enabled;
 

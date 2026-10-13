@@ -13,6 +13,91 @@ MonoBehaviour:
   m_Name: AmplifierSharedProfile
   m_EditorClassIdentifier: 
   sharedEnabled: 1
+  goalNumber:
+    enabled: 1
+    font: {fileID: 11400000, guid: 13b46f913b61e2d4195306f4c4e38dbd, type: 2}
+    prefix: x
+    lightColor: {r: 0, g: 0, b: 0, a: 1}
+    darkColor: {r: 0, g: 0, b: 0, a: 1}
+    outlineColor: {r: 0, g: 0, b: 0, a: 1}
+    outlineWidth: 0
+    whiteCircleScale: 0.578
+    whiteCircleColor: {r: 1, g: 1, b: 1, a: 1}
+    numberScale: 0.144
+    lightNumberHorizontalOffset: -0.1
+    darkNumberHorizontalOffset: 0.1
+    levelOffsetsInitialized: 1
+    overallScale: 0.48
+    levelScales:
+    - multiplier: 2
+      scale: 0.16
+      whiteCircleScale: 0.493
+      numberScale: 0.135
+      horizontalOffset: -0.058
+    - multiplier: 4
+      scale: 0.25
+      whiteCircleScale: 0.437
+      numberScale: 0.116
+      horizontalOffset: -0.062
+    - multiplier: 8
+      scale: 0.5
+      whiteCircleScale: 0.369
+      numberScale: 0.09
+      horizontalOffset: -0.063
+    outwardOffset: 0.012
+    verticalOffset: 0
+    ringInset: 0.025
+    animateChanges: 1
+    growthSeconds: 0.85
+    growthEasing:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 0
+        outSlope: 3.5
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    firstTextGrowSeconds: 0.05
+    firstTextGrowEasing:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 0
+        outSlope: 3.5
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
   treatment:
     allowEffectsOverGrid: 1
     seamMode: 2
@@ -129,27 +214,43 @@ MonoBehaviour:
       mode: 1
       possessionSeconds: 5
       fullChargeSeconds: 2
+      distanceDrivenShots: 1
       minimumRange: 5
-      maximumRange: 26
-      shotSpeed: 16
+      maximumRange: 15
+      shotSpeed: 14
       maximumFlightSeconds: 15
-      settledSpeed: 0.15
+      settledSpeed: 3
+      settlingSeconds: 0.3
+      finalBrakeDrag: 5
       rollingSpin: 0.45
+      chargeVibration: 1
+      chargeVibrationAmount: 0.055
+      chargeVibrationFrequency: 24
+      chargeVibrationStart: 0.1
+      chargeVibrationRamp: 1.7
+      ejectionRipple: 1
+      ejectionRippleSeconds: 0.85
+      ejectionRippleAmplitude: 0.1
+      ejectionRippleWidth: 0.55
+      ejectionRippleFrequency: 5
       npcDamageMultiplier: 1
       npcPushSpeed: 8
       contestSeconds: 3
       progressPerPress: 0.085
-      pressesPerSecond: 6
-      loserStunSeconds: 0.8
+      pressesPerSecond: 9
+      loserStunSeconds: 1.2
       winnerAimSeconds: 2.5
-      reentryDelay: 0.8
+      postContestGraceSeconds: 0.2
+      postContestReleaseSeconds: 0.1
+      reentryDelay: 0.2
       ejectionRecoil: 2
       parryRangeRetention: 0.8
       blockRangeRetention: 0.35
       blockSpeedRetention: 0.5
       playerMarkerScale: 0.33
       playerMarkerOutline: 0.075
-      markerFlowDeflection: 1
+      markerClearance: 0.16
+      markerFlowDeflection: 1.588
       animatePlayerTransit: 1
       entrySeconds: 0.38
       exitSeconds: 0.32
@@ -157,18 +258,47 @@ MonoBehaviour:
       transitMinimumScale: 0.045
       transitMaximumStretch: 3
       showTrajectory: 1
-      previewLength: 14
+      showDotCharge: 1
+      previewLength: 6
       previewDeflections: 2
       dotSpacing: 0.45
-      dotRadius: 0.045
+      dotRadius: 0.03
+      dotEndScale: 0
+      chargedDotScale: 2.5
+      dotChargeSpread: 0.12
+      showContestRing: 1
+      contestRingGap: 0.2
+      contestRingWidth: 0.14
+      contestRingOutline: 0.02
+      showRingHalfwayMark: 1
+      showControlText: 1
+      controlTextFont: {fileID: 11400000, guid: 13b46f913b61e2d4195306f4c4e38dbd,
+        type: 2}
+      controlTextSize: 2.4
+      controlTextColor: {r: 1, g: 1, b: 1, a: 1}
+      controlTextOffset: {x: 0, y: 0.31}
+      controlTextLineSpacing: 40.1
+      showControlTimer: 1
+      aimingText: "{team}  POSSESSION\nCHARGE SHOT WITH ATTACK \n{time}"
+      enteringText: '{team}
+
+        ENTERING CORE'
+      contestedText: 'CONTESTED
+
+        ALTERNATE ATTACK / SHIELD
+
+        {time}'
+      winnerText: "{team} WINS \nCHARGE SHOT WITH ATTACK \n{time}"
+      lightTeamText: LIGHT
+      darkTeamText: DARK
       meterWidth: 2.4
       meterHeight: 0.18
       meterOffset: 0.5
     coreScale: 0.75
-    mass: 5
-    linearDrag: 0.42
+    mass: 3.6
+    linearDrag: 2.1
     angularDrag: 0.6
-    maximumPlanarSpeed: 25
+    maximumPlanarSpeed: 25.7
     wallRestitution: 0.85
     spawnScaleSeconds: 0.38
     spawnShellMorphSeconds: 0.62

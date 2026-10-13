@@ -20,7 +20,11 @@ namespace Massive.Multiplier
         public float Charge01 => Mathf.Clamp01(chargeSeconds / Mathf.Max(.1f, Possession.fullChargeSeconds));
         public Vector3 AimDirection => aimDirection;
         public float LightControl01 => lightControl;
-        public float ControlSecondsRemaining => Mathf.Max(0f, controlDeadline - Time.time);
+        public float ControlSecondsRemaining => Mathf.Max(0f, controlDeadline -
+            (IsContestWinnerAiming ? Mathf.Max(Time.time, postContestInput.UnlockAt) : Time.time));
+        public bool IsContestWinnerAiming => ControlState == AmplifierControlState.Aiming && contestWinnerAiming;
+        public float PostContestGraceRemaining => IsContestWinnerAiming ? Mathf.Max(0f, postContestInput.UnlockAt - Time.time) : 0f;
+        public bool PostContestInputProtected => IsContestWinnerAiming && !chargeStarted && !postContestInput.ReadyForPress;
         public float ShotRangeRemaining => flight.remaining;
         public Vector3 ShotVelocity => IsLaunched && body ? body.linearVelocity : Vector3.zero;
 
@@ -35,7 +39,9 @@ namespace Massive.Multiplier
         }
         private Occupancy pilot, challenger;
         private float chargeSeconds, controlDeadline, nextEntryTime, lightControl = .5f;
-        private bool chargeStarted, chargeAwaitNeutral;
+        private bool chargeStarted;
+        private bool contestWinnerAiming;
+        private AmplifierPostContestInputGate postContestInput;
         private Vector3 aimDirection = Vector3.right;
         private PlayerControllerScript shotOwner;
         private bool possessionPhysicsOwned, possessionWasKinematic, possessionWasTrigger;
@@ -77,6 +83,7 @@ namespace Massive.Multiplier
             if (visual && IsOccupied) visual.SetExcitement(ControlState == AmplifierControlState.Contested ? 1f : Charge01);
             if (visual)
             {
+                visual.SetChargeFeedback(Charge01, ControlState == AmplifierControlState.Aiming && chargeStarted, Possession);
                 float light = 0f, dark = 0f;
                 if (IsOccupied)
                 {
@@ -127,14 +134,17 @@ namespace Massive.Multiplier
             EnsurePossessionPhysics();
             if (pilot == null)
             {
+                contestWinnerAiming = false;
+                postContestInput = default;
                 pilot = entrant;
                 aimDirection = PlanarDirection(player.AimDirectionWS, Vector3.right);
                 ControlState = AmplifierControlState.Aiming;
                 controlDeadline = Time.time + Mathf.Max(.25f, Possession.possessionSeconds) + EntrySeconds;
-                chargeSeconds = 0f; chargeStarted = chargeAwaitNeutral = false;
+                chargeSeconds = 0f; chargeStarted = false;
             }
             else
             {
+                contestWinnerAiming = false; postContestInput = default;
                 challenger = entrant;
                 ControlState = AmplifierControlState.Contested;
                 controlDeadline = Time.time + Mathf.Max(.25f, Possession.contestSeconds) + EntrySeconds;
@@ -155,17 +165,18 @@ namespace Massive.Multiplier
 
         private void TickAim()
         {
-            if (pilot.inputFrame != Time.frameCount || pilot.player.IsAmplifierTransitioning) return;
+            if (pilot.inputFrame != Time.frameCount || pilot.player.IsAmplifierTransitioning)
+            { postContestInput.BreakRelease(); return; }
             var input = pilot.input;
             aimDirection = PlanarDirection(pilot.player.AimDirectionWS, aimDirection);
-            if (chargeAwaitNeutral)
+            if (contestWinnerAiming && !chargeStarted)
             {
-                if (!input.attackHeld && !input.shieldHeld && !input.attackDown && !input.shieldDown) chargeAwaitNeutral = false;
-                return;
+                if (!postContestInput.TryStartCharge(Time.time, input.attackDown, input.attackHeld, input.shieldDown, input.shieldHeld)) return;
+                chargeStarted = true;
             }
-            if (input.attackDown || input.attackHeld) chargeStarted = true;
+            else if (input.attackDown || input.attackHeld) chargeStarted = true;
             if (chargeStarted && input.attackHeld) chargeSeconds += Time.deltaTime;
-            if (chargeStarted && (input.attackUp || !input.attackHeld)) Launch();
+            if (chargeStarted && (Charge01 >= 1f || input.attackUp || !input.attackHeld)) Launch();
         }
 
         private float CreditPress(Occupancy seat)
@@ -203,10 +214,12 @@ namespace Massive.Multiplier
 
         private void BeginWinnerAim()
         {
+            contestWinnerAiming = true;
+            postContestInput.Begin(Time.time, Possession);
             ControlState = AmplifierControlState.Aiming;
-            controlDeadline = Time.time + Mathf.Max(.25f, Possession.winnerAimSeconds);
+            controlDeadline = postContestInput.UnlockAt + Mathf.Max(.25f, Possession.winnerAimSeconds);
             nextEntryTime = Time.time + Mathf.Max(0f, Possession.reentryDelay);
-            chargeSeconds = 0f; chargeStarted = false; chargeAwaitNeutral = true;
+            chargeSeconds = 0f; chargeStarted = false;
             aimDirection = PlanarDirection(pilot.player.AimDirectionWS, aimDirection);
         }
 
@@ -235,6 +248,7 @@ namespace Massive.Multiplier
             if (released == null || !released.player) return;
             if (preferred.sqrMagnitude < .001f) preferred = PlanarDirection(released.entryPosition - transform.position, -aimDirection);
             Vector3 point = FindEjectionPoint(released.player, preferred, released.entryPosition);
+            if (animate && visual) visual.PlayEjectionRipple(point - transform.position, Possession);
             released.player.ExitAmplifier(this, point, PlanarDirection(point - transform.position, preferred) * Mathf.Max(0f, Possession.ejectionRecoil), Mathf.Max(0f, stun), animate);
         }
 
@@ -272,6 +286,8 @@ namespace Massive.Multiplier
 
         private void BecomeAvailable()
         {
+            contestWinnerAiming = false;
+            postContestInput = default;
             EndPhysicalShot();
             ControlState = AmplifierControlState.Available;
             chargeSeconds = 0f; chargeStarted = false;
@@ -283,10 +299,13 @@ namespace Massive.Multiplier
 
         private void ResetPossession()
         {
+            contestWinnerAiming = false;
+            postContestInput = default;
             ReleaseOccupancy(ref pilot, 0f, default, false); ReleaseOccupancy(ref challenger, 0f, default, false);
             foreach (var player in PlayerControllerScript.ActivePlayers) if (player) player.CancelAmplifierTransit(this);
             EndPhysicalShot();
             if (visual) visual.SetPossessionMarker(0f, 0f, false, 0f);
+            if (visual) visual.ResetInteractionFeedback();
             ControlState = AmplifierControlState.Available;
             if (possessionPhysicsOwned)
             {

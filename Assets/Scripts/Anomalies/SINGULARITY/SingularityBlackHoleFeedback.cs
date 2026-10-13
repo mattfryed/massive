@@ -12,6 +12,8 @@ namespace Massive.Singularity
     {
         public SingularityBlackHolePortal portal;
         public SingularityGridRenderer grid;
+        [Tooltip("Optional camera restriction for isolated instruction previews. Leave empty in gameplay.")]
+        public Camera renderCamera;
         [Header("Transfer ripple")]
         public bool showRipple = true;
         [Min(.05f)] public float rippleDuration = .55f;
@@ -148,6 +150,7 @@ namespace Massive.Singularity
         }
         public override void DrawShapes(Camera cam)
         {
+            if (renderCamera && cam != renderCamera) return;
             if (!showRipple || bursts.Count == 0 || !portal || !portal.surface) return;
             var surface = portal.surface;
             using (Draw.Command(cam))

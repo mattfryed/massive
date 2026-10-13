@@ -207,6 +207,7 @@ namespace Massive.EditorTools
             foreach (var core in Object.FindObjectsByType<AmplifierCoreGameplay>(FindObjectsInactive.Include, FindObjectsSortMode.None))
                 if (!UnityEditor.SceneManagement.EditorSceneManager.IsPreviewSceneObject(core.gameObject)) core.ApplyTuning();
             foreach (var effect in Object.FindObjectsByType<AmplifierGoalTreatments>(FindObjectsInactive.Include, FindObjectsSortMode.None)) effect.RenderTreatment();
+            foreach (var number in Object.FindObjectsByType<TeamAmplifierPresenter>(FindObjectsSortMode.None)) number.RefreshGoalNumber();
             foreach (var formation in Object.FindObjectsByType<ResonanceManifestation>(FindObjectsInactive.Include, FindObjectsSortMode.None)) formation.RefreshPreview();
             foreach (var plasma in Object.FindObjectsByType<PlayerMeleePlasma>(FindObjectsInactive.Include, FindObjectsSortMode.None)) plasma.RefreshSharedSettings();
             foreach (var tiers in Object.FindObjectsByType<EnergyTierVisualController>(FindObjectsInactive.Include, FindObjectsSortMode.None))
@@ -227,6 +228,8 @@ namespace Massive.EditorTools
         private static void Melee() { SharedSettingsEditing.EnsureProfiles(); Open(SharedSettingsRuntime.Load<MeleeVisualProfile>()); }
         [MenuItem("MASSIVE/Resonance/Shared Formation & Timing")]
         private static void Resonance() { SharedSettingsEditing.EnsureProfiles(); Open(SharedSettingsRuntime.Load<ResonanceSharedProfile>()); }
+        [MenuItem("MASSIVE/Amplifier/Shared Settings")]
+        private static void Amplifier() { SharedSettingsEditing.EnsureProfiles(); Open(SharedSettingsRuntime.Load<AmplifierSharedProfile>()); }
         [MenuItem("MASSIVE/Text Animation/Shared Settings")]
         private static void Text() { SharedSettingsEditing.EnsureProfiles(); Open(SharedSettingsRuntime.Load<TextAnimationSharedProfile>()); }
         public static void Open(SharedSettingsProfile profile)
@@ -239,7 +242,7 @@ namespace Massive.EditorTools
             if (profile is TextAnimationSharedProfile) window.tab = 3;
             window.minSize = new Vector2(480, 500); window.Show();
         }
-        private void OnDisable() { if (nestedEditor) DestroyImmediate(nestedEditor); }
+        private void OnDisable() { if (nestedEditor) DestroyImmediate(nestedEditor); PreviewGoalNumber(0); }
         private void OnGUI()
         {
             SharedSettingsEditing.EnsureProfiles();
@@ -249,6 +252,7 @@ namespace Massive.EditorTools
             SharedSettingsProfile[] profiles = { SharedSettingsRuntime.Load<MeleeVisualProfile>(), SharedSettingsRuntime.Load<AmplifierSharedProfile>(), SharedSettingsRuntime.Load<ResonanceSharedProfile>(), SharedSettingsRuntime.Load<TextAnimationSharedProfile>() };
             var profile = profiles[Mathf.Clamp(tab, 0, 3)];
             EditorGUILayout.HelpBox("Shared by every participating scene and included in builds. Changes save immediately, including in Play Mode. Components can opt out for local variations.", MessageType.Info);
+            if (profile is AmplifierSharedProfile) DrawGoalNumberPreview();
             scroll = EditorGUILayout.BeginScrollView(scroll);
             using (var data = new SerializedObject(profile)) SharedSettingsEditing.DrawGroup(data, "");
             if (profile is TextAnimationSharedProfile)
@@ -266,6 +270,38 @@ namespace Massive.EditorTools
             }
             EditorGUILayout.EndScrollView();
             if (GUILayout.Button("Select Shared Asset")) Selection.activeObject = profile;
+        }
+
+        private void DrawGoalNumberPreview()
+        {
+            EditorGUILayout.LabelField("Goal multiplier badge — edit-mode preview", EditorStyles.boldLabel);
+            using (new EditorGUI.DisabledScope(Application.isPlaying))
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                foreach (int level in new[] { 1, 2, 4, 8 })
+                    if (GUILayout.Button("×" + level)) PreviewGoalNumber(level);
+                if (GUILayout.Button("Stop preview")) PreviewGoalNumber(0);
+            }
+            using (new EditorGUI.DisabledScope(Application.isPlaying))
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                if (GUILayout.Button("Animate 0 → ×2")) PreviewGoalTransition(1, 2);
+                if (GUILayout.Button("Animate ×2 → ×4")) PreviewGoalTransition(2, 4);
+                if (GUILayout.Button("Animate ×4 → ×8")) PreviewGoalTransition(4, 8);
+            }
+            EditorGUILayout.LabelField("×1 is hidden. Expand Level Scales for each multiplier's Whole Scale, White Circle Scale, Text Scale and Text Horizontal Offset. Text offset is mirrored: negative moves Light left and Dark right. Overall Scale adjusts all levels.", EditorStyles.wordWrappedMiniLabel);
+        }
+
+        private static void PreviewGoalNumber(int multiplier)
+        {
+            foreach (var presenter in Object.FindObjectsByType<TeamAmplifierPresenter>(FindObjectsSortMode.None)) presenter.PreviewGoalMultiplier(multiplier);
+            EditorApplication.QueuePlayerLoopUpdate(); SceneView.RepaintAll();
+        }
+
+        private static void PreviewGoalTransition(int from, int to)
+        {
+            foreach (var presenter in Object.FindObjectsByType<TeamAmplifierPresenter>(FindObjectsSortMode.None)) presenter.PreviewGoalTransition(from, to);
+            EditorApplication.QueuePlayerLoopUpdate(); SceneView.RepaintAll();
         }
     }
 
@@ -292,6 +328,16 @@ namespace Massive.EditorTools
     [CustomEditor(typeof(AmplifierCoreVisual))] public sealed class SharedCoreSurfaceEditor : SharedComponentEditor {}
     [CustomEditor(typeof(AmplifierGoalCapture))] public sealed class SharedGoalForceEditor : SharedComponentEditor {}
     [CustomEditor(typeof(TeamAmplifierToastPresenter))] public sealed class SharedToastEditor : SharedComponentEditor {}
+    [CustomEditor(typeof(TeamAmplifierPresenter))]
+    public sealed class SharedTeamAmplifierEditor : UnityEditor.Editor
+    {
+        public override void OnInspectorGUI()
+        {
+            SharedSettingsEditing.DrawComponent(serializedObject, "goalNumber", "multiplierPrefix");
+            if (!SharedSettingsEditing.IsShared((TeamAmplifierPresenter)target))
+            { EditorGUILayout.PropertyField(serializedObject.FindProperty("goalNumber"), true); SharedSettingsEditing.Apply(serializedObject); }
+        }
+    }
     [CustomEditor(typeof(ScoreboardManagerScript))] public sealed class SharedScoreboardEditor : SharedComponentEditor {}
     [CustomEditor(typeof(EnergyTierVisualController))] public sealed class SharedEnergyTierEditor : UnityEditor.Editor
     {

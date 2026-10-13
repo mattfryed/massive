@@ -10,6 +10,8 @@ namespace Massive.Settings
     [CreateAssetMenu(menuName = "MASSIVE/Shared Settings/AmplifierSharedProfile")]
     public sealed class AmplifierSharedProfile : SharedSettingsProfile
     {
+        [InspectorName("Goal Multiplier Badge")]
+        public TeamAmplifierGoalNumberSettings goalNumber = new TeamAmplifierGoalNumberSettings();
         public AmplifierTreatmentSettings treatment = new AmplifierTreatmentSettings();
         public AmplifierCoreGameplaySettings core = new AmplifierCoreGameplaySettings();
         public AmplifierCoreVisualSettings coreSurface = new AmplifierCoreVisualSettings();
