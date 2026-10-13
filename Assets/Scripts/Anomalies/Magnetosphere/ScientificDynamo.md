@@ -2,6 +2,19 @@
 
 This prototype displays **SWMF/BATS-R-US 2023 magnetic and plasma fields driven by observed solar-wind inputs**. Unity samples prepared model output; it does not run the MHD solver. The first included encounter is a pressure-pulse excerpt on **2026-01-03, 02:50â€“03:30 UTC**. It is not a complete geomagnetic storm or a representative statistical catalogue.
 
+## Organic GPU trace scheduling (2026-10-11)
+
+The organic field dispatches the two trace directions independently, in
+32-thread groups. Seed count, step budget, integration equations, visual
+controls and the gameplay envelope are unchanged. The renderer reads the
+kernel group width at initialization; keep its two-row dispatch paired with
+the compute shader's direction selection. No normal-frame readback is added.
+
+The field stability validation now covers nonmultiple seed counts and checks
+that both directions are generated exactly once for each seed. Cabinet
+measurements, image comparisons and numerical differences are documented in
+`Docs/AI/Dynamo-Curves-20261011.md`.
+
 ## Organic field stability and continuity (2026-10-07)
 
 ### Standard level composition
@@ -178,14 +191,23 @@ works with the original soft streak style.
 The Built-in pipeline implementation uses the Main Camera and the scene's
 referenced shader; it requires no new package, layer or global post-processing
 volume. Runtime materials are private and cleaned up on disable. Each enabled
-channel adds a source draw and blur/composite passes. Temporary HDR targets
-match the camera's size and MSAA, so the GPU and transient memory cost scales
-with resolution and antialiasing. It is an optional presentation cost, separate
-from the GPU path calculation.
+channel adds a source draw and independent blur passes. When both channels are
+active, their finished half-resolution images are combined in one additive
+camera pass (2026-10-11); single-channel rendering keeps its original pass.
+The full-resolution HDR source still matches the camera depth and MSAA. Blur
+resolution, precision, thresholding, geometry and all Inspector controls are
+unchanged. Holding both finished images costs one additional half-resolution
+ARGBHalf target (about 15.8 MiB at 4K), in exchange for avoiding a second full-
+resolution camera blend. Minor HDR rounding differences are possible because
+the camera now receives one addition instead of two. See
+`Docs/AI/Dynamo-Bloom-20261011.md` for cabinet timings and validation.
+The GPU and transient memory cost still scales with resolution and
+antialiasing; bloom is separate from the GPU path calculation.
 
 `MASSIVE > Dynamo > Validate Visual Styles (Play Mode)` requires a visible storm.
 It checks black/subthreshold rejection, HDR hue preservation, spatial light
-spread, all four bloom combinations, camera detach/re-enable, private materials,
+spread, combined HDR composition with independent intensities and preserved
+alpha, all four bloom combinations, camera detach/re-enable, private materials,
 and zero managed allocations over 32 warmed bloom recordings. It restores its
 temporary settings. The original 48-case flow validation also passes with the
 solid style enabled. Captured field-only, flow-only, both-on and both-off views

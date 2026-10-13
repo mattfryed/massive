@@ -87,12 +87,60 @@ public static class DynamoVisualStyleValidation
             bloom.flow.sharpCoreIntensity = core; tickFlow();
             bloom.enabled = true; record(camera);
         }
-        return "[Dynamo visual styles] PASS: black/subthreshold rejection, HDR color preservation, spatial light spread; four independent bloom combinations; camera detach/re-enable; private opaque/additive materials; independent sharp core at 1/.25/0; " + allocated + " managed bytes over 32 bloom recordings.";
+        return "[Dynamo visual styles] PASS: black/subthreshold rejection, HDR color preservation, spatial light spread; combined HDR composite with independent intensities and preserved alpha; four independent bloom combinations; camera detach/re-enable; private opaque/additive materials; independent sharp core at 1/.25/0; " + allocated + " managed bytes over 32 bloom recordings.";
+    }
+
+    private static void CheckCombinedComposite(Shader shader)
+    {
+        var material = new Material(shader);
+        var field = new Texture2D(1, 1, TextureFormat.RGBAFloat, false, true);
+        var flow = new Texture2D(1, 1, TextureFormat.RGBAFloat, false, true);
+        var read = new Texture2D(1, 1, TextureFormat.RGBAFloat, false, true);
+        var output = RenderTexture.GetTemporary(1, 1, 0, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear);
+        var commands = new CommandBuffer();
+        var previous = RenderTexture.active;
+        var previousTexture = Shader.GetGlobalTexture("_DynamoSecondBloom");
+        var previousIntensities = Shader.GetGlobalVector("_DynamoBloomIntensities");
+        Color fieldColor = new Color(.2f, .4f, .6f, 1f), flowColor = new Color(.3f, .1f, .2f, 1f);
+        Color background = new Color(.1f, .2f, .3f, .25f);
+        try
+        {
+            field.SetPixel(0, 0, fieldColor); field.Apply();
+            flow.SetPixel(0, 0, flowColor); flow.Apply();
+            foreach (Vector2 intensity in new[] { Vector2.zero, Vector2.right, Vector2.up, new Vector2(3f, 3.05f) })
+            {
+                commands.Clear();
+                commands.SetRenderTarget(output);
+                commands.ClearRenderTarget(false, true, background);
+                commands.SetGlobalTexture("_DynamoSecondBloom", flow);
+                commands.SetGlobalVector("_DynamoBloomIntensities", new Vector4(intensity.x, intensity.y, 0, 0));
+                commands.Blit(field, output, material, 4);
+                Graphics.ExecuteCommandBuffer(commands);
+                RenderTexture.active = output;
+                read.ReadPixels(new Rect(0, 0, 1, 1), 0, 0); read.Apply();
+                Color actual = read.GetPixel(0, 0);
+                Color expected = background + fieldColor * intensity.x + flowColor * intensity.y;
+                for (int channel = 0; channel < 3; channel++)
+                    Require(!float.IsNaN(actual[channel]) && Mathf.Abs(actual[channel] - expected[channel]) <= .002f * Mathf.Max(1f, expected[channel]),
+                        "The combined pass must preserve both independent HDR intensities and the existing camera color.");
+                Require(Mathf.Abs(actual.a - background.a) < .001f, "Bloom must not modify the camera alpha.");
+            }
+        }
+        finally
+        {
+            Shader.SetGlobalTexture("_DynamoSecondBloom", previousTexture);
+            Shader.SetGlobalVector("_DynamoBloomIntensities", previousIntensities);
+            RenderTexture.active = previous;
+            commands.Release(); RenderTexture.ReleaseTemporary(output);
+            UnityEngine.Object.DestroyImmediate(material);
+            UnityEngine.Object.DestroyImmediate(field); UnityEngine.Object.DestroyImmediate(flow); UnityEngine.Object.DestroyImmediate(read);
+        }
     }
 
     private static void CheckPixels(Shader shader)
     {
         Require(shader && shader.isSupported, "Bloom shader must compile on this device.");
+        CheckCombinedComposite(shader);
         var material = new Material(shader);
         var input = new Texture2D(32, 32, TextureFormat.RGBAFloat, false, true) { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
         var output = RenderTexture.GetTemporary(32, 32, 0, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear);

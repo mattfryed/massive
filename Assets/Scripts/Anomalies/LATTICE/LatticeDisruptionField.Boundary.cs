@@ -168,22 +168,39 @@ namespace Massive.Lattice
             if (dotDepths != null && dotDepths.Length == nodes.Length && dotDepthRevision == contourRevision) return;
             if (dotDepths == null || dotDepths.Length != nodes.Length) dotDepths = new float[nodes.Length];
             dotDepthRevision = contourRevision;
-            float maxDistance = Mathf.Max(.1f, dotJitterDepth) * Spacing;
+            float spacing = Spacing;
+            float maxDistance = Mathf.Max(.1f, dotJitterDepth) * spacing;
+            float maximumSquared = maxDistance * maxDistance;
             for (int i = 0; i < nodes.Length; i++)
             {
-                Vector2 p = origin + new Vector2(i % nx, i / nx) * Spacing;
-                dotDepths[i] = 0;
-                if (mode == FieldMode.Connected || mode == FieldMode.DriftingNoise && NoiseAt(p, clock) <= threshold) continue;
-                float squared = maxDistance * maxDistance;
-                for (int j = 0; j < boundaryLines.Count; j += 2)
-                {
-                    Vector2 a = boundaryLines[j], span = boundaryLines[j + 1] - boundaryLines[j];
-                    float t = Mathf.Clamp01(Vector2.Dot(p - a, span) / Mathf.Max(.000001f, span.sqrMagnitude));
-                    squared = Mathf.Min(squared, (p - a - span * t).sqrMagnitude);
-                }
-                dotDepths[i] = Mathf.Sqrt(squared) / Spacing;
+                Vector2 p = origin + new Vector2(i % nx, i / nx) * spacing;
+                dotDepths[i] = mode == FieldMode.Connected ||
+                    mode == FieldMode.DriftingNoise && NoiseAt(p, clock) <= threshold ? 0 : maximumSquared;
             }
+
+            // Distances saturate at maxDistance. Visit only nodes in each segment's
+            // expanded bounds, retaining the original segment order and distance math.
+            // One extra grid cell guards the index conversion at floating-point edges.
+            for (int j = 0; j < boundaryLines.Count; j += 2)
+            {
+                Vector2 a = boundaryLines[j], b = boundaryLines[j + 1], span = b - a;
+                float denominator = Mathf.Max(.000001f, span.sqrMagnitude);
+                int minX = Mathf.Clamp(Mathf.FloorToInt((Mathf.Min(a.x, b.x) - maxDistance - origin.x) / spacing) - 1, 0, nx - 1);
+                int maxX = Mathf.Clamp(Mathf.CeilToInt((Mathf.Max(a.x, b.x) + maxDistance - origin.x) / spacing) + 1, 0, nx - 1);
+                int minY = Mathf.Clamp(Mathf.FloorToInt((Mathf.Min(a.y, b.y) - maxDistance - origin.y) / spacing) - 1, 0, ny - 1);
+                int maxY = Mathf.Clamp(Mathf.CeilToInt((Mathf.Max(a.y, b.y) + maxDistance - origin.y) / spacing) + 1, 0, ny - 1);
+                for (int y = minY; y <= maxY; y++) for (int x = minX; x <= maxX; x++)
+                {
+                    int i = x + y * nx;
+                    if (dotDepths[i] <= 0) continue;
+                    Vector2 p = origin + new Vector2(x, y) * spacing;
+                    float t = Mathf.Clamp01(Vector2.Dot(p - a, span) / denominator);
+                    dotDepths[i] = Mathf.Min(dotDepths[i], (p - a - span * t).sqrMagnitude);
+                }
+            }
+            for (int i = 0; i < nodes.Length; i++) dotDepths[i] = Mathf.Sqrt(dotDepths[i]) / spacing;
         }
+
         void AddContour(int a, int b)
         {
             boundaryLines.Add(new Vector3(contourCuts[a].x, contourCuts[a].y, -.02f));

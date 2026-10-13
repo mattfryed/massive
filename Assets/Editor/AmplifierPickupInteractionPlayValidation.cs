@@ -8,7 +8,7 @@ using UnityEngine.SceneManagement;
 
 namespace Massive.Multiplier.Editor
 {
-    /// <summary>Isolated Play Mode fixtures use real generated walls and Physics.IgnoreCollision state.</summary>
+    /// <summary>Isolated Play Mode fixtures use real generated walls, effective filters and native pair restoration.</summary>
     public static class AmplifierPickupInteractionPlayValidation
     {
         public static string Status { get; private set; } = "Not run";
@@ -34,7 +34,7 @@ namespace Massive.Multiplier.Editor
             return RunBegin(template.GetComponentInChildren<ResonancePatternController>(true));
         }
 
-        public static string RunBegin(ResonancePatternController template)
+        public static string RunBegin(ResonancePatternController template, bool nativeFallback = false)
         {
             if (!Application.isPlaying) throw new InvalidOperationException("Enter Play Mode first.");
             if (running) throw new InvalidOperationException("Pickup interaction validation is already running.");
@@ -64,6 +64,11 @@ namespace Massive.Multiplier.Editor
                 foreach (var arc in definition.arcs)
                     if (arc != null && arc.IsVisible) arc.behavior = ResonanceBehavior.HardWall;
                 pattern.definition = definition;
+                if (nativeFallback)
+                {
+                    pattern.playerResponse = ResonancePlayerResponse.HardWall;
+                    pattern.coreResponse = ResonanceCoreResponse.PatternDefault;
+                }
                 pattern.attractGrid = false; pattern.grid = null; pattern.arenaBounds = null;
                 pattern.SetInteractionEnabled(false);
                 early = MakePickup("Pickup present during formation", new Vector3(0f, 0f, 0f), out earlyColliders);
@@ -181,12 +186,15 @@ namespace Massive.Multiplier.Editor
         {
             foreach (var collider in colliders)
                 foreach (var wall in walls)
-                    if (!Physics.GetIgnoreCollision(collider, wall)) return false;
+                    if (!Physics.GetIgnoreCollision(collider, wall)
+                        && (collider.excludeLayers.value & (1 << wall.gameObject.layer)) == 0) return false;
             return true;
         }
 
         private static bool Restored(Collider[] colliders, bool hasPriorIgnore)
         {
+            foreach (var collider in colliders)
+                if ((collider.excludeLayers.value & ResonanceCollisionPolicy.ActorMask) != 0) return false;
             for (int c = 0; c < colliders.Length; c++)
                 for (int w = 0; w < walls.Count; w++)
                     if (Physics.GetIgnoreCollision(colliders[c], walls[w]) != (hasPriorIgnore && c == 0 && w == 0)) return false;

@@ -42,6 +42,10 @@ namespace Massive.Dynamo
         private readonly int[] down = new int[8], up = new int[8];
         private readonly int[] widths = new int[8], heights = new int[8];
         private static readonly int Source = Shader.PropertyToID("_DynamoBloomSource");
+        private static readonly int FieldResult = Shader.PropertyToID("_DynamoFieldBloomResult");
+        private static readonly int FlowResult = Shader.PropertyToID("_DynamoFlowBloomResult");
+        private static readonly int SecondBloom = Shader.PropertyToID("_DynamoSecondBloom");
+        private static readonly int Intensities = Shader.PropertyToID("_DynamoBloomIntensities");
         private static readonly int Parameters = Shader.PropertyToID("_DynamoBloomParameters");
         private static readonly int LowMip = Shader.PropertyToID("_DynamoBloomLowMip");
         private static readonly int LowTexel = Shader.PropertyToID("_DynamoBloomLowTexel");
@@ -90,14 +94,25 @@ namespace Massive.Dynamo
                 camera.allowMSAA && camera.actualRenderingPath == RenderingPath.Forward ? Mathf.Max(1, QualitySettings.antiAliasing) : 1;
             // Match camera depth/MSAA so occluded lines cannot become bloom emitters.
             commands.GetTemporaryRT(Source, width, height, 0, FilterMode.Bilinear, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear, samples);
-            if (drawField) RecordChannel(camera, fieldBloom, true, width, height);
-            if (drawFlow) RecordChannel(camera, flowBloom, false, width, height);
+            if (drawField) RecordChannel(camera, fieldBloom, true, width, height, FieldResult);
+            if (drawFlow) RecordChannel(camera, flowBloom, false, width, height, FlowResult);
+            // Blend both independently filtered channels into the full-resolution camera
+            // in one pass. Their source depth, MSAA and blur scales stay unchanged.
+            if (drawField && drawFlow)
+            {
+                commands.SetGlobalTexture(SecondBloom, FlowResult);
+                commands.SetGlobalVector(Intensities, new Vector4(fieldBloom.intensity, flowBloom.intensity, 0, 0));
+                commands.Blit(FieldResult, BuiltinRenderTextureType.CameraTarget, filter, 4);
+            }
+            else commands.Blit(drawField ? FieldResult : FlowResult, BuiltinRenderTextureType.CameraTarget, filter, 3);
+            if (drawField) commands.ReleaseTemporaryRT(FieldResult);
+            if (drawFlow) commands.ReleaseTemporaryRT(FlowResult);
             commands.ReleaseTemporaryRT(Source);
             commands.SetRenderTarget(BuiltinRenderTextureType.CameraTarget);
             commands.SetViewProjectionMatrices(camera.worldToCameraMatrix, camera.projectionMatrix);
         }
 
-        private void RecordChannel(Camera camera, BloomSettings settings, bool magneticField, int width, int height)
+        private void RecordChannel(Camera camera, BloomSettings settings, bool magneticField, int width, int height, int result)
         {
             commands.BeginSample(magneticField ? "Dynamo.FieldBloom" : "Dynamo.FlowBloom");
             // CameraTarget supplies the actual depth attachment. Builtin Depth is
@@ -120,15 +135,15 @@ namespace Massive.Dynamo
             int low = down[levels-1];
             for (int i = levels - 2; i >= 0; i--)
             {
-                commands.GetTemporaryRT(up[i], widths[i], heights[i], 0, FilterMode.Bilinear, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear);
+                int output = i == 0 ? result : up[i];
+                commands.GetTemporaryRT(output, widths[i], heights[i], 0, FilterMode.Bilinear, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear);
                 commands.SetGlobalTexture(LowMip, low);
                 commands.SetGlobalVector(LowTexel, new Vector4(1f / widths[i+1], 1f / heights[i+1], 0, 0));
-                commands.Blit(down[i], up[i], filter, 2);
-                low = up[i];
+                commands.Blit(down[i], output, filter, 2);
+                low = output;
             }
-            commands.Blit(low, BuiltinRenderTextureType.CameraTarget, filter, 3);
             for (int i = 0; i < levels; i++) commands.ReleaseTemporaryRT(down[i]);
-            for (int i = 0; i < levels - 1; i++) commands.ReleaseTemporaryRT(up[i]);
+            for (int i = 1; i < levels - 1; i++) commands.ReleaseTemporaryRT(up[i]);
             commands.EndSample(magneticField ? "Dynamo.FieldBloom" : "Dynamo.FlowBloom");
             RecordedChannels++;
         }

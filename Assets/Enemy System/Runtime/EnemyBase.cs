@@ -67,6 +67,28 @@ namespace Massive.Enemies
         public string SourceLifeToken { get; private set; }
 
         private Rigidbody _rb;
+        private Rigidbody resonanceFilterBody;
+        private int ownedResonanceExclusion;
+
+        internal void EnsureResonanceCollisionFilter(Rigidbody body)
+        {
+            if (resonanceFilterBody != body) ReleaseResonanceCollisionFilter();
+            if (body == null) return;
+            resonanceFilterBody = body;
+            int mask = Massive.Resonance.ResonanceCollisionPolicy.Mask;
+            int missing = mask & ~body.excludeLayers.value;
+            if (missing == 0) return;
+            ownedResonanceExclusion |= missing;
+            body.excludeLayers = body.excludeLayers.value | missing;
+        }
+
+        private void ReleaseResonanceCollisionFilter()
+        {
+            // Preserve authored exclusions and changes to unrelated layer bits.
+            if (resonanceFilterBody != null && ownedResonanceExclusion != 0)
+                resonanceFilterBody.excludeLayers = resonanceFilterBody.excludeLayers.value & ~ownedResonanceExclusion;
+            resonanceFilterBody = null; ownedResonanceExclusion = 0;
+        }
         private bool _savedKinematic;
         private Vector3 _savedVel;
         private Vector3 _savedAngVel;
@@ -94,8 +116,9 @@ namespace Massive.Enemies
         {
             if (!activeEnemies.Contains(this)) activeEnemies.Add(this);
             MatterNuggetScript.IgnoreEnemyContacts(this);
+            EnsureResonanceCollisionFilter(GetComponent<Rigidbody>());
         }
-        private void OnDisable() { activeEnemies.Remove(this); movementInfluences.Clear(); }
+        private void OnDisable() { activeEnemies.Remove(this); movementInfluences.Clear(); ReleaseResonanceCollisionFilter(); }
 
         public void Init(EnemyDefinition def, EnemyDirector director)
         {
@@ -117,6 +140,7 @@ namespace Massive.Enemies
             HealthRemaining = (def != null) ? def.healthMassEq : 1f;
 
             _rb = GetComponent<Rigidbody>();
+            EnsureResonanceCollisionFilter(_rb);
 
             // Lifetime
             if (def != null && def.lifetimeSeconds > 0f)

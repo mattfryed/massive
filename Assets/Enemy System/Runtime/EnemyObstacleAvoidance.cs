@@ -65,7 +65,7 @@ namespace Massive.Enemies
 
         public LayerMask ObstacleMask
         {
-            get => obstacleMask;
+            get => Massive.Resonance.ResonanceCollisionPolicy.EnemyQueryMask(obstacleMask);
             set => obstacleMask = value;
         }
 
@@ -220,8 +220,8 @@ namespace Massive.Enemies
             // Filter every hit, including for Dyson's line-of-sight query: ignoring a
             // Resonance cell must not hide an ordinary wall located behind that cell.
             int count = sphereCastRadius > .0001f
-                ? Physics.SphereCastNonAlloc(origin, sphereCastRadius, dir, filteredHits, length, obstacleMask, triggerInteraction)
-                : Physics.RaycastNonAlloc(origin, dir, filteredHits, length, obstacleMask, triggerInteraction);
+                ? Physics.SphereCastNonAlloc(origin, sphereCastRadius, dir, filteredHits, length, ObstacleMask, triggerInteraction)
+                : Physics.RaycastNonAlloc(origin, dir, filteredHits, length, ObstacleMask, triggerInteraction);
             hit = default;
             float nearest = float.PositiveInfinity;
             for (int i = 0; i < count; i++)

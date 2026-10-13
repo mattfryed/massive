@@ -7,7 +7,8 @@ Shader "Hidden/MASSIVE/Dynamo Selective Bloom"
         Cull Off ZWrite Off ZTest Always
         CGINCLUDE
         #include "UnityCG.cginc"
-        sampler2D _MainTex, _DynamoBloomLowMip;
+        sampler2D _MainTex, _DynamoBloomLowMip, _DynamoSecondBloom;
+        float4 _DynamoBloomIntensities;
         float4 _MainTex_TexelSize, _DynamoBloomLowTexel;
         float4 _DynamoBloomParameters; // threshold, knee, scatter, intensity
 
@@ -44,6 +45,11 @@ Shader "Hidden/MASSIVE/Dynamo Selective Bloom"
             return float4(lerp(tex2D(_MainTex, i.uv).rgb, Tent(_DynamoBloomLowMip, i.uv, _DynamoBloomLowTexel.xy), _DynamoBloomParameters.z), 0);
         }
         float4 Composite(v2f_img i) : SV_Target { return float4(tex2D(_MainTex, i.uv).rgb * _DynamoBloomParameters.w, 0); }
+        float4 CompositeBoth(v2f_img i) : SV_Target
+        {
+            return float4(tex2D(_MainTex, i.uv).rgb * _DynamoBloomIntensities.x +
+                tex2D(_DynamoSecondBloom, i.uv).rgb * _DynamoBloomIntensities.y, 0);
+        }
         ENDCG
         Pass
         {
@@ -72,6 +78,14 @@ Shader "Hidden/MASSIVE/Dynamo Selective Bloom"
             CGPROGRAM
             #pragma vertex vert_img
             #pragma fragment Composite
+            ENDCG
+        }
+        Pass
+        {
+            Blend One One
+            CGPROGRAM
+            #pragma vertex vert_img
+            #pragma fragment CompositeBoth
             ENDCG
         }
     }

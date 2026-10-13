@@ -562,7 +562,7 @@ float3 MakeSeed(uint id, float windStrength)
     return seed;
 }
 
-[numthreads(64,1,1)]
+[numthreads(32,1,1)]
 void IntegrateCS(uint3 tid : SV_DispatchThreadID)
 {
     uint id = tid.x;
@@ -590,9 +590,10 @@ void IntegrateCS(uint3 tid : SV_DispatchThreadID)
         seed.y = _Center.y;
     }
 
-    // Trace both directions
+    // Dispatch Y selects one trace direction. Keep each unrolled branch constant-folded.
     [unroll] for (int traceDirIdx = 0; traceDirIdx < 2; traceDirIdx++)
     {
+        [branch] if (traceDirIdx != (int)tid.y) continue;
         float dirSign = (traceDirIdx == 0) ? -1.0 : 1.0;
         float3 p = seed;
         float3 previousVisual = WarpVisual(p, strength, hLine);

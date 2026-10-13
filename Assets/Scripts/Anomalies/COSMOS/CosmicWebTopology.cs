@@ -11,6 +11,7 @@ namespace Massive.Cosmos
         [Serializable]
         public struct Particle { public Vector4 initial, filament, cluster, flow, bend, merger, attractor, vortex; }
         public const int ParticleStride = 128;
+        [Serializable]
         public struct Statistics { public int filaments, boundaryEnds, reconnectedEnds, galaxyGroups, mergingPairs; public float meanBend; }
         sealed class Junction
         {

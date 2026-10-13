@@ -195,3 +195,107 @@ The September 7 Curved Glide pass launched an actual Core at a curved wall. It r
 Confirmed defect evidence: the original GPU cap test produced -0.016 or +0.016 lateral velocity solely from reversing two identical opposing forces; the balanced version produces zero in both orders. The old wide east/west strips each contained eight inverted triangles and up to 0.143 local units of triangle-diagonal centerline error. Their replacements use non-overlapping coverage quads and shader-evaluated curve distance; the original close-up stepping/fan artifacts were retested visually.
 
 The exposed-arc attraction and three-layer rendering were inspected in Game View. No new Console or shader errors were present. No standalone player build or full-match balance/performance certification was performed.
+
+## Contact-query optimization (2026-10-11)
+
+The actor driver uses conservative influence bounds before exact contact queries.
+The magnetic bound includes velocity lookahead and actor radius; established
+magnetic surface following keeps its global nearest-surface query. Sludge,
+magnetic motion, physics timestep and geometry resolution are unchanged.
+
+Each segment caches clipped span geometry and bounds in groups of eight. The cache
+refreshes on Initialize or a change to collision start/end; taper/width values and
+transforms are still read live. Local visual contact paths cache directions and
+bounds when the renderer constructs them. Pattern rebuilds replace these paths.
+Treat the supplied sampled-path arrays as immutable after construction.
+
+Player passage rejects only swept paths provably outside the influence band.
+Existing wakes and pulses continue their normal decay when no new contact is
+recorded. Actor dictionaries are cleared as actors leave and on driver disable.
+
+Profiler markers: `Resonance.Filters`, `Resonance.PlayerPassage` and
+`Resonance.ActorContacts`. **MASSIVE > Resonance > Validate Optimized Queries**
+compares against the frozen pre-optimization reference across clipping changes,
+tapers, degenerate spans, reflected/nonuniform scales and stationary/fast swept
+queries. The existing prototype and local-contact validation menus also remain
+available.
+
+
+## Collision-pair cleanup (2026-10-11)
+
+Temporary ignored pairs are owned by each tracked actor. Cleanup visits that
+actor's pairs once and restores their prior native values synchronously. Shutdown
+releases actors in reverse acquisition order, which reduces Unity's native removal
+cost on the cabinet. Existing ignored collisions and unrelated movement sources
+remain intact; destroyed colliders are skipped.
+
+Markers: `Resonance.RestoreCollisionPairs` and `Resonance.Shutdown`.
+**MASSIVE > Resonance > Validate Collision Cleanup** covers native pair restoration,
+compound colliders, response changes, disabled/destroyed colliders, overlapping
+patterns, and repeated lifecycle cleanup. The controlled 227-wall test reduced
+48-actor cleanup from about 1,019 ms to 515 ms; native pair restoration remains a
+significant cost. See `Docs/AI/Resonance-Cleanup-20261011.md` for measurements and
+standalone validation.
+
+
+## Enemy collision filtering (2026-10-11)
+
+Patterns authored on Default with Enemy Sludge enabled place their generated
+contact colliders on the reserved `ResonanceEnemyPassThrough` layer (13),
+or use layer 14 for uniformly traversable solid contacts as described below.
+Renderers retain their original layer. `EnemyBase` adds both reserved layers to its
+Rigidbody exclusions, covering attached compound colliders without creating
+per-enemy/per-wall native collision exceptions. Disable/pooling releases only
+the bit owned by this component; authored and unrelated exclusions survive.
+
+The actor driver still computes the same sludge strength and drag. Players,
+Cores, pickups, projectile slowdown, and beam blocking keep their existing rules.
+Enemy movement/sight queries exclude the reserved layer before collecting hits;
+normal walls behind resonance remain visible even with dense contact geometry.
+Carrier sidesteps follow the same sludge policy as general avoidance.
+
+The fast path requires matching Default/global layer-matrix permissions. Custom
+obstacle layers, or incompatible matrix settings, use the existing pair-filter
+fallback. Rebuild after changing the global collision matrix. Changing Enemy
+Sludge or Obstacle Layer refreshes the contact layer; disabling sludge restores
+the authored hard-wall behavior. Reserve layer 13 for these generated contacts.
+Any future non-enemy query intended to hit Default resonance must also include
+the reserved layer (current gameplay masks already do).
+
+`Resonance.EnemySludge` measures enemy processing after collision filtering.
+**MASSIVE > Resonance > Validate Enemy Filtering** exercises actual physics,
+unchanged sludge/drag, overlap cleanup, pooling, dense queries, ordinary walls,
+and the custom-layer fallback. See
+`Docs/AI/Resonance-Enemy-Filtering-20261011.md` for controlled and standalone results.
+
+## Player, Core and pickup collision filtering (2026-10-12)
+
+Uniformly traversable fields use `ResonanceActorPassThrough` (layer 14) for
+solid contact geometry. This requires Default obstacle permissions, Enemy Sludge,
+Player Pass Through or Sludge, and a non-default Core response. Only an active,
+initialized interaction driver can enable this policy. Trigger-only contacts
+remain on the enemy layer; contact objects sharing solid and trigger colliders
+retain the native fallback. Renderer layers, shapes, particles, sludge calculations,
+magnetic turns, possession and shot release behavior are unchanged.
+
+Each participating non-enemy solid collider acquires one temporary layer exclusion.
+Overlapping fields share reference-counted ownership, so one field cannot remove
+another's filter. Trigger sensors and Rigidbody filters are untouched. The last
+owner clears only bits it added, preserving authored and unrelated exclusions.
+Shutdown restores surviving wall layers before releasing ownership; destroyed
+actors, pickup hierarchy changes, enable/disable, formation gates and scene cleanup
+release their state synchronously. Generated drivers shut down before their
+collider lists are cleared.
+
+Mixed responses, custom obstacle layers and incompatible collision matrices retain
+the existing native-pair behavior, including restoration of prior ignore values.
+Changing response modes refreshes the policy. Rebuild after changing the global
+collision matrix. Reserve layers 13 and 14 exclusively for generated resonance
+contacts; queries intended to include Default resonance must include both.
+
+**MASSIVE > Resonance > Validate Actor Filtering** checks native movement, ordinary
+walls, compound colliders, sensor exclusions, overlapping ownership, response
+changes, rebuilds and fallback behavior. The possession suite exercises both
+policies; the pickup Play Mode suite accepts `nativeFallback: true` to exercise
+its original pair path. See `Docs/AI/Resonance-Actor-Filtering-20261012.md` for
+benchmark and standalone evidence.

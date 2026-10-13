@@ -122,6 +122,8 @@ namespace Massive.Enemies
         {
             if (!collider || !collider.enabled || collider.isTrigger || collider.transform.IsChildOf(transform)) return false;
             if (collider.GetComponentInParent<MatterNuggetScript>()) return false;
+            var resonance = collider.GetComponentInParent<Massive.Resonance.ResonanceSegment>();
+            if (resonance != null && resonance.EnemiesUseSludge) return false;
             if (collider.GetComponent<VectorGridGPU>() || collider.bounds.max.y < center.y - radius + .02f) return false;
             if (collider.GetComponentInParent<EnemyProjectileBase>()) return false;
             var other = collider.GetComponentInParent<EnemyBase>();
@@ -132,6 +134,7 @@ namespace Massive.Enemies
         private bool ClearSidestep(Vector3 destination, float radius)
         {
             const float skin = .035f;
+            int movementMask = Massive.Resonance.ResonanceCollisionPolicy.EnemyQueryMask(turretAvoidanceObstacleMask);
             if (!bounds || !bounds.IsValid || !bounds.ContainsWorldPoint(destination, radius + skin)) return false;
             Vector3 start = shellCollider ? shellCollider.bounds.center : avoidanceBody.position;
             Vector3 delta = destination - avoidanceBody.position;
@@ -141,12 +144,12 @@ namespace Massive.Enemies
                     if (exclusion && exclusion.enabled && exclusion.gameObject.activeInHierarchy &&
                         (exclusion.ClosestPoint(start + delta) - start - delta).sqrMagnitude < Mathf.Pow(radius + skin, 2)) return false;
             int count = Physics.OverlapSphereNonAlloc(start + delta, radius + skin, avoidanceOverlaps,
-                turretAvoidanceObstacleMask, QueryTriggerInteraction.Ignore);
+                movementMask, QueryTriggerInteraction.Ignore);
             if (count == avoidanceOverlaps.Length) return false;
             for (int i = 0; i < count; i++) if (BlocksSidestep(avoidanceOverlaps[i], start, radius)) return false;
             if (delta.sqrMagnitude < .000001f) return true;
             count = Physics.SphereCastNonAlloc(start, radius, delta.normalized, avoidanceHits,
-                delta.magnitude + skin, turretAvoidanceObstacleMask, QueryTriggerInteraction.Ignore);
+                delta.magnitude + skin, movementMask, QueryTriggerInteraction.Ignore);
             if (count == avoidanceHits.Length) return false;
             for (int i = 0; i < count; i++) if (BlocksSidestep(avoidanceHits[i].collider, start, radius)) return false;
             return true;

@@ -204,6 +204,7 @@ public class HiggsFieldGPU : MonoBehaviour
     private RenderTexture heightRT;      // full (with excitations)
     private RenderTexture heightBaseRT;  // base (no excitations)
     private RenderTexture exciteRT;      // excitation mask
+    private MaterialPropertyBlock underlayProperties;
 
     public RenderTexture HeightTexture => heightRT;
     public RenderTexture HeightBaseTexture => heightBaseRT;
@@ -470,9 +471,16 @@ public int ActiveBubbles => _lastActiveBubbles;
         int tgTex = Mathf.CeilToInt(textureSize / 8f);
         higgsCompute.Dispatch(kRaster, tgTex, tgTex, 1);
 
-        // ---- Feed textures into underlay material ----
-        higgsUnderlayMaterial.SetTexture(MID_HeightTex, heightRT);
-        higgsUnderlayMaterial.SetTexture(MID_ExciteTex, exciteRT);
+        // The instructions icon, close-up and arena can share the authored material.
+        // Bind each field's simulation textures to its own renderer.
+        if (targetRenderer != null)
+        {
+            underlayProperties ??= new MaterialPropertyBlock();
+            targetRenderer.GetPropertyBlock(underlayProperties);
+            underlayProperties.SetTexture(MID_HeightTex, heightRT);
+            underlayProperties.SetTexture(MID_ExciteTex, exciteRT);
+            targetRenderer.SetPropertyBlock(underlayProperties);
+        }
     }
 
     /// <summary>

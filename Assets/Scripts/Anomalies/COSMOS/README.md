@@ -561,3 +561,58 @@ Play Mode navigation run and target-machine testing have not been performed.
 Icon revision (2026-10-05): Editor scripts/shader imported without errors and an
 isolated still preview was reviewed. Automated tests, Play Mode, standalone builds
 and target-machine profiling remain deferred to the user.
+
+## Background topology baking (2026-10-11)
+
+The gameplay background now references a binary `CosmicWebBake` asset. It stores
+the exact generated particle data, including the sample data used by supernova
+gameplay. Evolution, motion, colors, opacity, sizes and all shader controls remain
+live; this does not bake a screenshot or freeze the animation.
+
+After changing **Seed**, **Particle Count**, or **Organic Strength**, use
+**Bake / Refresh Background Topology** in the background Inspector, or
+**MASSIVE > COSMOS > Cosmic web > Bake backgrounds in open scenes**, then save
+the scene. An outdated/missing bake never supplies a different setting's data:
+the preview and player fall back to generation. A player fallback logs a warning
+because it can cause a startup pause.
+
+Player builds automatically prepare matching bakes for enabled scenes and their
+prefab dependencies, then assign them to the build's scene copies. Build-time
+fingerprints include the topology generator source and Unity version, so source
+or Unity upgrades rebake as needed. For Editor Play Mode after a generator source
+change, refresh the bake in the Inspector. `CosmicWebBake.FormatVersion` should
+also be incremented when the serialized particle layout/semantics change.
+
+Bakes are shared by identical topology settings under `COSMOS/Baked`; keep their
+`.asset` and `.meta` files together. Old settings' bakes are not deleted
+automatically. The current 56,000-particle bake adds about 7.2 MB before player
+compression. Its scene reference lets the existing instruction-time preload load
+the data before gameplay activation.
+
+## Instructions supernova close-up (2026-10-12)
+
+The middle-right pane of `InstructionsPanel-COSMOS` shows the normal and
+superluminous supernova side by side, using the production `CosmicSupernovae`
+lifecycle, shader and pickup prefabs. The grid, baked web, palette, dimensions,
+timings and ejection settings are copied from the saved COSMOS scene. A cropped
+camera magnifies the full-size objects; the web stays at Age 0.5 and keeps moving.
+Normal explosions release mass nugglets; superluminous explosions release mass
+nuggets. Sources are actual nearby web particles, including their buildup drift.
+
+`CosmosInstructionsDemo` on **Supernova demonstration** controls **Universe Age**
+and **Quiet Seconds**. Its repeating schedule shows two normal explosions per
+superluminous explosion, allowing the longest effect to finish before repeating.
+Clouds and pickups retain their gameplay lifetimes, with no clearing or rewinding
+at the loop seam. Closing the panel clears its private effects and pools; reopening
+starts a fresh demonstration. It has no match clock or score authority.
+
+After changing saved gameplay visuals, use **MASSIVE > COSMOS > Instructions >
+Build Supernova Close-up** to refresh the demonstration from the scene. This
+rebuilds only the middle-pane demonstration, with no text inside the pane. **Validate Supernova
+Loop** checks setting parity and runs the actual instructions scene through two
+loops and a close/reopen cycle, then restores the original saved scene.
+
+Validated in Unity 6000.0.28f1/DX11: 5 authored checks and 21 Play Mode checks
+passed with zero runtime errors. Native 4K captures cover buildup, peak, cloud and
+loop seam. Evidence and the original prefab backup are under
+`Library/CosmosInstructionsValidation`. No standalone build was run.

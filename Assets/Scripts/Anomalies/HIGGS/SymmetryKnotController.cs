@@ -37,6 +37,7 @@ public class SymmetryKnotController : MonoBehaviour
     private string sourceToken;
     private SymmetryKnotIncomeToast incomeToast;
     public float CaptureRadius => captureRadius;
+    public float DespawnFadeSeconds => despawnFadeSeconds;
     public SymmetryKnotCaptureState State => state;
     public bool IsRetiring => state != null && (state.Phase == SymmetryKnotCaptureState.Stage.Retiring || state.Phase == SymmetryKnotCaptureState.Stage.Finished);
     public bool IsFlowing { get; private set; }
@@ -48,8 +49,7 @@ public class SymmetryKnotController : MonoBehaviour
         visual = GetComponent<SymmetryKnotVisual>();
         visual.Initialize(position, captureRadius);
         visual.SetOwner(-1, null, false, 0);
-        state = new SymmetryKnotCaptureState(visual.SpawnFadeSeconds, unclaimedSeconds,
-            claimedSeconds, captureRampSeconds, tickIntervalSeconds, despawnFadeSeconds, resetIncomeOnContest, vacancyForgivenessSeconds);
+        state = CreateCaptureState(visual.SpawnFadeSeconds);
         sourceToken = "higgs:" + GetInstanceID();
         retiringVisual = false; AwardedMilliElectronVolts = 0;
         IsFlowing = false;
@@ -132,6 +132,12 @@ public class SymmetryKnotController : MonoBehaviour
         double seconds = Math.Max(0, tickIndex) * (state != null ? state.TickSeconds : Math.Max(.02f, tickIntervalSeconds));
         return Math.Pow(2d, Math.Min(seconds / Math.Max(.1f, incomeDoublingSeconds), Math.Log(cap, 2d)));
     }
+
+    // Instruction previews share the authored capture rules without creating a
+    // gameplay controller, registering players or issuing real score awards.
+    public SymmetryKnotCaptureState CreateCaptureState(float formationSeconds) =>
+        new SymmetryKnotCaptureState(formationSeconds, unclaimedSeconds, claimedSeconds,
+            captureRampSeconds, tickIntervalSeconds, despawnFadeSeconds, resetIncomeOnContest, vacancyForgivenessSeconds);
 
     private void EnsureIncomeToast()
     {

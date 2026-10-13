@@ -61,7 +61,7 @@ namespace Massive.Enemies
         {
             Vector3 delta = target.transform.position - transform.position; delta.y = 0f;
             int count = Physics.RaycastNonAlloc(transform.position, delta.normalized, sightHits, delta.magnitude,
-                sightMask, QueryTriggerInteraction.Ignore);
+                Massive.Resonance.ResonanceCollisionPolicy.EnemyQueryMask(sightMask), QueryTriggerInteraction.Ignore);
             if (count == sightHits.Length) return false;
             for (int i = 0; i < count; i++)
             {

@@ -35,12 +35,12 @@ public sealed class SymmetryKnotIncomeToast : MonoBehaviour
     public bool IsTransitioningOut { get; private set; }
     public bool IsVisible => gameObject.activeSelf && label != null && label.enabled;
 
-    public void Initialize(Transform target, float captureRadius)
+    public void Initialize(Transform target, float captureRadius, Camera presentationCamera = null)
     {
         anchor = target;
         radius = captureRadius;
         authoredScale = transform.localScale;
-        view = Camera.main;
+        view = presentationCamera != null ? presentationCamera : Camera.main;
         if (label != null) label.raycastTarget = false;
         if (textTransition != null)
         {

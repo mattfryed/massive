@@ -7,7 +7,7 @@ using UnityEngine.UI;
 
 namespace Massive.AttractStudy
 {
-    /// <summary>Horizontal ATTRACT menu. Score attack is intentionally a preview.</summary>
+    /// <summary>Horizontal ATTRACT menu for the two versus modes.</summary>
     [DisallowMultipleComponent]
     public sealed class AttractModeSelector : MonoBehaviour
     {
@@ -26,9 +26,16 @@ namespace Massive.AttractStudy
         [Range(.22f,.4f)] public float spheresHeight=.315f;
         [Range(.05f,.15f)] public float sphereDiameter=.112f;
         [Range(.14f,.3f)] public float optionSpacing=.22f;
-        [Range(18,32)] public float labelSize=24;
+        [Range(10,32)] public float labelSize=24;
         [Tooltip("Clear space between same-team spheres, measured in sphere diameters."),Range(0,2)] public float sphereSpacing=.16f;
         [Tooltip("Extra space between opposing teams, measured in sphere diameters."),Range(0,2)] public float teamSpacing=.30f;
+        [Header("Selection animation")]
+        [InspectorName("Selected Font Size Increase"),Tooltip("Points added to Label Size for the selected mode. Zero disables the size emphasis."),Min(0)]
+        public float selectedLabelSizeIncrease=6;
+        [InspectorName("Selection Animation Duration"),Tooltip("Seconds to grow or shrink a mode label, using unscaled time. Zero changes size immediately."),Min(0)]
+        public float selectionAnimationDuration=.25f;
+        [InspectorName("Selection Size Easing"),Tooltip("Growth and shrink easing from 0 to 1. Defaults to ease-in-out.")]
+        public AnimationCurve selectionSizeEase=AnimationCurve.EaseInOut(0,0,1,1);
         [Header("Begin prompt")]
         [InspectorName("Prompt Size"),Min(1)] public float beginPromptSize=24;
         [InspectorName("Prompt Horizontal Position"),Tooltip("Screen position: 0 is left, 0.5 is centered, 1 is right."),Range(0,1)] public float beginPromptX=.5f;
@@ -52,7 +59,7 @@ namespace Massive.AttractStudy
         public bool HasBegun {get;private set;}
         public bool MenuInputReady {get;private set;}
         public int SelectedOption {get;private set;}
-        public int PreviewSphereCount=>SelectedOption==0?1:SelectedOption==1?2:4;
+        public int PreviewSphereCount=>SelectedOption==0?2:4;
         public Button GetOptionButton(int index)=>buttons!=null && index>=0 && index<buttons.Length?buttons[index]:null;
 #if UNITY_EDITOR
         public float? PreviewDeltaTime {get;set;}
@@ -81,7 +88,11 @@ namespace Massive.AttractStudy
         MaterialPropertyBlock properties;
         Button[] buttons;
         TextMeshProUGUI[] labels;
-        TextMeshProUGUI hint;
+        LabelSizeAnimation[] labelSizeAnimations;
+        struct LabelSizeAnimation
+        {
+            public float value,start,target,elapsed;
+        }
         TextMeshProUGUI beginPrompt;
         TMPTextTransition beginTransition;
         bool beginRequested,promptIntroComplete,promptOutroStarted;
@@ -95,7 +106,7 @@ namespace Massive.AttractStudy
         float clock;
         bool submitting;
         int createdFrame,beginFrame;
-        static readonly string[] Labels={"MASSIVE\nSCORE ATTACK","1 vs 1","2 vs 2"};
+        static readonly string[] Labels={"1 vs 1","2 vs 2"};
         static readonly int TimeId=Shader.PropertyToID("_FluidTime"),DensityId=Shader.PropertyToID("_Density"),ReliefId=Shader.PropertyToID("_Relief"),WetnessId=Shader.PropertyToID("_Wetness"),RimWidthId=Shader.PropertyToID("_RimWidth"),RimAngleId=Shader.PropertyToID("_RimAngle"),WhiteId=Shader.PropertyToID("_WhiteDominant");
         static readonly int DropsId=Shader.PropertyToID("_FluidDrops"),CoreId=Shader.PropertyToID("_FormationCore"),BoundsId=Shader.PropertyToID("_FormationBounds");
 
@@ -167,9 +178,8 @@ namespace Massive.AttractStudy
             if(presentation==null || !presentation.activeInHierarchy || HasBegun)return;
             HasBegun=true;beginFrame=Time.frameCount;
             beginPrompt.gameObject.SetActive(false);
-            ApplySelection(1);
+            ApplySelection(0);
             for(int i=0;i<buttons.Length;i++)buttons[i].gameObject.SetActive(true);
-            hint.gameObject.SetActive(true);
             // The existing reservoir animation begins at the small-glob state.
             // LateUpdate places and shades each slot before its first render.
         }
@@ -204,9 +214,9 @@ namespace Massive.AttractStudy
             beginRequested=false;promptIntroComplete=false;promptOutroStarted=false;
             BuildLabels();
             submitting=false;HasBegun=false;MenuInputReady=false;createdFrame=Time.frameCount;
-            ApplySelection(1);
+            ApplySelection(0);
             for(int i=0;i<buttons.Length;i++){buttons[i].interactable=false;buttons[i].gameObject.SetActive(false);}
-            hint.gameObject.SetActive(false);ClearMenuFocus();
+            ClearMenuFocus();
             canvas.gameObject.SetActive(true);
             // Auto-play begins when the canvas activates. Retain a manual
             // fallback for an animation prefab with auto-play disabled.
@@ -220,8 +230,9 @@ namespace Massive.AttractStudy
             go.transform.SetParent(presentation.transform,false);
             canvas=go.GetComponent<Canvas>();canvas.renderMode=RenderMode.ScreenSpaceCamera;canvas.worldCamera=menuCamera;canvas.planeDistance=10;canvas.sortingOrder=50;
             var scaler=go.GetComponent<CanvasScaler>();scaler.uiScaleMode=CanvasScaler.ScaleMode.ScaleWithScreenSize;scaler.referenceResolution=new Vector2(1280,720);scaler.matchWidthOrHeight=1;
-            buttons=new Button[3];labels=new TextMeshProUGUI[3];
-            for(int i=0;i<3;i++)
+            buttons=new Button[Labels.Length];labels=new TextMeshProUGUI[Labels.Length];
+            labelSizeAnimations=new LabelSizeAnimation[Labels.Length];
+            for(int i=0;i<buttons.Length;i++)
             {
                 var option=new GameObject(Labels[i].Replace('\n',' '),typeof(RectTransform),typeof(Button));
                 option.transform.SetParent(go.transform,false);
@@ -230,11 +241,14 @@ namespace Massive.AttractStudy
                 var selection=option.AddComponent<AttractModeOption>();selection.owner=this;selection.index=i;
                 var text=MakeText(option.transform,"Label",Labels[i],labelSize);
                 labels[i]=text;
-                Stretch(text.rectTransform);text.margin=new Vector4(8,4,8,4);
+                Stretch(text.rectTransform);text.rectTransform.pivot=new Vector2(.5f,.5f);text.margin=new Vector4(8,4,8,4);
+                // Center the visible glyph geometry so size changes expand equally
+                // in every direction, independent of the font's baseline metrics.
+                text.alignment=TextAlignmentOptions.MidlineGeoAligned;
+                text.enableAutoSizing=false;text.overflowMode=TextOverflowModes.Overflow;
                 text.raycastTarget=true;button.targetGraphic=text;
             }
-            for(int i=0;i<3;i++)buttons[i].navigation=new Navigation{mode=Navigation.Mode.Explicit,selectOnLeft=buttons[(i+2)%3],selectOnRight=buttons[(i+1)%3]};
-            hint=MakeText(go.transform,"Mode status","PREVIEW",13);hint.raycastTarget=false;
+            for(int i=0;i<buttons.Length;i++)buttons[i].navigation=new Navigation{mode=Navigation.Mode.Explicit,selectOnLeft=buttons[(i+buttons.Length-1)%buttons.Length],selectOnRight=buttons[(i+1)%buttons.Length]};
             beginPrompt=beginPromptPrefab!=null ? Instantiate(beginPromptPrefab,go.transform,false) : MakeText(go.transform,"Begin prompt","PRESS ANY BUTTON TO BEGIN",beginPromptSize);
             beginPrompt.name="Begin prompt";beginPrompt.text="PRESS ANY BUTTON TO BEGIN";beginPrompt.font=regularLabelFont;beginPrompt.raycastTarget=false;
             beginPrompt.gameObject.SetActive(true);
@@ -257,17 +271,36 @@ namespace Massive.AttractStudy
         static void Stretch(RectTransform rect){rect.anchorMin=Vector2.zero;rect.anchorMax=Vector2.one;rect.offsetMin=rect.offsetMax=Vector2.zero;}
         void LayoutLabels()
         {
-            for(int i=0;i<3;i++)
+            for(int i=0;i<buttons.Length;i++)
             {
-                var rect=(RectTransform)buttons[i].transform;float center=.5f+(i-1)*optionSpacing;
+                var rect=(RectTransform)buttons[i].transform;float center=.5f+(i-(buttons.Length-1)*.5f)*optionSpacing;
                 rect.anchorMin=new Vector2(center-optionSpacing*.46f,labelsHeight);rect.anchorMax=new Vector2(center+optionSpacing*.46f,labelsHeight);
-                rect.anchoredPosition=Vector2.zero;rect.sizeDelta=new Vector2(0,68);
-                labels[i].fontSize=labelSize;
+                rect.pivot=new Vector2(.5f,.5f);rect.anchoredPosition=Vector2.zero;rect.sizeDelta=new Vector2(0,68);
+                labels[i].fontSize=Mathf.Max(1,labelSize)+Mathf.Max(0,selectedLabelSizeIncrease)*labelSizeAnimations[i].value;
             }
-            var hr=hint.rectTransform;hr.anchorMin=hr.anchorMax=new Vector2(.5f,labelsHeight);hr.anchoredPosition=new Vector2(0,-62);hr.sizeDelta=new Vector2(340,22);
             var pr=beginPrompt.rectTransform;float x=Mathf.Clamp01(beginPromptX),y=Mathf.Clamp01(beginPromptY);
             pr.anchorMin=new Vector2(x-.4f,y);pr.anchorMax=new Vector2(x+.4f,y);
             pr.anchoredPosition=Vector2.zero;pr.sizeDelta=new Vector2(0,Mathf.Max(54,beginPromptSize*1.5f));beginPrompt.fontSize=Mathf.Max(1,beginPromptSize);
+        }
+        void AnimateLabelSizes()
+        {
+            float duration=Mathf.Max(0,selectionAnimationDuration),delta=FrameDelta;
+            for(int i=0;i<labelSizeAnimations.Length;i++)
+            {
+                ref var animation=ref labelSizeAnimations[i];
+                float target=HasBegun && i==SelectedOption?1:0;
+                if(animation.target!=target)
+                {
+                    // Reverse from the currently displayed size when navigation
+                    // interrupts a transition, without snapping or restarting it.
+                    animation.start=animation.value;animation.target=target;animation.elapsed=0;
+                }
+                animation.elapsed=Mathf.Min(animation.elapsed+delta,duration);
+                float progress=duration>0?animation.elapsed/duration:1;
+                float eased=selectionSizeEase!=null && selectionSizeEase.length>0
+                    ?selectionSizeEase.Evaluate(progress):progress*progress*(3-2*progress);
+                animation.value=progress>=1?target:Mathf.Lerp(animation.start,target,eased);
+            }
         }
         public void SelectOption(int index)
         {
@@ -276,24 +309,24 @@ namespace Massive.AttractStudy
         }
         void ApplySelection(int index)
         {
-            if(buttons==null || index<0 || index>2)return;
+            if(buttons==null || index<0 || index>=buttons.Length)return;
             SelectedOption=index;
             // Use the real bold and regular faces, rather than marking an
             // already-bold font as "normal" and leaving it visually unchanged.
-            for(int i=0;i<3;i++)labels[i].font=i==index?labelFont:regularLabelFont;
-            hint.text=index==0?"SCORE ATTACK PREVIEW":"";
+            for(int i=0;i<buttons.Length;i++)labels[i].font=i==index?labelFont:regularLabelFont;
         }
         void Submit(int index)
         {
             if(submitting || !IsAlternateActive || !MenuInputReady || Time.frameCount<=beginFrame)return;
+            if(buttons==null || index<0 || index>=buttons.Length)return;
             SelectOption(index);
-            if(index==0)return; // Deliberately no scene load or game-mode mutation.
             submitting=true;
-            modeFlow.MoveToNextScene(index==2);
+            modeFlow.MoveToNextScene(index==1);
         }
         void LateUpdate()
         {
             if(presentation==null || menuCamera==null)return;
+            AnimateLabelSizes();
             LayoutLabels();
             if(!HasBegun)return;
             float diameter=Mathf.Clamp(sphereDiameter,.05f,.15f);
@@ -302,8 +335,8 @@ namespace Massive.AttractStudy
             for(int i=0;i<4;i++)
             {
                 // Player identity never changes: left to right is P2, P1, P3, P4.
-                // Solo fills P1; versus fills P1/P3; team play fills all four.
-                bool visible=SelectedOption==2 || i==0 || (SelectedOption==1 && i==2);
+                // 1v1 fills P1/P3; 2v2 fills all four.
+                bool visible=SelectedOption==1 || i==0 || i==2;
                 reveal[i]=Mathf.MoveTowards(reveal[i],visible?1:0,FrameDelta/Mathf.Max(.25f,transitionTime));
                 var sphere=spheres[i];
                 sphere.gameObject.SetActive(true);
@@ -358,7 +391,7 @@ namespace Massive.AttractStudy
                 }
             }
             Dispose(presentation);Dispose(mesh);Dispose(formationProxy);Dispose(material);Dispose(formationMaterial);
-            presentation=null;canvas=null;mesh=null;formationProxy=null;material=null;formationMaterial=null;properties=null;buttons=null;labels=null;hint=null;beginPrompt=null;beginTransition=null;input=null;
+            presentation=null;canvas=null;mesh=null;formationProxy=null;material=null;formationMaterial=null;properties=null;buttons=null;labels=null;labelSizeAnimations=null;beginPrompt=null;beginTransition=null;input=null;
             HasBegun=false;MenuInputReady=false;
         }
         static void Dispose(Object item){if(item==null)return;if(Application.isPlaying)Destroy(item);else DestroyImmediate(item);}

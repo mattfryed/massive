@@ -486,37 +486,41 @@ public static partial class AmplifierPossessionValidation
             Check(anchored.transform.position.x > 3.1f && anchored.GetComponent<Rigidbody>().isKinematic, "Kinematic NPC receives a bounded push while retaining its motor mode");
             Object.DestroyImmediate(anchored.gameObject);
 
-            var patternGO = new GameObject("Magnetic curve fixture"); patternGO.SetActive(false); patternGO.transform.SetParent(scope.transform);
-            var pattern = patternGO.AddComponent<ResonancePatternController>();
-            pattern.segmentMaterial = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Resonance/Resonance 345 Hz.prefab").GetComponent<ResonancePatternController>().segmentMaterial;
-            var definition = ScriptableObject.CreateInstance<ResonancePatternDefinition>(); owned.Add(definition);
-            definition.curves.Add(new ResonanceCurve { radius = 2f, offset = new Vector2(5f, 0f) });
-            definition.arcs.Add(new ResonanceArc { startDegrees = 0f, sweepDegrees = 360f, endTaperFraction = 0f, thickness = .15f, colliderThickness = .15f });
-            pattern.definition = definition; pattern.coreResponse = ResonanceCoreResponse.MagneticRepulsion;
-            pattern.magneticPath = ResonanceMagneticPath.CurvedGlide;
-            pattern.magneticBrakeSeconds = .1f; pattern.magneticReleaseSeconds = .2f; pattern.magneticReach = .6f;
-            patternGO.SetActive(true); pattern.Rebuild(); yield return Wait(.55f);
-            Check(pattern.InteractiveSegments.Count > 0, "Resonance fixture builds actual curved contacts");
-            yield return ResetCore(); yield return Enter(light);
-            Vector3 oblique = new Vector3(1f, 0f, .14f).normalized;
-            Input(light, attack: true, aim: oblique); yield return Wait(.16f);
-            path.Clear(); core.BuildTrajectory(path);
-            Check(path.Count > 15 && Vector3.Cross(path.Last() - path[0], oblique).magnitude < .01f, "Guide remains a straight general direction near Resonance");
-            SaveFrame(cam, "04-resonance-guide");
-            yield return Until(() => core.IsLaunched, .3f, "Resonance fixture auto-fires through normal held input");
-            Input(light);
-            yield return Until(() => core.ShotVelocity.x < 0f, 1.5f, "Physical shot follows the existing Resonance curved turnaround");
-            Check(core.Body.angularVelocity.sqrMagnitude > .01f && !core.Body.isKinematic, "Resonance turnaround retains dynamic body and spin");
-            pattern.magneticPath = ResonanceMagneticPath.StopAndReflect;
-            yield return ResetCore(); yield return Enter(light); yield return Fire(light, .4f, Vector3.right);
-            bool zeroSpeedFlight = false; float turnEnd = Time.time + 1f;
-            while (Time.time < turnEnd && core.IsLaunched)
+            foreach (var playerPolicy in new[] { ResonancePlayerResponse.PatternDefault, ResonancePlayerResponse.Sludge })
             {
-                if (core.ShotVelocity.magnitude < .05f) { zeroSpeedFlight = true; Check(core.IsPossessionBusy, "Magnetic zero-speed turnaround stays in flight and cannot be entered"); break; }
-                yield return null;
+                var patternGO = new GameObject("Magnetic curve fixture"); patternGO.SetActive(false); patternGO.transform.SetParent(scope.transform);
+                var pattern = patternGO.AddComponent<ResonancePatternController>();
+                pattern.segmentMaterial = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Resonance/Resonance 345 Hz.prefab").GetComponent<ResonancePatternController>().segmentMaterial;
+                var definition = ScriptableObject.CreateInstance<ResonancePatternDefinition>(); owned.Add(definition);
+                definition.curves.Add(new ResonanceCurve { radius = 2f, offset = new Vector2(5f, 0f) });
+                definition.arcs.Add(new ResonanceArc { startDegrees = 0f, sweepDegrees = 360f, endTaperFraction = 0f, thickness = .15f, colliderThickness = .15f });
+                pattern.playerResponse = playerPolicy;
+                pattern.definition = definition; pattern.coreResponse = ResonanceCoreResponse.MagneticRepulsion;
+                pattern.magneticPath = ResonanceMagneticPath.CurvedGlide;
+                pattern.magneticBrakeSeconds = .1f; pattern.magneticReleaseSeconds = .2f; pattern.magneticReach = .6f;
+                patternGO.SetActive(true); pattern.Rebuild(); yield return Wait(.55f);
+                Check(pattern.InteractiveSegments.Count > 0, "Resonance fixture builds actual curved contacts");
+                yield return ResetCore(); yield return Enter(light);
+                Vector3 oblique = new Vector3(1f, 0f, .14f).normalized;
+                Input(light, attack: true, aim: oblique); yield return Wait(.16f);
+                path.Clear(); core.BuildTrajectory(path);
+                Check(path.Count > 15 && Vector3.Cross(path.Last() - path[0], oblique).magnitude < .01f, "Guide remains a straight general direction near Resonance");
+                SaveFrame(cam, "04-resonance-guide");
+                yield return Until(() => core.IsLaunched, .3f, "Resonance fixture auto-fires through normal held input");
+                Input(light);
+                yield return Until(() => core.ShotVelocity.x < 0f, 1.5f, "Physical shot follows the existing Resonance curved turnaround");
+                Check(core.Body.angularVelocity.sqrMagnitude > .01f && !core.Body.isKinematic, "Resonance turnaround retains dynamic body and spin");
+                pattern.magneticPath = ResonanceMagneticPath.StopAndReflect;
+                yield return ResetCore(); yield return Enter(light); yield return Fire(light, .4f, Vector3.right);
+                bool zeroSpeedFlight = false; float turnEnd = Time.time + 1f;
+                while (Time.time < turnEnd && core.IsLaunched)
+                {
+                    if (core.ShotVelocity.magnitude < .05f) { zeroSpeedFlight = true; Check(core.IsPossessionBusy, "Magnetic zero-speed turnaround stays in flight and cannot be entered"); break; }
+                    yield return null;
+                }
+                Check(zeroSpeedFlight, "Stop-and-reflect exercised its zero-speed point");
+                Object.DestroyImmediate(patternGO);
             }
-            Check(zeroSpeedFlight, "Stop-and-reflect exercised its zero-speed point");
-            Object.DestroyImmediate(patternGO);
 
             yield return ResetCore(); yield return Enter(light);
             goalGO = new GameObject("Capture goal", typeof(SphereCollider), typeof(AmplifierGoalCapture));

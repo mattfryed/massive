@@ -46,8 +46,9 @@ namespace Massive.Enemies
             Vector3 direction = delta / distance;
             Capsule(out var front, out var back);
             Collider contact = null; PlayerControllerScript player = null;
+            int movementMask = Massive.Resonance.ResonanceCollisionPolicy.EnemyQueryMask(Physics.AllLayers);
             float nearest = distance;
-            int count = Physics.OverlapCapsuleNonAlloc(front, back, Radius, overlaps, ~0, QueryTriggerInteraction.Collide);
+            int count = Physics.OverlapCapsuleNonAlloc(front, back, Radius, overlaps, movementMask, QueryTriggerInteraction.Collide);
             if (count == overlaps.Length) { if (lunging) Enter(AttackPhase.Hit); return 0f; }
             for (int i = 0; i < count; i++)
             {
@@ -63,7 +64,7 @@ namespace Massive.Enemies
             }
             if (!contact)
             {
-                count = Physics.CapsuleCastNonAlloc(front, back, Radius, direction, hits, distance + Skin, ~0, QueryTriggerInteraction.Collide);
+                count = Physics.CapsuleCastNonAlloc(front, back, Radius, direction, hits, distance + Skin, movementMask, QueryTriggerInteraction.Collide);
                 if (count == hits.Length) { if (lunging) Enter(AttackPhase.Hit); return 0f; }
                 for (int i = 0; i < count; i++)
                 {

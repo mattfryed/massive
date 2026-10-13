@@ -2446,3 +2446,71 @@ was run. Three existing Editor compiler warnings remain (two obsolete TMP wrappi
 calls and a reference-comparison warning in the older NovaLevelValidation helper).
 An initial fixture checked timeline initialization one frame too early; it was
 corrected to wait for actual initialization and the full sweep passed afterward.
+
+### HIGGS instructions: knot possession close-up (2026-10-12)
+
+InstructionsPanel-HIGGS now replaces the middle-right pane's legacy test rig with
+HiggsInstructionsDemo: a close-up player enters a knot, waits through CAPTURING,
+activates the goal-directed tunnel, then shows increasing meV/s. The player leaves
+at normal size and returns for the next encounter; there is no separate score footer.
+It instantiates the canonical PlayerActor in an isolated demonstration scope with
+shared gameplay tuning, scripted movement input and grid interaction. The knot prefab
+supplies capture-state timing and its exponential curve; the shared economy supplies
+tick amounts. The local demonstration receipts never call MatchScoreService.
+
+The cropped PlayerDemoView camera follows the pane rectangle. SymmetryKnotIncomeToast
+accepts an optional presentation camera; existing gameplay calls retain Camera.main.
+The middle pane includes the actual HIGGS grid and underlay settings copied from
+S-3_HIGGS: one-unit cells, a 28 x 12 field, a 1.15-unit knot radius and the canonical
+player's 0.66 size modifier (0.33 body radius). It retains the gameplay toast's size
+and clearance. HiggsFieldGPU now binds textures per renderer via a property block,
+so the icon, preview and preloaded arena cannot overwrite one another's field.
+Each encounter creates fresh knot visuals: a collapsed ring's zero thickness is
+never reused. The player never scales down at the loop seam. Other retained prefab
+objects are unchanged apart from the root child list. No gameplay scene, knot prefab,
+PlayerActor prefab, toast prefab, shared economy or instructions scene was changed.
+
+Unity 6000.0.28f1 DX11 compiled; 5 authored checks and 21 Play Mode checks passed,
+including entry before awards, capture before income, exponential growth, two full
+loops, gameplay proportions, field texture isolation, fresh rings after collapse,
+viewport bounds, disable/re-enable and unchanged real score authority/totals.
+Native 4K captures of entry, capture and scoring were inspected. Runtime errors were
+zero. Evidence and original prefab backup: Library/HiggsInstructionsValidation;
+FidelityBefore holds the state before the gameplay-fidelity revision. A capture run
+was interrupted by a script reload during Play Mode, exposing uninitialized player
+render property blocks; that evidence is preserved separately. A fresh, uninterrupted
+run passed all 21 checks with zero runtime errors. Hot-reload robustness of the shared
+player renderer was not changed by this preview task.
+Menu: MASSIVE > HIGGS > Validate Instructions Possession Loop. The original Attract
+scene is restored in Edit Mode. No standalone build was run for this UI-only change.
+
+### COSMOS instructions: supernova close-up (2026-10-12)
+
+The COSMOS instructions prefab's middle-right pane now uses CosmosInstructionsDemo
+and a cropped PlayerDemoView camera. It shows normal and superluminous events side
+by side over the actual baked web/grid at Age 0.5. The camera magnifies full-size
+gameplay objects. CosmosInstructionsSetup copies the saved scene's web, grid,
+camera render settings and both CosmicSupernovae components, retaining their exact
+shader, palette, radius, warning/flash/cloud timing, ejection settings and real mass
+pickup prefabs. Normal events release nugglets; superluminous events release nuggets.
+
+CosmicSupernovae has an opt-in, serialized presentation mode: only its trigger clock
+and draw camera differ; BeginFlash, DrawFlashes and Explode are shared with gameplay.
+Gameplay components retain their original match scheduler. CosmicWebBackground has
+an optional PresentationAge override; null retains its existing match/editor age.
+The text-free demonstration samples actual source galaxies near its two centers and follows
+their motion. Two normal events run per superluminous cycle. It waits for the full
+cloud fade, never resets web motion or clears pickups at cycle seams, and clears
+its own effects on panel close. It never creates or mutates a match/score authority.
+
+Unity 6000.0.28f1 DX11 compiled and passed 5 authored and 21 Play Mode checks:
+all public supernova settings match the saved scene; two full cycles complete;
+warning, peak, cloud and mass releases occur in order; pooling stays bounded;
+the camera stays within the middle-right pane; disable/re-enable restarts cleanly;
+score totals and saved scene/prefab hashes remain unchanged. Runtime errors: zero.
+Native 4K captures were reviewed. Only the old middle-pane demo subtree was
+replaced; retained prefab objects differ only in the two child lists. Evidence:
+Library/CosmosInstructionsValidation. The original Attract scene was restored in
+Edit Mode. No standalone build was run. Refresh from saved gameplay tuning with
+MASSIVE > COSMOS > Instructions > Build Supernova Close-up; rerun via Validate
+Supernova Loop. Quiet Seconds and Universe Age live on the demo component.

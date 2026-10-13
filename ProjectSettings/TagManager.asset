@@ -31,8 +31,8 @@ TagManager:
   - MagPreview
   - Obstacle
   - VizHUD
-  - 
-  - 
+  - ResonanceEnemyPassThrough
+  - ResonanceActorPassThrough
   - 
   - 
   - 

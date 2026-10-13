@@ -1253,6 +1253,9 @@ if (showPlayerIdToastOnMatchStart)
 
         RespawnStarted?.Invoke(this);
 
+        if (ParticipatesInMatch)
+            Massive.Players.UI.PlayerIdToastSystem.Instance?.ShowForPlayer(this, playerIdToastLifetime);
+
         AudioSystem.I?.Play(AudioEventId.Player_Spawn, transform.position);
 
         // --- Respawn FX (form) ---

@@ -67,6 +67,12 @@ namespace Massive.Resonance
         private readonly Vector4[] coreData = new Vector4[Capacity], playerData = new Vector4[Capacity];
         private readonly Vector4[] path;
         private readonly int count;
+        private readonly Vector2[] directions;
+        private readonly float[] squaredLengths;
+        private readonly Bounds[] queryBounds;
+        private readonly Bounds pathBounds;
+        private const int QueryBlockSize = 8;
+        public float MaxEnvelope { get; private set; }
         private readonly bool closed;
         public float Length => path[count - 1].w;
         public int ImpactCount { get; private set; }
@@ -74,7 +80,38 @@ namespace Massive.Resonance
         public int ActivePlayerCount { get; private set; }
 
         public ResonanceContactVisuals(Vector4[] curve, int curveCount, bool isClosed)
-        { path = curve; count = curveCount; closed = isClosed; }
+        {
+            path = curve; count = curveCount; closed = isClosed;
+            directions = new Vector2[count - 1]; squaredLengths = new float[count - 1];
+            queryBounds = new Bounds[(count - 1 + QueryBlockSize - 1) / QueryBlockSize];
+            var all = new Bounds(new Vector3(path[0].x, path[0].y, 0), Vector3.zero);
+            for (int i = 0; i < count; i++)
+            {
+                Vector3 p = new Vector3(path[i].x, path[i].y, 0);
+                all.Encapsulate(p); MaxEnvelope = Mathf.Max(MaxEnvelope, path[i].z);
+                if (i == count - 1) continue;
+                Vector3 next = new Vector3(path[i + 1].x, path[i + 1].y, 0);
+                directions[i] = new Vector2(next.x - p.x, next.y - p.y);
+                squaredLengths[i] = directions[i].sqrMagnitude;
+                int block = i / QueryBlockSize;
+                if (i % QueryBlockSize == 0) queryBounds[block] = new Bounds(p, Vector3.zero);
+                queryBounds[block].Encapsulate(next);
+            }
+            pathBounds = all;
+        }
+
+        private static float BoundsDistanceSquared(Bounds bounds, Vector2 from, Vector2 to)
+        {
+            Vector3 min = bounds.min, max = bounds.max;
+            float x = Mathf.Max(0, Mathf.Max(min.x - Mathf.Max(from.x, to.x), Mathf.Min(from.x, to.x) - max.x));
+            float y = Mathf.Max(0, Mathf.Max(min.y - Mathf.Max(from.y, to.y), Mathf.Min(from.y, to.y) - max.y));
+            return x * x + y * y;
+        }
+
+        // Only rejects a swept path when even its enclosing box is outside the band.
+        // Existing wakes/pulses continue to decay independently of this query.
+        public bool MayIntersect(Vector2 from, Vector2 to, float reach)
+            => BoundsDistanceSquared(pathBounds, from, to) <= (reach + .0001f) * (reach + .0001f);
 
         /// <summary>Clear transient contacts when a pattern leaves play; retained geometry and allocation stay intact.</summary>
         public void Reset()
@@ -90,11 +127,18 @@ namespace Massive.Resonance
         {
             Contact result = new Contact { distance = float.PositiveInfinity };
             Vector2 travel = to - from;
+            float aa = travel.sqrMagnitude;
             for (int i = 0; i < count - 1; i++)
             {
-                Vector2 a = new Vector2(path[i].x, path[i].y), b = new Vector2(path[i+1].x, path[i+1].y);
-                Vector2 d = b-a;
-                float aa = travel.sqrMagnitude, ee = d.sqrMagnitude;
+                if (i % QueryBlockSize == 0 && !float.IsPositiveInfinity(result.distance))
+                {
+                    float padded = result.distance + .0001f;
+                    if (BoundsDistanceSquared(queryBounds[i / QueryBlockSize], from, to) > padded * padded)
+                    { i += QueryBlockSize - 1; continue; }
+                }
+                Vector2 a = new Vector2(path[i].x, path[i].y);
+                Vector2 d = directions[i];
+                float ee = squaredLengths[i];
                 if (ee < .00000001f) continue;
                 Vector2 r = from-a;
                 float f = Vector2.Dot(d,r), s = 0f, t;

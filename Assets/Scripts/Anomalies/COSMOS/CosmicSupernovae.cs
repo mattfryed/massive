@@ -15,6 +15,9 @@ namespace Massive.Cosmos
         public CosmicWebBackground web;
         public MatterNuggetScript nuggletPrefab;
         public Shader flashShader;
+        [SerializeField, HideInInspector] bool presentationOnly;
+        [HideInInspector] public Camera presentationCamera;
+        public bool IsPresentation => presentationOnly;
 
         [Header("Supernova frequency over Age")]
         [Tooltip("X = simulation Age (0–1); Y = frequency multiplier. At Y = 1, the peak rate below applies. Negative values produce no explosions.")]
@@ -105,6 +108,12 @@ namespace Massive.Cosmos
             TelegraphDistortionID = Shader.PropertyToID("_TelegraphDistortion");
         public int ExplosionsReleased { get; private set; }
         public float CurrentFrequency => web ? FrequencyAtAge(web.Age) : 0;
+        public int ActiveFlashCount
+        {
+            get { int count = 0; if (flashes != null) foreach (var flash in flashes) if (flash.active) count++; return count; }
+        }
+        public float EventSeconds => Mathf.Max(0, buildUpSeconds) + Mathf.Max(Mathf.Max(.05f, flashSeconds),
+            Mathf.Max(Mathf.Max(.01f, dieOffSeconds), kind == SupernovaKind.Superluminous ? Mathf.Max(.05f, cloudExpansionSeconds) + Mathf.Max(.05f, cloudFadeSeconds) : 0));
 
         static AnimationCurve BellCurve()
         {
@@ -126,7 +135,7 @@ namespace Massive.Cosmos
         void Awake()
         {
             if (!web) web = GetComponent<CosmicWebBackground>();
-            if (!web || !web.match || !nuggletPrefab || !flashShader || !flashShader.isSupported)
+            if (!web || (!presentationOnly && !web.match) || !nuggletPrefab || !flashShader || !flashShader.isSupported)
             {
                 Debug.LogError("[COSMOS] Supernovae need the web, its match clock, a mass pickup prefab and a supported flash shader.", this);
                 enabled = false; return;
@@ -137,6 +146,7 @@ namespace Massive.Cosmos
             // A world-space root preserves the pickup prefab's scale and horizontal physics plane.
             poolRoot = new GameObject(kind == SupernovaKind.Superluminous ? "COSMOS Superluminous Nuggets" : "COSMOS Supernova Nugglets");
             SceneManager.MoveGameObjectToScene(poolRoot, gameObject.scene);
+            if (presentationOnly) poolRoot.transform.SetParent(transform, true);
             flashMaterial = new Material(flashShader) { hideFlags = HideFlags.HideAndDontSave };
             flashProperties = new MaterialPropertyBlock();
             flashMesh = new Mesh { name = "COSMOS supernova flash", hideFlags = HideFlags.HideAndDontSave };
@@ -177,7 +187,11 @@ namespace Massive.Cosmos
         }
         void LateUpdate()
         {
-            if (nugglets == null || !web || !web.match) return;
+            if (nugglets == null || !web) return;
+            // Use the same event lifecycle, shader inputs and pickup ejection. Only the
+            // presentation's trigger clock differs from the match's Poisson scheduler.
+            if (presentationOnly) { DrawFlashes(Time.deltaTime, Time.deltaTime); return; }
+            if (!web.match) return;
             var match = web.match;
             float remaining = match.RegulationRemainingSeconds;
             if (remaining > previousRemaining + .001f) ResetTimeline();
@@ -215,18 +229,34 @@ namespace Massive.Cosmos
         {
             float buildup = Mathf.Max(0, buildUpSeconds);
             if (web.match.RegulationRemainingSeconds <= buildup) return;
-            int flashSlot = -1;
+            if (!AvailableSlots(out int flashSlot, out int slot) ||
+                !web.TrySampleMatterPoint(random, clusterBias, wallClearance, out var source, out var origin, out var pickupPoint)) return;
+            BeginFlash(flashSlot, slot, source, origin, pickupPoint);
+        }
+        public bool TryBeginPresentation(CosmicWebTopology.Particle source)
+        {
+            if (!presentationOnly || !isActiveAndEnabled || !web || !AvailableSlots(out int flashSlot, out int slot) ||
+                !web.TryGetMatterPoint(source, wallClearance, out var origin, out var pickupPoint)) return false;
+            BeginFlash(flashSlot, slot, source, origin, pickupPoint);
+            return true;
+        }
+        bool AvailableSlots(out int flashSlot, out int slot)
+        {
+            flashSlot = slot = -1;
+            if (flashes == null || nugglets == null) return false;
             for (int i = 0; i < flashes.Length; i++)
                 if (!flashes[i].active) { flashSlot = i; break; }
-            if (flashSlot < 0) return;
-            int slot = -1;
+            if (flashSlot < 0) return false;
             for (int i = 0; i < nugglets.Length; i++)
                 if (!reservedNugglets[i] && (!nugglets[i] || !nugglets[i].gameObject.activeSelf)) { slot = i; break; }
-            if (slot < 0 || !web.TrySampleMatterPoint(random, clusterBias, wallClearance, out var source, out var origin, out var pickupPoint)) return;
+            return slot >= 0;
+        }
+        void BeginFlash(int flashSlot, int slot, CosmicWebTopology.Particle source, Vector3 origin, Vector3 pickupPoint)
+        {
             // Reserve capacity now, but do not create/activate the pickup until the burst.
             reservedNugglets[slot] = true;
             flashes[flashSlot] = new Flash { source = source, generation = web.Generation, position = origin, pickupPoint = pickupPoint,
-                nuggletSlot = slot, buildUp = buildup, duration = Mathf.Max(.05f, flashSeconds), dieOff = Mathf.Max(.01f, dieOffSeconds),
+                nuggletSlot = slot, buildUp = Mathf.Max(0, buildUpSeconds), duration = Mathf.Max(.05f, flashSeconds), dieOff = Mathf.Max(.01f, dieOffSeconds),
                 cloudExpansion = kind == SupernovaKind.Superluminous ? Mathf.Max(.05f, cloudExpansionSeconds) : 0,
                 cloudFade = kind == SupernovaKind.Superluminous ? Mathf.Max(.05f, cloudFadeSeconds) : 0,
                 radius = Mathf.Max(.05f, flashRadius) * Mathf.Lerp(.8f, 1.2f, (float)random.NextDouble()),
@@ -304,7 +334,7 @@ namespace Massive.Cosmos
                 flashProperties.SetFloat(FlowTimeID, flash.elapsed * Mathf.Max(0, cloudMixingSpeed));
                 flashProperties.SetFloat(BrightnessID, Mathf.Max(0, flashBrightness));
                 var matrix = Matrix4x4.TRS(flash.position, web.transform.rotation, Vector3.one * flash.radius);
-                Graphics.DrawMesh(flashMesh, matrix, flashMaterial, gameObject.layer, null, 0,
+                Graphics.DrawMesh(flashMesh, matrix, flashMaterial, gameObject.layer, presentationOnly ? presentationCamera : null, 0,
                     flashProperties, ShadowCastingMode.Off, false, null, LightProbeUsage.Off);
             }
         }

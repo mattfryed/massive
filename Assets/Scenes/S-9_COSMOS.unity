@@ -29520,6 +29520,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   match: {fileID: 1341292505}
   particleShader: {fileID: 4800000, guid: dd3b292095d961248bf9d9a7d2d23d5e, type: 3}
+  bakedTopology: {fileID: 11400000, guid: 241a893a8121b98459910c1b266e9867, type: 2}
   opaqueParticles: 1
   opaqueMinParticleSize: 0.01
   opaqueMaxParticleSize: 0.04

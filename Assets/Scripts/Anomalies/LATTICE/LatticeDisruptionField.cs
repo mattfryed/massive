@@ -77,7 +77,22 @@ namespace Massive.Lattice
         public int DisconnectedEdgeCount { get; private set; }
         public int TransitioningEdgeCount { get; private set; }
         public float FieldTime => clock;
+        // Presentation instances can retrace a bounded noise interval without resetting
+        // strand/jitter animation. Zero preserves the level's ordinary, unbounded drift.
+        public float NoiseLoopSeconds { get; set; }
         public bool IsReady => mesh && material && stateBuffer != null && Grid && Grid.isActiveAndEnabled;
+
+        // Instruction panels need their initial node state before the first render,
+        // rather than waiting for this component's first Update. This is opt-in;
+        // gameplay fields retain their normal lifecycle and animation clock.
+        public bool PrepareForPresentation()
+        {
+            clock = 0f;
+            // A parent panel's OnEnable can run before Unity enables its grid child.
+            // The serialized grid layout is already available, so prepare its node
+            // data now; normal Update/LateUpdate still require an enabled grid.
+            return EnsureResources(allowInactiveGrid: true);
+        }
 
         struct Edge { public Vector2 a, b; public int ia, ib, ends; public bool disconnected; public float delay, split; }
         Edge[] edges;
@@ -151,6 +166,11 @@ namespace Massive.Lattice
         {
             if (mode == FieldMode.Connected) return 0;
             if (mode == FieldMode.Disconnected) return 1;
+            if (NoiseLoopSeconds > 0)
+            {
+                float radius = NoiseLoopSeconds / (2f * Mathf.PI);
+                time = radius * (1f - Mathf.Cos(time / radius));
+            }
             float z = time * evolutionSpeed;
             Vector2 p = local * noiseFrequency + drift * time * noiseFrequency + new Vector2(seed * .173f, seed * .317f);
             Vector2 warp = new Vector2(Mathf.PerlinNoise(p.x * .63f + z, p.y * .63f + 8.7f),
@@ -257,10 +277,10 @@ namespace Massive.Lattice
                 Mathf.Abs(p.y) <= Grid.size.y * .5f - radius / Mathf.Max(.001f, Mathf.Abs(scale.y));
         }
 
-        bool EnsureResources()
+        bool EnsureResources(bool allowInactiveGrid = false)
         {
             if (!Grid) Grid = GetComponent<VectorGridGPU>();
-            if (!Grid || !Grid.isActiveAndEnabled || !gameObject.scene.IsValid() || Spacing <= 0) return false;
+            if (!Grid || (!Grid.isActiveAndEnabled && !allowInactiveGrid) || !gameObject.scene.IsValid() || Spacing <= 0) return false;
             if (!strandShader) strandShader = Shader.Find("MASSIVE/Lattice/Strands");
             if (!strandShader || !strandShader.isSupported) return false;
             if (mesh && builtSpacing == Spacing && builtSize == Grid.size && builtSegments == strandSegments && material.shader == strandShader) return true;

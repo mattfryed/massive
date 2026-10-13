@@ -204,6 +204,43 @@ namespace Massive.Resonance
         }
         public int ParticleCount { get; private set; }
         public bool InteractionEnabled => interactionEnabled;
+        internal int EnemyPassThroughLayer { get; private set; } = -1;
+        private int seenCollisionObstacleLayer = -1;
+        private bool seenEnemySludge, seenActorFiltering;
+        private ResonancePlayerResponse seenCollisionPlayerResponse;
+        private ResonanceCoreResponse seenCollisionCoreResponse;
+        private ResonanceInteractionDriver collisionPolicyDriver;
+        internal int ActorPassThroughLayer { get; private set; } = -1;
+
+        internal void SetActorCollisionFiltering(ResonanceInteractionDriver driver, bool enabled)
+        {
+            if (enabled) collisionPolicyDriver = driver;
+            else if (collisionPolicyDriver == driver) collisionPolicyDriver = null;
+            RefreshEnemyCollisionLayer();
+        }
+        internal void RefreshEnemyCollisionLayer()
+        {
+            bool actorFiltering = collisionPolicyDriver != null && collisionPolicyDriver.isActiveAndEnabled && interactionEnabled;
+            if (seenCollisionObstacleLayer == obstacleLayer && seenEnemySludge == enemiesUseSludge
+                && seenActorFiltering == actorFiltering && seenCollisionPlayerResponse == playerResponse
+                && seenCollisionCoreResponse == coreResponse) return;
+            seenCollisionObstacleLayer = obstacleLayer; seenEnemySludge = enemiesUseSludge;
+            seenActorFiltering = actorFiltering; seenCollisionPlayerResponse = playerResponse; seenCollisionCoreResponse = coreResponse;
+            EnemyPassThroughLayer = ResonanceCollisionPolicy.ResolveLayer(obstacleLayer, enemiesUseSludge);
+            bool allActorsPass = enemiesUseSludge && (playerResponse == ResonancePlayerResponse.PassThrough
+                || playerResponse == ResonancePlayerResponse.Sludge) && coreResponse != ResonanceCoreResponse.PatternDefault;
+            ActorPassThroughLayer = actorFiltering && allActorsPass && EnemyPassThroughLayer >= 0
+                ? ResonanceCollisionPolicy.ResolveActorLayer(obstacleLayer) : -1;
+            // A shared solid/trigger object cannot change layer without also filtering its sensor.
+            // Retain the complete native fallback for such authored contact configurations.
+            if (ActorPassThroughLayer >= 0)
+                foreach (var collider in generatedColliders)
+                    if (collider != null && collider.isTrigger && collider.GetComponent<Collider>() != collider)
+                    { ActorPassThroughLayer = -1; break; }
+            int layer = EnemyPassThroughLayer >= 0 ? EnemyPassThroughLayer : Mathf.Clamp(obstacleLayer, 0, 31);
+            foreach (var collider in generatedColliders)
+                if (collider != null) collider.gameObject.layer = !collider.isTrigger && ActorPassThroughLayer >= 0 ? ActorPassThroughLayer : layer;
+        }
         public IReadOnlyList<ResonanceSegment> InteractiveSegments => interactiveSegments;
         public float SolidVisualWidth => Mathf.Max(filament.opacity > 0f && filament.brightness > 0f ? filament.width : 0f,
             ribbon.opacity > 0f && ribbon.brightness > 0f ? ribbon.width : 0f);
@@ -238,6 +275,7 @@ namespace Massive.Resonance
         }
         private void ApplyInteractionGate()
         {
+            RefreshEnemyCollisionLayer();
             // Disable the driver first: OnDisable releases sludge and restores temporary ignored pairs.
             if (interactionDriver != null && !interactionEnabled) interactionDriver.enabled = false;
             foreach (var collider in generatedColliders) if (collider != null) collider.enabled = interactionEnabled;
@@ -573,10 +611,13 @@ namespace Massive.Resonance
                 var effects=segment.ContactVisuals;
                 if (effects==null) continue;
                 Vector3 a=segment.transform.InverseTransformPoint(from), b=segment.transform.InverseTransformPoint(to);
-                var contact=effects.Nearest(new Vector2(a.x,a.z),new Vector2(b.x,b.z));
-                float scale=Mathf.Max(.001f,Mathf.Min(Mathf.Abs(segment.transform.lossyScale.x),Mathf.Abs(segment.transform.lossyScale.z)));
-                float edge=radius/scale + segment.Settings.thickness*SolidVisualWidth*contact.envelope*.5f;
+                Vector3 lossyScale = segment.transform.lossyScale;
+                float scale=Mathf.Max(.001f,Mathf.Min(Mathf.Abs(lossyScale.x),Mathf.Abs(lossyScale.z)));
                 float feather=Mathf.Max(.05f,playerResponse==ResonancePlayerResponse.Sludge ? interactionReach/scale : .12f);
+                float maxEdge = radius/scale + Mathf.Max(0f,segment.Settings.thickness*SolidVisualWidth)*effects.MaxEnvelope*.5f;
+                if (!effects.MayIntersect(new Vector2(a.x,a.z),new Vector2(b.x,b.z),maxEdge+feather)) continue;
+                var contact=effects.Nearest(new Vector2(a.x,a.z),new Vector2(b.x,b.z));
+                float edge=radius/scale + segment.Settings.thickness*SolidVisualWidth*contact.envelope*.5f;
                 float presence=Mathf.Clamp01(1f-(contact.distance-edge)/feather)*contact.envelope;
                 if (presence<=.001f) continue;
                 Vector3 v=segment.transform.InverseTransformDirection(velocity); v.y=0f;
@@ -784,6 +825,9 @@ namespace Massive.Resonance
         }
         private void ClearGenerated()
         {
+            if (generatedRoot != null) generatedRoot.SetActive(false);
+            collisionPolicyDriver = null;
+            seenCollisionObstacleLayer = -1; EnemyPassThroughLayer = -1; ActorPassThroughLayer = -1;
             localPreviewKind=0;
             ParticleCount=0;
             restingRenderers.Clear(); revealRenderers.Clear(); gridSamples.Clear(); interactiveSegments.Clear(); generatedColliders.Clear();

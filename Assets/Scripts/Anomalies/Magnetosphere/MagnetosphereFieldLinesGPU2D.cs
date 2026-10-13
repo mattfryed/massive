@@ -303,6 +303,7 @@ public bool useProceduralSeeds = true;
     private readonly uint[] _segCountReadback = new uint[1];
 
     private int _kIntegrate;
+    private int _integrateThreadsX;
     private int _kBuildDrawArgs;
     private int _allocatedSeeds, _allocatedSteps;
     private readonly uint[] _initialDrawArgs = { 0, 1, 0, 0 };
@@ -484,6 +485,8 @@ public bool useProceduralSeeds = true;
         if (!fieldCS || !lineMaterial) return;
 
         _kIntegrate = fieldCS.FindKernel("IntegrateCS");
+        fieldCS.GetKernelThreadGroupSizes(_kIntegrate, out uint threadsX, out _, out _);
+        _integrateThreadsX = (int)threadsX;
         _kBuildDrawArgs = fieldCS.FindKernel("BuildDrawArgs");
         Allocate();
         if (_mpb == null) _mpb = new MaterialPropertyBlock();
@@ -715,9 +718,9 @@ void Allocate()
         fieldCS.SetBuffer(_kIntegrate, _SeedsID, _seedsBuf);
         fieldCS.SetBuffer(_kIntegrate, _SegmentsID, _segBuf);
 
-        // Dispatch
-        int groups = Mathf.Max(1, Mathf.CeilToInt(_allocatedSeeds / 64.0f));
-        fieldCS.Dispatch(_kIntegrate, groups, 1, 1);
+        // Two independent trace directions per seed; small groups spread long traces across the GPU.
+        int groups = (_allocatedSeeds + _integrateThreadsX - 1) / _integrateThreadsX;
+        fieldCS.Dispatch(_kIntegrate, groups, 2, 1);
 
         // Keep the append count and draw arguments on the GPU. No per-frame synchronization.
         ComputeBuffer.CopyCount(_segBuf, _segCountBuf, 0);

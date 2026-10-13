@@ -27,6 +27,9 @@ namespace Massive.Cosmos
 
         public GameManagerScript match;
         public Shader particleShader;
+        [Tooltip("Exact topology data for fast startup. Refresh after changing Seed, Particle Count or Organic Strength. Player builds bake automatically.")]
+        public CosmicWebBake bakedTopology;
+        public bool UsingBakedTopology { get; private set; }
         [Header("Particle rendering")]
         [Tooltip("Alternate solid, unlit circular particles with independent sizes and the chosen palette at full emission. No blending, haze, brightness variation or vignette. Off preserves the original additive web; motion and topology are shared.")]
         public bool opaqueParticles;
@@ -77,7 +80,7 @@ namespace Massive.Cosmos
         [Header("Early universe heat")]
         [Tooltip("Mottled heat palette for the initial soup. Fades out at Early Heat Transition Point without changing particle distribution or motion. Zero restores the original early palette.")]
         [Range(0, 1)] public float earlyHeat = 1;
-        [Tooltip("Opaque mode only: 0 = distinct heat colors, 100 = original mixing, 200–400 = wider transition bands with more blended hues. Above 100, the value scales the color-band width (200 = 2x, 400 = 4x). Lower values also reduce tinting during the fade back to the web. Timing and coverage centers stay unchanged; Overall Brightness still applies.")]
+        [Tooltip("Opaque mode only: 0 = distinct heat colors, 100 = original mixing, 200â€“400 = wider transition bands with more blended hues. Above 100, the value scales the color-band width (200 = 2x, 400 = 4x). Lower values also reduce tinting during the fade back to the web. Timing and coverage centers stay unchanged; Overall Brightness still applies.")]
         [Range(0, 400)] public float earlyHeatInterpolation = 100;
         [Tooltip("Additive mode only: early brightness multiplier, blended out with Early Heat. Overall Brightness applies to both modes.")]
         [Range(1, 3)] public float earlyHeatBrightness = 1.55f;
@@ -131,7 +134,9 @@ namespace Massive.Cosmos
         public CosmicWebTopology.Statistics TopologyStatistics { get; private set; }
         public int RenderedParticleCount => particles != null ? particles.count : 0;
         public int Generation { get; private set; }
-        public float Age => Application.isPlaying ? MatchAge(match) : previewAge;
+        // Instructions can hold a representative age without creating a match clock.
+        public float? PresentationAge { get; set; }
+        public float Age => PresentationAge.HasValue ? Mathf.Clamp01(PresentationAge.Value) : Application.isPlaying ? MatchAge(match) : previewAge;
         public float MotionTime
         {
             get
@@ -243,7 +248,15 @@ namespace Massive.Cosmos
         {
             Release();
             if (!particleShader || !SystemInfo.supportsComputeShaders) return;
-            var data = CosmicWebTopology.Build(Mathf.Clamp(particleCount, 8000, 100000), seed, out var statistics, organicStrength);
+            CosmicWebTopology.Particle[] data = null;
+            CosmicWebTopology.Statistics statistics = default;
+            UsingBakedTopology = bakedTopology && bakedTopology.TryGet(particleCount, seed, organicStrength, out data, out statistics);
+            if (!UsingBakedTopology)
+            {
+                if (Application.isPlaying)
+                    Debug.LogWarning("COSMOS topology bake is missing or outdated; generating the current settings. Refresh its bake to avoid a startup stall.", this);
+                data = CosmicWebTopology.Build(Mathf.Clamp(particleCount, 8000, 100000), seed, out statistics, organicStrength);
+            }
             particles = new ComputeBuffer(data.Length, CosmicWebTopology.ParticleStride, ComputeBufferType.Structured);
             particles.SetData(data);
             interactionSamples = new CosmicWebTopology.Particle[Mathf.Min(2048, data.Length)];

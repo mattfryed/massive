@@ -3,6 +3,7 @@ using Massive.Multiplier;
 using Massive.Enemies;
 using Massive.PowerUps;
 using UnityEngine;
+using Unity.Profiling;
 
 namespace Massive.Resonance
 {
@@ -20,10 +21,13 @@ namespace Massive.Resonance
             public int pickupHierarchyVersion;
             public Collider[] colliders;
             public bool[] colliderEnabled;
+            public readonly List<IgnoredPair> ignored = new List<IgnoredPair>();
+            public readonly List<Collider> layerFiltered = new List<Collider>();
+            public int actorFilterLayer = -1;
             public bool filtersReady, seen, magnetic;
             public ResonancePlayerResponse playerMode;
             public ResonanceCoreResponse coreMode;
-            public bool enemySludge;
+            public bool enemySludge, usesEnemyLayerFilter;
             public bool interactionsEnabled;
             public Vector3 incoming, normal;
             public Vector3 previousPosition;
@@ -31,9 +35,16 @@ namespace Massive.Resonance
             public ResonanceSegment surface;
             public float age, brake, radius, cooldown;
         }
-        private struct IgnoredPair { public Actor owner; public Collider actor, wall; public bool previous; }
+        private struct IgnoredPair { public Collider actor, wall; public bool previous; }
         private readonly List<Actor> actors = new List<Actor>(8);
-        private readonly List<IgnoredPair> ignored = new List<IgnoredPair>();
+        private readonly Dictionary<Rigidbody, Actor> actorsByBody = new Dictionary<Rigidbody, Actor>();
+        private readonly Dictionary<PowerUpPickup, Actor> actorsByPickup = new Dictionary<PowerUpPickup, Actor>();
+        private static readonly ProfilerMarker FilterMarker = new ProfilerMarker("Resonance.Filters");
+        private static readonly ProfilerMarker PassageMarker = new ProfilerMarker("Resonance.PlayerPassage");
+        private static readonly ProfilerMarker EnemySludgeMarker = new ProfilerMarker("Resonance.EnemySludge");
+        private static readonly ProfilerMarker ContactMarker = new ProfilerMarker("Resonance.ActorContacts");
+        private static readonly ProfilerMarker RestoreMarker = new ProfilerMarker("Resonance.RestoreCollisionPairs");
+        private static readonly ProfilerMarker ShutdownMarker = new ProfilerMarker("Resonance.Shutdown");
         private ResonancePatternController pattern;
         public int MagneticTurnarounds { get; private set; }
 
@@ -49,22 +60,33 @@ namespace Massive.Resonance
                 if (actor.core == core) { actor.magnetic = false; actor.cooldown = .08f; }
         }
 
-        public void Initialize(ResonancePatternController owner) { pattern = owner; }
+        public void Initialize(ResonancePatternController owner)
+        {
+            pattern = owner;
+            if (isActiveAndEnabled) pattern.SetActorCollisionFiltering(this, true);
+        }
+        private void OnEnable()
+        {
+            if (pattern != null) pattern.SetActorCollisionFiltering(this, true);
+        }
 
         private Actor GetActor(Rigidbody body, PlayerControllerScript player, AmplifierCoreGameplay core, EnemyBase enemy = null)
         {
-            foreach (var a in actors) if (a.body == body) { a.seen = true; return a; }
+            if (enemy != null) enemy.EnsureResonanceCollisionFilter(body);
+            if (actorsByBody.TryGetValue(body, out var a)) { a.seen = true; return a; }
             var colliders = body.GetComponentsInChildren<Collider>(true);
             var actor = new Actor { body = body, player = player, core = core, enemy = enemy, colliders = colliders,
                 colliderEnabled = new bool[colliders.Length], seen = true, previousPosition=body.worldCenterOfMass };
-            actors.Add(actor); return actor;
+            actors.Add(actor); actorsByBody.Add(body, actor); return actor;
         }
 
         private Actor GetPickupActor(PowerUpPickup pickup)
         {
-            Actor actor = null;
-            foreach (var candidate in actors) if (candidate.pickup == pickup) { actor = candidate; break; }
-            if (actor == null) { actor = new Actor { pickup = pickup, pickupHierarchyVersion = -1 }; actors.Add(actor); }
+            if (!actorsByPickup.TryGetValue(pickup, out var actor))
+            {
+                actor = new Actor { pickup = pickup, pickupHierarchyVersion = -1 };
+                actors.Add(actor); actorsByPickup.Add(pickup, actor);
+            }
             actor.seen = true;
             if (actor.pickupHierarchyVersion != pickup.ColliderHierarchyVersion)
             {
@@ -80,6 +102,7 @@ namespace Massive.Resonance
         private void FixedUpdate()
         {
             if (pattern == null || !pattern.isActiveAndEnabled) return;
+            pattern.RefreshEnemyCollisionLayer();
             foreach (var actor in actors) actor.seen = false;
             foreach (var pickup in PowerUpPickup.ActivePickups)
                 if (pickup != null && pickup.gameObject.scene == gameObject.scene)
@@ -106,8 +129,12 @@ namespace Massive.Resonance
 
         private void ConfigureFilters(Actor actor)
         {
+            using var sample = FilterMarker.Auto();
+            bool usesEnemyLayerFilter = actor.enemy != null && actor.body != null && pattern.EnemyPassThroughLayer >= 0
+                && (actor.body.excludeLayers.value & (1 << pattern.EnemyPassThroughLayer)) != 0;
             bool dirty = !actor.filtersReady || actor.playerMode != pattern.playerResponse || actor.coreMode != pattern.coreResponse
-                || actor.enemySludge != pattern.enemiesUseSludge || actor.interactionsEnabled != pattern.InteractionEnabled;
+                || actor.enemySludge != pattern.enemiesUseSludge || actor.interactionsEnabled != pattern.InteractionEnabled
+                || actor.usesEnemyLayerFilter != usesEnemyLayerFilter || actor.actorFilterLayer != pattern.ActorPassThroughLayer;
             actor.radius = 0f;
             for (int i = 0; i < actor.colliders.Length; i++)
             {
@@ -117,13 +144,29 @@ namespace Massive.Resonance
                     && (actor.pickup != null || c.attachedRigidbody == actor.body);
                 if (actor.colliderEnabled[i] != enabled) dirty = true;
                 actor.colliderEnabled[i] = enabled;
-                if (enabled) actor.radius = Mathf.Max(actor.radius, Mathf.Max(c.bounds.extents.x, c.bounds.extents.z));
+                if (enabled) { Vector3 extents = c.bounds.extents; actor.radius = Mathf.Max(actor.radius, Mathf.Max(extents.x, extents.z)); }
             }
             if (!dirty) return;
             RestorePairs(actor);
             actor.filtersReady = true; actor.playerMode = pattern.playerResponse; actor.coreMode = pattern.coreResponse;
             actor.enemySludge = pattern.enemiesUseSludge;
             actor.interactionsEnabled = pattern.InteractionEnabled;
+            actor.usesEnemyLayerFilter = usesEnemyLayerFilter;
+            actor.actorFilterLayer = pattern.ActorPassThroughLayer;
+            // Sludge still runs in Tick; the body filter replaces only native pair exceptions.
+            if (usesEnemyLayerFilter) return;
+            if (actor.actorFilterLayer >= 0)
+            {
+                // Uniform pass-through fields need one exclusion per solid collider, not one per wall.
+                // Keep trigger sensors and Rigidbody filters untouched. Overlapping fields share ownership.
+                for (int i = 0; i < actor.colliders.Length; i++)
+                    if (actor.colliderEnabled[i] && !actor.colliders[i].isTrigger)
+                    {
+                        ResonanceCollisionPolicy.Acquire(actor.colliders[i]);
+                        actor.layerFiltered.Add(actor.colliders[i]);
+                    }
+                return;
+            }
             foreach (var segment in pattern.InteractiveSegments)
             {
                 bool ignore = actor.pickup != null || (actor.enemy != null ? pattern.enemiesUseSludge : actor.core != null
@@ -137,8 +180,8 @@ namespace Massive.Resonance
                     foreach (var wall in segment.HardColliders)
                     {
                         if (wall == null || !wall.enabled) continue;
-                        var pair = new IgnoredPair { owner = actor, actor = actor.colliders[i], wall = wall, previous = Physics.GetIgnoreCollision(actor.colliders[i], wall) };
-                        ignored.Add(pair); Physics.IgnoreCollision(pair.actor, pair.wall, true);
+                        var pair = new IgnoredPair { actor = actor.colliders[i], wall = wall, previous = Physics.GetIgnoreCollision(actor.colliders[i], wall) };
+                        actor.ignored.Add(pair); Physics.IgnoreCollision(pair.actor, pair.wall, true);
                     }
                 }
             }
@@ -147,14 +190,16 @@ namespace Massive.Resonance
         private void Tick(Actor actor)
         {
             ConfigureFilters(actor);
+            using var enemySample = actor.enemy != null ? EnemySludgeMarker.Auto() : default;
             Vector3 previous=actor.previousPosition;
-            actor.previousPosition=actor.body.worldCenterOfMass;
+            Vector3 position = actor.body.worldCenterOfMass;
+            actor.previousPosition=position;
             if (actor.player != null) actor.player.RemoveMovementInfluence(this);
             if (actor.enemy != null) actor.enemy.RemoveMovementInfluence(this);
             if (actor.body.isKinematic || actor.radius <= 0f || (actor.enemy != null && (actor.enemy.IsPaused || actor.enemy.IsDead))
                 || (actor.core != null && (actor.core.IsCaptured || actor.core.IsPresentationOnly)))
             { actor.magnetic = false; return; }
-            if (Mathf.Abs(pattern.transform.InverseTransformPoint(actor.body.worldCenterOfMass).y) > pattern.colliderHeight * .5f + actor.radius)
+            if (Mathf.Abs(pattern.transform.InverseTransformPoint(position).y) > pattern.colliderHeight * .5f + actor.radius)
             { actor.magnetic = false; return; }
             if ((pattern.fieldAffectedLayers.value & (1 << actor.body.gameObject.layer)) == 0
                 || Physics.GetIgnoreLayerCollision(pattern.obstacleLayer, actor.body.gameObject.layer)) return;
@@ -166,6 +211,7 @@ namespace Massive.Resonance
                 // Sweep real motion for fast crossings, but never draw a trail across a spawn/teleport.
                 float maxTravel=actor.body.linearVelocity.magnitude*Time.fixedDeltaTime*2f+actor.radius*2f;
                 if ((actor.previousPosition-previous).sqrMagnitude>maxTravel*maxTravel) previous=actor.previousPosition;
+                using var passageSample = PassageMarker.Auto();
                 pattern.NotifyPlayerPassage(actor.body.GetInstanceID(),previous,actor.previousPosition,
                     actor.body.linearVelocity,actor.radius,Time.fixedDeltaTime);
             }
@@ -188,10 +234,16 @@ namespace Massive.Resonance
             float strongest = 0f, bestGap = float.PositiveInfinity, bestEnvelope = 0f;
             Vector3 bestNormal = Vector3.right;
             ResonanceSegment bestSurface=null;
+            // Envelope <= 1. Speed lookahead includes every possible approach normal.
+            // A curve outside this limit cannot slow an actor or start a magnetic turn.
+            float reach = Mathf.Max(.01f, pattern.interactionReach);
+            if (magnetic) reach = Mathf.Max(reach, Mathf.Max(0f, pattern.magneticReach)*1.00001f + actor.body.linearVelocity.magnitude*dt);
+            float maxGap = actor.radius + reach + .0001f;
+            using (ContactMarker.Auto())
             foreach (var segment in pattern.InteractiveSegments)
             {
                 Vector3 normal; float gap, envelope;
-                if (!segment.NearestContact(actor.body.worldCenterOfMass, out normal, out gap, out envelope)) continue;
+                if (!segment.NearestContact(position, out normal, out gap, out envelope, maxGap)) continue;
                 gap -= actor.radius;
                 float weight = Mathf.Clamp01(1f - gap / Mathf.Max(.01f, pattern.interactionReach)) * envelope;
                 strongest = Mathf.Max(strongest, weight);
@@ -279,24 +331,35 @@ namespace Massive.Resonance
 
         private void RestorePairs(Actor actor)
         {
-            for (int i = ignored.Count - 1; i >= 0; i--)
+            using var sample = RestoreMarker.Auto();
+            // Each actor owns only its pairs: no global scan or repeated list compaction.
+            for (int i = actor.ignored.Count - 1; i >= 0; i--)
             {
-                var pair = ignored[i];
-                if (pair.owner != actor) continue;
+                var pair = actor.ignored[i];
                 if (pair.actor != null && pair.wall != null) Physics.IgnoreCollision(pair.actor, pair.wall, pair.previous);
-                ignored.RemoveAt(i);
             }
+            actor.ignored.Clear();
+            for (int i = actor.layerFiltered.Count - 1; i >= 0; i--) ResonanceCollisionPolicy.Release(actor.layerFiltered[i]);
+            actor.layerFiltered.Clear();
         }
         private void Release(Actor actor)
         {
+            // Destroyed Unity objects still serve as the original dictionary keys.
+            if (!ReferenceEquals(actor.body, null)) actorsByBody.Remove(actor.body);
+            if (!ReferenceEquals(actor.pickup, null)) actorsByPickup.Remove(actor.pickup);
             if (actor.player != null) actor.player.RemoveMovementInfluence(this);
             if (actor.enemy != null) actor.enemy.RemoveMovementInfluence(this);
             RestorePairs(actor);
         }
         private void OnDisable()
         {
-            foreach (var actor in actors) Release(actor);
-            actors.Clear(); ignored.Clear();
+            using var sample = ShutdownMarker.Auto();
+            // Surviving walls must stop using the shared layer before this owner's filters are released.
+            if (pattern != null) pattern.SetActorCollisionFiltering(this, false);
+            // Reverse acquisition order also reduces Unity's native pair-removal cost.
+            // Restoration remains synchronous, including when walls survive this disable.
+            for (int i = actors.Count - 1; i >= 0; i--) Release(actors[i]);
+            actors.Clear(); actorsByBody.Clear(); actorsByPickup.Clear();
         }
     }
 }

@@ -48,6 +48,32 @@ A same-executable standalone comparison at 4K / 4x MSAA / VSync=1 / BitBlt, with
 
 The clean LipFlow build succeeded with 0 errors and 99 warnings in 51.36 seconds, GUID 1c478625d4474ea2b0cf40457e857cfc. Current local executable: Builds/Cabinet-20260927-LipFlow/MASSIVE.exe, with the normal launcher chain updated. Temporary runtime probes and reference assets were removed before this build; FrameTimingStats remains off. Detailed renders, original shader, timing CSVs and test logs are archived in the Codex attract-lip-flow-20260927 folder.
 
+## Reusable development profiling location - October 11, 2026
+
+Use `Builds/Cabinet-Dynamo-Curves-20261011/MASSIVE-Development.exe` as the
+cabinet's stable development profiling executable path, despite its dated folder
+name. Launch normal play with the adjacent `Launch-Cabinet-Development.cmd`.
+Keep historical build snapshots and their GUIDs in separate archive folders,
+but run future replacement profiling builds from this same approved path.
+Archive a needed prior build before replacing it, and stop its player first.
+This convention does not change the production watchdog's executable.
+
+Windows matches application firewall rules to the executable's full path;
+creating a new dated launch folder can therefore trigger another first-launch
+prompt. On October 11, read-only inspection found enabled inbound Public-profile
+allow rules for the current path after the user accepted the prompt. A second
+launch from that exact path showed no prompt. Existing approvals also explain
+the many older per-build entries. No firewall settings were changed by Codex.
+A different path or network profile can still require approval; a stable path
+avoids the repeated prompts caused by our build-folder naming workflow.
+
+These development captures use 3840 x 2160 at the currently reported 120.001 Hz,
+Very High, 4x MSAA, VSync 1 and the DX11 BitBlt override. The performance target
+remains 60 FPS; VSync's refresh ceiling now differs from the September captures.
+See `Dynamo-Curves-20261011.md` for measurements and build identity.
+
+[Microsoft application firewall rule documentation](https://learn.microsoft.com/en-us/windows/security/operating-system-security/network-security/windows-firewall/rules).
+
 ## References
 
 - [Unity swapchain setting](https://docs.unity3d.com/6000.0/Documentation/ScriptReference/PlayerSettings-useFlipModelSwapchain.html)

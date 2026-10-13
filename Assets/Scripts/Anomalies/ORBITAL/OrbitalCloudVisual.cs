@@ -38,6 +38,8 @@ namespace Massive.Orbital
         private ParticleSystem.Particle[] particles;
         private float[] ages, durations, baseSizes;
         private Vector2[] densityPairs;
+        private Color32[] settledColors;
+        private static readonly Color DarkestColor = DensityColor(0f);
         private System.Random random;
         private OrbitalDensity.FaceSampler[] samplers;
         private OrbitalDensity.VolumeSampler[] volumeSamplers;
@@ -109,6 +111,7 @@ namespace Massive.Orbital
             int count = main.maxParticles;
             particles = new ParticleSystem.Particle[count];
             ages = new float[count]; durations = new float[count]; densityPairs = new Vector2[count]; baseSizes = new float[count];
+            settledColors = new Color32[count];
             for (int i = 0; i < count; i++) { Resample(i); ages[i] = durations[i] * (float)random.NextDouble(); }
             system.Play(true);
             system.Pause(true);
@@ -145,6 +148,9 @@ namespace Massive.Orbital
         {
             float from = OrbitalDensity.Evaluate(point, outerTailExtension, cycle.From);
             densityPairs[i] = new Vector2(from, cycle.From == cycle.To ? from : OrbitalDensity.Evaluate(point, outerTailExtension, cycle.To));
+            // A stationary point keeps its RGB until it respawns or the formation changes.
+            // Match the completed entrance calculation, including Color32 rounding.
+            settledColors[i] = Color.Lerp(DarkestColor, DensityColor(from), 1f);
         }
 
         private void Resample(int i)
@@ -187,9 +193,10 @@ namespace Massive.Orbital
                     Quaternion.AngleAxis(volumeTurn, new Vector3(.35f, .8f, .2f).normalized);
             }
             bool changed = cachedFrom != cycle.From || cachedTo != cycle.To;
+            bool settled = cycle.From == cycle.To && intro >= 1f;
+            float backingEnd = fullVolume ? 0f : particles.Length * hemisphereFraction;
             for (int i = 0; i < particles.Length; i++)
             {
-                if (changed) CacheDensity(i, particles[i].position / radius);
                 ages[i] += dt;
                 if (ages[i] >= durations[i])
                 {
@@ -199,11 +206,23 @@ namespace Massive.Orbital
                     Resample(i);
                     ages[i] = Mathf.Repeat(overshoot, durations[i]);
                 }
+                else if (changed) CacheDensity(i, particles[i].position / radius);
                 float phase = ages[i] / durations[i];
-                Color c = Color.Lerp(DensityColor(0f), DensityColor(Mathf.Lerp(densityPairs[i].x, densityPairs[i].y, cycle.Blend)), intro);
-                c.a = opacity * (!fullVolume && i < particles.Length * hemisphereFraction ? .13f : 1f);
-                c.a *= Mathf.Clamp01(phase * 12f) * Mathf.Clamp01((1f - phase) * 8f);
-                particles[i].startColor = c;
+                float alpha = opacity * (i < backingEnd ? .13f : 1f);
+                alpha *= Mathf.Clamp01(phase * 12f) * Mathf.Clamp01((1f - phase) * 8f);
+                if (settled)
+                {
+                    Color32 c = settledColors[i];
+                    c.a = (byte)Mathf.Round(Mathf.Clamp01(alpha) * 255f);
+                    particles[i].startColor = c;
+                }
+                else
+                {
+                    // Blend densities before mapping to color, preserving the transition's nonlinear palette.
+                    Color c = Color.Lerp(DarkestColor, DensityColor(Mathf.Lerp(densityPairs[i].x, densityPairs[i].y, cycle.Blend)), intro);
+                    c.a = alpha;
+                    particles[i].startColor = c;
+                }
                 particles[i].startSize = baseSizes[i] * intro;
             }
             cachedFrom = cycle.From; cachedTo = cycle.To;
@@ -225,7 +244,7 @@ namespace Massive.Orbital
                 if (Application.isPlaying) Destroy(generated); else DestroyImmediate(generated);
             }
             generated = null; system = null; particles = null;
-            ages = durations = baseSizes = null; densityPairs = null; samplers = null; volumeSamplers = null;
+            ages = durations = baseSizes = null; densityPairs = null; settledColors = null; samplers = null; volumeSamplers = null;
         }
     }
 }

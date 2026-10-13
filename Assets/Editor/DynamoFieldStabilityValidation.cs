@@ -20,7 +20,7 @@ public static class DynamoFieldStabilityValidation
         Require(source, "Open the Dynamo scene first.");
         string before = EditorJsonUtility.ToJson(source.field);
         bool dirty = source.gameObject.scene.isDirty;
-        int samples = 0, cases = 0, worstReversals = 0, poleSamples = 0;
+        int samples = 0, cases = 0, worstReversals = 0, poleSamples = 0, dispatchCases = 0;
         using (var preview = new DynamoVisualPreviewSession(source))
         {
             foreach (var direction in new[] { Vector2.left, Vector2.up, new Vector2(-1, -1), new Vector2(1, -1) })
@@ -74,10 +74,25 @@ public static class DynamoFieldStabilityValidation
                 poleSamples++;
             }
             Require(poleSamples > 0, "Pole probe must reach the adaptive region.");
+
+            // Identical seeds must each produce a complete two-sided trace, including
+            // the final partially filled GPU group at nonmultiple seed counts.
+            int segmentsPerSeed = poleData.Length / (7 * field.seedCount);
+            foreach (int seedCount in new[] { 17, 31, 32, 33, 63, 64, 65, 257 })
+            {
+                field.seedCount = seedCount; field.BuildVisualPreview(12);
+                var repeatedSeeds = new Vector3[seedCount];
+                for (int i = 0; i < seedCount; i++) repeatedSeeds[i] = field.dipolePosition + new Vector3(.2f, 0, 2);
+                DynamoOrganicFieldValidation.Buffer(field, "_seedsBuf").SetData(repeatedSeeds);
+                field.BuildVisualPreview(12);
+                Require(Read(field).Length == seedCount * segmentsPerSeed * 7,
+                    $"Missing or duplicated trace directions at {seedCount} seeds.");
+                dispatchCases++;
+            }
         }
         Require(EditorJsonUtility.ToJson(source.field) == before && source.gameObject.scene.isDirty == dirty, "Validation changed source settings.");
         return $"[Dynamo field stability] PASS: {cases} direction/pressure cases, {samples} connected GPU segments, " +
-            $"at most {worstReversals} isolated sharp reversals per case, {poleSamples} adaptive pole steps; source unchanged.";
+            $"at most {worstReversals} isolated sharp reversals per case, {poleSamples} adaptive pole steps, {dispatchCases} partial-group seed counts; source unchanged.";
     }
 
     private static float[] Read(MagnetosphereFieldLinesGPU2D field)

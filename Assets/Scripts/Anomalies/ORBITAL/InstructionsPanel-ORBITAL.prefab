@@ -761,15 +761,13 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 'The cloud cycles through SIX FORMATIONS. Dense regions mean more ELECTRON
-    STRIKES.
+  m_text: 'The PROBABILITY CLOUD depicts a cloud of electrons, with each point representing
+    the likelihood of an electron''s position.
 
 
-    Strikes push players and amplifier cores. Collect mass nugglets
-    for a small boost.
-
-
-    Capture amplifier cores in your goal to boost team scoring.'
+    Traversing through the cloud
+    can result in an interaction with the murky electron, affecting your trajectory
+    while releasing MASS at the same time.'
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 62b4d49010a4d2f4ca6eff16be8b2bb6, type: 2}
   m_sharedMaterial: {fileID: -2944422761457701561, guid: 62b4d49010a4d2f4ca6eff16be8b2bb6,
@@ -1543,7 +1541,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Electron probability
+  m_text: ANOMALY INSTRUCTIONS
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 62b4d49010a4d2f4ca6eff16be8b2bb6, type: 2}
   m_sharedMaterial: {fileID: -2944422761457701561, guid: 62b4d49010a4d2f4ca6eff16be8b2bb6,
