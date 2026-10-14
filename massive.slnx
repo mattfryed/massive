@@ -4,8 +4,8 @@
   <Project Path="AmplifyShaderEditor.csproj" />
   <Project Path="Dypsloom.RhythmTimeline.csproj" />
   <Project Path="AmazingAssets.WireframeShader.Editor.csproj" />
-  <Project Path="ShapesRuntime.csproj" />
   <Project Path="AmazingAssets.WireframeShader.csproj" />
+  <Project Path="ShapesRuntime.csproj" />
   <Project Path="ShapesSamples.csproj" />
   <Project Path="OEBIF.csproj" />
   <Project Path="ShapesEditor.csproj" />

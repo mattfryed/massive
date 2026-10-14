@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using Massive.Scoring;
+using Massive.Statistics;
 using UnityEngine;
 
 [DisallowMultipleComponent]
@@ -21,6 +22,7 @@ public class GameManagerScript : MonoBehaviour
     [Tooltip("Optional level component implementing IMatchFinale. No provider keeps the normal timed-match ending.")]
     [SerializeField] private MonoBehaviour regulationFinale;
     private bool _finaleStarted;
+    private bool _presentationFinaleActive;
     private long _regulationLightScore, _regulationDarkScore;
     public bool IsTerminalBonus => _finaleStarted;
 
@@ -52,6 +54,9 @@ public class GameManagerScript : MonoBehaviour
     private float _regulationDurationSeconds;
     private float _regulationRemainingSeconds;
     private float _bonusElapsedSeconds;
+    private MatchHistoryRecorder _history;
+    private bool _historyApplicationPaused;
+    private bool _historyUnfocused;
 
     private GameObject _deathSphere;
     private GameObject _gameplayObjects;
@@ -139,6 +144,7 @@ public class GameManagerScript : MonoBehaviour
 
     private void OnDestroy()
     {
+        InterruptHistory("Gameplay scene unloaded before completion.");
         if (_roster != null)
         {
             _roster.RosterReady -= OnRosterReady;
@@ -148,7 +154,17 @@ public class GameManagerScript : MonoBehaviour
 
     private void Update()
     {
+        SampleHistoryClock();
+        if (_history != null && _history.CheckpointDue)
+            _history.Checkpoint(BuildMatchResult(TeamSide.Tie), MatchHistoryRuntime.SettingsHash(scoreService.Profile));
         if (_ending || IsStartupBlocked) return;
+        if (_presentationFinaleActive)
+        {
+            // A disabled/destroyed presentation must not strand a finished match.
+            if (!regulationFinale || !regulationFinale.isActiveAndEnabled)
+                EndMatchToPostGame(presentationComplete: true);
+            return;
+        }
         if ((Phase == MatchRuntimePhase.Preparing || Phase == MatchRuntimePhase.Countdown) &&
             (!_roster || !_roster.isActiveAndEnabled || _roster.HasStartupFailed) && !EnsureStartupRoster()) return;
 
@@ -177,7 +193,7 @@ public class GameManagerScript : MonoBehaviour
     /// </summary>
     public bool BeginBonusRound(bool pauseRegulationClock = true, bool chainClockRuns = false)
     {
-        if (_ending || (Phase != MatchRuntimePhase.Regulation && Phase != MatchRuntimePhase.FinaleEntry))
+        if (_ending || _presentationFinaleActive || (Phase != MatchRuntimePhase.Regulation && Phase != MatchRuntimePhase.FinaleEntry))
             return false;
 
         _regulationClockRunsDuringBonus = !pauseRegulationClock;
@@ -262,6 +278,9 @@ public class GameManagerScript : MonoBehaviour
         SetPlayersMatchInputLocked(false);
         SetPhase(MatchRuntimePhase.Regulation);
         scoreService.OpenScoring(chainClockRunning: true);
+        if (_history == null)
+            _history = MatchHistoryRuntime.Begin(GameFlowContext.Instance.SelectedLevel, gameObject.scene.name,
+                scoreService.Profile, BuildMatchResult(TeamSide.Tie));
         RegulationTimeChanged?.Invoke(_regulationRemainingSeconds);
     }
 
@@ -328,6 +347,24 @@ public class GameManagerScript : MonoBehaviour
             finale.BeginMatchFinale();
         }
         else EndMatchToPostGame();
+    }
+
+    /// <summary>Claim the selected finale as a non-scoring presentation. NOVA's bonus path is unchanged.</summary>
+    public bool BeginPresentationFinale(MonoBehaviour owner)
+    {
+        if (!owner || owner != regulationFinale || !_finaleStarted || _ending ||
+            Phase != MatchRuntimePhase.FinaleEntry) return false;
+        _presentationFinaleActive = true;
+        scoreService.CloseScoring();
+        SetPlayersMatchInputLocked(true);
+        if (_gameplayObjects) _gameplayObjects.SetActive(false);
+        return true;
+    }
+
+    public void CompletePresentationFinale(MonoBehaviour owner)
+    {
+        if (owner != regulationFinale || !_presentationFinaleActive || _ending) return;
+        EndMatchToPostGame(presentationComplete: true);
     }
 
     private float MatchDeltaTime()
@@ -446,6 +483,9 @@ public class GameManagerScript : MonoBehaviour
     private void AbortMatchToAttract()
     {
         if (_ending) return;
+        SampleHistoryClock();
+        _history?.Finish(MatchHistoryStatus.Abandoned, "All players inactive; returned to Attract.",
+            BuildMatchResult(TeamSide.Tie), MatchHistoryRuntime.SettingsHash(scoreService.Profile));
         _ending = true;
 
         scoreService?.CloseScoring();
@@ -457,10 +497,11 @@ public class GameManagerScript : MonoBehaviour
         SceneFlow.GoToChooseMode();
     }
 
-    private void EndMatchToPostGame()
+    private void EndMatchToPostGame(bool presentationComplete = false)
     {
         if (_ending) return;
         _ending = true;
+        _presentationFinaleActive = false;
 
         SetPhase(MatchRuntimePhase.Resolving);
         scoreService.CloseScoring();
@@ -474,29 +515,30 @@ public class GameManagerScript : MonoBehaviour
             _regulationDarkScore = finalDarkMilliElectronVolts;
         }
 
+        TeamSide winner = DetermineWinner(finalLightMilliElectronVolts, finalDarkMilliElectronVolts);
+        MatchResult result = BuildMatchResult(winner);
+        _history?.Finish(MatchHistoryStatus.Completed, "Match completed.", result, MatchHistoryRuntime.SettingsHash(scoreService.Profile));
+
 
         if (disableGameplayOnEnd && _gameplayObjects != null)
             _gameplayObjects.SetActive(false);
 
-        if (engageDeathSphereOnEnd && _deathSphere != null)
+        if (!presentationComplete && engageDeathSphereOnEnd && _deathSphere != null)
         {
             DSScript deathSphere = _deathSphere.GetComponent<DSScript>();
             if (deathSphere != null)
                 deathSphere.Engage();
         }
 
-        TeamSide winner = DetermineWinner(finalLightMilliElectronVolts, finalDarkMilliElectronVolts);
-        MatchResult result = BuildMatchResult(winner);
-
         GameFlowContext.EnsureExists();
         GameFlowContext.Instance.SetLastMatchResult(result);
 
-        StartCoroutine(LoadPostGameAfterDelay());
+        StartCoroutine(LoadPostGameAfterDelay(presentationComplete));
     }
 
-    private IEnumerator LoadPostGameAfterDelay()
+    private IEnumerator LoadPostGameAfterDelay(bool presentationComplete)
     {
-        if (postGameLoadDelaySeconds > 0f)
+        if (!presentationComplete && postGameLoadDelaySeconds > 0f)
             yield return new WaitForSecondsRealtime(postGameLoadDelaySeconds);
 
         SetPhase(MatchRuntimePhase.Complete);
@@ -519,15 +561,15 @@ public class GameManagerScript : MonoBehaviour
         return new MatchResult
         {
             winner = winner,
-            lightMilliElectronVolts = finalLightMilliElectronVolts,
-            darkMilliElectronVolts = finalDarkMilliElectronVolts,
+            lightMilliElectronVolts = scoreService.LightScoreMilliElectronVolts,
+            darkMilliElectronVolts = scoreService.DarkScoreMilliElectronVolts,
             lightAmplifier = scoreService.GetTeamAmplifierStatistics(1),
             darkAmplifier = scoreService.GetTeamAmplifierStatistics(2),
             hasBonusBreakdown = _finaleStarted,
-            regulationLightMilliElectronVolts = _regulationLightScore,
-            regulationDarkMilliElectronVolts = _regulationDarkScore,
-            bonusLightMilliElectronVolts = Math.Max(0L, finalLightMilliElectronVolts - _regulationLightScore),
-            bonusDarkMilliElectronVolts = Math.Max(0L, finalDarkMilliElectronVolts - _regulationDarkScore),
+            regulationLightMilliElectronVolts = _finaleStarted ? _regulationLightScore : scoreService.LightScoreMilliElectronVolts,
+            regulationDarkMilliElectronVolts = _finaleStarted ? _regulationDarkScore : scoreService.DarkScoreMilliElectronVolts,
+            bonusLightMilliElectronVolts = _finaleStarted ? Math.Max(0L, scoreService.LightScoreMilliElectronVolts - _regulationLightScore) : 0L,
+            bonusDarkMilliElectronVolts = _finaleStarted ? Math.Max(0L, scoreService.DarkScoreMilliElectronVolts - _regulationDarkScore) : 0L,
             mode = context.Mode,
 
             stageNumber = def != null ? def.levelNumber : 0,
@@ -547,7 +589,41 @@ public class GameManagerScript : MonoBehaviour
     private void SetPhase(MatchRuntimePhase phase)
     {
         if (Phase == phase) return;
+        SampleHistoryClock();
         Phase = phase;
         PhaseChanged?.Invoke(Phase);
+    }
+
+    private void SampleHistoryClock()
+    {
+        _history?.Sample(Time.realtimeSinceStartupAsDouble, Time.unscaledTimeAsDouble, Phase,
+            scoreService && scoreService.IsScoringOpen, Time.timeScale > 0f,
+            _historyApplicationPaused || (_historyUnfocused && !Application.runInBackground));
+    }
+
+    private void InterruptHistory(string reason)
+    {
+        if (_history == null || _history.IsFinished) return;
+        SampleHistoryClock();
+        // On destruction the score service/context may already be gone. Keep the latest checkpoint then.
+        var snapshot = scoreService && GameFlowContext.Instance ? BuildMatchResult(TeamSide.Tie) : _history.Record.result;
+        _history.Finish(MatchHistoryStatus.Interrupted, reason, snapshot,
+            scoreService ? MatchHistoryRuntime.SettingsHash(scoreService.Profile) : _history.Record.scoringSettingsHash);
+    }
+
+    private void OnApplicationQuit() => InterruptHistory("Application quit before completion.");
+
+    private void OnApplicationPause(bool paused)
+    {
+        SampleHistoryClock();
+        _historyApplicationPaused = paused;
+        if (paused && _history != null && !_history.IsFinished && scoreService)
+            _history.Checkpoint(BuildMatchResult(TeamSide.Tie), MatchHistoryRuntime.SettingsHash(scoreService.Profile), synchronous: true);
+    }
+
+    private void OnApplicationFocus(bool focused)
+    {
+        SampleHistoryClock();
+        _historyUnfocused = !focused;
     }
 }

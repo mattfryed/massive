@@ -58,6 +58,6 @@ Formation/dissolution disables all pattern collisions, magnetic/sludge response,
 
 The setup command creates independent Core, pattern, and pattern-definition snapshots under **Assets/Resonance/Spawn Patterns**. Original Option A/B and scene Core tuning are not overwritten. Only explicitly assigned standalone examples are suspended while the coordinator runs. HUD Core copies, goals, and gallery objects are untouched. Stop/disable restores the prior demonstration state; leaving Play Mode restores the edit-time scene.
 
-Only 345 Hz is provided initially. Add new configured pattern prefabs to the ordered list as they are authored. Edit-mode scene wiring must be saved normally by the designer.
+The default library cycles **345 → 404 → 776 → 1660 → 4129**, then repeats. Each pattern has its own definition and particle encounter prefab under `Assets/Resonance/Spawn Patterns`; the original 345 Hz prototype/tuning is unchanged. Reorder or remove entries in **Pattern Order**, or change **Starting Pattern** to test a particular one. The four additions include the revised collision locations from the arena outline study and their short Core-impact sounds. See `Assets/Resonance/Pattern Library.md` for layout and sound controls. Edit-mode scene wiring must be saved normally by the designer.
 
 The existing multiplier cap behavior is unchanged: a goal refuses a capture if it cannot advance the team multiplier. This system advances only after a successful capture.

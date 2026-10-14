@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace Massive.Demonstrations
 {
-    public enum PlayerDemoKind { MovementAndCombo, Block, PowerUp, CombatPair, SoloCombo, AmplifierGoal }
+    public enum PlayerDemoKind { MovementAndCombo, Block, PowerUp, CombatPair, SoloCombo, AmplifierGoal, DroneThrust, DroneCombo, DroneChargedThrust }
     public enum CombatDemoDefense { TapParry, HeldBlock, None, DecoherenceParry }
 
     [CreateAssetMenu(menuName = "MASSIVE/Demonstrations/Player Scenario")]
@@ -20,6 +20,8 @@ namespace Massive.Demonstrations
         [Range(0f, 1f)] public float acceleratorChargeFraction = .35f;
         [Min(1f)] public float acceleratorTargetDistance = 4f;
         [Min(.1f)] public float viewPadding = .2f;
+        [Header("Drone combat demonstration")]
+        public Massive.Enemies.EnemyDefinition droneDefinition;
         [Header("Amplifier demonstration")]
         public Massive.Multiplier.AmplifierCoreGameplay amplifierCorePrefab;
         public GameObject teamGoalPrefab;

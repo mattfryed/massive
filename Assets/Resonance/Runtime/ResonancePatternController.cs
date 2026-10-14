@@ -320,7 +320,7 @@ namespace Massive.Resonance
 
         public Vector3 Evaluate(ResonanceCurve curve, float degrees)
         {
-            if (layoutFit == ResonanceLayoutFit.Stretch || curve.kind == ResonanceCurveKind.ClosedPolyline)
+            if (layoutFit == ResonanceLayoutFit.Stretch || curve.kind == ResonanceCurveKind.ClosedPolyline || curve.kind == ResonanceCurveKind.OpenPolyline)
                 return Stretch(curve.Evaluate(degrees));
             // Octant anchors retain the authored footprint. Independent tangent lengths
             // prevent the local rounding from inheriting the full X/Z aspect ratio.
@@ -375,7 +375,9 @@ namespace Massive.Resonance
                     for (int i = 0; i <= count; i++) points[i] = Evaluate(curve, arc.startDegrees + Mathf.Clamp(arc.sweepDegrees, 0f, 360f) * i / count);
                     float length = 0f;
                     for (int i = 1; i < points.Length; i++) length += Vector3.Distance(points[i-1], points[i]);
-                    BuildArc(ResolveArc(arc, length), points);
+                    var resolved = ResolveArc(arc, length);
+                    resolved.openPath = curve.kind == ResonanceCurveKind.OpenPolyline;
+                    BuildArc(resolved, points);
                 }
             if (definition.showCenter && definition.centerRadius > 0f && definition.centerColor.a > 0f) BuildCenter();
             BuildFullPattern();
@@ -448,7 +450,7 @@ namespace Massive.Resonance
                 previous=p; min=Vector3.Min(min,p); max=Vector3.Max(max,p);
                 path[i]=new Vector4(p.x,p.z,arc.Envelope(t),length);
             }
-            var contacts = ghost ? null : new ResonanceContactVisuals(path,count,arc.sweepDegrees>=359.99f);
+            var contacts = ghost ? null : new ResonanceContactVisuals(path,count,!arc.openPath && arc.sweepDegrees>=359.99f);
             if (!ghost) segment.ContactVisuals=contacts;
             if (rendering==ResonanceRendering.OptionBParticles)
             {
@@ -578,6 +580,8 @@ namespace Massive.Resonance
             lastImpact = now;
             CoreImpactCount++;
             PreviewImpact();
+            if (Application.isPlaying && definition != null && definition.coreImpactSound != null && AudioSystem.I != null)
+                AudioSystem.I.PlayCue(definition.coreImpactSound, body.worldCenterOfMass);
             return true;
         }
 

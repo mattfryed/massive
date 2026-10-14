@@ -14705,6 +14705,18 @@ MonoBehaviour:
   - label: "345 Hz \u2014 Chladni grains"
     patternPrefab: {fileID: 126214827319581504, guid: 38e27362945b79d479701e315f3312cf,
       type: 3}
+  - label: "404 Hz \u2014 Crossroads"
+    patternPrefab: {fileID: 126214827319581504, guid: c9723a3bfa0a8894ca747dbe7f760e61,
+      type: 3}
+  - label: "776 Hz \u2014 Orbit"
+    patternPrefab: {fileID: 126214827319581504, guid: 3e7316621061f524ebfa8925daed93c7,
+      type: 3}
+  - label: "1660 Hz \u2014 Petals"
+    patternPrefab: {fileID: 126214827319581504, guid: fecc66635168ee443a8b1652f1460ecf,
+      type: 3}
+  - label: "4129 Hz \u2014 Channels"
+    patternPrefab: {fileID: 126214827319581504, guid: 2781e45208422d34dbbf79dc28acea97,
+      type: 3}
   startingPattern: 0
   loopPatternOrder: 1
   startAutomatically: 1

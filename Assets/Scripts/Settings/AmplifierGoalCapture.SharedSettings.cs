@@ -16,6 +16,7 @@ namespace Massive.Multiplier
         public string SharedSettingsGroup => "goal";
         private Massive.Settings.AmplifierSharedProfile SharedProfile => Massive.Settings.SharedSettingsRuntime.Resolve<Massive.Settings.AmplifierSharedProfile>(this, useSharedSettings);
         private Massive.Settings.AmplifierGoalCaptureSettings SharedTuning => SharedProfile != null ? SharedProfile.goal : null;
+        public float Effective_attractionRadius => Mathf.Max(0.1f, SharedTuning != null ? SharedTuning.attractionRadius : attractionRadius);
         public float Effective_pullAcceleration => SharedTuning != null ? SharedTuning.pullAcceleration : pullAcceleration;
         public AnimationCurve Effective_pullByProximity => SharedTuning != null && SharedTuning.pullByProximity != null ? SharedTuning.pullByProximity : pullByProximity;
         public bool Effective_repelWhenMaxed => SharedTuning != null ? SharedTuning.repelWhenMaxed : repelWhenMaxed;

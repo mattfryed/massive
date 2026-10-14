@@ -35,6 +35,8 @@ namespace Massive.Cosmos
         Vector3 builtSettings;
 
         public Transform Walls => walls ? walls.transform : null;
+        // Runtime presentation only; the oval mask still clips the finale.
+        public bool PresentationHidden { get; set; }
 
         void OnEnable()
         {
@@ -81,7 +83,7 @@ namespace Massive.Cosmos
                 Graphics.DrawMesh(outsideMaskMesh, maskMatrix, outsideMaskMaterial, gameObject.layer,
                     null, 0, maskBlock, ShadowCastingMode.Off, false, null, LightProbeUsage.Off);
             }
-            if (!borderMesh || !borderMaterial) return;
+            if (PresentationHidden || !borderMesh || !borderMaterial) return;
             borderMaterial.SetColor("_Color", borderColor);
             Graphics.DrawMesh(borderMesh, transform.localToWorldMatrix, borderMaterial, gameObject.layer,
                 null, 0, null, ShadowCastingMode.Off, false, null, LightProbeUsage.Off);

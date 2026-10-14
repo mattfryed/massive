@@ -77,6 +77,12 @@ private static void ResetStatics()
         PlayCueInternal(cue, Vector3.zero, force2D: true);
     }
 
+    /// <summary>Data-driven cues share the same pool, mixer, mute policy and concurrency limits as named events.</summary>
+    public void PlayCue(AudioCue cue, Vector3 position)
+    {
+        if (cue != null) PlayCueInternal(cue, position, force2D: false);
+    }
+
     private void PlayCueInternal(AudioCue cue, Vector3 position, bool force2D)
     {
         if (SceneSfxPolicy.IsSuppressed) return;

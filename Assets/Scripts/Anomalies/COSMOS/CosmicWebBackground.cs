@@ -136,6 +136,7 @@ namespace Massive.Cosmos
         public int Generation { get; private set; }
         // Instructions can hold a representative age without creating a match clock.
         public float? PresentationAge { get; set; }
+        internal CosmicCrunchFinale CrunchFinale { get; set; }
         public float Age => PresentationAge.HasValue ? Mathf.Clamp01(PresentationAge.Value) : Application.isPlaying ? MatchAge(match) : previewAge;
         public float MotionTime
         {
@@ -187,7 +188,7 @@ namespace Massive.Cosmos
             previewSeconds += (float)System.Math.Min(.1, now - lastPreviewTick); lastPreviewTick = now;
             // Edit Mode can repaint cameras without running another MonoBehaviour update.
             // This material is owned by the web, so its clock stays live on those repaints.
-            if (material) material.SetFloat(MotionTimeID, MotionTime);
+            if (material) material.SetFloat(MotionTimeID, CrunchFinale && CrunchFinale.VisualActive ? CrunchFinale.VisualMotionTime : MotionTime);
             UnityEditor.EditorApplication.QueuePlayerLoopUpdate();
             UnityEditorInternal.InternalEditorUtility.RepaintAllViews();
         }
@@ -206,7 +207,8 @@ namespace Massive.Cosmos
             if (particles == null || !material) return;
             if (builtOpaqueParticles != opaqueParticles) ApplyRenderingMode();
             properties.SetBuffer(ParticlesID, particles);
-            properties.SetFloat(AgeID, Age);
+            bool crunchActive = CrunchFinale && CrunchFinale.VisualActive;
+            properties.SetFloat(AgeID, crunchActive ? 1 : Age);
             properties.SetVector(ProfileID, arena.OutlineShaderParameters);
             properties.SetVector(ScaleID, new Vector4(Mathf.Abs(transform.lossyScale.x), Mathf.Abs(transform.lossyScale.y), 0, 0));
             properties.SetMatrix(MatrixID, transform.localToWorldMatrix);
@@ -227,7 +229,9 @@ namespace Massive.Cosmos
             properties.SetFloat(CondensationID, edgeCondensation);
             properties.SetFloat(LensingSmoothnessID, Mathf.Clamp01(lensingTransitionSmoothness));
             properties.SetFloat(EdgeVignetteID, Mathf.Max(0, edgeVignette));
-            material.SetFloat(MotionTimeID, MotionTime);
+            material.SetFloat(MotionTimeID, crunchActive ? CrunchFinale.VisualMotionTime : MotionTime);
+            CosmicCrunchFinale.SetInactive(properties);
+            if (crunchActive) CrunchFinale.ApplyVisuals(properties);
             properties.SetFloat(DriftID, driftStrength);
             properties.SetFloat(TurbulenceID, clusterTurbulence ? Mathf.Clamp(turbulenceStrength, 0, 2) : 0);
             properties.SetVector(HeatID, new Vector4(Mathf.Clamp01(earlyHeat), Mathf.Clamp(earlyHeatBrightness, 1, 3),

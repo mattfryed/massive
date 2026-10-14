@@ -43,6 +43,10 @@ namespace Massive.Demonstrations
         public float LastContactShieldAge { get; private set; }
         public string LastOutcome { get; private set; } = "Ready";
         public bool IsRunning => routine != null;
+        public bool IsPresentationReady { get; private set; }
+        private bool presentationHeld;
+        // A pane can prepare its camera and actors before allowing the first action.
+        public void SetPresentationHeld(bool held) => presentationHeld = held;
         public event Action<PlayerDemoDirector> LoopCompleted;
         private GameObject session;
         private PlayerControllerScript primary, partner;
@@ -72,6 +76,7 @@ namespace Massive.Demonstrations
         }
         public void Stop()
         {
+            IsPresentationReady = false;
             if (routine != null) StopCoroutine(routine);
             routine = null;
             Cleanup(); Phase = "Stopped";
@@ -84,7 +89,13 @@ namespace Massive.Demonstrations
         {
             if (attackButton) attackButton.SetActive(Time.time < attackCueUntil);
             if (shieldButton) shieldButton.SetActive(Time.time < shieldCueUntil);
-            if (joystick && primary) joystick.localPosition = joystickHome + new Vector3(primary.moveHorizontal, 0f, primary.moveVertical) * .25f;
+            if (joystick && primary)
+            {
+                var direction = new Vector3(primary.moveHorizontal, 0f, primary.moveVertical);
+                if (IsDroneCombat && (primary.attackController.IsCharging || primary.attackController.IsAttacking))
+                    direction = primary.AimDirectionWS;
+                joystick.localPosition = joystickHome + direction * .25f;
+            }
         }
 
         private IEnumerator Run()
@@ -143,12 +154,19 @@ namespace Massive.Demonstrations
             }
             FrameStage();
             if (presentationCamera) presentationCamera.enabled = true;
+            IsPresentationReady = true;
+            while (presentationHeld)
+            {
+                Phase = "Awaiting pane reveal";
+                yield return null;
+            }
             do
             {
                 failed = blocked = shot = receivedHit = projectileContact = false;
                 targetDied = targetRespawned = false;
                 LastComboStage = -1;
-                if (scenario.kind == PlayerDemoKind.AmplifierGoal) yield return AmplifierDemo();
+                if (IsDroneCombat) yield return DroneCombatDemo();
+                else if (scenario.kind == PlayerDemoKind.AmplifierGoal) yield return AmplifierDemo();
                 else if (scenario.kind == PlayerDemoKind.CombatPair) yield return CombatPairDemo();
                 else if (scenario.kind == PlayerDemoKind.Block) yield return BlockDemo();
                 else if (scenario.kind == PlayerDemoKind.PowerUp) yield return PowerUpDemo();
@@ -196,7 +214,7 @@ namespace Massive.Demonstrations
             actor.attackController.OnStageStarted.AddListener(stage =>
             {
                 LastComboStage = actor.attackController.CurrentStageIndex;
-                if (scenario.kind == PlayerDemoKind.SoloCombo)
+                if (scenario.kind == PlayerDemoKind.SoloCombo || IsDroneCombat)
                     Phase = stage.StageType == AttackStageType.PrimaryLunge ? "Thrust" :
                         stage.StageType == AttackStageType.ComboSwipe ? "Sweep" : "Repulsor";
             });
@@ -208,7 +226,8 @@ namespace Massive.Demonstrations
         private void FrameStage()
         {
             if (presentationCamera && presentationCamera.TryGetComponent<PlayerDemoView>(out var view)) view.RefreshRect();
-            if (scenario.kind == PlayerDemoKind.AmplifierGoal)
+            if (IsDroneCombat) FrameDroneCombat();
+            else if (scenario.kind == PlayerDemoKind.AmplifierGoal)
                 { FrameView(Vector3.left * 5f, 14f, 4.1f); FrameAmplifierGrid(); }
             else if (scenario.kind == PlayerDemoKind.MovementAndCombo)
             {
@@ -228,7 +247,7 @@ namespace Massive.Demonstrations
                 // than the weapon's entire empty maximum range.
                 float distance = accelerator.maxDistance * PlayerScaleAdjuster.ProjectileReachOf(primary);
                 bool pane = scenario.kind == PlayerDemoKind.PowerUp && presentationCamera &&
-                    presentationCamera.GetComponent<PlayerDemoView>()?.worldHeight > 0f;
+                    presentationCamera.GetComponent<PlayerDemoView>()?.FramingWorldHeight > 0f;
                 float right = pane ? partnerHome.x - primaryHome.x + 2f :
                     Mathf.Max(pickupGap + distance + 1.5f, partnerHome.x - primaryHome.x + 2f);
                 FrameView(Vector3.right * ((right - 2f) * .5f), right + 2f, 4.4f);
@@ -565,7 +584,7 @@ namespace Massive.Demonstrations
             presentationCamera.transform.position = transform.position + localCenter + Vector3.up * 30f;
             presentationCamera.orthographicSize = Mathf.Max(height * .5f, width * .5f / Mathf.Max(.1f, aspect)) + scenario.viewPadding;
             var framing = presentationCamera.GetComponent<PlayerDemoView>();
-            if (framing && framing.worldHeight > 0f) presentationCamera.orthographicSize = framing.worldHeight * .5f;
+            if (framing && framing.FramingWorldHeight > 0f) presentationCamera.orthographicSize = framing.FramingWorldHeight * .5f;
             if (demoGrid)
             {
                 demoGrid.transform.position = transform.position + localCenter + Vector3.down * .08f;

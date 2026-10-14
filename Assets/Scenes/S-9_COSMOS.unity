@@ -5686,6 +5686,18 @@ MonoBehaviour:
   - label: "345 Hz \u2014 Chladni grains"
     patternPrefab: {fileID: 126214827319581504, guid: 38e27362945b79d479701e315f3312cf,
       type: 3}
+  - label: "404 Hz \u2014 Crossroads"
+    patternPrefab: {fileID: 126214827319581504, guid: c9723a3bfa0a8894ca747dbe7f760e61,
+      type: 3}
+  - label: "776 Hz \u2014 Orbit"
+    patternPrefab: {fileID: 126214827319581504, guid: 3e7316621061f524ebfa8925daed93c7,
+      type: 3}
+  - label: "1660 Hz \u2014 Petals"
+    patternPrefab: {fileID: 126214827319581504, guid: fecc66635168ee443a8b1652f1460ecf,
+      type: 3}
+  - label: "4129 Hz \u2014 Channels"
+    patternPrefab: {fileID: 126214827319581504, guid: 2781e45208422d34dbbf79dc28acea97,
+      type: 3}
   startingPattern: 0
   loopPatternOrder: 1
   startAutomatically: 1
@@ -13913,6 +13925,7 @@ GameObject:
   - component: {fileID: 8455266651050621219}
   - component: {fileID: 8455266651050621220}
   - component: {fileID: 8455266651050621221}
+  - component: {fileID: 8455266651050621222}
   m_Layer: 0
   m_Name: VectorGridGPU
   m_TagString: Untagged
@@ -14411,6 +14424,11 @@ PrefabInstance:
       propertyPath: lightScoreSphere
       value: 
       objectReference: {fileID: 2734299643047206181}
+    - target: {fileID: 775191733855305699, guid: 697c340c166e541b7952e52fca54dcd5,
+        type: 3}
+      propertyPath: regulationFinale
+      value: 
+      objectReference: {fileID: 8455266651050621222}
     - target: {fileID: 775191733855305699, guid: 697c340c166e541b7952e52fca54dcd5,
         type: 3}
       propertyPath: scoreEconomyProfile
@@ -19869,6 +19887,93 @@ MonoBehaviour:
   teamID: 2
   multiplierText: {fileID: 2622189701182486622}
   multiplierPrefix: x
+  useSharedSettings: 1
+  goalNumber:
+    enabled: 1
+    font: {fileID: 0}
+    prefix: 
+    lightColor: {r: 0, g: 0, b: 0, a: 1}
+    darkColor: {r: 0, g: 0, b: 0, a: 1}
+    outlineColor: {r: 0, g: 0, b: 0, a: 1}
+    outlineWidth: 0
+    whiteCircleScale: 0.53
+    whiteCircleColor: {r: 1, g: 1, b: 1, a: 1}
+    numberScale: 0.17
+    lightNumberHorizontalOffset: -0.12
+    darkNumberHorizontalOffset: 0.12
+    levelOffsetsInitialized: 1
+    overallScale: 1
+    levelScales:
+    - multiplier: 2
+      scale: 0.28
+      whiteCircleScale: 0.53
+      numberScale: 0.17
+      horizontalOffset: -0.12
+    - multiplier: 4
+      scale: 0.44
+      whiteCircleScale: 0.53
+      numberScale: 0.17
+      horizontalOffset: -0.12
+    - multiplier: 8
+      scale: 0.64
+      whiteCircleScale: 0.53
+      numberScale: 0.17
+      horizontalOffset: -0.12
+    outwardOffset: 0
+    verticalOffset: 0
+    ringInset: 0.025
+    animateChanges: 1
+    growthSeconds: 0.45
+    growthEasing:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 0
+        outSlope: 3.5
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    firstTextGrowSeconds: 0.35
+    firstTextGrowEasing:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 0
+        outSlope: 3.5
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+  goalSurface: {fileID: 5672954960916171838}
 --- !u!23 &5072987664600037139
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -24051,6 +24156,93 @@ MonoBehaviour:
   teamID: 1
   multiplierText: {fileID: 7693878338579098593}
   multiplierPrefix: x
+  useSharedSettings: 1
+  goalNumber:
+    enabled: 1
+    font: {fileID: 0}
+    prefix: 
+    lightColor: {r: 0, g: 0, b: 0, a: 1}
+    darkColor: {r: 0, g: 0, b: 0, a: 1}
+    outlineColor: {r: 0, g: 0, b: 0, a: 1}
+    outlineWidth: 0
+    whiteCircleScale: 0.53
+    whiteCircleColor: {r: 1, g: 1, b: 1, a: 1}
+    numberScale: 0.17
+    lightNumberHorizontalOffset: -0.12
+    darkNumberHorizontalOffset: 0.12
+    levelOffsetsInitialized: 1
+    overallScale: 1
+    levelScales:
+    - multiplier: 2
+      scale: 0.28
+      whiteCircleScale: 0.53
+      numberScale: 0.17
+      horizontalOffset: -0.12
+    - multiplier: 4
+      scale: 0.44
+      whiteCircleScale: 0.53
+      numberScale: 0.17
+      horizontalOffset: -0.12
+    - multiplier: 8
+      scale: 0.64
+      whiteCircleScale: 0.53
+      numberScale: 0.17
+      horizontalOffset: -0.12
+    outwardOffset: 0
+    verticalOffset: 0
+    ringInset: 0.025
+    animateChanges: 1
+    growthSeconds: 0.45
+    growthEasing:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 0
+        outSlope: 3.5
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    firstTextGrowSeconds: 0.35
+    firstTextGrowEasing:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 0
+        outSlope: 3.5
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+  goalSurface: {fileID: 1175768941087353811}
 --- !u!33 &7921943676187384535
 MeshFilter:
   m_ObjectHideFlags: 0
@@ -29579,7 +29771,7 @@ MonoBehaviour:
   earlyHeatGoldCoverage: 0.952
   earlyHeatRedColor: {r: 1, g: 0.052992634, b: 0.011764705, a: 1}
   earlyHeatRedCoverage: 0.512
-  previewAge: 0.56
+  previewAge: 0.511
   animatePreview: 1
 --- !u!114 &8455266651050621220
 MonoBehaviour:
@@ -29598,6 +29790,8 @@ MonoBehaviour:
   nuggletPrefab: {fileID: 7525906451072600638, guid: 1018c5973353f8d44ba27b035f53c907,
     type: 3}
   flashShader: {fileID: 4800000, guid: f061c8a7daf1ce94ca644945b46a16b6, type: 3}
+  presentationOnly: 0
+  presentationCamera: {fileID: 0}
   frequencyOverAge:
     serializedVersion: 2
     m_Curve:
@@ -29730,6 +29924,8 @@ MonoBehaviour:
   nuggletPrefab: {fileID: 8411381529477278133, guid: 2a7cf2d5a680c8a4589a00ff81aca229,
     type: 3}
   flashShader: {fileID: 4800000, guid: f061c8a7daf1ce94ca644945b46a16b6, type: 3}
+  presentationOnly: 0
+  presentationCamera: {fileID: 0}
   frequencyOverAge:
     serializedVersion: 2
     m_Curve:
@@ -29845,6 +30041,84 @@ MonoBehaviour:
   dieOffSeconds: 0.75
   fixedRandomSeed: 0
   randomSeed: 90312
+--- !u!114 &8455266651050621222
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 405120828900279794}
+  m_Enabled: 0
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 671ced42bdf7e644b95de222bb0289b6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  web: {fileID: 8455266651050621219}
+  duration: 6
+  blackoutHold: 0.35
+  contraction:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.18
+      value: 0.035
+      inSlope: 0.4
+      outSlope: 0.4
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.58
+      value: 0.6
+      inSlope: 1.7
+      outSlope: 1.7
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.86
+      value: 0.96
+      inSlope: 0.5
+      outSlope: 0.5
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  regionalDelay: 0.16
+  turbulence: 1
+  finalParticleScale: 0.08
+  coreRadius: 0.05
+  heatBlend: 1
+  warmColor: {r: 1, g: 0.18, b: 0.035, a: 1}
+  hotColor: {r: 1, g: 0.78, b: 0.2, a: 1}
+  coreColor: {r: 1, g: 1, b: 1, a: 1}
+  finalPulse: 0.35
+  withdrawAtStart:
+  - {fileID: 748634074}
+  - {fileID: 687973051}
 --- !u!4 &8495005746540136009
 Transform:
   m_ObjectHideFlags: 0

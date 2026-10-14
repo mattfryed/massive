@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: 345 Hz Pattern
   m_EditorClassIdentifier: 
   referenceLabel: "345 Hz \u2014 geometric study"
+  coreImpactSound: {fileID: 11400000, guid: ebfdf607a45a8244597de28ab4f5764b, type: 2}
   showCenter: 0
   centerRadius: 0.055
   centerColor: {r: 1, g: 1, b: 1, a: 1}
@@ -53,6 +54,8 @@ MonoBehaviour:
     falloffPower: 1
     taperLength: 0
     falloffShape: 0
+    untaperedStart: 0
+    untaperedEnd: 0
     opacity: 0.8
     intensity: 1.5
     color: {r: 0.65, g: 0.9, b: 1, a: 1}
@@ -79,6 +82,8 @@ MonoBehaviour:
     falloffPower: 0.35
     taperLength: 0
     falloffShape: 0
+    untaperedStart: 0
+    untaperedEnd: 0
     opacity: 0.8
     intensity: 1.5
     color: {r: 0.65, g: 0.9, b: 1, a: 1}
@@ -105,6 +110,8 @@ MonoBehaviour:
     falloffPower: 1
     taperLength: 0
     falloffShape: 0
+    untaperedStart: 0
+    untaperedEnd: 0
     opacity: 0.8
     intensity: 1.5
     color: {r: 0.65, g: 0.9, b: 1, a: 1}
@@ -131,6 +138,8 @@ MonoBehaviour:
     falloffPower: 1
     taperLength: 0
     falloffShape: 0
+    untaperedStart: 0
+    untaperedEnd: 0
     opacity: 0.8
     intensity: 1.5
     color: {r: 0.65, g: 0.9, b: 1, a: 1}
@@ -157,6 +166,8 @@ MonoBehaviour:
     falloffPower: 1
     taperLength: 0
     falloffShape: 0
+    untaperedStart: 0
+    untaperedEnd: 0
     opacity: 0.8
     intensity: 1.5
     color: {r: 0.65, g: 0.9, b: 1, a: 1}
@@ -183,6 +194,8 @@ MonoBehaviour:
     falloffPower: 1
     taperLength: 0
     falloffShape: 0
+    untaperedStart: 0
+    untaperedEnd: 0
     opacity: 0.8
     intensity: 1.5
     color: {r: 0.65, g: 0.9, b: 1, a: 1}
@@ -209,6 +222,8 @@ MonoBehaviour:
     falloffPower: 1
     taperLength: 0
     falloffShape: 0
+    untaperedStart: 0
+    untaperedEnd: 0
     opacity: 0.8
     intensity: 1.5
     color: {r: 0.65, g: 0.9, b: 1, a: 1}
@@ -235,6 +250,8 @@ MonoBehaviour:
     falloffPower: 1
     taperLength: 0
     falloffShape: 0
+    untaperedStart: 0
+    untaperedEnd: 0
     opacity: 0.8
     intensity: 1.5
     color: {r: 0.65, g: 0.9, b: 1, a: 1}

@@ -1,6 +1,7 @@
 using System.Collections;
 using UnityEngine;
 using UnityEngine.Events;
+using UnityEngine.SceneManagement;
 
 
 namespace Massive.Player
@@ -9,6 +10,9 @@ namespace Massive.Player
     public partial class PlayerAttackController : MonoBehaviour
     {
         private Rigidbody rb;
+        private Collider movementCollider;
+        private readonly Collider[] movementContacts = new Collider[32];
+        private const float MovementSkin = .01f;
         // Public read-only events for listeners (melee, VFX, etc.)
         public UnityEvent<AttackStage> OnStageStarted  => onStageStarted;
         public UnityEvent<AttackStage> OnStageCompleted => onStageCompleted;
@@ -157,6 +161,7 @@ namespace Massive.Player
     {
             characterController = GetComponent<CharacterController>();
             rb = GetComponent<Rigidbody>();
+            movementCollider = GetComponent<Collider>();
             ownerController = GetComponent<PlayerControllerScript>();
 
             // existing forwardReference auto-wire...
@@ -408,10 +413,32 @@ private Vector3 GetAttackDirection()
 
         private void Move(Vector3 displacement)
         {
-            // Prefer Rigidbody-based movement for proper collisions
+            // Dynamic MovePosition can place the body beyond a thin wall without
+            // sweeping through it, even with continuous collision detection enabled.
             if (rb != null)
             {
-                // MovePosition asks the physics engine to move & resolve collisions
+                float distance = displacement.magnitude;
+                if (distance <= .000001f) return;
+                Vector3 direction = displacement / distance;
+                // Sweeps omit colliders that already touch/overlap the starting
+                // shape. A player leaning on a wall must not dash through it.
+                if (StartsAgainstObstacle(direction)) return;
+                if (rb.SweepTest(direction, out RaycastHit hit, distance, QueryTriggerInteraction.Ignore))
+                {
+                    float allowed = distance;
+                    if (BlocksAttackMovement(hit, direction))
+                        allowed = Mathf.Max(0, hit.distance - MovementSkin);
+                    else
+                    {
+                        // Rigidbody sweeps respect the layer matrix, but can still
+                        // report explicitly ignored pairs (e.g. separate demo actors).
+                        // Look past those contacts so they cannot hide a solid wall.
+                        foreach (var candidate in rb.SweepTestAll(direction, distance, QueryTriggerInteraction.Ignore))
+                            if (BlocksAttackMovement(candidate, direction))
+                                allowed = Mathf.Min(allowed, Mathf.Max(0, candidate.distance - MovementSkin));
+                    }
+                    displacement = direction * allowed;
+                }
                 rb.MovePosition(rb.position + displacement);
             }
             else if (characterController != null)
@@ -423,6 +450,48 @@ private Vector3 GetAttackDirection()
                 // Last resort: direct transform move
                 transform.position += displacement;
             }
+        }
+
+        private bool BlocksAttackMovement(RaycastHit hit, Vector3 direction)
+        {
+            // Existing floor contact and motion away from a wall must remain free.
+            return IsMovementObstacle(hit.collider) && Vector3.Dot(direction, hit.normal) < -.0001f;
+        }
+
+        private bool IsMovementObstacle(Collider obstacle)
+        {
+            if (!obstacle || obstacle.isTrigger || obstacle.attachedRigidbody == rb) return false;
+            if (Physics.GetIgnoreLayerCollision(gameObject.layer, obstacle.gameObject.layer)) return false;
+            return !movementCollider || !Physics.GetIgnoreCollision(movementCollider, obstacle);
+        }
+
+        private bool StartsAgainstObstacle(Vector3 direction)
+        {
+            // The canonical PlayerActor uses a root sphere. Its live scale/centre
+            // include mass/size changes; no fixed arena dimensions are assumed.
+            if (!(movementCollider is SphereCollider sphere) || !sphere.enabled || sphere.isTrigger) return false;
+            Vector3 scale = sphere.transform.lossyScale;
+            float radius = sphere.radius * Mathf.Max(Mathf.Abs(scale.x), Mathf.Max(Mathf.Abs(scale.y), Mathf.Abs(scale.z)));
+            Vector3 center = rb.position + rb.rotation * Vector3.Scale(sphere.center, scale);
+            int count = gameObject.scene.GetPhysicsScene().OverlapSphere(center, radius + MovementSkin,
+                movementContacts, ~0, QueryTriggerInteraction.Ignore);
+            // A saturated result cannot prove that the path is safe.
+            if (count == movementContacts.Length) return true;
+            for (int i = 0; i < count; i++)
+            {
+                var obstacle = movementContacts[i];
+                if (!IsMovementObstacle(obstacle)) continue;
+                Vector3 away = center - obstacle.ClosestPoint(center);
+                if (away.sqrMagnitude > .00000001f)
+                {
+                    if (away.sqrMagnitude > (radius + MovementSkin) * (radius + MovementSkin)) continue;
+                    away.Normalize();
+                }
+                else if (!Physics.ComputePenetration(sphere, rb.position, rb.rotation,
+                    obstacle, obstacle.transform.position, obstacle.transform.rotation, out away, out _)) continue;
+                if (Vector3.Dot(direction, away) < -.0001f) return true;
+            }
+            return false;
         }
 
 

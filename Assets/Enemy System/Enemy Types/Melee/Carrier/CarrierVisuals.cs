@@ -71,11 +71,13 @@ namespace Massive.Enemies
         {
             enemy = GetComponent<EnemyBase>(); carrier = GetComponent<CarrierController>();
             if (enemy) enemy.Died += OnDeath;
+            if (enemy) enemy.Damaged += OnDamage;
             if (carrier) carrier.DroneLaunched += OnLaunch;
             properties = new MaterialPropertyBlock(); random = new System.Random(GetInstanceID());
             age = SpinAngle = corePulse = DeathProgress = 0f; deathAge = -1f;
             fuelIndex = ActiveFuelCount = TotalFuelBursts = 0;
             baseRotation = assembly ? assembly.localRotation : Quaternion.identity;
+            InitializeHitReaction();
             for (int i = 0; i < FuelCapacity; i++) { fuelAges[i] = float.PositiveInfinity; fuelTargets[i] = null; }
             if (core) core.enabled = !Application.isPlaying;
             RebuildGeometry();
@@ -85,6 +87,8 @@ namespace Massive.Enemies
         {
             base.OnDisable();
             if (enemy) enemy.Died -= OnDeath;
+            if (enemy) enemy.Damaged -= OnDamage;
+            ResetHitReaction();
             if (carrier) carrier.DroneLaunched -= OnLaunch;
             if (Application.isPlaying && assembly) assembly.localRotation = baseRotation;
             if (mesh)
@@ -136,6 +140,7 @@ namespace Massive.Enemies
         }
         private void OnDeath(EnemyBase source, EnemyDamageSource cause)
         {
+            ResetHitReaction();
             deathAge = 0f;
             for (int i = 0; i < FaceCount; i++) deathStartProgress[i] = faceProgress[i];
             for (int i = 0; i < FuelCapacity; i++) { fuelTargets[i] = null; fuelAges[i] = float.PositiveInfinity; }
@@ -147,7 +152,7 @@ namespace Massive.Enemies
             for (int n = 0; n < Mathf.Clamp(fuelBallsPerLaunch, 1, 5); n++)
             {
                 int i = fuelIndex++ % FuelCapacity;
-                fuelSources[i] = Frame.TransformPoint(coreCenter * BodyScale);
+                fuelSources[i] = Frame.TransformPoint(ReactCoreBall(coreCenter * BodyScale, 0));
                 fuelTargets[i] = drone; fuelAges[i] = -n * Mathf.Max(0f, fuelStaggerSeconds);
                 fuelSizes[i] = fuelRadius * Sample(.85f, 1.15f);
             }
@@ -167,6 +172,7 @@ namespace Massive.Enemies
             }
             DeathProgress = deathAge < 0f ? 0f : Mathf.Clamp01(deathAge / Mathf.Max(.01f, enemy ? enemy.despawnDelaySeconds : .8f));
             float spawn = Application.isPlaying && carrier ? carrier.RevealProgress : 1f;
+            TickHitReaction(dt);
             UpdatePanels(spawn); UpdateCore(dt, spawn);
         }
         private void UpdatePanels(float spawn)
@@ -193,6 +199,10 @@ namespace Massive.Enemies
                     fillVertices[vertex++] = Vector3.Lerp(anchor, corners[f * CornerStride + j + 1], fill);
                 }
             }
+            // The MeshCollider owns a separate authored mesh. Only the rendered
+            // vertices recoil; the hull Transform and all launch anchors stay put.
+            if (HitReaction01 > 0f)
+                for (int i = 0; i < vertex; i++) fillVertices[i] = hitShellMatrix.MultiplyPoint3x4(fillVertices[i]);
             mesh.vertices = fillVertices; mesh.RecalculateBounds();
         }
         private void UpdateCore(float dt, float spawn)
@@ -206,7 +216,7 @@ namespace Massive.Enemies
                 float phase = age * (2.2f + i * .19f) + i * 2.39996f;
                 Vector3 p = (coreCenter + (i == 0 ? Vector3.zero : new Vector3(Mathf.Cos(phase), Mathf.Sin(phase * 1.13f), Mathf.Sin(phase * .83f) * .85f) * coreOrbit)) * body;
                 float r = coreRadius * body * (i == 0 ? .85f : .72f + .18f * Mathf.Sin(phase * 1.37f)) * intensity * (1f + corePulse * .2f);
-                AddBall(p, r, ref count, ref volume);
+                AddBall(ReactCoreBall(p, i), r * CoreHitScale, ref count, ref volume);
             }
             ActiveFuelCount = 0;
             for (int i = 0; i < FuelCapacity; i++)
@@ -247,21 +257,35 @@ namespace Massive.Enemies
             if (!mesh || !shell) return;
             using (Draw.Command(camera))
             {
-                Draw.Matrix = shell.transform.localToWorldMatrix; Draw.ZTest = CompareFunction.LessEqual;
+                Draw.Matrix = shell.transform.localToWorldMatrix * hitShellMatrix; Draw.ZTest = CompareFunction.LessEqual;
                 Draw.LineGeometry = LineGeometry.Volumetric3D; Draw.ThicknessSpace = ThicknessSpace.Meters;
                 Draw.Thickness = outlineWidth; Draw.Color = new Color(1f, 1f, 1f, 1f - DeathProgress); Draw.ZOffsetFactor = -1f;
                 if (deathAge < 0f && (!Application.isPlaying || !carrier || carrier.IsSpawnReady))
-                { foreach (var edge in edges) Draw.Line(hullVertices[edge.x], hullVertices[edge.y]); return; }
+                {
+                    foreach (var edge in edges)
+                    {
+                        Vector3 a = hullVertices[edge.x], b = hullVertices[edge.y];
+                        Draw.Thickness = HitEdgeWidth(a, b);
+                        Draw.Line(a, b);
+                    }
+                    DrawHitSparks();
+                    return;
+                }
                 for (int f = 0; f < faces.Length; f++)
                 {
                     int length = faces[f].Length; float remaining = length * faceProgress[f];
                     for (int j = 0; j < length; j++)
                     {
                         Vector3 a = corners[f * CornerStride + (faceCorner[f] + j) % length], b = corners[f * CornerStride + (faceCorner[f] + j + 1) % length];
-                        if (remaining > .0001f && (b - a).sqrMagnitude > .000001f) Draw.Line(a, Vector3.Lerp(a, b, Mathf.Clamp01(remaining)));
+                        if (remaining > .0001f && (b - a).sqrMagnitude > .000001f)
+                        {
+                            Draw.Thickness = HitEdgeWidth(a, b);
+                            Draw.Line(a, Vector3.Lerp(a, b, Mathf.Clamp01(remaining)));
+                        }
                         remaining -= 1f;
                     }
                 }
+                DrawHitSparks();
             }
         }
     }

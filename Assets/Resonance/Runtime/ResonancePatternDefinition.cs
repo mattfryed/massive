@@ -4,7 +4,8 @@ using UnityEngine;
 
 namespace Massive.Resonance
 {
-    public enum ResonanceCurveKind { Circle, PolarLobes, ClosedPolyline }
+    // Append values to preserve existing serialized curve kinds.
+    public enum ResonanceCurveKind { Circle, PolarLobes, ClosedPolyline, OpenPolyline }
     public enum ResonanceBehavior { VisualOnly, HardWall, LensDeflector, DampingMembrane }
     public enum ResonanceTaperShape { Smooth, Linear, Smoother }
 
@@ -31,20 +32,22 @@ namespace Massive.Resonance
         [Range(2, 16)] public int lobes = 4;
         public float rotationDegrees = 45f;
         public Vector2 offset;
-        [Tooltip("For traced future patterns: ordered XZ points, implicitly closed. Arc degrees map to normalized path length.")]
+        [Tooltip("Ordered XZ points. Closed Polyline wraps; Open Polyline ends at its last point. Arc degrees map to normalized path length.")]
         public List<Vector2> points = new List<Vector2>();
 
         public Vector3 Evaluate(float degrees)
         {
             float a = (degrees - rotationDegrees) * Mathf.Deg2Rad;
             Vector2 p;
-            if (kind == ResonanceCurveKind.ClosedPolyline && points != null && points.Count > 1)
+            if ((kind == ResonanceCurveKind.ClosedPolyline || kind == ResonanceCurveKind.OpenPolyline) && points != null && points.Count > 1)
             {
+                bool open = kind == ResonanceCurveKind.OpenPolyline;
+                int edges = open ? points.Count - 1 : points.Count;
                 float length = 0f;
-                for (int i = 0; i < points.Count; i++) length += Vector2.Distance(points[i], points[(i + 1) % points.Count]);
-                float target = Mathf.Repeat(degrees / 360f, 1f) * length;
-                p = points[0];
-                for (int i = 0; i < points.Count; i++)
+                for (int i = 0; i < edges; i++) length += Vector2.Distance(points[i], points[(i + 1) % points.Count]);
+                float target = (open ? Mathf.Clamp01(degrees / 360f) : Mathf.Repeat(degrees / 360f, 1f)) * length;
+                p = open ? points[points.Count - 1] : points[0];
+                for (int i = 0; i < edges; i++)
                 {
                     Vector2 next = points[(i + 1) % points.Count];
                     float d = Vector2.Distance(points[i], next);
@@ -90,6 +93,12 @@ namespace Massive.Resonance
         [Tooltip("Local units per end; zero uses the fraction. Length is resolved after the pattern is fitted.")]
         [Min(0f)] public float taperLength;
         public ResonanceTaperShape falloffShape;
+        [Tooltip("Keep the start full-width where this arc meets an arena wall. Applies to visuals and collision taper.")]
+        public bool untaperedStart;
+        [Tooltip("Keep the end full-width where this arc meets an arena wall. Applies to visuals and collision taper.")]
+        public bool untaperedEnd;
+        // Resolved from the curve during rebuild, never serialized into the definition.
+        [NonSerialized] public bool openPath;
         [Range(0f, 1f)] public float opacity = 0.8f;
         [Min(0f)] public float intensity = 1.5f;
         public Color color = new Color(0.65f, 0.9f, 1f, 1f);
@@ -104,20 +113,20 @@ namespace Massive.Resonance
 
         public float Envelope(float t)
         {
-            if (sweepDegrees >= 359.999f || endTaperFraction <= 0f) return 1f;
+            if ((!openPath && sweepDegrees >= 359.999f) || endTaperFraction <= 0f) return 1f;
             return Taper(t, endTaperFraction, falloffPower, falloffShape);
         }
         public float CollisionEnvelope(float t)
         {
             if (!independentCollisionProfile) return Envelope(t);
             if (t < collisionStart || t > collisionEnd || collisionEnd <= collisionStart) return 0f;
-            if (sweepDegrees >= 359.999f && collisionStart <= 0f && collisionEnd >= 1f) return 1f;
+            if (!openPath && sweepDegrees >= 359.999f && collisionStart <= 0f && collisionEnd >= 1f) return 1f;
             return Taper(Mathf.InverseLerp(collisionStart, collisionEnd, t), collisionTaperFraction, collisionFalloffPower, collisionFalloffShape);
         }
-        private static float Taper(float t, float fraction, float power, ResonanceTaperShape shape)
+        private float Taper(float t, float fraction, float power, ResonanceTaperShape shape)
         {
             if (fraction <= 0f) return 1f;
-            float x = Mathf.Clamp01(Mathf.Min(t, 1f - t) / Mathf.Clamp(fraction, 0.0001f, 0.5f));
+            float x = Mathf.Clamp01(Mathf.Min(untaperedStart ? 1f : t, untaperedEnd ? 1f : 1f - t) / Mathf.Clamp(fraction, 0.0001f, 0.5f));
             if (shape == ResonanceTaperShape.Smooth) x = x * x * (3f - 2f * x);
             else if (shape == ResonanceTaperShape.Smoother) x = x*x*x*(x*(x*6f-15f)+10f);
             return Mathf.Pow(x, Mathf.Max(0.1f, power));
@@ -130,6 +139,8 @@ namespace Massive.Resonance
     {
         [Tooltip("Reference label, not a physical frequency simulation.")]
         public string referenceLabel = "345 Hz — geometric study";
+        [Tooltip("Optional one-shot on a real Amplifier Core impact/turnaround. Uses the shared SFX pool, mixer, mute policy and cue cooldown. Player passage stays silent.")]
+        public AudioCue coreImpactSound;
         public bool showCenter = true;
         [Min(0.001f)] public float centerRadius = 0.055f;
         public Color centerColor = Color.white;

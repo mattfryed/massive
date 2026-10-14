@@ -8,6 +8,10 @@ public class PowerUpVFXWarmup : MonoBehaviour
 
     private static bool _ran;
 
+    // Each Play session is a new application run, even when the Editor keeps the domain.
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetStatics() => _ran = false;
+
     private IEnumerator Start()
     {
         if (runOncePerApp && _ran) yield break;

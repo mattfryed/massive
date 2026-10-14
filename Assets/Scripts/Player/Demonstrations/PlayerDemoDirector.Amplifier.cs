@@ -86,6 +86,14 @@ namespace Massive.Demonstrations
             DemonstrationTeamMultiplier = 1;
             Phase = "Entering Amplifier";
             yield return Ready(primary); if (failed) yield break;
+            float entryReach = primary.attackController.Profile.GetStage(0).TravelDistance * PlayerScaleAdjuster.ActionReachOf(primary);
+            float bodyRadius = PlayerScaleAdjuster.BodyRadiusOf(primary);
+            if (Vector3.Distance(primary.transform.position, amplifierCore.transform.position) > entryReach + bodyRadius)
+            {
+                // Approach with ordinary movement when shown at native gameplay size.
+                yield return MoveActorTo(primary, amplifierCore.transform.position + Vector3.right * (entryReach * .8f + bodyRadius), Vector3.left);
+                if (failed) yield break;
+            }
             yield return Attack(primary, Vector3.left);
             yield return Until(() => primary.IsInsideAmplifier, "Thrust did not enter the Amplifier Core.");
             if (failed) yield break;

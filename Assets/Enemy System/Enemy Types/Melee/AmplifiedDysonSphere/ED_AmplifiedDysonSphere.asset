@@ -27,6 +27,6 @@ MonoBehaviour:
   moveSpeed: 1
   turnSpeed: 180
   sfxAttack: 0
-  sfxHit: 0
+  sfxHit: 28
   sfxDeath: 0
   drawGizmos: 0

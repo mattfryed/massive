@@ -45,7 +45,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0bbbd1aa8fa5957478a61fef5c7477a1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  radius: 0.5
+  radius: 0.65
+  outerTailExtension: 0
   particleCount: 7000
   particleMaterial: {fileID: 2100000, guid: eeea357b414b84c4aa98281bcb36e0e7, type: 2}
   fullVolume: 1
@@ -54,8 +55,13 @@ MonoBehaviour:
   hemisphereFraction: 0.12
   lifetime: {x: 0.09, y: 0.32}
   pointSize: {x: 0.007, y: 0.014}
-  opacity: 0.7
+  opacity: 1
   useUnscaledTime: 1
+  sceneIntroSeconds: 0
+  initialFormation: 0
+  cycleFormations: 1
+  formationIntervalSeconds: 5
+  formationTransitionSeconds: 2
 --- !u!114 &2445425131195781695
 MonoBehaviour:
   m_ObjectHideFlags: 0

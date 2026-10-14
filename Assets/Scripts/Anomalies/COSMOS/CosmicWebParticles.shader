@@ -25,6 +25,8 @@ Shader "MASSIVE/Cosmos/CosmicWebParticles"
             float4 _Oval, _WorldScale, _Blue, _Pink, _EarlyHeat;
             float4 _HeatTransition, _HeatCoverage, _HeatBlue, _HeatCyan, _HeatGold, _HeatRed;
             float4 _OpaqueSize, _PaletteInterpolation;
+            float4 _Crunch, _CrunchStyle, _CrunchWarm, _CrunchHot, _CrunchCore;
+            float _CrunchCoreRadius;
             float _Age, _Padding, _Depth, _Brightness, _GalaxySize, _EvolutionVariation, _EdgeCondensation;
             float _MotionTime, _DriftStrength, _ClusterTurbulence;
             float _BrightnessVariance, _EdgeVignette, _LensingTransitionSmoothness;
@@ -89,6 +91,52 @@ Shader "MASSIVE/Cosmos/CosmicWebParticles"
                 }
                 return color;
             }
+            void CrunchPosition(Particle p, uint instance, float evacuation, inout float2 projected,
+                inout float depth, inout float radius, out float heat, out float pulse)
+            {
+                heat = 0; pulse = 0;
+                if (_CrunchStyle.w < .5 || _Crunch.y <= 0) return;
+                float amount = saturate(_Crunch.y);
+                // Shared attractors delay entire regions together; no per-frame random reseeding.
+                float3 anchor = p.attractor.w > 0 ? p.attractor.xyz : p.cluster.xyz;
+                float seed = Hash(dot(anchor, float3(23.7, 41.3, 17.9)));
+                float delay = seed * _Crunch.z;
+                float regional = saturate((amount - delay) / max(.001, 1 - delay));
+                float mergerTime = max(0, _Age - p.merger.w) / .4;
+                anchor += p.merger.xyz * (1 - exp(-3 * mergerTime * mergerTime)) * evacuation;
+                anchor += (WebFlowField(anchor, _MotionTime) - WebFlowField(anchor, 60)) * _DriftStrength;
+                float2 anchorProjected = WebProject(anchor, _Oval, _WorldScale.xy,
+                    _Padding + .06, _EdgeCondensation, _LensingTransitionSmoothness);
+                // Cluster spacing collapses before internal cluster structure. Both reach zero.
+                float spacing = pow(1 - regional, 1.65);
+                float internalScale = pow(1 - smoothstep(.16, 1, regional), 1.15);
+                float2 offset = projected - anchorProjected;
+                float envelope = sin(3.14159265 * regional) * pow(1 - amount, .7);
+                float clock = _MotionTime * .7;
+                float3 q = float3(offset * _WorldScale.xy * .7, seed * 19.3);
+                float2 stirring = float2(
+                    WebTurbulenceNoise(q + float3(clock * .31, -clock * .17, clock * .43)),
+                    WebTurbulenceNoise(q.yzx * 1.7 + float3(-clock * .27, clock * .23, 31.7)));
+                float2 regionalDrift = float2(
+                    WebTurbulenceNoise(float3(seed * 17.3, clock * .24, 13.1)),
+                    WebTurbulenceNoise(float3(clock * .19, seed * 23.1, 37.7)));
+                projected = anchorProjected * spacing + offset * internalScale
+                    + (regionalDrift * .8 + stirring * .3) * (_Crunch.w * envelope) / _WorldScale.xy;
+                depth *= internalScale;
+                // Heat is a deliberate palette transition, not additive pile-up.
+                heat = smoothstep(.12, .94, regional);
+                pulse = exp(-pow((_Crunch.x - .955) / .018, 2)) * _CrunchStyle.z;
+                radius *= lerp(1, _CrunchStyle.x, smoothstep(.55, 1, amount)) * (1 + pulse * .4);
+                // One existing tracer becomes the final core. The rest can shrink naturally
+                // below a pixel without losing the last pulse or adding a diffuse overlay.
+                if (instance == 0)
+                {
+                    float coreBlend = smoothstep(.8, .94, _Crunch.x);
+                    projected *= 1 - coreBlend;
+                    depth *= 1 - coreBlend;
+                    radius = max(radius, _CrunchCoreRadius * coreBlend * (1 + pulse * 2));
+                }
+            }
             v2f vert(uint vertex : SV_VertexID, uint instance : SV_InstanceID)
             {
                 const float2 corners[6] = { float2(-1,-1), float2(-1,1), float2(1,1), float2(-1,-1), float2(1,1), float2(1,-1) };
@@ -113,9 +161,12 @@ Shader "MASSIVE/Cosmos/CosmicWebParticles"
                 }
                 float2 corner = corners[vertex];
                 float2 projected = WebProject(center, _Oval, _WorldScale.xy, _Padding + .06, _EdgeCondensation, _LensingTransitionSmoothness);
+                float depth = clamp(center.z, -1, 1) * .45;
+                float crunchHeat, crunchPulse;
+                CrunchPosition(p, instance, evacuation, projected, depth, radius, crunchHeat, crunchPulse);
                 float2 arenaPosition = projected + corner * radius / _WorldScale.xy;
                 // Thin visual depth slab fits between the existing ground and gameplay grid.
-                float3 local = float3(arenaPosition, -_Depth + clamp(center.z, -1, 1) * .45);
+                float3 local = float3(arenaPosition, -_Depth + depth);
                 v2f o;
                 o.position = mul(UNITY_MATRIX_VP, mul(_GridToWorld, float4(local, 1)));
                 o.uv = corner;
@@ -161,6 +212,12 @@ Shader "MASSIVE/Cosmos/CosmicWebParticles"
                     }
                     else color = mixed;
                 }
+                [branch] if (_CrunchStyle.w > .5 && crunchHeat > 0)
+                {
+                    float3 hot = lerp(_CrunchWarm.rgb, _CrunchHot.rgb, smoothstep(0, .65, crunchHeat));
+                    hot = lerp(hot, _CrunchCore.rgb, smoothstep(.55, 1, crunchHeat));
+                    color = lerp(color, hot, crunchHeat * _CrunchStyle.y) * (1 + crunchPulse * .25);
+                }
                 [branch] if (_OpaqueParticles > .5)
                 {
                     // Use only the authored palettes and global brightness. The additive
@@ -180,6 +237,8 @@ Shader "MASSIVE/Cosmos/CosmicWebParticles"
             }
             float4 frag(v2f i) : SV_Target
             {
+                // Full opacity until extinction; the hold stays black through the scene handoff.
+                if (_CrunchStyle.w > .5) clip(.9999 - _Crunch.x);
                 float2 ab = float2(_Oval.z, _Oval.y) * _WorldScale.xy;
                 float k0 = length(i.arenaPosition / ab);
                 float k1 = length(i.arenaPosition / (ab * ab));

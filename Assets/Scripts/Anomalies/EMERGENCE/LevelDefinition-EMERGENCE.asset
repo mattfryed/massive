@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5fbe94a6bd03940b9a5a78c567bc6665, type: 3}
   m_Name: LevelDefinition-EMERGENCE
   m_EditorClassIdentifier: 
-  levelNumber: 10
+  levelNumber: 4
   levelTitle: EMERGENCE
   scaleExponent: -6
   gameplayScene:

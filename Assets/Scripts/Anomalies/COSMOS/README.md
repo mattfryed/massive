@@ -55,6 +55,24 @@ Editor commands under **MASSIVE > COSMOS**:
   teams. Returns to Edit Mode. Reports and renders are in `Library/CosmosLayout`.
 - **Inspect current layout** (`Ctrl+Shift+Alt+F9`): save a hierarchy/configuration
   inventory to that folder.
+- **Validate attack boundary containment**: runs isolated physics checks against
+  copies of the saved COSMOS walls without entering Play Mode or replacing the
+  open scene. Includes the original unswept escape as a control.
+
+Attack containment correction (2026-10-14): the shared `PlayerAttackController`
+now sweeps the body before applying attack displacement. Dynamic `MovePosition`
+could otherwise jump across the thin walls despite continuous collision detection.
+A separate starting-contact check prevents the same escape when the player's
+body already touches or slightly overlaps a wall. Floor contact, triggers,
+ignored collision pairs, and movement along/away from walls remain free. Charge
+distance, damage, attack timing, arena geometry and authored tuning are unchanged.
+
+Validated in Unity 6000.0.28f1: **198 COSMOS checks and 12 movement/filter checks**
+passed, with no Console errors or warnings. Coverage includes both curved edges,
+central wall joins, goal separators, three body sizes, repeated large attack
+steps, and the authored normal/full-charge travel curve sampled at 15/30/60/120
+FPS against a 50 Hz physics clock. These are isolated physics/movement checks;
+full matches, combat interactions and a standalone build were not exercised.
 
 For overall shape tuning, use the sliders on `CosmosArenaLayout` at
 `02_Arena/Surface/GRID/VectorGridGPU`; no Apply step is needed. For separate
@@ -488,6 +506,49 @@ The comparison rows show normal colors, four telegraph seeds, then cloud ages
 0.4, 1.2, 2.2 and 3.4 seconds. Border and HUD comparisons use `border-masked.png`,
 `border-unmasked.png`, `hud-masked.png` and `hud-unmasked.png` in that directory.
 Collection balance, cabinet performance and standalone builds remain untested.
+
+## Big Crunch finale
+
+The saved COSMOS scene assigns **Cosmic Crunch Finale** on
+`02_Arena/Surface/GRID/VectorGridGPU` to the match manager's regulation finale.
+At regulation end, scoring closes and player input locks. GameplayObjects,
+goals, HUD, grid and border withdraw, and both supernova layers clear their
+warnings, flashes and pickups. The existing web stays at Age 1 while its
+independent motion clock continues through the presentation.
+
+The default **6-second** animation gathers clusters, accelerates their regional
+collapse, compresses and heats the remaining matter, then extinguishes a small
+white core. Cluster spacing contracts before internal structure, with coherent
+regional delays and irregular turbulence. The shader reuses the existing
+particle buffer and retains the selected opaque/additive rendering mode. One
+existing tracer becomes the final pinpoint so the last pulse remains visible
+after the rest of the cloud becomes smaller than a pixel.
+
+After **Blackout Hold** (default **0.35 seconds**), the match manager publishes
+the final result and loads PostGame. This presentation skips the normal death
+sphere and extra PostGame delay. Other levels retain their existing end flow.
+Disabling the selected finale before regulation ends uses the normal match-end
+path; disabling it while running lets the manager complete the presentation
+on its next update.
+
+Inspector controls include **Duration**, **Contraction** curve, **Regional Delay**,
+**Turbulence**, **Final Particle Scale**, **Core Radius**, three compression heat
+colors, **Heat Blend**, **Final Pulse** and **Blackout Hold**. Keep the finale and
+camera outside the **Withdraw At Start** roots; COSMOS supplies Goals and 04_UI.
+No new audio assets or sound sequence are included.
+
+Use **Big Crunch Preview > Crunch Progress** or **Play** in the component Inspector
+to inspect the effect without entering Play Mode. **Stop / Restore Web**, or
+deselecting the component, restores the normal web. Preview progress is not
+serialized, and does not alter the authored Age, palettes or topology. Edit Mode
+preview leaves gameplay and HUD visible; their withdrawal happens at runtime.
+
+Validated 2026-10-14 in Unity 6000.0.28f1/DX11: scripts and shader compiled without
+errors; saved-scene finale references and the default curve were checked. Seven
+isolated renders of the actual 56,000-particle web were reviewed, including
+regional collapse, compression heat, the visible final core and full extinction.
+The open scene was preserved. Full match-end gameplay, PostGame navigation,
+standalone builds and target-machine performance remain for manual validation.
 
 ## Level Select icon
 

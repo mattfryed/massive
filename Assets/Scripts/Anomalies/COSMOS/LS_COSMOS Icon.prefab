@@ -101,13 +101,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   webData: {fileID: 11400000, guid: 2d2ef8a3b084e344bb5f39a2742cb355, type: 2}
   particleCount: 8000
-  cloudScale: 0.55
+  cloudScale: 0.8
   ovalAspect: 1.8
   depthRatio: 0.5555556
   volumeTilt: {x: 18, y: 10, z: -12}
   animate: 1
   motionSpeed: 1.568
-  driftStrength: 1.267
+  driftStrength: 1.957
   clusterTurbulence: 1
   turbulenceStrength: 2
   evolutionVariation: 1

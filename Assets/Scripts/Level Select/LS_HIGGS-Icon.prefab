@@ -147,6 +147,9 @@ MonoBehaviour:
   exciteDuration: 3
   exciteFadeTime: 1
   exciteBorderWorld: 0.75
+  exciteInEasePower: 2
+  gameplayExcitationsPerSecondOverride: -1
+  compensateForBorderArea: 1
   rampSeconds: 600
   rampOverride01: -1
 --- !u!1 &7087981260614280204
@@ -177,14 +180,14 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 7087981260614280204}
   serializedVersion: 2
-  m_LocalRotation: {x: -0.17980273, y: -0.0019799673, z: 0.60232544, w: -0.77773464}
-  m_LocalPosition: {x: 0.070219435, y: 1.7, z: -0.053782575}
+  m_LocalRotation: {x: 0.4200322, y: 0.41712865, z: 0.4211782, w: -0.68715763}
+  m_LocalPosition: {x: 0, y: 1.7, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 7857584158509111244}
   m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 90.48901, y: -0.087005615, z: 0}
+  m_LocalEulerAnglesHint: {x: 0.424, y: 0.401, z: 0}
 --- !u!33 &4322571095759270581
 MeshFilter:
   m_ObjectHideFlags: 0
@@ -279,12 +282,12 @@ MonoBehaviour:
   meshOverride: {fileID: 0}
   targetCamera: {fileID: 0}
   disableLocalRenderer: 1
-  layerCount: 24
+  layerCount: 34
   stackAxis: 2
   stackHeight: 1.2
   stackAlpha: 1
   topFade: 0.25
-  stackCenterOffset: -0.39
+  stackCenterOffset: 0
   heightMin: -1
   heightMax: 0.25
   useBaseHeightIfAvailable: 1

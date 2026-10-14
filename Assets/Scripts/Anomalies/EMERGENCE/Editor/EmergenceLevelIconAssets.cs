@@ -74,6 +74,7 @@ namespace Massive.Emergence.Editor
                 var serialized = new SerializedObject(selection);
                 serialized.FindProperty("visualsRoot").objectReferenceValue = visual;
                 serialized.ApplyModifiedPropertiesWithoutUndo();
+                icon.BakeFormation();
                 // The generated mesh belongs to each live instance, never to the saved prefab.
                 icon.enabled = false; icon.enabled = true;
                 return PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
@@ -103,7 +104,17 @@ namespace Massive.Emergence.Editor
         public override void OnInspectorGUI()
         {
             DrawDefaultInspector();
-            EditorGUILayout.HelpBox("Solid 3D particles; breathing and internal motion stay inside a fixed envelope. Menu animation uses unscaled time and runs no gameplay simulation.", MessageType.Info);
+            EditorGUILayout.HelpBox("The ecology's pair forces settle a complete 3D colony once. Match Ecology Composition redistributes the combined body-particle budget using the profile's proportions. Local Particle Flow adds differential circulation and eddies inside the body; Flow Speed pauses or speeds up those currents. All motion uses unscaled time. Flow changes need no rebake. Profile force edits regenerate the preview; bake the result into the prefab to avoid settling on the first runtime load.", MessageType.Info);
+            if (GUILayout.Button("Bake Formation From Ecology"))
+            {
+                foreach (UnityEngine.Object item in targets)
+                {
+                    var icon = (EmergenceLevelIcon)item;
+                    Undo.RecordObject(icon, "Bake organism icon formation");
+                    icon.BakeFormation(); EditorUtility.SetDirty(icon);
+                    PrefabUtility.RecordPrefabInstancePropertyModifications(icon);
+                }
+            }
         }
     }
 }

@@ -72,6 +72,8 @@ namespace Massive.Settings
     [System.Serializable]
     public sealed class AmplifierGoalCaptureSettings
     {
+        [Tooltip("Distance from each goal's capture point, in world units, where the Core starts being pulled in (or repelled at maximum amplification). Shared by both teams across scenes.")]
+        [SerializeField, Min(0.1f)] public float attractionRadius = 4.5f;
         [SerializeField, Min(0f)] public float pullAcceleration = 24f;
         [SerializeField] public AnimationCurve pullByProximity =
             AnimationCurve.EaseInOut(0f, 0.15f, 1f, 1f);

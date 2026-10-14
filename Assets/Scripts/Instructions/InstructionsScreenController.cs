@@ -17,6 +17,9 @@ public class InstructionsScreenController : MonoBehaviour
     [SerializeField] private bool avoidRepeatingLastFallback = true;
     private static int _lastFallbackIndex = -1;
 
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetStatics() => _lastFallbackIndex = -1;
+
     [Header("Optional Header Text")]
     [SerializeField] private TMP_Text stageText;   // e.g. STAGE_001
     [SerializeField] private TMP_Text titleText;   // e.g. SUPERNOVA

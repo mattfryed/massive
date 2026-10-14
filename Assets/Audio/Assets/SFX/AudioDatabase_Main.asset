@@ -73,6 +73,18 @@ MonoBehaviour:
     assigned: 1
     deprecated: 0
     cue: {fileID: 11400000, guid: 043b2221ddc354074b8d24b805494ed1, type: 2}
+  - id: 27
+    name: Enemy_CarrierHit
+    value: 27
+    assigned: 1
+    deprecated: 0
+    cue: {fileID: 11400000, guid: d8dcd64f1302d044981cf261544be03e, type: 2}
+  - id: 28
+    name: Enemy_DysonHit
+    value: 28
+    assigned: 1
+    deprecated: 0
+    cue: {fileID: 11400000, guid: 4c8b88e9139ada948902591162228cfc, type: 2}
   uiEntries:
   - id: 11
     name: UI_Navigate

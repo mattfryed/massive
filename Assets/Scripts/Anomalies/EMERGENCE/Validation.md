@@ -2,6 +2,24 @@
 
 Validated in Unity 6000.0.28f1, Built-in Render Pipeline, Windows/DX11.
 
+## Local particle circulation and eddies
+
+The saved icon now enables shader-based differential circulation, counterflowing layers and shared local eddies. These currents move the existing baked particle centers before breathing, whole-body pivot/strain and rotation. Radius-preserving twists retain the full volume and existing conservative bounds; the prefab's particle count, size, chemistry and baked formation are unchanged. Flow controls require no rebake and create no extra meshes, colliders or simulation buffers.
+
+An isolated Play Mode render probe disabled breathing, internal ripple, rocking and pivots. Frames at 0, 2 and 4 seconds still showed visible internal motion (11,523 and 11,361 changed pixels between successive 512-pixel frames). Pixel-exact comparisons verified that zero Flow Speed freezes circulation in place, a speed edit at zero elapsed time does not jump, Animate stops flow, and disabling Local Flow restores the baked formation. Twelve maximum-setting snapshots spanning six simulated minutes stayed inside x=51–460 / y=56–459. The same 378-particle mesh, transform and unchanged gameplay profile persisted throughout; disable/re-enable passed. Runtime/editor compilation and shader compilation passed, with zero final Console errors or warnings. The user's active Play Mode session was preserved.
+
+Evidence: `Library/EmergenceValidation/icon-local-flow.txt` and `icon-local-flow.png` (whole-body motion disabled throughout the three-frame comparison).
+
+## Full-volume, force-shaped icon and intermittent pivots
+
+The icon now settles a complete 3D mixture using the current ecology's asymmetric pair attractions, separation/soft-core repulsion, relative sizes and drag. The saved 378-particle budget is redistributed into 147 structure, 124 motor, 92 catalyst and 15 nutrient particles; the authored base radius remains `0.0052`. The previous missing cap was explicit open-membrane geometry, not camera clipping. The replacement has particles in every octant and full depth on all three axes. Distant food is brought near the body for presentation framing; no production ecology data is modified.
+
+The settled formation is saved in the prefab. With the in-memory formation cache cleared, first mesh preparation took **10.96 ms** and did not run relaxation; rebuilding took **5.35 ms**. A 2,400-call / 40-second animation probe took **5.90 ms total** on this Editor machine (CPU calls only, not overall rendering time). Front, back and side captures showed the entire formation with clear frame margins. The conservative local envelope radius is `0.7096435`, before selection scaling. Mesh ownership, zero colliders, disable/re-enable and unchanged source-profile JSON passed.
+
+A temporary attraction-matrix edit changed the settled geometry (mean normalized displacement `0.5214`), confirming that formation responds to the profile rather than fixed color rings. A 60-second pivot probe verified turns, long pose holds, recoil limited to `0.028`, an unchanged transform anchor and the Animate toggle. The actual carousel selected EMERGENCE at index 3 and confirmed into its instructions normally. There the updated icon continued for 24 seconds with `Time.timeScale = 0`; the separate gameplay demonstration completed four loops and ten releases. Runtime disable/re-enable passed. Final Console: zero errors or warnings; shader compiled and was supported. The original clean level-select scene and background setting were restored after Play Mode.
+
+Evidence in `Library/EmergenceValidation`: `icon-full-volume.txt`, `icon-full-volume.png`, `icon-behavior.txt`, `icon-runtime.txt`, `icon-carousel-final.png`, and `icon-instructions-final.png`. These checks supersede the original synthetic icon's particle counts and formation description below. No gameplay tuning, catalog order, instructions layout or shared scene was changed for this revision.
+
 ## Instructions icon and cropped ecology demonstration
 
 The nested icon now matches ORBITAL and COSMOS: local position `(0, 5, 0)` and uniform scale `5.8`, centered above the instructions grid. Its existing prefab link and animation are preserved. The middle-right frame contains an isolated, orthographic close-up using the production CPU ecology model, opaque particle material and all four canonical reward prefabs. The seeded mature colonies retain the gameplay chemistry and produce their own validated buds/releases. Only the demo population and starting state differ; a JSON comparison confirmed the gameplay profile was unchanged.

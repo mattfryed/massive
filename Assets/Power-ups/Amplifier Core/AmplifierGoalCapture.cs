@@ -43,7 +43,7 @@ namespace Massive.Multiplier
         private bool ScoringOpen => demonstrationRoot || (MatchScoreService.Instance && MatchScoreService.Instance.IsScoringOpen);
         private bool Capped => !demonstrationRoot && MatchScoreService.Instance && MatchScoreService.Instance.IsTeamAmplifierMaxed(teamID);
         public int TeamID => teamID;
-        public float AttractionRadius => attractionRadius;
+        public float AttractionRadius => Effective_attractionRadius;
         public Transform CapturePoint => capturePoint != null ? capturePoint : transform;
         private readonly List<AmplifierCoreGameplay> _rejectedCores = new List<AmplifierCoreGameplay>(4);
         private static readonly List<AmplifierGoalCapture> ActiveGoals = new List<AmplifierGoalCapture>(4);
@@ -73,9 +73,9 @@ namespace Massive.Multiplier
             if (!core.Body || core.gameObject.scene != gameObject.scene) return false;
             Vector3 delta = CapturePoint.position - core.Body.worldCenterOfMass; delta.y = 0f;
             float distance = delta.magnitude;
-            if (distance > attractionRadius) return false;
+            if (distance > AttractionRadius) return false;
             if (distance <= captureRadius) return !capped || Effective_repelWhenMaxed;
-            float proximity = Mathf.InverseLerp(attractionRadius, captureRadius, distance);
+            float proximity = Mathf.InverseLerp(AttractionRadius, captureRadius, distance);
             float shaped = Effective_pullByProximity != null ? Mathf.Max(0f, Effective_pullByProximity.Evaluate(proximity)) : proximity;
             return shaped * (capped ? (Effective_repelWhenMaxed ? Effective_repulsionAcceleration : 0f) : Effective_pullAcceleration) > .0001f;
         }
@@ -109,7 +109,8 @@ namespace Massive.Multiplier
             bool capped = Capped;
             // Re-arm only after leaving the field of rejection, with a little margin to
             // avoid repeat notices from jitter at the edge or multiple child colliders.
-            float rearmDistance = attractionRadius + .5f;
+            float radius = AttractionRadius;
+            float rearmDistance = radius + .5f;
             for (int i = _rejectedCores.Count - 1; i >= 0; i--)
             {
                 var previous = _rejectedCores[i];
@@ -131,7 +132,7 @@ namespace Massive.Multiplier
                 Vector3 delta = CapturePoint.position - core.Body.worldCenterOfMass;
                 delta.y = 0f;
                 float distance = delta.magnitude;
-                if (distance > attractionRadius)
+                if (distance > radius)
                     continue;
 
                 if (core.Body.isKinematic && FieldAffects(core, capped)) core.WakeForGoalField();
@@ -150,7 +151,7 @@ namespace Massive.Multiplier
                     continue;
                 }
 
-                float proximity = Mathf.InverseLerp(attractionRadius, captureRadius, distance);
+                float proximity = Mathf.InverseLerp(radius, captureRadius, distance);
                 float shaped = Effective_pullByProximity != null
                     ? Mathf.Max(0f, Effective_pullByProximity.Evaluate(proximity))
                     : proximity;
@@ -194,7 +195,7 @@ namespace Massive.Multiplier
             if (inward.sqrMagnitude < .0001f) inward = teamID == 1 ? Vector3.right : Vector3.left;
             inward.Normalize();
             Vector3 direction = RepulsionDirection(CapturePoint.position, core.Body.worldCenterOfMass, inward);
-            float proximity = Mathf.InverseLerp(attractionRadius, captureRadius, distance);
+            float proximity = Mathf.InverseLerp(AttractionRadius, captureRadius, distance);
             float shaped = Effective_pullByProximity != null ? Mathf.Max(0f, Effective_pullByProximity.Evaluate(proximity)) : proximity;
             core.Body.AddForce(direction * (Effective_repulsionAcceleration * shaped), ForceMode.Acceleration);
             if (distance <= captureRadius)

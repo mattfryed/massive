@@ -10,12 +10,23 @@ namespace Massive.Demonstrations
         public Camera screenCamera;
         [Tooltip("Optional fixed world height. Matches actor scale across equally tall demo panes without changing gameplay scale.")]
         [Min(0f)] public float worldHeight;
+        [Tooltip("Keep the same pixels per world unit as the screen camera. Overrides World Height without resizing actors.")]
+        public bool matchScreenWorldScale;
         public Vector3 lowerLeft;
         public Vector3 upperRight;
         public GameObject captionPrefab;
         public string caption;
         private Camera view;
         private GameObject title;
+        public float FramingWorldHeight
+        {
+            get
+            {
+                if (!matchScreenWorldScale || !screenCamera || !screenCamera.orthographic) return worldHeight;
+                float height = Mathf.Abs(screenCamera.WorldToViewportPoint(upperRight).y - screenCamera.WorldToViewportPoint(lowerLeft).y);
+                return 2f * screenCamera.orthographicSize * height;
+            }
+        }
         private void Awake() { view = GetComponent<Camera>(); }
         private void Start()
         {
