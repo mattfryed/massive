@@ -36,7 +36,7 @@ namespace Massive.Enemies
 
         private void TryDamage(Collider other)
         {
-            if (enemy == null || enemy.IsDead || enemy.IsPaused) return;
+            if (enemy == null || enemy.IsDead || enemy.IsPaused || enemy.IsDisrupted) return;
             if (enemy.Definition == null) return;
 
             if (!other.CompareTag("Player")) return;

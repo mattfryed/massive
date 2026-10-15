@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace Massive.Demonstrations
 {
-    public enum PlayerDemoKind { MovementAndCombo, Block, PowerUp, CombatPair, SoloCombo, AmplifierGoal, DroneThrust, DroneCombo, DroneChargedThrust }
+    public enum PlayerDemoKind { MovementAndCombo, Block, PowerUp, CombatPair, SoloCombo, AmplifierGoal, DroneThrust, DroneCombo, DroneChargedThrust, DefenseSequence }
     public enum CombatDemoDefense { TapParry, HeldBlock, None, DecoherenceParry }
 
     [CreateAssetMenu(menuName = "MASSIVE/Demonstrations/Player Scenario")]
@@ -22,9 +22,16 @@ namespace Massive.Demonstrations
         [Min(.1f)] public float viewPadding = .2f;
         [Header("Drone combat demonstration")]
         public Massive.Enemies.EnemyDefinition droneDefinition;
+        [Header("Decoherence follow-up wave")]
+        [Tooltip("Optional second enemy type, spawned after the Drones are defeated.")]
+        public Massive.Enemies.EnemyDefinition decoherenceSecondEnemy;
         [Header("Amplifier demonstration")]
         public Massive.Multiplier.AmplifierCoreGameplay amplifierCorePrefab;
         public GameObject teamGoalPrefab;
+        [Tooltip("Show both goals followed by a real two-player possession contest.")]
+        public bool demonstrateAmplifierContest;
+        public GameObject opposingTeamGoalPrefab;
+        public Vector2 amplifierArenaSize = new Vector2(16.4f, 6f);
         [Tooltip("Demo-only wait after capture; normal Core spawn and capture effects are retained.")]
         [Min(0f)] public float amplifierRespawnDelay = 5f;
         public Massive.Scoring.ScoreEconomyProfile scoreEconomy;
@@ -34,5 +41,7 @@ namespace Massive.Demonstrations
         public DecoherencePowerUpDefinition defenderPowerUp;
         [Tooltip("Extra time beyond the opening parry window before starting a held-block attack.")]
         [Min(.05f)] public float heldBlockLead = .15f;
+        [Tooltip("DEFEND demo pause after a confirmed parry. Limited to the remaining gameplay counter window.")]
+        [Min(0f)] public float counterAttackPause = .35f;
     }
 }

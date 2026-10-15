@@ -76,16 +76,18 @@ namespace Massive.Demonstrations
             if (!failed) { Phase = "Targets defeated"; LastOutcome = expected + " drone" + (expected == 1 ? "" : "s") + " defeated"; }
         }
 
-        private void SpawnCombatDrone(Vector3 offset)
+        private void SpawnCombatDrone(Vector3 offset) => SpawnCombatEnemy(scenario.droneDefinition, offset);
+
+        private EnemyBase SpawnCombatEnemy(EnemyDefinition definition, Vector3 offset)
         {
-            var staging = new GameObject("Drone staging");
+            var staging = new GameObject("Enemy staging");
             staging.transform.SetParent(session.transform, false);
             staging.SetActive(false);
-            var go = Instantiate(scenario.droneDefinition.prefab, primaryHome + offset,
+            var go = Instantiate(definition.prefab, primaryHome + offset,
                 Quaternion.LookRotation(Vector3.left), staging.transform);
             var enemy = go.GetComponent<EnemyBase>();
             enemy.ConfigureDemonstration(session.transform, primary);
-            enemy.Init(scenario.droneDefinition, null);
+            enemy.Init(definition, null);
             enemy.AttacksEnabled = false;
             enemy.HoldPosition = true;
             // Stationary targets use ordinary hurtboxes, health and death presentation.
@@ -97,6 +99,7 @@ namespace Massive.Demonstrations
             enemy.Defeated += defeat => { if (defeat.creditedPlayer == primary) ConfirmedKills++; };
             go.transform.SetParent(session.transform, true);
             Destroy(staging);
+            return enemy;
         }
     }
 }

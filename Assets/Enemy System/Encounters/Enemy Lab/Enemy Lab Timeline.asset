@@ -14,21 +14,23 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   duration: 181
   fitRegulation: 1
-  maxAliveTotal: 80
+  maxAliveTotal: 50
   populationLimits:
-  - enemy: {fileID: 11400000, guid: ad3522b075ef69644b75b698ffc0e515, type: 2}
-    maxAlive: 12
-  - enemy: {fileID: 11400000, guid: 6f3894cbeefe69747a0c29774dff7027, type: 2}
-    maxAlive: 8
   - enemy: {fileID: 11400000, guid: 55d708e694ace4746a1091d176812f13, type: 2}
     maxAlive: 4
-  - enemy: {fileID: 11400000, guid: 75a66946007406a418daf7b6acea56bd, type: 2}
-    maxAlive: 44
+  - enemy: {fileID: 11400000, guid: fa3972882a57fba418b8716077c624e5, type: 2}
+    maxAlive: 2
   - enemy: {fileID: 11400000, guid: 7b0ed3d8b87fb4fb892c6742e83ed21b, type: 2}
-    maxAlive: 0
+    maxAlive: 4
+  - enemy: {fileID: 11400000, guid: 6f3894cbeefe69747a0c29774dff7027, type: 2}
+    maxAlive: 4
+  - enemy: {fileID: 11400000, guid: 75a66946007406a418daf7b6acea56bd, type: 2}
+    maxAlive: 24
   - enemy: {fileID: 11400000, guid: 7a2e65a43b9152044a9f5fd3542cda95, type: 2}
-    maxAlive: 44
-  maxPressure: 120
+    maxAlive: 24
+  - enemy: {fileID: 11400000, guid: ad3522b075ef69644b75b698ffc0e515, type: 2}
+    maxAlive: 6
+  maxPressure: 90
   pressureCosts:
   - enemy: {fileID: 11400000, guid: 75a66946007406a418daf7b6acea56bd, type: 2}
     cost: 1

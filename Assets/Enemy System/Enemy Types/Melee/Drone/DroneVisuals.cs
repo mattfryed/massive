@@ -73,6 +73,7 @@ namespace Massive.Enemies
         private Mesh mesh;
         private EnemyBase enemy;
         private EnemyBase pauseOwner;
+        private EnemySpawnPresentation spawnPresentation;
         private RangedDroneController ranged;
         private Rigidbody body;
         private MaterialPropertyBlock properties;
@@ -89,6 +90,7 @@ namespace Massive.Enemies
         {
             enemy = GetComponent<EnemyBase>(); body = GetComponent<Rigidbody>();
             pauseOwner = enemy ? enemy : GetComponentInParent<EnemyBase>();
+            spawnPresentation = GetComponentInParent<EnemySpawnPresentation>();
             ranged = GetComponent<RangedDroneController>();
             if (enemy != null) enemy.Died += OnDeath;
             properties = new MaterialPropertyBlock();
@@ -141,6 +143,7 @@ namespace Massive.Enemies
             if (deathAge >= 0f) deathAge += dt;
             roll = Mathf.Repeat(roll + rollDegreesPerSecond * dt, 360f);
             float spawn = Application.isPlaying ? Mathf.Clamp01(age / Mathf.Max(.01f, spawnSeconds)) : 1f;
+            if (Application.isPlaying && spawnPresentation && spawnPresentation.isActiveAndEnabled) spawn = spawnPresentation.Progress01;
             float death = deathAge < 0f ? 0f : Mathf.Clamp01(deathAge / Mathf.Max(.01f, enemy != null ? enemy.despawnDelaySeconds : .3f));
             engineIntensity = Mathf.SmoothStep(0f, 1f, spawn) * (1f - death);
             shell.localRotation = Quaternion.AngleAxis(roll, Vector3.forward); shell.localScale = Vector3.one;

@@ -23,6 +23,13 @@ private static void ResetStatics()
     [Header("Pool")]
     public int poolSize = 24;
 
+    [Header("Sustained damage feedback (all enemies)")]
+    [Min(.05f), Tooltip("Minimum time between audible sustained-damage hits on one enemy. Damage remains continuous.")]
+    public float sustainedHitInterval = .4f;
+    [Min(0f), Tooltip("Shared spacing across sustained hit cues, preventing a crowd from becoming a wall of impacts. Ordinary impacts/death bypass this spacing.")]
+    public float sustainedHitGlobalSpacing = .12f;
+    private float nextSustainedHitTime = float.NegativeInfinity;
+
     private readonly List<AudioSource> _pool = new();
     private readonly Dictionary<AudioCue, float> _nextAllowedTime = new();
     private readonly Dictionary<AudioCue, int> _activeCounts = new();
@@ -83,30 +90,40 @@ private static void ResetStatics()
         if (cue != null) PlayCueInternal(cue, position, force2D: false);
     }
 
-    private void PlayCueInternal(AudioCue cue, Vector3 position, bool force2D)
+    /// <summary>Bound sustained feedback across all enemy types, using the normal pool/mixer/mute rules.</summary>
+    public bool TryPlaySustainedHit(AudioEventId id, Vector3 position)
     {
-        if (SceneSfxPolicy.IsSuppressed) return;
+        if (Time.unscaledTime < nextSustainedHitTime || database == null ||
+            !database.TryGet(id, out var cue) || cue == null) return false;
+        if (!PlayCueInternal(cue, position, force2D: false)) return false;
+        nextSustainedHitTime = Time.unscaledTime + Mathf.Max(0f, sustainedHitGlobalSpacing);
+        return true;
+    }
+
+    private bool PlayCueInternal(AudioCue cue, Vector3 position, bool force2D)
+    {
+        if (SceneSfxPolicy.IsSuppressed) return false;
         float now = Time.unscaledTime;
 
         if (cue.cooldownSeconds > 0f &&
             _nextAllowedTime.TryGetValue(cue, out float next) &&
             now < next)
-            return;
+            return false;
 
         if (cue.maxSimultaneous > 0)
         {
             _activeCounts.TryGetValue(cue, out int count);
-            if (count >= cue.maxSimultaneous) return;
+            if (count >= cue.maxSimultaneous) return false;
             _activeCounts[cue] = count + 1;
         }
 
         _nextAllowedTime[cue] = now + Mathf.Max(0f, cue.cooldownSeconds);
 
         var clip = cue.GetRandomClip();
-        if (clip == null) { DecActive(cue); return; }
+        if (clip == null) { DecActive(cue); return false; }
 
         var src = GetFreeSource();
-        if (src == null) { DecActive(cue); return; }
+        if (src == null) { DecActive(cue); return false; }
 
         src.transform.position = position;
 
@@ -126,6 +143,7 @@ private static void ResetStatics()
 
         float pitchAbs = Mathf.Max(0.01f, Mathf.Abs(src.pitch));
         StartCoroutine(ReleaseAfter(src, cue, clip.length / pitchAbs));
+        return true;
     }
 
     private void StopAllSfx()
@@ -135,6 +153,7 @@ private static void ResetStatics()
             if (source) { source.Stop(); source.clip = null; }
         _activeCounts.Clear();
         _nextAllowedTime.Clear();
+        nextSustainedHitTime = float.NegativeInfinity;
     }
 
     private AudioSource GetFreeSource()

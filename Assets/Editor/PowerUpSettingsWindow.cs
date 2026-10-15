@@ -259,6 +259,8 @@ namespace Massive.EditorTools
             }
             if (definition is ParticleAcceleratorPowerUpDefinition)
                 EditorGUILayout.HelpBox("Acquisition fills the energy ring. Sword fires instantly; hold to drain, release to refill after the minimum burst. Low energy caps that burst. After emptying the ring, press again to fire any recovered energy. Turn Propagation Speed controls how quickly aim travels along the beam; Max Turn Delay = 0 gives instant aim.", MessageType.None);
+            if (definition is DecoherencePowerUpDefinition)
+                EditorGUILayout.HelpBox("Hold Shield to paint the arena. Charge starts full, shrinks the brush as it drains, and refills on release. A fresh press works at or above Minimum Activation Charge. Paint survives pickup expiry/replacement and shrinks to zero during the final Paint Recede Seconds of its lifetime. Overlapping paint shares one damage rate per owner. Seconds Per Sword Hit controls health-based enemy erosion. Uses the same energy ring as Particle Accelerator.", MessageType.None);
             if (definition is ParticleAcceleratorPowerUpDefinition energySettings)
                 EditorGUILayout.LabelField("Minimum burst / full meter", $"{Mathf.Min(1, energySettings.minimumBurstSeconds / Mathf.Max(.01f, energySettings.fullMeterFireSeconds)):P0}");
             using(var data=new SerializedObject(definition))

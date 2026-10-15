@@ -29,7 +29,7 @@ namespace Massive.Enemies
 
         public PlayerControllerScript Target { get; private set; }
         public int TotalContacts { get; private set; }
-        public bool IsReady => enemy != null && enemy.Definition != null && !enemy.IsDead && !enemy.IsPaused && age >= spawnGraceSeconds;
+        public bool IsReady => enemy != null && enemy.Definition != null && !enemy.IsDead && !enemy.IsPaused && !enemy.IsDisrupted && age >= spawnGraceSeconds;
         private static readonly List<DroneController> active = new List<DroneController>();
         private EnemyBase enemy;
         private Rigidbody body;

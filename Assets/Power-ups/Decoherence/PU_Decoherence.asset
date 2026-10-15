@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: PU_Decoherence
   m_EditorClassIdentifier: 
   displayName: Decoherence
-  description: Phasing stun shield
+  description: Hold Shield and move to paint a lingering disruption field
   spawnWeight: 1
   pickupPrefab: {fileID: 4270921612713813033, guid: 335549c2a3c5a45ffae53340f955b7bd,
     type: 3}
@@ -26,6 +26,33 @@ MonoBehaviour:
   attackerStunSeconds: 0.55
   passThroughDistance: 1
   ignoreCollisionSeconds: 0.25
+  fullMeterPaintSeconds: 6
+  emptyToFullRefillSeconds: 4
+  minimumActivationCharge: 0.15
+  paintLifetimeSeconds: 4
+  paintRecedeSeconds: 0.24
+  energyRingPrefab: {fileID: 4728341221358630308, guid: 7fec382975ea01a41b418b3559198041,
+    type: 3}
+  fieldRadius: 2.2
+  activationEaseSeconds: 0.24
+  secondsPerSwordHit: 1
+  fieldMovementMultiplier: 0.9
+  disruptionSeconds: 0.25
+  disruptionRecoverySeconds: 2
+  playerDamagePerSecond: 0.04
+  fieldOpacity: 0.55
+  fieldLineWidth: 0.018
+  outlineNoiseAmount: 0.045
+  outlineNoiseFrequency: 1.35
+  outlineNoiseSpeed: 0.45
+  ghostOutlineCount: 3
+  ghostOutlineNoiseAmount: 0.13
+  ghostOutlineOpacity: 0.24
+  enemySplitDistance: 0.16
+  gridEchoMaterial: {fileID: 2100000, guid: 8272c2cd1a7fee546a21a94327ea2172, type: 2}
+  gridEchoOpacity: 0.16
+  gridEchoDisplacement: 0.18
+  gridEchoSpeed: 0.4
   showEquippedContours: 1
   contourOpacity: 0.38
   contourSeparation: 0.24

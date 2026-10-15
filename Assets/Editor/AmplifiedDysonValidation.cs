@@ -117,7 +117,14 @@ public static class AmplifiedDysonValidation
         Check(panelTransforms.All(t => t.GetComponent<MeshFilter>().sharedMesh.triangles.Length == 6), "Flipping panels have solid reverse faces even with the legacy front-culling material");
         Check(ValidateFlipOutline(panels) < .00001f, "Fully reversed panels occupy their original triangle outlines");
         var rotations = panelTransforms.Select(t => t.localRotation).ToArray();
-        delay = Delay(.45f); while (delay.MoveNext()) yield return null;
+        // Emitted waves deliberately leave a settled interval between flips.
+        // Wait for the next front instead of assuming motion in every .45-second window.
+        float wavePeriod = Mathf.Max(1f / Mathf.Max(.01f, panels.shimmerFrequency),
+            panels.shimmerWaveTravelSeconds + panels.shimmerPanelFlipSeconds);
+        float flipDeadline = Time.time + Mathf.Min(15f, wavePeriod + panels.shimmerWaveTravelSeconds + panels.shimmerPanelFlipSeconds + .5f);
+        while (Time.time < flipDeadline &&
+            panelTransforms.Where((t, i) => Quaternion.Angle(t.localRotation, rotations[i]) > 10f).Count() <= 5)
+            yield return null;
         Check(panelTransforms.Where((t, i) => Quaternion.Angle(t.localRotation, rotations[i]) > 10f).Count() > 5, "Panel wave flips actual geometry with breathing and shell spin disabled");
         Capture("amplified-dyson.png", Vector3.zero, 1.5f);
         panels.shimmerAmplitudeDegrees = 0;
@@ -224,23 +231,20 @@ public static class AmplifiedDysonValidation
     {
         const BindingFlags hidden = BindingFlags.Instance | BindingFlags.NonPublic;
         var type = typeof(DysonSpherePanels);
-        var apply = type.GetMethod("ApplyShimmer", hidden);
+        var rotate = type.GetMethod("RotateShimmerPanel", hidden);
         var generated = (IEnumerable)type.GetField("_panels", hidden).GetValue(panels);
-        float frequency = panels.shimmerFrequency, wavelength = panels.shimmerWavelength;
         float amplitude = panels.shimmerAmplitudeDegrees;
-        bool enabled = panels.shimmerEnabled;
         float worst = 0f;
         int count = 0;
         try
         {
-            panels.shimmerEnabled = true; panels.shimmerFrequency = 1f;
-            panels.shimmerWavelength = 0f; panels.shimmerAmplitudeDegrees = 180f;
+            panels.shimmerAmplitudeDegrees = 180f;
             foreach (var panel in generated)
             {
                 var fields = panel.GetType();
                 var rotation = (Quaternion)fields.GetField("baseRotLocal").GetValue(panel);
-                var front = (Quaternion)apply.Invoke(panels, new object[] { panel, rotation, -.25f });
-                var back = (Quaternion)apply.Invoke(panels, new object[] { panel, rotation, .25f });
+                var front = (Quaternion)rotate.Invoke(panels, new object[] { panel, rotation, 0f });
+                var back = (Quaternion)rotate.Invoke(panels, new object[] { panel, rotation, 1f });
                 if (Vector3.Dot(front * Vector3.forward, back * Vector3.forward) > -.99999f)
                     throw new Exception("Panel did not expose its reverse face at full flip.");
                 var vertices = new[] { (Vector3)fields.GetField("v0").GetValue(panel),
@@ -254,8 +258,7 @@ public static class AmplifiedDysonValidation
         }
         finally
         {
-            panels.shimmerEnabled = enabled; panels.shimmerFrequency = frequency;
-            panels.shimmerWavelength = wavelength; panels.shimmerAmplitudeDegrees = amplitude;
+            panels.shimmerAmplitudeDegrees = amplitude;
         }
     }
 

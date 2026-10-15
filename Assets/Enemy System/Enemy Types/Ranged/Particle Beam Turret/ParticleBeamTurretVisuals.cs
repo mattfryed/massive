@@ -66,6 +66,17 @@ namespace Massive.Enemies
         public Vector3 FacetCornerWorld(int face, int corner) => transform.TransformPoint(corners[Mathf.Clamp(face, 0, FaceCount - 1) * 3 + Mathf.Clamp(corner, 0, 2)]);
         private EnemyBase enemy;
         private ParticleBeamTurretController turret;
+        private EnemySpawnPresentation spawnPresentation;
+        private bool presentationActive, presentationCharging, presentationFiring;
+        private float presentationCharge;
+        private Vector3 presentationEnd;
+        // Instruction panes can drive the native pose without a targeting/damage controller.
+        public void SetPresentationState(bool charging, bool firing, float charge, Vector3 beamEnd)
+        {
+            presentationActive = true; presentationCharging = charging; presentationFiring = firing;
+            presentationCharge = Mathf.Clamp01(charge); presentationEnd = beamEnd;
+        }
+        public void ClearPresentationState() { presentationActive = presentationCharging = presentationFiring = false; presentationCharge = 0f; }
         private Mesh mesh;
         private float age, deathAge = -1f, chargeMix, jitterClock, domeClock;
         private readonly Vector3[] corners = new Vector3[FaceCount * 3], vertices = new Vector3[FaceCount * 6];
@@ -77,6 +88,7 @@ namespace Massive.Enemies
         public override void OnEnable()
         {
             enemy = GetComponent<EnemyBase>(); turret = GetComponent<ParticleBeamTurretController>();
+            spawnPresentation = GetComponentInParent<EnemySpawnPresentation>();
             if (enemy) enemy.Died += OnDeath;
             age = RingAngle = chargeMix = jitterClock = MouthOpening = DeathProgress = domeClock = DomeOffset = 0f; deathAge = -1f;
             properties = new MaterialPropertyBlock();
@@ -103,7 +115,8 @@ namespace Massive.Enemies
             if (!mesh) { mesh = new Mesh { name = "Turret triangles (generated)", hideFlags = HideFlags.DontSave }; mesh.MarkDynamic(); }
             mesh.vertices = vertices;
             var indices = new int[vertices.Length]; for (int i = 0; i < indices.Length; i++) indices[i] = i;
-            mesh.triangles = indices; panels.sharedMesh = mesh; UpdateGeometry(1f);
+            mesh.triangles = indices; panels.sharedMesh = mesh;
+            UpdateGeometry(Application.isPlaying && spawnPresentation && spawnPresentation.isActiveAndEnabled ? spawnPresentation.Progress01 : 1f);
         }
         public void ApplyDimensions()
         {
@@ -143,8 +156,8 @@ namespace Massive.Enemies
             float dt = Application.isPlaying ? Time.deltaTime : 0f; age += dt;
             if (deathAge >= 0f) deathAge += dt;
             DeathProgress = deathAge < 0f ? 0f : Mathf.Clamp01(deathAge / Mathf.Max(.01f, enemy ? enemy.despawnDelaySeconds : .8f));
-            bool charging = turret && turret.Phase == ParticleBeamTurretController.AttackPhase.Charging;
-            bool firing = turret && turret.Phase == ParticleBeamTurretController.AttackPhase.Firing;
+            bool charging = turret ? turret.Phase == ParticleBeamTurretController.AttackPhase.Charging : presentationActive && presentationCharging;
+            bool firing = turret ? turret.Phase == ParticleBeamTurretController.AttackPhase.Firing : presentationActive && presentationFiring;
             chargeMix = Mathf.MoveTowards(chargeMix, charging ? 1f : 0f, dt / .15f);
             jitterClock += dt * Mathf.Lerp(idleSpeed, chargeSpeed, chargeMix);
             RingAngle = Mathf.Repeat(RingAngle + ringSpinSpeed * dt, 360f);
@@ -155,6 +168,7 @@ namespace Massive.Enemies
             domeClock = Mathf.Repeat(domeClock + dt * domeFrequency * Mathf.PI * 2f, Mathf.PI * 2f);
             DomeOffset = Mathf.Sin(domeClock) * domeAmplitude;
             float reveal = Application.isPlaying && turret ? turret.RevealProgress : 1f;
+            if (Application.isPlaying && spawnPresentation && spawnPresentation.isActiveAndEnabled) reveal = spawnPresentation.Progress01;
             UpdateGeometry(reveal); UpdateCore(reveal);
         }
         /// <summary>Complete pose in root-local space, shared by visible faces and arrival outlines.</summary>
@@ -215,7 +229,7 @@ namespace Massive.Enemies
         }
         private void UpdateCore(float reveal)
         {
-            float charge = turret ? turret.Charge01 : 0f;
+            float charge = turret ? turret.Charge01 : presentationActive ? presentationCharge : 0f;
             float scale = Mathf.SmoothStep(0f, 1f, reveal) * (1f - DeathProgress) * (1f + charge * coreChargeGrowth);
             for (int i = 0; i < 7; i++)
             {
@@ -243,14 +257,19 @@ namespace Massive.Enemies
                         Vector3 a = corners[f * 3 + (origin[f] + j) % 3], b = corners[f * 3 + (origin[f] + j + 1) % 3];
                         if ((b - a).sqrMagnitude > .000001f) Draw.Line(a, Vector3.Lerp(a, b, part));
                     }
-                if (Application.isPlaying && turret && turret.Phase == ParticleBeamTurretController.AttackPhase.Charging && DeathProgress == 0f)
+                bool charging = turret ? turret.Phase == ParticleBeamTurretController.AttackPhase.Charging : presentationActive && presentationCharging;
+                if (Application.isPlaying && charging && DeathProgress == 0f)
                 {
+                    Vector3 beamOrigin = turret ? turret.BeamOrigin : firingPivot.position;
+                    Vector3 beamDirection = turret ? turret.BeamDirection : (presentationEnd - beamOrigin).normalized;
+                    float beamLength = turret ? turret.BeamLength : Vector3.Distance(beamOrigin, presentationEnd);
+                    float charge = turret ? turret.Charge01 : presentationCharge;
                     Draw.Matrix = Matrix4x4.identity; Draw.Color = Color.white;
-                    Draw.Thickness = Mathf.Lerp(.004f, .009f, turret.Charge01);
+                    Draw.Thickness = Mathf.Lerp(.004f, .009f, charge);
                     // Telegraph brightness stays binary too; charge reveals longer dashes instead of alpha.
-                    for (float distance = 0f; distance < turret.BeamLength; distance += .25f)
-                        Draw.Line(turret.BeamOrigin + turret.BeamDirection * distance,
-                            turret.BeamOrigin + turret.BeamDirection * Mathf.Min(turret.BeamLength, distance + Mathf.Lerp(.045f, .14f, turret.Charge01)));
+                    for (float distance = 0f; distance < beamLength; distance += .25f)
+                        Draw.Line(beamOrigin + beamDirection * distance,
+                            beamOrigin + beamDirection * Mathf.Min(beamLength, distance + Mathf.Lerp(.045f, .14f, charge)));
                 }
             }
         }

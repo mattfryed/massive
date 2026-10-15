@@ -22,6 +22,7 @@ namespace Massive.Demonstrations
 
         private void PrepareAmplifier()
         {
+            if (IsAmplifierArena) { PrepareAmplifierArena(); return; }
             if (!scenario.amplifierCorePrefab || !scenario.scoreEconomy || !scenario.teamGoalPrefab)
             { Fail("Amplifier demo needs the canonical Core, team goal and score economy."); return; }
             var chain = primary.GetComponent<PlayerScoreChain>();
@@ -79,6 +80,7 @@ namespace Massive.Demonstrations
 
         private IEnumerator AmplifierDemo()
         {
+            if (IsAmplifierArena) { yield return AmplifierArenaDemo(); yield break; }
             if (!amplifierCore) { Fail("Amplifier Core failed to spawn."); yield break; }
             yield return Until(() => !amplifierCore.IsCaptured && !amplifierCore.IsOccupied && !amplifierCore.IsLaunched,
                 "Amplifier did not complete its normal spawn/respawn.", 15f);

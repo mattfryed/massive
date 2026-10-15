@@ -201,7 +201,7 @@ namespace Massive.PowerUps
             else
             {
                 var enemy = contact.GetComponentInParent<EnemyBase>();
-                if (enemy) enemy.TakeDamage(Mathf.Max(0, definition.enemyDamagePerSecond) * dt, EnemyDamageSource.Projectile, owner);
+                if (enemy) enemy.TakeDamage(Mathf.Max(0, definition.enemyDamagePerSecond) * dt, EnemyDamageSource.Projectile, owner, EnemyDamageDelivery.Sustained);
             }
         }
 

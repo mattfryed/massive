@@ -38,6 +38,7 @@ namespace Massive.Demonstrations
         public int ConfirmedHits { get; private set; }
         public int ConfirmedParries { get; private set; }
         public int ConfirmedLateBlocks { get; private set; }
+        public int ConfirmedCounters { get; private set; }
         public int ConfirmedDecoherenceParries { get; private set; }
         public int ConfirmedProjectileContacts { get; private set; }
         public float LastContactShieldAge { get; private set; }
@@ -58,9 +59,14 @@ namespace Massive.Demonstrations
         private Vector3 primaryHome, partnerHome;
         private float pickupGap;
         private bool targetDied, targetRespawned;
+        private bool counterLanded;
         private PowerUpPickup activePickup;
 
-        private void Awake() { if (joystick) joystickHome = joystick.localPosition; }
+        private void Awake()
+        {
+            if (joystick) joystickHome = joystick.localPosition;
+            CacheAmplifierControls();
+        }
         private void OnEnable() { if (playOnEnable) Play(); }
         private void OnDisable() { Stop(); }
         public void Play()
@@ -84,18 +90,22 @@ namespace Massive.Demonstrations
             if (attackButton) attackButton.SetActive(false);
             if (shieldButton) shieldButton.SetActive(false);
             if (joystick) joystick.localPosition = joystickHome;
+            ResetAmplifierControls();
         }
         private void LateUpdate()
         {
             if (attackButton) attackButton.SetActive(Time.time < attackCueUntil);
             if (shieldButton) shieldButton.SetActive(Time.time < shieldCueUntil);
-            if (joystick && primary)
+            var controlledActor = scenario && scenario.kind == PlayerDemoKind.DefenseSequence ? partner : primary;
+            if (joystick && controlledActor)
             {
-                var direction = new Vector3(primary.moveHorizontal, 0f, primary.moveVertical);
+                var direction = new Vector3(controlledActor.moveHorizontal, 0f, controlledActor.moveVertical);
                 if (IsDroneCombat && (primary.attackController.IsCharging || primary.attackController.IsAttacking))
                     direction = primary.AimDirectionWS;
+                if (IsAmplifierArena && controlledActor.IsInsideAmplifier) direction = controlledActor.AimDirectionWS;
                 joystick.localPosition = joystickHome + direction * .25f;
             }
+            UpdateAmplifierControls();
         }
 
         private IEnumerator Run()
@@ -109,9 +119,10 @@ namespace Massive.Demonstrations
             var stage = primary.attackController.Profile.GetStage(0);
             float travel = stage.TravelDistance * PlayerScaleAdjuster.ActionReachOf(primary);
             pickupGap = PlayerScaleAdjuster.BodyRadiusOf(primary) + travel * .5f + .3f;
-            if (scenario.kind == PlayerDemoKind.Block || scenario.kind == PlayerDemoKind.CombatPair || scenario.powerUp is ParticleAcceleratorPowerUpDefinition)
+            if (scenario.kind == PlayerDemoKind.Block || scenario.kind == PlayerDemoKind.DefenseSequence ||
+                scenario.kind == PlayerDemoKind.CombatPair || scenario.powerUp is ParticleAcceleratorPowerUpDefinition)
             {
-                bool meleePair = scenario.kind == PlayerDemoKind.Block ||
+                bool meleePair = scenario.kind == PlayerDemoKind.Block || scenario.kind == PlayerDemoKind.DefenseSequence ||
                     (scenario.kind == PlayerDemoKind.CombatPair && !(scenario.powerUp is ParticleAcceleratorPowerUpDefinition));
                 float gap = meleePair ? PlayerScaleAdjuster.BodyRadiusOf(primary) * 2f + travel * .45f :
                     (scenario.kind == PlayerDemoKind.CombatPair ? scenario.acceleratorTargetDistance : pickupGap + scenario.acceleratorTargetDistance);
@@ -120,6 +131,8 @@ namespace Massive.Demonstrations
                 partner.DeathStarted += p => { targetDied = true; ConfirmedKills++; };
                 partner.RespawnCompleted += p => { targetRespawned = true; ConfirmedRespawns++; };
                 partner.HitAccepted += hit => { receivedHit = true; ConfirmedHits++; };
+                if (scenario.kind == PlayerDemoKind.DefenseSequence)
+                    primary.HitAccepted += hit => { counterLanded = true; };
                 if (scenario.kind == PlayerDemoKind.CombatPair)
                 {
                     primaryHome = transform.position - Vector3.right * gap * .5f;
@@ -168,6 +181,7 @@ namespace Massive.Demonstrations
                 if (IsDroneCombat) yield return DroneCombatDemo();
                 else if (scenario.kind == PlayerDemoKind.AmplifierGoal) yield return AmplifierDemo();
                 else if (scenario.kind == PlayerDemoKind.CombatPair) yield return CombatPairDemo();
+                else if (scenario.kind == PlayerDemoKind.DefenseSequence) yield return DefenseSequenceDemo();
                 else if (scenario.kind == PlayerDemoKind.Block) yield return BlockDemo();
                 else if (scenario.kind == PlayerDemoKind.PowerUp) yield return PowerUpDemo();
                 else yield return ComboDemo();
@@ -185,6 +199,17 @@ namespace Massive.Demonstrations
                         float bypass = PlayerScaleAdjuster.BodyRadiusOf(primary) + PlayerScaleAdjuster.BodyRadiusOf(partner) + .4f;
                         yield return MoveActorTo(primary, primary.transform.position + Vector3.forward * bypass, Vector3.right);
                         yield return MoveActorTo(primary, primaryHome + Vector3.forward * bypass, Vector3.right);
+                    }
+                }
+                else if (scenario.kind == PlayerDemoKind.DefenseSequence)
+                {
+                    yield return Ready(primary); yield return Ready(partner);
+                    if (failed) break;
+                    if (partner.transform.position.x < primary.transform.position.x)
+                    {
+                        float bypass = PlayerScaleAdjuster.BodyRadiusOf(primary) + PlayerScaleAdjuster.BodyRadiusOf(partner) + .4f;
+                        yield return MoveActorTo(partner, partner.transform.position + Vector3.forward * bypass, Vector3.left);
+                        yield return MoveActorTo(partner, partnerHome + Vector3.forward * bypass, Vector3.left);
                     }
                 }
                 yield return MoveActorTo(primary, primaryHome, Vector3.right);
@@ -210,7 +235,12 @@ namespace Massive.Demonstrations
             if (scale) scale.SetDemonstrationScale(scenario.actorScale);
             foreach (var interactor in go.GetComponentsInChildren<GridInteractor>(true)) interactor.grid = demoGrid;
             foreach (var pulse in go.GetComponentsInChildren<PlayerRepulsorGridPulse>(true)) pulse.BindGrid(demoGrid);
-            actor.InputApplied += OnInput;
+            actor.InputApplied += input =>
+            {
+                // DEFEND mirrors the player's shield and counter, not the incoming attacker.
+                if (IsAmplifierArena && actor == partner) OnAmplifierPartnerInput(input);
+                else if (scenario.kind != PlayerDemoKind.DefenseSequence || actor == partner) OnInput(input);
+            };
             actor.attackController.OnStageStarted.AddListener(stage =>
             {
                 LastComboStage = actor.attackController.CurrentStageIndex;
@@ -228,7 +258,10 @@ namespace Massive.Demonstrations
             if (presentationCamera && presentationCamera.TryGetComponent<PlayerDemoView>(out var view)) view.RefreshRect();
             if (IsDroneCombat) FrameDroneCombat();
             else if (scenario.kind == PlayerDemoKind.AmplifierGoal)
-                { FrameView(Vector3.left * 5f, 14f, 4.1f); FrameAmplifierGrid(); }
+            {
+                if (IsAmplifierArena) FrameAmplifierArena();
+                else { FrameView(Vector3.left * 5f, 14f, 4.1f); FrameAmplifierGrid(); }
+            }
             else if (scenario.kind == PlayerDemoKind.MovementAndCombo)
             {
                 var profile = primary.attackController.Profile;
@@ -238,7 +271,7 @@ namespace Massive.Demonstrations
                 float left = -scenario.movementDistance - 1f, right = travel + radius + 1f;
                 FrameView(Vector3.right * ((left + right) * .5f), right - left, radius * 2f + 1f);
             }
-            else if (scenario.kind == PlayerDemoKind.Block)
+            else if (scenario.kind == PlayerDemoKind.Block || scenario.kind == PlayerDemoKind.DefenseSequence)
                 FrameView((partnerHome - primaryHome) * .5f, Vector3.Distance(primaryHome, partnerHome) + 5f, 3.4f);
             else if (scenario.powerUp is ParticleAcceleratorPowerUpDefinition accelerator)
             {
@@ -278,7 +311,7 @@ namespace Massive.Demonstrations
         private void OnInput(PlayerInputFrame input)
         {
             if (input.attackDown || input.attackHeld) attackCueUntil = Time.time + .12f;
-            if (input.shieldDown) shieldCueUntil = Time.time + .12f;
+            if (input.shieldDown || input.shieldHeld) shieldCueUntil = Time.time + .12f;
         }
         private void OnBlock(PlayerControllerScript defender)
         {
@@ -347,7 +380,7 @@ namespace Massive.Demonstrations
         {
             SetFrame(actor, Vector2.zero, direction, shield: true);
             yield return null;
-            SetFrame(actor, Vector2.zero, direction);
+            SetFrame(actor, Vector2.zero, direction, holdShield: actor.powerUps && actor.powerUps.UsesShieldCharge);
             yield return Until(() => actor.GetComponent<PlayerShieldAbility>().IsActive, "Shield input was not accepted.");
         }
         private IEnumerator Ready(PlayerControllerScript actor)
@@ -431,13 +464,77 @@ namespace Massive.Demonstrations
             }
             if (!failed) yield return Until(() => blocked, "Attack did not make shield contact.");
         }
-        private IEnumerator CombatPairDemo()
+        private IEnumerator DefenseSequenceDemo()
+        {
+            yield return CombatPairDemo(CombatDemoDefense.HeldBlock);
+            Neutral();
+            if (failed) yield break;
+            yield return new WaitForSeconds(scenario.readablePause);
+            yield return Ready(primary); yield return Ready(partner);
+            if (failed) yield break;
+            yield return MoveActorTo(primary, primaryHome, Vector3.right);
+            yield return MoveActorTo(partner, partnerHome, Vector3.left);
+            if (failed) yield break;
+
+            blocked = false;
+            yield return CombatPairDemo(CombatDemoDefense.TapParry);
+            if (failed) yield break;
+            var shield = partner.GetComponent<PlayerShieldAbility>();
+            // Let the parry's stun read before the counter while staying inside its real input window.
+            float availablePause = Mathf.Max(0f, shield.DurationSeconds - (Time.time - shieldRaisedAt) - .08f);
+            float counterPause = Mathf.Min(Mathf.Max(0f, scenario.counterAttackPause), availablePause);
+            Phase = "Parried / pause before counter";
+            if (counterPause > 0f)
+            {
+                // Hold this demonstration's contact moment so knockback cannot carry the target
+                // out of reach during the teaching beat. Stun/shield feedback keeps animating.
+                var attackerBody = primary.GetComponent<Rigidbody>();
+                var defenderBody = partner.GetComponent<Rigidbody>();
+                var attackerConstraints = attackerBody.constraints;
+                var defenderConstraints = defenderBody.constraints;
+                var attackerVelocity = attackerBody.linearVelocity;
+                var defenderVelocity = defenderBody.linearVelocity;
+                var attackerAngularVelocity = attackerBody.angularVelocity;
+                var defenderAngularVelocity = defenderBody.angularVelocity;
+                attackerBody.constraints = defenderBody.constraints = RigidbodyConstraints.FreezeAll;
+                try { yield return new WaitForSeconds(counterPause); }
+                finally
+                {
+                    if (attackerBody)
+                    {
+                        attackerBody.constraints = attackerConstraints;
+                        attackerBody.linearVelocity = attackerVelocity;
+                        attackerBody.angularVelocity = attackerAngularVelocity;
+                    }
+                    if (defenderBody)
+                    {
+                        defenderBody.constraints = defenderConstraints;
+                        defenderBody.linearVelocity = defenderVelocity;
+                        defenderBody.angularVelocity = defenderAngularVelocity;
+                    }
+                }
+            }
+            if (!shield.CanParryCounter)
+            { Fail("Parry did not leave an active counter window."); yield break; }
+            counterLanded = false;
+            Phase = "Counter-thrust";
+            yield return Attack(partner, Vector3.left);
+            yield return Until(() => counterLanded, "Counter-thrust did not hit the attacker.");
+            if (failed) yield break;
+            yield return Until(() => !partner.attackController.IsAttacking, "Counter-thrust did not finish.");
+            if (failed) yield break;
+            ConfirmedCounters++;
+            Phase = LastOutcome = "Block / parry / counter complete";
+        }
+
+        private IEnumerator CombatPairDemo(CombatDemoDefense? defenseOverride = null)
         {
             var shield = partner.GetComponent<PlayerShieldAbility>();
             var accelerator = scenario.powerUp as ParticleAcceleratorPowerUpDefinition;
-            bool heldBlock = scenario.defense == CombatDemoDefense.HeldBlock;
-            bool undefended = scenario.defense == CombatDemoDefense.None;
-            bool decoherence = scenario.defense == CombatDemoDefense.DecoherenceParry;
+            var defense = defenseOverride ?? scenario.defense;
+            bool heldBlock = defense == CombatDemoDefense.HeldBlock;
+            bool undefended = defense == CombatDemoDefense.None;
+            bool decoherence = defense == CombatDemoDefense.DecoherenceParry;
             Phase = "Recharging";
             yield return Ready(primary); if (failed) yield break;
             yield return Ready(partner); if (failed) yield break;
@@ -509,18 +606,21 @@ namespace Massive.Demonstrations
         }
 
         private IEnumerator ClaimPowerUp()
+            => ClaimPowerUp(primaryHome, Vector3.right);
+
+        private IEnumerator ClaimPowerUp(Vector3 origin, Vector3 direction)
         {
             var def = scenario.powerUp;
             if (primary.powerUps.HasActive && primary.powerUps.ActiveDefinition == def) yield break;
             Phase = "Claiming " + def.displayName;
             if (!activePickup)
             {
-                activePickup = PowerUpPickup.Spawn(def, primaryHome + Vector3.right * pickupGap, def.pickupPrefab.transform.rotation, session.transform);
+                activePickup = PowerUpPickup.Spawn(def, origin + direction * pickupGap, def.pickupPrefab.transform.rotation, session.transform);
                 activePickup.Claimed += p => { if (p == primary) ConfirmedClaims++; };
             }
             yield return new WaitForSeconds(.6f);
             yield return Ready(primary); if (failed) yield break;
-            yield return Attack(primary, Vector3.right);
+            yield return Attack(primary, direction);
             yield return Until(() => primary.powerUps.HasActive && primary.powerUps.ActiveDefinition == def, "Melee did not claim the pickup.");
             if (!failed) yield return Ready(primary);
         }
@@ -569,11 +669,15 @@ namespace Massive.Demonstrations
                 yield return MoveTo(primaryHome + Vector3.left * scenario.movementDistance);
                 if (!failed) yield return MoveTo(primaryHome + Vector3.right * scenario.movementDistance);
             }
+            else if (def is DecoherencePowerUpDefinition decoherence && scenario.droneDefinition)
+                yield return DecoherencePaintDemo(decoherence);
             else if (def is DecoherencePowerUpDefinition)
             {
                 var shield = primary.GetComponent<PlayerShieldAbility>();
-                yield return Until(() => shield.CooldownRemaining <= 0f && shield.ActivationCooldownRemaining <= 0f, "Shield did not recharge.");
+                yield return Until(() => primary.powerUps.CanActivateDecoherence, "Decoherence did not refill.");
                 if (!failed) yield return Shield(primary, Vector3.right);
+                if (!failed) yield return new WaitForSeconds(1.5f);
+                SetFrame(primary, Vector2.zero, Vector3.right);
                 if (!failed) yield return Until(() => !shield.IsActive, "Shield did not finish.");
             }
         }

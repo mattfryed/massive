@@ -164,7 +164,7 @@ namespace Massive.Enemies
         }
         private void FixedUpdate()
         {
-            if (!enemy || !enemy.Definition || enemy.IsPaused) return;
+            if (!enemy || !enemy.Definition || enemy.IsPaused || enemy.IsDisrupted) return;
             float dt = Time.fixedDeltaTime;
             if (!enemy.IsDead) Tick(dt);
             // The pool stores world-space drops and shares the owner's paused clock.

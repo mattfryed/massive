@@ -69,12 +69,14 @@ namespace Massive.PowerUps
 
         // Children
         private MetaballSDFInstance _ringSdf;
+        private MetaballSDFInstance _splitRingSdf;
         private MetaballSDFInstance _orbSdf;
         private AimRayDotsWorld _rayDots;
 
         // Runtime state
         private bool _visible;
         private bool _energyMeter;
+        private bool _followDecoherenceSplit, _splitRingVisible;
         public float EnergyMeter01 => _charge01;
         public bool IsEnergyMeterVisible => _visible && _energyMeter && _ringSdf && _ringSdf.gameObject.activeInHierarchy;
         public float LifeVisibilityScale => _lifeScale;
@@ -110,6 +112,8 @@ private int _burstSerial = 0;
         {
             UnbindLifeEvents();
             owner = p;
+            _followDecoherenceSplit = _splitRingVisible = false;
+            if (_splitRingSdf) _splitRingSdf.gameObject.SetActive(false);
             _followingLifeFx = _lifeHidden = false; _lifeScale = 1f;
             if (owner)
             {
@@ -231,6 +235,7 @@ private int _burstSerial = 0;
         private void ApplyVolumeScales()
         {
             if (_ringSdf) SetWorldVolumeScale(_ringSdf.transform, _ringVolumeSizeWorld);
+            if (_splitRingSdf) SetWorldVolumeScale(_splitRingSdf.transform, _ringVolumeSizeWorld);
             if (_orbSdf) SetWorldVolumeScale(_orbSdf.transform, _orbVolumeSizeWorld);
         }
 
@@ -253,6 +258,7 @@ private int _burstSerial = 0;
         {
             bool on = _visible && _lifeScale > .001f && !_lifeHidden;
             if (_ringSdf) _ringSdf.gameObject.SetActive(on);
+            if (_splitRingSdf) _splitRingSdf.gameObject.SetActive(on && _energyMeter && _splitRingVisible);
             if (_orbSdf)  _orbSdf.gameObject.SetActive(on && !_energyMeter);
             if (_rayDots)
             {
@@ -261,9 +267,15 @@ private int _burstSerial = 0;
             }
         }
 
-        public void SetEnergyMeter(float energy01)
+        public void SetEnergyMeter(float energy01, bool followDecoherenceSplit = false)
         {
             _energyMeter = true;
+            _followDecoherenceSplit = followDecoherenceSplit;
+            if (!followDecoherenceSplit)
+            {
+                _splitRingVisible = false;
+                if (_splitRingSdf) _splitRingSdf.gameObject.SetActive(false);
+            }
             _charge01 = Mathf.Clamp01(energy01);
             _charging = false;
             _burstT = 0;
@@ -280,6 +292,8 @@ private int _burstSerial = 0;
             float blockedDistance)
         {
             _energyMeter = false;
+            _followDecoherenceSplit = _splitRingVisible = false;
+            if (_splitRingSdf) _splitRingSdf.gameObject.SetActive(false);
             _charging = charging;
             _charge01 = Mathf.Clamp01(charge01);
             _cooldown01 = Mathf.Clamp01(cooldown01);
@@ -425,6 +439,7 @@ public Vector3 GetVfxOriginWS()
         private void BuildRing(Vector3 centerWS)
         {
             if (!_ringSdf) return;
+            if (_energyMeter) { BuildEnergyMeter(centerWS); return; }
 
             _ringSdf.Clear();
 
@@ -434,21 +449,7 @@ public Vector3 GetVfxOriginWS()
             float step = (Mathf.PI * 2f) / ringDots;
             float start = ringStartAngleDeg * Mathf.Deg2Rad;
 
-            if (_energyMeter)
-            {
-                // The fractional dot scales continuously while draining or refilling.
-                float filledDots = _charge01 * ringDots;
-                for (int i = 0; i < ringDots; i++)
-                {
-                    float fill = Mathf.Clamp01(filledDots - i);
-                    if (fill <= 0) continue;
-                    float angle = start + step * (ringClockwise ? -i : i);
-                    Vector3 offset = new Vector3(Mathf.Cos(angle) * ringRadiusWorld, ringHeightWorld,
-                        Mathf.Sin(angle) * ringRadiusWorld) * (SpatialScale * _lifeScale);
-                    _ringSdf.AddBall(offset * invS, ringDotMaxRadiusWorld * Mathf.Sqrt(fill) * SpatialScale * _lifeScale * invS);
-                }
-            }
-            else if (_charging)
+            if (_charging)
             {
                 float p = _charge01 * ringDots;
                 int full = Mathf.FloorToInt(p);
@@ -534,6 +535,62 @@ public Vector3 GetVfxOriginWS()
             // Place ring volume at player center (local space via parented module)
             _ringSdf.transform.position = centerWS;
             _ringSdf.transform.rotation = Quaternion.identity;
+        }
+
+        private void BuildEnergyMeter(Vector3 centerWS)
+        {
+            var visual = _followDecoherenceSplit ? owner.visualsController : null;
+            float split = visual && visual.isActiveAndEnabled ? Mathf.Clamp01(visual.DecoSplit01) : 0f;
+            _splitRingVisible = split > .001f;
+            if (visual && visual.isActiveAndEnabled)
+                centerWS += visual.DecoPreJitterWS + visual.RepulsorVisualOffsetWS + visual.ThrustChargeVisualOffsetWS;
+
+            if (_splitRingVisible)
+            {
+                // Borrow the body's live pose, including its phase pulse and independent
+                // ghost jitter. Release follows its recombination instead of snapping shut.
+                Vector3 offset = visual.DecoSideWS * (.5f * visual.DecoSplitSeparationWorld * split);
+                EnsureSplitRing();
+                BuildEnergyRing(_ringSdf, centerWS + offset + visual.DecoGhostJitterA_WS);
+                BuildEnergyRing(_splitRingSdf, centerWS - offset + visual.DecoGhostJitterB_WS);
+            }
+            else BuildEnergyRing(_ringSdf, centerWS);
+            ApplyVisibility();
+        }
+
+        private void EnsureSplitRing()
+        {
+            if (_splitRingSdf) return;
+            // A separate cached volume keeps both rings complete even at 32 dots;
+            // putting two rings in one SDF would exceed its 48-ball capacity.
+            var go = new GameObject("Decoherence_ChargeRingEcho");
+            go.transform.SetParent(transform, false);
+            go.AddComponent<MeshFilter>().sharedMesh = _ringSdf.GetComponent<MeshFilter>().sharedMesh;
+            go.AddComponent<MeshRenderer>().sharedMaterial = metaballMaterial;
+            _splitRingSdf = go.AddComponent<MetaballSDFInstance>();
+            SetWorldVolumeScale(go.transform, _ringVolumeSizeWorld);
+        }
+
+        private void BuildEnergyRing(MetaballSDFInstance ring, Vector3 centerWS)
+        {
+            ring.Clear();
+            float invS = 1f / Mathf.Max(.0001f, _ringVolumeSizeWorld);
+            float step = Mathf.PI * 2f / ringDots;
+            float start = ringStartAngleDeg * Mathf.Deg2Rad;
+            float filledDots = _charge01 * ringDots;
+            for (int i = 0; i < ringDots; i++)
+            {
+                // Both copies show the same energy, including the fractional dot.
+                float fill = Mathf.Clamp01(filledDots - i);
+                if (fill <= 0) continue;
+                float angle = start + step * (ringClockwise ? -i : i);
+                Vector3 offset = new Vector3(Mathf.Cos(angle) * ringRadiusWorld, ringHeightWorld,
+                    Mathf.Sin(angle) * ringRadiusWorld) * (SpatialScale * _lifeScale);
+                ring.AddBall(offset * invS, ringDotMaxRadiusWorld * Mathf.Sqrt(fill) * SpatialScale * _lifeScale * invS);
+            }
+            ring.Apply();
+            ring.transform.position = centerWS;
+            ring.transform.rotation = Quaternion.identity;
         }
 
 private void BuildOrb(Vector3 centerWS)

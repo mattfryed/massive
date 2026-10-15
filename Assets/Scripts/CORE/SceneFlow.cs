@@ -5,7 +5,7 @@ using UnityEngine.SceneManagement;
 public static class SceneFlow
 {
     public const string InstructionsScene = "S-0_INSTRUCTIONS";
-    public const string HowToPlayScene = "S-0_HOW-TO-PLAY";
+    public const string HowToPlayScene = "S-0_HOW-TO-PLAY-PANES";
     public const string LevelSelectScene = "S-0_LEVEL-SELECT NEW";
     public const string ChooseModeScene = "S-0_ATTRACT";
     public const string PostGameScene = "S-0_POSTGAME-V2";

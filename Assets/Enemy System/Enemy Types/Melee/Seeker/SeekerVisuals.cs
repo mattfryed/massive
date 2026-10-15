@@ -62,6 +62,7 @@ namespace Massive.Enemies
         public float NoseStretch { get; private set; } = 1f;
         public float FacetProgress(int i) => progress[Mathf.Clamp(i, 0, FaceCount - 1)];
         private SeekerController seeker;
+        private EnemySpawnPresentation spawnPresentation;
         private EnemyBase enemy;
         private Mesh mesh;
         private MaterialPropertyBlock properties;
@@ -76,6 +77,7 @@ namespace Massive.Enemies
         public override void OnEnable()
         {
             seeker = GetComponent<SeekerController>(); enemy = GetComponent<EnemyBase>();
+            spawnPresentation = GetComponentInParent<EnemySpawnPresentation>();
             if (enemy) enemy.Died += OnDeath;
             deathAge = -1f; AnimationTime = DeathProgress = RearDisplacement = 0f;
             NoseAngle = 0f; NoseSpinMultiplier = NoseStretch = 1f; noseBounceAge = -1f; wasThrusting = false; ClearGhosts();
@@ -104,7 +106,8 @@ namespace Massive.Enemies
             if (!panels) return;
             if (!mesh) { mesh = new Mesh { name = "Seeker shell (generated)", hideFlags = HideFlags.DontSave }; mesh.MarkDynamic(); }
             mesh.vertices = vertices; var indices = new int[vertices.Length]; for (int i = 0; i < indices.Length; i++) indices[i] = i;
-            mesh.triangles = indices; panels.sharedMesh = mesh; UpdateGeometry(1f);
+            mesh.triangles = indices; panels.sharedMesh = mesh;
+            UpdateGeometry(Application.isPlaying && spawnPresentation && spawnPresentation.isActiveAndEnabled ? spawnPresentation.Progress01 : 1f);
         }
         private void LateUpdate()
         {
@@ -119,6 +122,7 @@ namespace Massive.Enemies
                 compression = 1f - Mathf.SmoothStep(0f, 1f, seeker.PhaseAge / Mathf.Max(.01f, releaseSeconds));
             RearDisplacement = (seeker ? seeker.Extension01 : 0f) * chargeStretch - compression * compressionTravel;
             float reveal = Application.isPlaying && seeker ? seeker.RevealProgress : 1f;
+            if (Application.isPlaying && spawnPresentation && spawnPresentation.isActiveAndEnabled) reveal = spawnPresentation.Progress01;
             UpdateGeometry(reveal); UpdateCore(reveal); AdvanceGhosts(dt);
         }
         private void AnimateNose(float dt)

@@ -30,7 +30,8 @@ namespace Massive.Enemies
                 defeat.source != EnemyDamageSource.Projectile &&
                 defeat.source != EnemyDamageSource.ShieldReflect &&
                 defeat.source != EnemyDamageSource.Repulsor &&
-                defeat.source != EnemyDamageSource.AmplifierShot) return;
+                defeat.source != EnemyDamageSource.AmplifierShot &&
+                defeat.source != EnemyDamageSource.Decoherence) return;
             if (_enemy.OwnerTeamId == defeat.creditedPlayer.teamID) return;
 
             MatchScoreService service = MatchScoreService.Instance;

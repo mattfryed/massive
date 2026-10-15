@@ -31,7 +31,7 @@ namespace Massive.Enemies
     /// - Provide a simple damage API for sword hits, reflected projectiles, etc.
     /// </summary>
     [DisallowMultipleComponent]
-    public class EnemyBase : MonoBehaviour
+    public partial class EnemyBase : MonoBehaviour
     {
         [Tooltip("Visual cleanup time after death. Damage/scoring stop immediately; zero preserves instant removal.")]
         [Min(0f)] public float despawnDelaySeconds;
@@ -103,6 +103,7 @@ namespace Massive.Enemies
         private Vector3 _savedAngVel;
 
         private float _killTime = float.PositiveInfinity;
+        private float nextSustainedHitSound;
 
         private static readonly List<EnemyBase> activeEnemies = new List<EnemyBase>();
         public static IReadOnlyList<EnemyBase> ActiveEnemies => activeEnemies;
@@ -127,7 +128,7 @@ namespace Massive.Enemies
             MatterNuggetScript.IgnoreEnemyContacts(this);
             EnsureResonanceCollisionFilter(GetComponent<Rigidbody>());
         }
-        private void OnDisable() { activeEnemies.Remove(this); movementInfluences.Clear(); ReleaseResonanceCollisionFilter(); }
+        private void OnDisable() { activeEnemies.Remove(this); movementInfluences.Clear(); ResetDisruption(); ReleaseResonanceCollisionFilter(); }
 
         public void Init(EnemyDefinition def, EnemyDirector director)
         {
@@ -137,6 +138,9 @@ namespace Massive.Enemies
             Definition = def;
             Director = director;
             movementInfluences.Clear();
+
+            ResetDisruption();
+            nextSustainedHitSound = float.NegativeInfinity;
 
             SpawnTime = Time.time;
             IsDead = false;
@@ -162,6 +166,7 @@ namespace Massive.Enemies
         {
             if (IsDead) return;
             if (IsPaused) return;
+            TickDisruption(Time.deltaTime);
 
             if (Time.time >= _killTime)
             {
@@ -212,7 +217,8 @@ namespace Massive.Enemies
             TakeDamage(amountMassEq, source, null);
         }
 
-        public void TakeDamage(float amountMassEq, EnemyDamageSource source, PlayerControllerScript creditedPlayer)
+        public void TakeDamage(float amountMassEq, EnemyDamageSource source, PlayerControllerScript creditedPlayer,
+            EnemyDamageDelivery delivery = EnemyDamageDelivery.Impact)
         {
             if (IsDead || IsPaused || Definition == null) return;
             if (amountMassEq <= 0f || float.IsNaN(amountMassEq) || float.IsInfinity(amountMassEq)) return;
@@ -223,9 +229,15 @@ namespace Massive.Enemies
             float actualDamage = Mathf.Min(HealthRemaining, amountMassEq);
             HealthRemaining -= amountMassEq;
 
-            // Optional SFX
-            if (Definition != null)
-                TryPlaySfx(Definition.sfxHit);
+            // Every enemy inherits the same sustained-feedback policy. Damage/events
+            // still run every tick; impacts and death retain their ordinary cues.
+            if (delivery == EnemyDamageDelivery.Sustained)
+            {
+                var audio = AudioSystem.I;
+                if (audio && Time.unscaledTime >= nextSustainedHitSound && audio.TryPlaySustainedHit(Definition.sfxHit, transform.position))
+                    nextSustainedHitSound = Time.unscaledTime + Mathf.Max(.05f, audio.sustainedHitInterval);
+            }
+            else TryPlaySfx(Definition.sfxHit);
 
             Damaged?.Invoke(new EnemyDamageContext { enemy = this, creditedPlayer = creditedPlayer,
                 source = source, amount = actualDamage, healthRemaining = HealthRemaining });

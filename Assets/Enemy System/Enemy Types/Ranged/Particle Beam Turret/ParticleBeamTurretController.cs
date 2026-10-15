@@ -168,6 +168,12 @@ namespace Massive.Enemies
         private void FixedUpdate()
         {
             if (!enemy || !enemy.Definition || enemy.IsDead || enemy.IsPaused) return;
+            if (enemy.IsDisrupted)
+            {
+                HideBeam();
+                if (Phase == AttackPhase.Charging || Phase == AttackPhase.Firing) Enter(AttackPhase.Cooldown);
+                return;
+            }
             float dt = Time.fixedDeltaTime;
             if (contactPlasma) contactPlasma.Advance(dt);
             if (corePlasma) corePlasma.Advance(dt);

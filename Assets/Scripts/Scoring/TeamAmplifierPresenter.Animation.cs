@@ -24,7 +24,7 @@ namespace Massive.Scoring
         Vector4 LayoutFor(int multiplier)
         {
             var s = GoalNumberSettings;
-            float whole = s.ScaleFor(multiplier);
+            float whole = s.ScaleFor(multiplier) * demonstrationBadgeScale;
             return new Vector4(whole, whole * s.WhiteCircleScaleFor(multiplier),
                 whole * s.NumberScaleFor(multiplier), whole * s.NumberHorizontalOffsetFor(multiplier, teamID));
         }

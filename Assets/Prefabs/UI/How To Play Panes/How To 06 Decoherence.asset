@@ -23,7 +23,9 @@ MonoBehaviour:
   acceleratorChargeFraction: 0.35
   acceleratorTargetDistance: 4
   viewPadding: 0.35
-  droneDefinition: {fileID: 0}
+  droneDefinition: {fileID: 11400000, guid: 75a66946007406a418daf7b6acea56bd, type: 2}
+  decoherenceSecondEnemy: {fileID: 11400000, guid: 078f0b73fe1fa4646abd8c00f3411eda,
+    type: 2}
   amplifierCorePrefab: {fileID: 0}
   teamGoalPrefab: {fileID: 0}
   amplifierRespawnDelay: 5

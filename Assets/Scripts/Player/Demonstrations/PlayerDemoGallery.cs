@@ -18,12 +18,16 @@ namespace Massive.Demonstrations
         private bool[] encounterWasActive;
         private float nextLabelUpdate;
         private PowerUpIconDemo[] iconDemos;
+        private GameObject activeContent;
+        private PlayerDemoDirector[] activeDemos;
+        private DecoherenceDemoLane[] fieldDemos;
         public bool IsPlaying { get; private set; }
         public IReadOnlyList<PlayerDemoDirector> Demos => demos;
 
-        public void Play(GameManagerScript activeMatch, PlayerControllerScript first, PlayerControllerScript second)
+        public void Play(GameManagerScript activeMatch, PlayerControllerScript first, PlayerControllerScript second, GameObject alternateContent = null)
         {
-            if (IsPlaying || !content) return;
+            if (IsPlaying || !(alternateContent ? alternateContent : content)) return;
+            activeContent = alternateContent ? alternateContent : content;
             match = activeMatch; matchWasEnabled = match && match.enabled;
             if (match) match.enabled = false; // Freeze the match timer while the gallery loops.
             matchPlayers = new[] { first, second };
@@ -36,16 +40,23 @@ namespace Massive.Demonstrations
                 encounters[i].SetActive(false);
             }
             IsPlaying = true;
-            content.SetActive(true);
-            iconDemos = content.GetComponentsInChildren<PowerUpIconDemo>();
+            activeContent.SetActive(true);
+            activeDemos = activeContent.GetComponentsInChildren<PlayerDemoDirector>();
+            fieldDemos = activeContent.GetComponentsInChildren<DecoherenceDemoLane>();
+            iconDemos = activeContent.GetComponentsInChildren<PowerUpIconDemo>();
             IsolateBodies();
-            foreach (var demo in demos)
+            foreach (var demo in activeDemos)
             {
                 if (demo.Primary) demo.Primary.RespawnCompleted += OnRespawn;
                 if (demo.Partner) demo.Partner.RespawnCompleted += OnRespawn;
             }
             foreach (var demo in iconDemos)
                 if (demo.Player) demo.Player.RespawnCompleted += OnRespawn;
+            foreach (var demo in fieldDemos)
+            {
+                if (demo.Primary) demo.Primary.RespawnCompleted += OnRespawn;
+                if (demo.Partner) demo.Partner.RespawnCompleted += OnRespawn;
+            }
             nextLabelUpdate = 0f;
         }
 
@@ -53,7 +64,7 @@ namespace Massive.Demonstrations
         private void IsolateBodies()
         {
             var groups = new List<Collider[]>();
-            foreach (var demo in demos)
+            foreach (var demo in activeDemos)
             {
                 if (!demo || !demo.Primary) continue;
                 var colliders = new List<Collider>(demo.Primary.GetComponentsInChildren<Collider>(true));
@@ -63,6 +74,9 @@ namespace Massive.Demonstrations
             if (iconDemos != null)
                 foreach (var demo in iconDemos)
                     if (demo && demo.Player) groups.Add(demo.Player.GetComponentsInChildren<Collider>(true));
+            if (fieldDemos != null)
+                foreach (var demo in fieldDemos)
+                    if (demo && demo.Session) groups.Add(demo.Session.GetComponentsInChildren<Collider>(true));
             for (int i = 0; i < groups.Count; i++)
                 for (int j = i + 1; j < groups.Count; j++)
                     foreach (var a in groups[i]) foreach (var b in groups[j])
@@ -71,7 +85,7 @@ namespace Massive.Demonstrations
 
         private void Update()
         {
-            if (!IsPlaying || Time.unscaledTime < nextLabelUpdate) return;
+            if (!IsPlaying || activeContent != content || Time.unscaledTime < nextLabelUpdate) return;
             nextLabelUpdate = Time.unscaledTime + .1f;
             for (int i = 0; i < demos.Length && i < statusLabels.Length; i++)
             {
@@ -86,7 +100,7 @@ namespace Massive.Demonstrations
         public void Stop()
         {
             if (!IsPlaying) return;
-            foreach (var demo in demos)
+            foreach (var demo in activeDemos)
             {
                 if (demo.Primary) demo.Primary.RespawnCompleted -= OnRespawn;
                 if (demo.Partner) demo.Partner.RespawnCompleted -= OnRespawn;
@@ -94,7 +108,14 @@ namespace Massive.Demonstrations
             if (iconDemos != null)
                 foreach (var demo in iconDemos)
                     if (demo && demo.Player) demo.Player.RespawnCompleted -= OnRespawn;
-            content.SetActive(false); // Directors stop and remove their owned actors, beams and VFX.
+            if (fieldDemos != null)
+                foreach (var demo in fieldDemos)
+                {
+                    if (demo.Primary) demo.Primary.RespawnCompleted -= OnRespawn;
+                    if (demo.Partner) demo.Partner.RespawnCompleted -= OnRespawn;
+                }
+            activeContent.SetActive(false); // Directors stop and remove their owned actors, beams and VFX.
+            activeContent = null; activeDemos = null; fieldDemos = null;
             iconDemos = null;
             IsPlaying = false;
             for (int i = 0; i < encounters.Length; i++)

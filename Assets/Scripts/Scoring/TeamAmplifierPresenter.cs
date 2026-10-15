@@ -21,8 +21,13 @@ namespace Massive.Scoring
         public int TeamID => teamID;
         private System.Func<int> demonstrationMultiplier;
         private Renderer demonstrationBadgeSource;
-        public void ConfigureDemonstration(int team, ScoreVoidMetaballsVisual surface, System.Func<int> multiplier, Renderer badgeSource = null)
-        { teamID = team; goalSurface = surface; demonstrationMultiplier = multiplier; demonstrationBadgeSource = badgeSource; }
+        private float demonstrationBadgeScale = 1f;
+        public void ConfigureDemonstration(int team, ScoreVoidMetaballsVisual surface, System.Func<int> multiplier,
+            Renderer badgeSource = null, float badgeScale = 1f)
+        {
+            teamID = team; goalSurface = surface; demonstrationMultiplier = multiplier; demonstrationBadgeSource = badgeSource;
+            demonstrationBadgeScale = Mathf.Max(.01f, badgeScale);
+        }
 
         private void OnEnable()
         {

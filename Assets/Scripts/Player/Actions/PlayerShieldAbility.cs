@@ -67,7 +67,8 @@ namespace Massive.Player
         public float ActivationCooldownSeconds => sustainedHold ? HoldActivationCooldownSeconds : TapActivationCooldownSeconds;
         public bool CanParryCounter => IsActive && successfulParry && ParryCounterEnabled;
         public bool UsedSustainedHold => sustainedHold;
-        public float ActivationCooldownRemaining => Mathf.Max(0f, nextAllowedActivateTime - Time.time);
+        public float ActivationCooldownRemaining => UsesCharge ? 0f : Mathf.Max(0f, nextAllowedActivateTime - Time.time);
+        private bool UsesCharge => owner && owner.powerUps && owner.powerUps.UsesShieldCharge;
 
         /// <summary>
         /// 0 right after using, 1 when fully cooled down.
@@ -212,7 +213,7 @@ namespace Massive.Player
             if (!enabled || !gameObject.activeInHierarchy) return false;
             if (IsActive) return false; // no stacking
             // Hard lockout (prevents spam-tapping to chain shields)
-            if (Time.time < nextAllowedActivateTime) return false;
+            if (UsesCharge ? !owner.powerUps.CanActivateDecoherence : Time.time < nextAllowedActivateTime) return false;
 
             if (owner != null)
             {
@@ -224,7 +225,7 @@ namespace Massive.Player
             if (requireNotAttacking && attackController != null && attackController.IsAttacking)
                 return false;
 
-            BeginShield(ComputeStrength01());
+            BeginShield(UsesCharge ? 1f : ComputeStrength01());
             return true;
         }
 
@@ -232,6 +233,13 @@ namespace Massive.Player
         public void SetHeld(bool held)
         {
             if (!IsActive || released) return;
+            if (UsesCharge)
+            {
+                inputHeld = held;
+                if (held) endTime = float.PositiveInfinity;
+                else ForceStopShield();
+                return;
+            }
             TrackSustainedHold(); // Include the held interval up to this release/exit frame.
             inputHeld = held;
             if (!held) released = true;
@@ -363,7 +371,7 @@ namespace Massive.Player
 
             // Both recoveries start at exit. Releasing a tap early cannot make it
             // a hold, and countering out of a long hold cannot claim tap recovery.
-            nextAllowedActivateTime = Time.time + ActivationCooldownSeconds;
+            nextAllowedActivateTime = Time.time + (UsesCharge ? 0f : ActivationCooldownSeconds);
 
             IsActive = false;
             inputHeld = false;

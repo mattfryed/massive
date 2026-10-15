@@ -134,7 +134,7 @@ namespace Massive.Enemies
         private void Update()
         {
             if (visuals) visuals.ApplyBodyScale();
-            if (!enemy || enemy.IsDead || enemy.IsPaused || !enemy.Definition || !droneDefinition || !droneDefinition.prefab || docks.Length != 6) return;
+            if (!enemy || enemy.IsDead || enemy.IsPaused || enemy.IsDisrupted || !enemy.Definition || !droneDefinition || !droneDefinition.prefab || docks.Length != 6) return;
             if (warning && !warning.Advance(Time.deltaTime)) warning = null;
             if (!IsSpawnReady) { TickSpawn(Time.deltaTime); return; }
             RemainingSeconds -= Time.deltaTime;

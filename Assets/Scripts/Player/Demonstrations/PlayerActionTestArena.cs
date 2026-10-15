@@ -10,11 +10,13 @@ namespace Massive.Demonstrations
     [DefaultExecutionOrder(-600), DisallowMultipleComponent]
     public sealed class PlayerActionTestArena : MonoBehaviour
     {
-        public enum TestMode { Manual, Combo, AttackAndShield, AllDemos }
+        public enum TestMode { Manual, Combo, AttackAndShield, AllDemos, Decoherence }
         [SerializeField] private PlayerRosterController roster;
         [SerializeField] private GameManagerScript match;
         [SerializeField] private TestMode mode;
         [SerializeField] private PlayerDemoGallery gallery;
+        [SerializeField] private GameObject decoherenceContent;
+        private bool IsGalleryMode => mode == TestMode.AllDemos || mode == TestMode.Decoherence;
         private bool galleryRequested;
         [Header("Choreography (does not override gameplay tuning)")]
         [SerializeField] private Vector3 center = Vector3.zero;
@@ -66,11 +68,15 @@ namespace Massive.Demonstrations
             if (Input.GetKeyDown(KeyCode.F1)) showControls = !showControls;
             if (Input.GetKeyDown(KeyCode.F6)) SetMode(mode == TestMode.Manual ? TestMode.AttackAndShield : TestMode.Manual);
             if (mode != appliedMode) SetMode(mode);
-            if (mode == TestMode.AllDemos && galleryRequested && gallery && !gallery.IsPlaying && match.Phase == MatchRuntimePhase.Regulation)
+            if (IsGalleryMode && galleryRequested && gallery && !gallery.IsPlaying && match.Phase == MatchRuntimePhase.Regulation)
             {
-                gallery.Play(match, attacker, defender);
+                if (mode == TestMode.Decoherence && !decoherenceContent)
+                { galleryRequested = false; Fail("Decoherence demo content is not assigned."); return; }
+                gallery.Play(match, attacker, defender, mode == TestMode.Decoherence ? decoherenceContent : null);
                 Status = "Seven independent demos â€” match timer paused";
             }
+            if (mode == TestMode.Decoherence && gallery && gallery.IsPlaying)
+                Status = "Decoherence: moving field / enemy health / player defense";
             if (match.IsStartupBlocked) Status = match.StartupFailureReason;
             if (routine != null && match.Phase != MatchRuntimePhase.Regulation) StopTrials();
         }
@@ -78,7 +84,7 @@ namespace Massive.Demonstrations
         {
             StopTrials();
             mode = appliedMode = next;
-            galleryRequested = next == TestMode.AllDemos;
+            galleryRequested = next == TestMode.AllDemos || next == TestMode.Decoherence;
             SetInputMode(next == TestMode.Manual ? PlayerControlMode.Rewired : PlayerControlMode.Scripted);
             Status = next == TestMode.Manual ? "Manual: normal Rewired P1 / P3 controls" : "Ready â€” Run to begin";
         }
@@ -100,7 +106,7 @@ namespace Massive.Demonstrations
         public void RunTrials()
         {
             if (!attacker || !defender || mode == TestMode.Manual || match.Phase != MatchRuntimePhase.Regulation) return;
-            if (mode == TestMode.AllDemos)
+            if (IsGalleryMode)
             {
                 StopTrials(); galleryRequested = true; return;
             }
@@ -250,12 +256,21 @@ namespace Massive.Demonstrations
         private void OnGUI()
         {
             if (!showControls) return;
-            float panelWidth = mode == TestMode.AllDemos ? Mathf.Min(900, Screen.width * .46f) : Mathf.Min(900, Screen.width - 24);
-            float panelHeight = mode == TestMode.AllDemos ? 100f : 190f;
-            GUILayout.BeginArea(new Rect((Screen.width - panelWidth) * .5f, Screen.height - panelHeight - 12, panelWidth, panelHeight), GUI.skin.box);
+            float scale = Mathf.Max(1f, Screen.height / 1080f);
+            var previousMatrix = GUI.matrix;
+            GUI.matrix = Matrix4x4.Scale(Vector3.one * scale);
+            try { DrawControls(Screen.width / scale, Screen.height / scale); }
+            finally { GUI.matrix = previousMatrix; }
+        }
+        private void DrawControls(float width, float height)
+        {
+            float panelWidth = IsGalleryMode ? Mathf.Min(900, width * .46f) : Mathf.Min(900, width - 24);
+            float panelHeight = IsGalleryMode ? 100f : 190f;
+            GUILayout.BeginArea(new Rect((width - panelWidth) * .5f, height - panelHeight - 12, panelWidth, panelHeight), GUI.skin.box);
             GUILayout.Label("PLAYER ACTION LAB  |  F6 manual / shield test  |  F1 hide panel");
             GUILayout.BeginHorizontal();
             if (GUILayout.Button("All demos")) SetMode(TestMode.AllDemos);
+            if (GUILayout.Button("Decoherence")) SetMode(TestMode.Decoherence);
             if (GUILayout.Button("Manual")) SetMode(TestMode.Manual);
             if (GUILayout.Button("Combo")) SetMode(TestMode.Combo);
             if (GUILayout.Button("Attack + shield")) SetMode(TestMode.AttackAndShield);
@@ -263,16 +278,17 @@ namespace Massive.Demonstrations
             if (GUILayout.Button("Run")) RunTrials();
             if (GUILayout.Button("Stop")) StopTrials();
             GUI.enabled = true;
-            if (mode != TestMode.AllDemos)
+            if (!IsGalleryMode)
             {
                 repeat = GUILayout.Toggle(repeat, "Repeat");
                 if (GUILayout.Button("Demo spacing / timing")) UseDemoSpacingAndTiming();
             }
             GUILayout.EndHorizontal();
-            if (mode == TestMode.AllDemos)
+            if (IsGalleryMode)
             {
                 GUILayout.Label(Status);
-                GUILayout.Label("Seven looping demos | Tap parry / late held block | Shared Player Tuning");
+                GUILayout.Label(mode == TestMode.Decoherence ? "Hold Shield + move to paint | Release to refill | Live charge, health and lingering damage" :
+                    "Seven looping demos | Tap parry / late held block | Shared Player Tuning");
                 GUILayout.EndArea(); return;
             }
             GUILayout.BeginHorizontal(); GUILayout.Label("Spacing " + spacing.ToString("F2"), GUILayout.Width(110));

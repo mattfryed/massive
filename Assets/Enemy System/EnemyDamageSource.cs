@@ -1,5 +1,8 @@
 namespace Massive.Enemies
 {
+    /// <summary>Feedback cadence is independent of damage source, health and scoring.</summary>
+    public enum EnemyDamageDelivery { Impact = 0, Sustained = 1 }
+
     public enum EnemyDamageSource
     {
         Unknown = 0,
@@ -10,5 +13,6 @@ namespace Massive.Enemies
         LifetimeExpired = 5,
         Repulsor = 6,
         AmplifierShot = 7,
+        Decoherence = 8,
     }
 }

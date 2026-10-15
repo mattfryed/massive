@@ -50,7 +50,7 @@ Material:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: Ice4
-  m_Shader: {fileID: -6465566751694194690, guid: ea42115d0809b2d4f945b7866c4bdf14,
+  m_Shader: {fileID: 4800000, guid: ea42115d0809b2d4f945b7866c4bdf14,
     type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0

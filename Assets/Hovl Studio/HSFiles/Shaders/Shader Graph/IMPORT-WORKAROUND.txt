@@ -1,0 +1,54 @@
+Hovl shader import workaround
+2026-10-14 - Unity 6000.0.28f1, Shader Graph 17.0.3
+
+HS_Distortion and HS_SwordSlash entered a ShaderGraphImporter loop after script
+compilation. The log imported identical graph contents/artifact hashes over and
+over. Removing both graph files stopped the loop without restarting Unity. The
+next script reload reproduced the loop in HS_Blend_TwoSides instead. The bypass
+therefore covers all eight Hovl graphs: HS_Blend_CG, HS_Blend_TwoSides,
+HS_BlendDistort, HS_Distortion, HS_Explosion, HS_Ice, HS_Lit and HS_SwordSlash.
+
+The active .shader files are unmodified output from this project's own Shader
+Graph Generator, using GenerationMode.ForReals and the original graph GUIDs.
+They retain the generated shader names, properties, passes and render targets.
+All generated default texture bindings were null; texture defaults in the shader
+code and explicit texture assignments in materials are preserved.
+
+Original graph files and their original importer metadata are preserved byte
+for byte in Source~/. Unity ignores folders ending in ~; keep that suffix.
+These sources are intended to be tracked in Git even though Unity ignores them.
+Do not move them back into the asset database alongside the generated shaders:
+the archived metadata deliberately retains the same GUIDs for reversibility.
+
+The .shader assets retain the old graph GUIDs. Sixty-four Hovl materials now
+reference native shader object ID 4800000 instead of the graph's generated
+object ID -6465566751694194690. No material tuning or textures were changed.
+The four distortion materials already used object ID 4800000. All 68 materials
+resolve to their expected shader; all eight shaders import without errors and
+all 68 material first-pass bindings succeed. Source~ has no imported assets.
+Validation also compared all eight shader exports and all 16 archived files
+against their recovery copies: exact byte matches. All 64 changed materials
+differ only in the shader object reference. A requested script compilation and
+domain reload completed (4.917 s reload, 5.161 s refresh) without recurrence,
+with zero Console errors afterward. No standalone build or full VFX visual
+comparison was run. The original dirty HOW-TO scene remained open and dirty.
+
+Usage: Hovl's sword-effect prefabs reference these shaders. Prick 5 and Sword
+Slash 5 are configured as the optional SwordSlashes melee style in PlayerActor
+and MeleeVisualProfile, and are referenced in a tuning snapshot and an
+experimental scene. The shared melee profile currently uses OriginalParticles.
+Keep these effects available; they are not safe to delete as wholly unused.
+
+This bypasses the Hovl graph imports, rather than repairing Unity's
+import system. Unity 6000.0.32f1 release notes include an infinite-import-loop
+race fix (UUM-86437); a tested Editor patch update is still advisable.
+https://unity.com/releases/editor/whats-new/6000.0.32f1
+
+To edit/regenerate later:
+Use a separate project copy with a tested newer Unity patch. Replace the eight
+generated .shader files and their metadata with the archived graphs and their
+metadata, and restore the 64 material shader object IDs above. Never have
+both versions imported with the same GUID. Generate with the installed Shader
+Graph version, then carry the generated code back if this workaround is still
+needed. Recheck shader compilation, material bindings and appearance after any
+Shader Graph/package update; exported code does not regenerate automatically.

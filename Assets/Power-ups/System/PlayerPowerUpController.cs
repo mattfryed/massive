@@ -20,6 +20,14 @@ namespace Massive.PowerUps
         public bool HasActive => active != null && remaining > 0f;
         public PowerUpDefinition ActiveDefinition => active;
         public float ParticleAcceleratorEnergy01 => _ability is ParticleAcceleratorAbility accelerator ? accelerator.Energy01 : 0f;
+        public bool DecoherenceFieldActive => HasActive && _ability is DecoherenceAbility decoherence && decoherence.FieldActive;
+        public bool UsesShieldCharge => HasActive && _ability is DecoherenceAbility;
+        public float DecoherenceCharge01 => _ability is DecoherenceAbility decoherence ? decoherence.Charge01 : 0f;
+        public bool CanActivateDecoherence => HasActive && _ability is DecoherenceAbility decoherence && decoherence.CanActivate;
+        public void ObserveShieldInput(bool down, bool held)
+        { if (_ability is DecoherenceAbility decoherence) decoherence.ObserveShieldInput(down, held); }
+        public float ShieldMovementMultiplier(float normal) => DecoherenceFieldActive && active is DecoherencePowerUpDefinition decoherence
+            ? Mathf.Clamp(decoherence.fieldMovementMultiplier, .05f, 1f) : normal;
         public bool HasMovementAction => HasActive &&
             _ability is ParticleAcceleratorAbility accelerator && accelerator.IsMovementActionActive;
 
@@ -111,7 +119,11 @@ private static IEnumerator IgnoreCollisionsCo(PlayerControllerScript a, PlayerCo
             // A folded-surface portal owns movement temporarily; do not let an
             // independently ticking ability move/fire the player mid-transfer.
             if (_player != null && _player.IsSingularityTransitControlled) return;
-            if (!HasActive) return;
+            if (!HasActive)
+            {
+                if (_ability != null) UnequipInternal();
+                return;
+            }
 
             remaining -= Time.deltaTime;
             if (cooldownRemaining > 0f) cooldownRemaining -= Time.deltaTime;
@@ -182,6 +194,8 @@ private static IEnumerator IgnoreCollisionsCo(PlayerControllerScript a, PlayerCo
         public void Clear()
         {
             UnequipInternal();
+            // Explicit actor/demo teardown also removes paint left by earlier pickups.
+            foreach (var field in GetComponentsInChildren<DecoherenceFieldVisual>(true)) field.Clear();
         }
 
 

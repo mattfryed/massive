@@ -46,7 +46,7 @@ namespace Massive.Enemies
         private void FixedUpdate()
         {
             if (!enemy || enemy.IsDead || !enemy.Definition || !IsSpawnReady || !avoidanceBody) return;
-            if (enemy.IsPaused) { avoidanceVelocity = arrivalYieldVelocity = Vector3.zero; return; }
+            if (enemy.IsPaused || enemy.IsDisrupted) { avoidanceVelocity = arrivalYieldVelocity = Vector3.zero; return; }
             if (enemy.HoldPosition)
             { ResetLaneAvoidance(); return; }
             float dt = Time.fixedDeltaTime;

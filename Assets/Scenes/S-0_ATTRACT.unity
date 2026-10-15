@@ -11184,6 +11184,9 @@ MonoBehaviour:
   - sceneName: S-0_ATTRACT
     stopMusic: 0
     profile: {fileID: 11400000, guid: be4fd9c5be292a84fa287dfa7cd71964, type: 2}
+  - sceneName: S-0_HOW-TO-PLAY-PANES
+    stopMusic: 0
+    profile: {fileID: 11400000, guid: 207c4d5072f6a8441ab7a6ef22cd4b4a, type: 2}
   - sceneName: S-0_HOW-TO-PLAY
     stopMusic: 0
     profile: {fileID: 11400000, guid: 207c4d5072f6a8441ab7a6ef22cd4b4a, type: 2}

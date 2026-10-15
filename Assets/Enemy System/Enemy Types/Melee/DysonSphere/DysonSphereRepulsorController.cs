@@ -131,7 +131,7 @@ namespace Massive.Enemies
                 particlesPaused = enemy.IsPaused;
                 foreach (var ps in coreParticles) if (ps) { if (particlesPaused) ps.Pause(false); else ps.Play(false); }
             }
-            if (enemy.IsPaused) return;
+            if (enemy.IsPaused || enemy.IsDisrupted) return;
             float dt = Time.fixedDeltaTime; AnimationClock += dt;
             if (ripple) ripple.SetExternalClock(AnimationClock);
             if (enemy.IsDead)
@@ -206,14 +206,18 @@ namespace Massive.Enemies
             }
             panels.SetRadialPose(AnimationClock, scale, blend, radius, vibration, frequency);
             if (hull) hull.radius = hullRadius * scale;
-            FitSphere(hurtbox); FitSphere(attackVolume);
+            // Fractional damage can shatter the final panel before health reaches zero.
+            // The physical core must remain hittable without extending the attack shell.
+            float coreRadius = hull ? hull.radius * MaxScale(hull.transform.lossyScale) : 0f;
+            FitSphere(hurtbox, Mathf.Max(DamageRadiusWorld, coreRadius));
+            FitSphere(attackVolume, DamageRadiusWorld);
             if (attackVolume) attackVolume.enabled = IsDamaging;
         }
-        private void FitSphere(SphereCollider sphere)
+        private void FitSphere(SphereCollider sphere, float worldRadius)
         {
             if (!sphere) return;
             sphere.center = sphere.transform.InverseTransformPoint(panels.transform.position);
-            sphere.radius = DamageRadiusWorld / Mathf.Max(.0001f, MaxScale(sphere.transform.lossyScale));
+            sphere.radius = worldRadius / Mathf.Max(.0001f, MaxScale(sphere.transform.lossyScale));
         }
         private static float MaxScale(Vector3 v) => Mathf.Max(Mathf.Abs(v.x), Mathf.Max(Mathf.Abs(v.y), Mathf.Abs(v.z)));
         private void ResolveDamage()

@@ -60,6 +60,7 @@ namespace Massive.Enemies
         private MaterialPropertyBlock properties;
         private EnemyBase enemy;
         private CarrierController carrier;
+        private EnemySpawnPresentation spawnPresentation;
         private System.Random random;
         private Quaternion baseRotation;
         private float age, deathAge = -1f, corePulse;
@@ -70,6 +71,7 @@ namespace Massive.Enemies
         public override void OnEnable()
         {
             enemy = GetComponent<EnemyBase>(); carrier = GetComponent<CarrierController>();
+            spawnPresentation = GetComponentInParent<EnemySpawnPresentation>();
             if (enemy) enemy.Died += OnDeath;
             if (enemy) enemy.Damaged += OnDamage;
             if (carrier) carrier.DroneLaunched += OnLaunch;
@@ -172,6 +174,7 @@ namespace Massive.Enemies
             }
             DeathProgress = deathAge < 0f ? 0f : Mathf.Clamp01(deathAge / Mathf.Max(.01f, enemy ? enemy.despawnDelaySeconds : .8f));
             float spawn = Application.isPlaying && carrier ? carrier.RevealProgress : 1f;
+            if (Application.isPlaying && spawnPresentation && spawnPresentation.isActiveAndEnabled) spawn = spawnPresentation.Progress01;
             TickHitReaction(dt);
             UpdatePanels(spawn); UpdateCore(dt, spawn);
         }
@@ -260,7 +263,8 @@ namespace Massive.Enemies
                 Draw.Matrix = shell.transform.localToWorldMatrix * hitShellMatrix; Draw.ZTest = CompareFunction.LessEqual;
                 Draw.LineGeometry = LineGeometry.Volumetric3D; Draw.ThicknessSpace = ThicknessSpace.Meters;
                 Draw.Thickness = outlineWidth; Draw.Color = new Color(1f, 1f, 1f, 1f - DeathProgress); Draw.ZOffsetFactor = -1f;
-                if (deathAge < 0f && (!Application.isPlaying || !carrier || carrier.IsSpawnReady))
+                bool presentationReady = !Application.isPlaying || !spawnPresentation || !spawnPresentation.isActiveAndEnabled || spawnPresentation.IsComplete;
+                if (deathAge < 0f && presentationReady && (!Application.isPlaying || !carrier || carrier.IsSpawnReady))
                 {
                     foreach (var edge in edges)
                     {

@@ -10,6 +10,7 @@ public sealed class HowToPlayPane : MonoBehaviour
 
     public float DurationOverride => durationOverride;
     private PlayerDemoDirector[] demonstrations;
+    private HowToPlayTurretDemo[] turretDemonstrations;
 
     public bool DemosReady
     {
@@ -27,11 +28,15 @@ public sealed class HowToPlayPane : MonoBehaviour
         if (demonstrations == null) demonstrations = GetComponentsInChildren<PlayerDemoDirector>(true);
         foreach (var demo in demonstrations)
             if (demo) demo.SetPresentationHeld(held);
+        if (turretDemonstrations == null) turretDemonstrations = GetComponentsInChildren<HowToPlayTurretDemo>(true);
+        foreach (var demo in turretDemonstrations)
+            if (demo) demo.SetPresentationHeld(held);
     }
 
     public void Bind(Camera screenCamera)
     {
         demonstrations = GetComponentsInChildren<PlayerDemoDirector>(true);
+        turretDemonstrations = GetComponentsInChildren<HowToPlayTurretDemo>(true);
         // Scene cameras cannot be stored in a prefab. Bind before its demo starts.
         foreach (var view in GetComponentsInChildren<PlayerDemoView>(true))
         {

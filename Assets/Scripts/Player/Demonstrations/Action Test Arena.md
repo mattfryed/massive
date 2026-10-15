@@ -4,7 +4,8 @@ Open `Assets/Scenes/EXPERIMENTS/S-T_PLAYER-ACTIONS.unity` in Unity 6000.0.28f1, 
 
 This is a copy of the composed planar arena, with its connected Players_Gameplay roster (nested canonical PlayerActor instances), grid, goals, HUD, MatchScoreService and Core / Resonance encounter. It uses the same PlayerActor as How To Play. Manual / Combo / Attack + shield use the scoring match roster. All demos uses independent non-scoring demonstration actors on the same arena.
 
-- **All demos** (default): seven labeled demos loop simultaneously using real player inputs and abilities. Each lane shows its current phase and completed loop count.
+- **Decoherence** (current default): three looping field demonstrations with sample Drones, a Carrier and an opposing player. See the focused mode below.
+- **All demos**: seven labeled demos loop simultaneously using real player inputs and abilities. Each lane shows its current phase and completed loop count.
 - **Manual**: normal Rewired P1 / P3 inputs, with attack, shield, damage, death, respawn and scoring.
 - **Combo**: input-driven Thrust / Sweep / Repulsor using the live engagement windows.
 - **Attack + shield**: a repeatable opposing-player trial. Set center-to-center spacing and shield delay relative to the attack press (negative raises shield first). **Demo spacing / timing** derives a starting point from the live values used by How To Play.
@@ -129,7 +130,7 @@ was preserved.
 
 ### Action lanes
 
-The scene opens in **All demos** with six paired scenarios and one solo attacker:
+**All demos** contains six paired scenarios and one solo attacker:
 
 1. Melee attack into a tap parry.
 2. Melee attack into held shield after the opening parry window.
@@ -150,3 +151,25 @@ Final regression: all 28 shield checks passed. The original arena suite passed b
 Solo-demo update validated on 2026-09-28: lane 3 has no defender and repeatedly starts Thrust, Sweep and Repulsor, including actual Repulsor pulses. All seven lanes completed at least three loops, with isolation, score/time preservation, manual restoration and a clean restart with 13 actors. Unity compiled successfully; the rendered gallery was inspected. Current evidence: `Library/SoloComboValidation`.
 
 Original Particles now uses three editable stage prefabs in `Assets/Prefabs/Player/Attack Stages/Original Particles`. Open them from **MASSIVE > Shared Settings > Melee** or **Player Tuning > Appearance**. Thrust and Sweep have independent GPU emitters; each prefab can contain additional Particle Systems and other effects. Save prefab edits while the gallery runs to refresh all actors. Repulsor includes a disabled optional particle layer so its existing body/grid appearance is preserved. See **Editing these effects.md** beside the prefabs for preview and authoring instructions.
+
+## Focused Decoherence mode
+
+Press Play with **Player Action Lab > Mode = Decoherence**, or choose **Decoherence** in the running lab's panel. Three labeled examples run together:
+
+1. **Sweep through Drones:** the player drags a shrinking brush across three stationary, normal-health Drones. Painted ground stays behind when the player leaves. Each Drone needs one sword-hit equivalent of exposure (currently 1 second).
+2. **Erode a Carrier:** the player paints around a normal-health Carrier, releases Shield and moves away to refill. The deposited area continues dealing damage until it expires. The Carrier currently needs 6 seconds of accumulated contact.
+3. **Pressure / counterplay:** an exposed opponent takes field damage, including from lingering paint; an ordinary held Shield protects it during the comparison. The display shows remaining mass and measured exposed/shielded loss. Health carries across loops and eventual death uses normal respawn.
+
+The four players instantiate canonical PlayerActor with shared gameplay tuning. Each primary equips canonical Decoherence indefinitely, as in the existing gallery. The Particle Beam's shared ring shows charge. Defaults are **6 seconds** of painting, **4 seconds** from empty to full, **15%** minimum reactivation charge, and **4 seconds** of life per painted area. Each activation eases from the player outline to its charge radius over **0.24 seconds**, including the actual damage area. The brush then follows remaining charge; previous deposits keep their original size. Overlap merges into a single boundary and does not multiply damage from that owner. The merged edge undulates subtly, with **three faint ghost outlines** using independent smooth noise. All appearance settings live on the shared Decoherence definition.
+
+All movement and Shield actions use ordinary input. Enemy attacks/movement are disabled for readability; formation, health, damage, disruption and death remain active. The demo does not directly damage or heal targets, change shared health, enable counterkills or forcibly reset charge. New enemies spawn after real defeats. Live readouts observe actual damage events and runtime-created hurtboxes.
+
+Inside the paint, two faint displaced echoes duplicate the arena's live deforming grid. Their mask follows the surviving painted ground; the underlying grid and its physics are unchanged. Hit audio uses the shared sustained-damage cadence inherited by every enemy: 0.4 seconds per target and 0.12 seconds between crowd-wide sustained cues. Damage continues each frame; normal impact/death cues retain their existing behavior. Particle Accelerator uses the same policy.
+
+Each lane owns its actors and simulation scope. The gallery host pauses the match timer, suppresses its roster and suspends configured encounters. **Stop** removes samples, paint and rings; **Run** starts a fresh set. **All demos** and **Manual** restore those modes. The existing melee and beam Decoherence cases hold Shield through contact with the new charge model. F1 hides the panel; F6 returns to Manual.
+
+Use **MASSIVE > Demonstrations > Set Up Decoherence Demo** to install missing content in the open lab (Undo supported; saving is left to the caller). Re-running selects existing content without duplicating it. Choreography and labels live under **Player Action Lab / Decoherence Focus Demo**; ability values stay on the shared Decoherence asset.
+
+**MASSIVE > Demonstrations > Validate Decoherence Demo** runs the saved lab, observes repeated loops, and checks lingering damage, opponent protection, isolation, score/time preservation, Stop/Run cleanup and mode restoration. **MASSIVE > Power-ups > Validate Decoherence Field** exercises charge, geometry, damage, defense and cleanup in a disposable scene. Both restore Edit Mode and the previous play-start scene. Reports and captures are under `Library/DecoherenceDemoValidation` and `Library/DecoherenceFieldValidation`.
+
+Validated on 2026-10-14 in Unity 6000.0.28f1: **28 lab checks** and **115 field/audio checks** passed, including real contacts in the existing melee and beam Decoherence demos, shared sustained-audio behavior, real grid echo rendering and cleanup. A GPU image comparison confirmed animated echoes with no visible pixels outside surviving painted ground. The Game view was inspected with charge rings, the undulating outline and displaced grid interior. No runtime errors were recorded; no standalone build was run.

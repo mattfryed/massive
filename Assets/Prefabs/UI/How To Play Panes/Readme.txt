@@ -8,10 +8,12 @@ title and instructions in the top boxes, with supporting labels, live gameplay
 demonstrations and animated controller diagrams under Demo area in the lower box.
 The scene owns the boxes, HOW TO PLAY MASSIVE heading, page number and navigation.
 
-COMBAT has three columns: Thrust against one Drone, a full Thrust/Sweep/Repulsor
-combo against multiple Drones, and a charged Thrust through three Drones.
+COMBAT has three columns: ATTACK builds from Thrust through Sweep and Repulsor
+against multiple Drones; CHARGE sends a charged Thrust through three Drones;
+DEFEND shows a held block, a timed parry, and an immediate counter-thrust.
 Each column has its own camera, real Player actor and input mirror. The three
-How To scenario assets in this folder configure these demonstrations. They use
+scenarios are How To FULL COMBO, How To CHARGED THRUST, and How To DEFEND.
+DEFEND mirrors the defending player's controls. The demonstrations use
 shared gameplay attack tuning and the canonical Drone definition, health,
 hurtboxes and death effects; stationary targets are isolated from live matches.
 All pane scenarios use Actor Scale = 1, preserving the current gameplay player
@@ -24,9 +26,46 @@ POWER-UPS combines Time Dilation, Particle Accelerator and Decoherence in three
 columns, each with its own demonstration, action label and animated controls.
 Edit 04 Power-ups.prefab to change this pane. Its accelerator scenario uses a
 closer target so the complete encounter fits its column at native gameplay size.
-The carousel now has four panes: Combat, Defending, Multipliers and goals,
-and Power-ups. The original three individual power-up prefabs remain available
-as source assets but are no longer in the scene's sequence.
+The carousel has four panes: Combat, Enemies, Multipliers and goals, and Power-ups.
+The separate Defending prefab and original three individual power-up prefabs
+remain available as source assets but are no longer in the scene's sequence.
+
+Decoherence now teaches Hold Shield + Move to paint a damaging four-second trail,
+health-scaled enemy exposure, a shrinking brush as charge drains, release to refill,
+and reactivation from 15%. Its canonical-player demo claims the pickup, paints past
+two normal Drones, releases Shield, and retreats while the trail finishes the second
+Drone. The Shield control stays lit while held. The field, grid echoes and split
+charge rings all come from gameplay. No health, charge or effect lifetime is reset.
+After the Drones die, the current Dyson Sphere forms and the player paints a new
+field around it. Repeated passes retain the Dyson's normal health and panel erosion;
+fresh pickups are claimed from the clear side when the equipped power-up expires.
+The optional Decoherence Second Enemy reference selects this follow-up. The assigned
+Drone Definition enables the paint sequence; legacy scenarios without one retain
+their stationary activation. Supporting captions remain editable in the prefab.
+The header icon is a nested copy of the normal Decoherence pickup. Its manifest
+animation replays on pane activation; pickup logic, colliders and tether physics
+are disabled so it remains visible until the pane is deactivated. Shared pickup
+prefabs and gameplay lifetime are unchanged.
+Validation covered a complete Drone/Dyson sequence at accelerated playback,
+normal-speed painting and damage, a 40-second header lifetime, and navigation
+away/back with no remaining fields or enemies and a fresh icon entrance.
+
+03 Enemies.prefab uses seven evenly spaced columns based on the authored DRONE
+group: Drone, Ranged Drone, Seeker, Particle Beam Turret, Carrier, Dyson Sphere
+and Amplified Dyson Sphere. The old lunge Dyson and the compatibility definition
+are not separate enemy types. Each group retains editable text, native-scale
+enemy models, five stat rows and a movement/attack description. The three-Drone
+formation is preserved. Models keep their idle visuals, with gameplay disabled
+only on these instruction-pane instances; shared enemy prefabs are unchanged.
+
+Enemy bars are relative visual levels, authored from current gameplay tuning.
+Each row uses sqrt(value / highest displayed value) so small values remain
+readable; zero is empty. Health uses definition health, speed uses normal movement,
+score uses the unmultiplied defeat reward. Attack uses damage per hit (Turret:
+one second of beam damage). Range uses projectile reach, lunge distance, Dyson
+attack distance, or Drone contact radius. Carrier has no direct attack/range:
+its spawned Drones are represented separately. Bars are editable Shapes rectangles;
+they do not automatically change when gameplay tuning changes.
 
 Keep top text inside x=-12..12, z=4.61..7.61; the left title box ends at x=-3.
 The lower demonstration box is x=-12..12, z=-6.37..4.63. Camera bounds on each
@@ -52,8 +91,8 @@ each demo's screen camera. Only the selected pane runs. Its demonstration
 restarts when revisited. Every pane loops back to the first after the last.
 
 Seconds Per Pane on How To Play Carousel is 12 by default. Duration Override
-on a pane uses that default when zero; COMBAT, Multipliers and goals, and POWER-UPS
-use 16 seconds.
+on a pane uses that default when zero; COMBAT and Multipliers and goals use 16
+seconds. POWER-UPS uses 38 seconds to include the Dyson follow-up and repainting.
 Any player's MoveH joystick action navigates once per push, with a deadzone.
 Left/right arrow keys are also available for editor testing. Navigation resets
 the white bar. The timer uses unscaled time.

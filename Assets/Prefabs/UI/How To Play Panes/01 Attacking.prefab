@@ -11,7 +11,7 @@ GameObject:
   - component: {fileID: 4733535223886937905}
   - component: {fileID: 5776278798867976594}
   m_Layer: 0
-  m_Name: THRUST demonstration
+  m_Name: ATTACK demonstration
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -46,7 +46,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 196c6b47b96cd434d9dc38fb90d21966, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  scenario: {fileID: 11400000, guid: 7e248f9aa4043f9459061f347575419f, type: 2}
+  partnerJoystick: {fileID: 0}
+  partnerAttackButton: {fileID: 0}
+  partnerShieldButton: {fileID: 0}
+  amplifierSequenceLabel: {fileID: 0}
+  scenario: {fileID: 11400000, guid: 90bd09611f0d78945a7810ebcc9222d0, type: 2}
   playOnEnable: 1
   loop: 1
   presentationCamera: {fileID: 247755723120607099}
@@ -618,7 +622,7 @@ GameObject:
   - component: {fileID: 5497688673800151149}
   - component: {fileID: 4439302674804712679}
   m_Layer: 0
-  m_Name: HOLD / RELEASE ATTACK
+  m_Name: DEFEND controls label
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -708,7 +712,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: HOLD / RELEASE ATTACK
+  m_text: BLOCK / PARRY / COUNTER
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 13b46f913b61e2d4195306f4c4e38dbd, type: 2}
   m_sharedMaterial: {fileID: 1584024093373271768, guid: 13b46f913b61e2d4195306f4c4e38dbd,
@@ -877,7 +881,7 @@ GameObject:
   - component: {fileID: 4642251326039289941}
   - component: {fileID: 5416611916620777901}
   m_Layer: 0
-  m_Name: THRUST
+  m_Name: ATTACK
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -967,7 +971,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: THRUST
+  m_text: ATTACK
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 13b46f913b61e2d4195306f4c4e38dbd, type: 2}
   m_sharedMaterial: {fileID: 1584024093373271768, guid: 13b46f913b61e2d4195306f4c4e38dbd,
@@ -1643,7 +1647,7 @@ GameObject:
   - component: {fileID: 9132283403525346866}
   - component: {fileID: 3275977539462799110}
   m_Layer: 0
-  m_Name: CHARGED THRUST demonstration
+  m_Name: DEFEND demonstration
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -1678,7 +1682,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 196c6b47b96cd434d9dc38fb90d21966, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  scenario: {fileID: 11400000, guid: 22a425190d999fb4fbb81597bc832ea1, type: 2}
+  partnerJoystick: {fileID: 0}
+  partnerAttackButton: {fileID: 0}
+  partnerShieldButton: {fileID: 0}
+  amplifierSequenceLabel: {fileID: 0}
+  scenario: {fileID: 11400000, guid: 72da6f3e4962ba043810477d16295491, type: 2}
   playOnEnable: 1
   loop: 1
   presentationCamera: {fileID: 1297919782616812078}
@@ -1821,7 +1829,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: MOVE / AIM / ATTACK
+  m_text: ATTACK / CHARGE / DEFEND
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 13b46f913b61e2d4195306f4c4e38dbd, type: 2}
   m_sharedMaterial: {fileID: 1584024093373271768, guid: 13b46f913b61e2d4195306f4c4e38dbd,
@@ -2334,7 +2342,7 @@ GameObject:
   - component: {fileID: 8855082229884812274}
   - component: {fileID: 3136968575979309944}
   m_Layer: 0
-  m_Name: FULL COMBO demonstration
+  m_Name: CHARGE demonstration
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -2369,7 +2377,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 196c6b47b96cd434d9dc38fb90d21966, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  scenario: {fileID: 11400000, guid: 90bd09611f0d78945a7810ebcc9222d0, type: 2}
+  partnerJoystick: {fileID: 0}
+  partnerAttackButton: {fileID: 0}
+  partnerShieldButton: {fileID: 0}
+  amplifierSequenceLabel: {fileID: 0}
+  scenario: {fileID: 11400000, guid: 22a425190d999fb4fbb81597bc832ea1, type: 2}
   playOnEnable: 1
   loop: 1
   presentationCamera: {fileID: 936869373913449853}
@@ -2743,7 +2755,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1079228708100716526}
   m_Layer: 0
-  m_Name: CHARGED THRUST demonstration controls
+  m_Name: DEFEND demonstration controls
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -3227,7 +3239,7 @@ GameObject:
   m_Component:
   - component: {fileID: 7496599373839918173}
   m_Layer: 0
-  m_Name: FULL COMBO demonstration controls
+  m_Name: CHARGE demonstration controls
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -4563,7 +4575,7 @@ GameObject:
   - component: {fileID: 1979000209008204550}
   - component: {fileID: 8930489998206897329}
   m_Layer: 0
-  m_Name: TAP / TAP / TAP
+  m_Name: CHARGE controls label
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -4653,7 +4665,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: TAP / TAP / TAP
+  m_text: HOLD / RELEASE ATTACK
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 13b46f913b61e2d4195306f4c4e38dbd, type: 2}
   m_sharedMaterial: {fileID: 1584024093373271768, guid: 13b46f913b61e2d4195306f4c4e38dbd,
@@ -4819,7 +4831,7 @@ GameObject:
   - component: {fileID: 7975235838999097575}
   - component: {fileID: 7139450610267627356}
   m_Layer: 0
-  m_Name: TAP ATTACK
+  m_Name: ATTACK controls label
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -4909,7 +4921,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: TAP ATTACK
+  m_text: TAP / TAP / TAP
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 13b46f913b61e2d4195306f4c4e38dbd, type: 2}
   m_sharedMaterial: {fileID: 1584024093373271768, guid: 13b46f913b61e2d4195306f4c4e38dbd,
@@ -6057,12 +6069,13 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 'Move and aim with the joystick.
+  m_text: 'Aim with the joystick. Tap Attack to chain Thrust, Sweep and Repulsor.
 
-    Tap Attack to Thrust. Tap again to
-    chain a Sweep and Repulsor.
+    Hold
+    Attack for a longer, stronger Thrust.
 
-    Hold Attack to charge a longer, stronger Thrust.'
+    Hold Shield to block. Tap to parry,
+    then Attack to counter.'
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 62b4d49010a4d2f4ca6eff16be8b2bb6, type: 2}
   m_sharedMaterial: {fileID: -2944422761457701561, guid: 62b4d49010a4d2f4ca6eff16be8b2bb6,
@@ -6381,7 +6394,7 @@ GameObject:
   m_Component:
   - component: {fileID: 836524846533515450}
   m_Layer: 0
-  m_Name: THRUST demonstration controls
+  m_Name: ATTACK demonstration controls
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -6695,7 +6708,7 @@ GameObject:
   - component: {fileID: 6299716205475058275}
   - component: {fileID: 8562962755298927893}
   m_Layer: 0
-  m_Name: FULL COMBO
+  m_Name: CHARGE
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -6785,7 +6798,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: FULL COMBO
+  m_text: CHARGE
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 13b46f913b61e2d4195306f4c4e38dbd, type: 2}
   m_sharedMaterial: {fileID: 1584024093373271768, guid: 13b46f913b61e2d4195306f4c4e38dbd,
@@ -7184,7 +7197,7 @@ GameObject:
   - component: {fileID: 1251571963168275844}
   - component: {fileID: 8535752617216601775}
   m_Layer: 0
-  m_Name: CHARGED THRUST
+  m_Name: DEFEND
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -7274,7 +7287,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: CHARGED THRUST
+  m_text: DEFEND
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 13b46f913b61e2d4195306f4c4e38dbd, type: 2}
   m_sharedMaterial: {fileID: 1584024093373271768, guid: 13b46f913b61e2d4195306f4c4e38dbd,

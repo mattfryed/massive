@@ -720,6 +720,7 @@ if (showPlayerIdToastOnMatchStart)
         bool shieldDown = input.shieldDown;
         bool shieldHeldInput = input.shieldHeld;
         bool parryCounter = false;
+        if (powerUps) powerUps.ObserveShieldInput(shieldDown, shieldHeldInput);
 
         if (shieldAbility != null)
         {
@@ -823,7 +824,7 @@ if (showPlayerIdToastOnMatchStart)
 
         bool canShield = !(attackController != null && attackController.IsAttacking) && !IsExternallyStunned;
         if (shieldOn && canShield)
-            moveMul *= Effective_shieldMoveMultiplier;
+            moveMul *= powerUps ? powerUps.ShieldMovementMultiplier(Effective_shieldMoveMultiplier) : Effective_shieldMoveMultiplier;
 
         if (powerUps != null)
             moveMul *= powerUps.MovementMultiplier * powerUps.MovementMultiplierWhileCharging;

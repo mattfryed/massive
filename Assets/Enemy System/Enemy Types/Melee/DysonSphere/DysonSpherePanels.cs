@@ -60,6 +60,7 @@ namespace Massive.Enemies
             public float phase;   // 0..2π (used for breathe/jitter)
             public float rand01;  // 0..1 (used for spawn staggering)
             public float order01; // 0..1 (spawn sequence order)
+            public float shimmerArrivalSeconds; // cached once per emitted ripple
 
 
             // Base geometry, in this component's local space.
@@ -270,6 +271,7 @@ namespace Massive.Enemies
         /// <summary>Restarts the spawn animation (useful for pooling).</summary>
         public void PlaySpawnIn()
         {
+            ResetShimmerWave();
             if (!Application.isPlaying || !playSpawnIn)
             {
                 _spawnActive = false;
@@ -665,6 +667,7 @@ namespace Massive.Enemies
                 return;
 
             _builtForMaxPanels = mp;
+            ResetShimmerWave();
             _builtForShimmer = shimmerEnabled;
             _builtForRadius = r;
             _lastDesiredAlive = -1;
@@ -1059,6 +1062,7 @@ namespace Massive.Enemies
             if (_panels.Count == 0) return;
 
             float now = PoseTime;
+            PrepareShimmerWave(now);
 
             float spd = Mathf.Max(0f, breatheSpeed);
             float s01 = Mathf.Clamp01(spear01);

@@ -4,7 +4,7 @@ using Massive.Player;
 
 namespace Massive.PowerUps
 {
-    internal class DecoherenceAbility : IPowerUpAbility
+    internal partial class DecoherenceAbility : IPowerUpAbility
     {
 
         private readonly DecoherencePowerUpDefinition _def;
@@ -31,6 +31,7 @@ namespace Massive.PowerUps
             _shield = _defender.GetComponent<PlayerShieldAbility>();
             _visuals = _defender.visualsController;
             if (_visuals) _visuals.SetDecoherenceEquipped(_def);
+            InitializeField();
 
             // Cache nugget renderers (optional)
             _nuggetRenderers.Clear();
@@ -47,11 +48,15 @@ namespace Massive.PowerUps
 
                 _shield.ShieldStarted += OnShieldStarted;
                 _shield.ShieldEnded += OnShieldEnded;
+                if (_shield.IsActive) OnShieldStarted(_shield);
             }
         }
 
         public void OnUnequip()
         {
+            // Never hand an energy-controlled infinite hold back to the ordinary shield.
+            if (_shield) _shield.ForceStopShield();
+            ReleaseField();
             if (_shield != null)
             {
                 _shield.ShieldStarted -= OnShieldStarted;
@@ -75,6 +80,7 @@ namespace Massive.PowerUps
 
         private void OnShieldStarted(PlayerShieldAbility s)
         {
+            BeginField();
             if (_visuals != null)
                 _visuals.SetDecoherenceSplitActive(true /*, optional separation value */);
 
@@ -83,6 +89,7 @@ namespace Massive.PowerUps
 
         private void OnShieldEnded(PlayerShieldAbility s)
         {
+            EndField();
             if (_visuals != null)
                 _visuals.SetDecoherenceSplitActive(false);
 
@@ -98,8 +105,7 @@ namespace Massive.PowerUps
             }
         }
 
-        // You can leave the input methods as no-ops for Design A
-        public void Tick(float dt) { }
+        public void Tick(float dt) { } // The field advances after player input in LateUpdate.
         public void PreTickInput(in PowerUpInputState input) { }
         public bool HandleInput(in PowerUpInputState input, out float cooldownToApply) { cooldownToApply = 0f; return false; }
         public bool ConsumesAttackWhileOnCooldown(in PowerUpInputState input) => false;
