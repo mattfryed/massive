@@ -52,6 +52,8 @@ namespace Massive.Settings
         [Min(.05f)] public float placementRetryDelay = .5f;
         [Tooltip("Time available after the Core has fully appeared. At expiry the Core and pattern dissolve without scoring. Zero disables the time-out.")]
         [InspectorName("Sequence Time-out (seconds)"), Min(0f)] public float maximumActiveSeconds = 30f;
+        [Tooltip("When a player enters the Core or a player-fired shot comes to rest, raise the remaining sequence lifetime to at least this many gameplay seconds. Never shortens a longer timer. Zero disables the extension.")]
+        [InspectorName("Minimum Time After Interaction (seconds)"), Min(0f)] public float minimumInteractionSeconds = 5f;
         [Tooltip("During the final seconds the Core's surface becomes increasingly unstable. Zero disables this warning; it never changes physical motion.")]
         [Min(0f)] public float timeoutWarningSeconds = 5f;
     }

@@ -21,6 +21,7 @@ namespace Massive.Multiplier
         public Vector2 Effective_respawnDelayVariation => SharedTuning != null ? SharedTuning.respawnDelayVariation : respawnDelayVariation;
         public float Effective_placementRetryDelay => SharedTuning != null ? SharedTuning.placementRetryDelay : placementRetryDelay;
         public float Effective_maximumActiveSeconds => SharedTuning != null ? SharedTuning.maximumActiveSeconds : maximumActiveSeconds;
+        public float Effective_minimumInteractionSeconds => SharedTuning != null ? SharedTuning.minimumInteractionSeconds : minimumInteractionSeconds;
         public float Effective_timeoutWarningSeconds => SharedTuning != null ? SharedTuning.timeoutWarningSeconds : timeoutWarningSeconds;
     }
 }

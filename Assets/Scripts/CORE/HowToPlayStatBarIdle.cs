@@ -17,10 +17,34 @@ public sealed class HowToPlayStatBarIdle : MonoBehaviour
     private float authoredWidth, from, target, elapsed, duration;
     private bool grow, captured;
 
+    public Rectangle Fill { get { CacheShapes(); return fill; } }
+    public float MaximumWidth
+    {
+        get
+        {
+            CacheShapes();
+            return track ? Mathf.Max(0f, track.Width * .5f - edgePadding - transform.localPosition.x) : fill.Width;
+        }
+    }
+
+    private void CacheShapes()
+    {
+        if (!fill) fill = GetComponent<Rectangle>();
+        if (!track && transform.parent) track = transform.parent.GetComponent<Rectangle>();
+    }
+
+    /// <summary>Update the resting length, including while its idle animation is running.</summary>
+    public void SetAuthoredWidth(float width)
+    {
+        CacheShapes();
+        authoredWidth = Mathf.Max(0f, width);
+        fill.Width = authoredWidth;
+        if (captured && random != null) NextTarget();
+    }
+
     private void OnEnable()
     {
-        fill = GetComponent<Rectangle>();
-        track = transform.parent ? transform.parent.GetComponent<Rectangle>() : null;
+        CacheShapes();
         authoredWidth = fill.Width;
         captured = true;
         random = new System.Random(GetInstanceID());
@@ -39,7 +63,7 @@ public sealed class HowToPlayStatBarIdle : MonoBehaviour
     {
         from = fill.Width;
         float variation = Mathf.Clamp01(Sample(lengthVariation, 0f));
-        float maximum = track ? Mathf.Max(0f, track.Width * .5f - edgePadding - transform.localPosition.x) : authoredWidth * 2f;
+        float maximum = track ? MaximumWidth : authoredWidth * 2f;
         target = Mathf.Clamp(authoredWidth * (1f + (grow ? variation : -variation)), 0f, maximum);
         grow = !grow;
         elapsed = 0f;

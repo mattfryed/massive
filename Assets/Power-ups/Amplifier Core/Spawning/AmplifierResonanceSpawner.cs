@@ -40,6 +40,8 @@ namespace Massive.Multiplier
         [Min(.05f)] public float placementRetryDelay = .5f;
         [Tooltip("Time available after the Core has fully appeared. At expiry the Core and pattern dissolve without scoring. Zero disables the time-out.")]
         [InspectorName("Sequence Time-out (seconds)"), Min(0f)] public float maximumActiveSeconds = 30f;
+        [Tooltip("When a player enters the Core or a player-fired shot comes to rest, raise the remaining sequence lifetime to at least this many gameplay seconds. Never shortens a longer timer. Zero disables the extension.")]
+        [InspectorName("Minimum Time After Interaction (seconds)"), Min(0f)] public float minimumInteractionSeconds = 5f;
         [Tooltip("During the final seconds the Core's surface becomes increasingly unstable. Zero disables this warning; it never changes physical motion.")]
         [Min(0f)] public float timeoutWarningSeconds = 5f;
 
@@ -72,12 +74,13 @@ namespace Massive.Multiplier
         public float SecondsRemaining => Mathf.Max(0f, timer);
         public float CorePlacementRadius => Mathf.Max(minimumCoreRadius, EstimateCoreRadius(corePrefab));
         public float LastRespawnDelay { get; private set; }
-        public float ActiveSecondsRemaining => Effective_maximumActiveSeconds > 0f ? Mathf.Max(0f, Effective_maximumActiveSeconds - activeAge) : float.PositiveInfinity;
+        public float ActiveSecondsRemaining => Effective_maximumActiveSeconds > 0f ? Mathf.Max(0f, ActiveTimeoutSeconds - activeAge) : float.PositiveInfinity;
+        private float ActiveTimeoutSeconds => Effective_maximumActiveSeconds + activeTimeoutExtension;
         public float TimeoutWarning01 => coreVisual != null ? coreVisual.TimeoutWarning01 : 0f;
 
         private System.Random random;
         private GameObject ownedRoot;
-        private float timer, activeAge;
+        private float timer, activeAge, activeTimeoutExtension;
         private int nextIndex;
         private bool running, cycleRequested, observedOpenScoring, examplesSuppressed, comparisonWasEnabled;
         private MatchScoreService subscribedScores;
@@ -210,9 +213,10 @@ namespace Massive.Multiplier
                     else if (!ActiveCore.IsSpawning && !ActiveCore.HasBeenCaptured)
                     {
                         activeAge += Mathf.Max(0f, dt);
-                        float warning = EvaluateTimeoutWarning(activeAge, Effective_maximumActiveSeconds, Effective_timeoutWarningSeconds);
+                        float warning = EvaluateTimeoutWarning(activeAge, ActiveTimeoutSeconds, Effective_timeoutWarningSeconds);
+                        if (Effective_maximumActiveSeconds <= 0f) warning = 0f;
                         if (coreVisual != null) coreVisual.SetTimeoutWarning(warning);
-                        if (Effective_maximumActiveSeconds > 0f && activeAge >= Effective_maximumActiveSeconds && !ActiveCore.IsPossessionBusy) RetireCurrentPair();
+                        if (Effective_maximumActiveSeconds > 0f && activeAge >= ActiveTimeoutSeconds && !ActiveCore.IsPossessionBusy) RetireCurrentPair();
                         else Status = warning > 0f ? "Core unstable — sequence nearing time-out" : "Pair active — capture the Core to advance";
                     }
                     break;
@@ -290,11 +294,13 @@ namespace Massive.Multiplier
             ActiveCore.enabled = true;
             ActiveCore.SetExternalRespawnManaged(true);
             ActiveCore.Captured += OnCoreCaptured;
+            ActiveCore.PlayerEntered += OnCoreInteraction;
+            ActiveCore.ShotSettled += OnCoreInteraction;
             coreVisual = ActiveCore.GetComponentInChildren<AmplifierCoreVisual>(true);
             if (coreVisual != null) coreVisual.SetTimeoutWarning(0f);
             if (!ActiveCore.gameObject.activeSelf) ActiveCore.gameObject.SetActive(true);
             CoreSpawned?.Invoke(ActiveCore);
-            activeAge = 0f; PairsSpawned++;
+            activeAge = activeTimeoutExtension = 0f; PairsSpawned++;
             Phase = AmplifierEncounterPhase.Active; Status = "Pair active — capture the Core to advance";
         }
         private void OnCoreCaptured(AmplifierCoreGameplay core)
@@ -302,6 +308,18 @@ namespace Massive.Multiplier
             if (!running || core != ActiveCore || Phase != AmplifierEncounterPhase.Active) return;
             CapturesObserved++;
             BeginRetirement();
+        }
+        private void OnCoreInteraction(AmplifierCoreGameplay core)
+        {
+            if (!running || core != ActiveCore || Phase != AmplifierEncounterPhase.Active || core.IsCaptured) return;
+            float lifetime = Effective_maximumActiveSeconds;
+            float minimum = Mathf.Max(0f, Effective_minimumInteractionSeconds);
+            if (lifetime <= 0f || minimum <= 0f) return;
+            // The timer may already be overdue while possession or flight protects the
+            // Core. Grant a full interval from this event, not from the old deadline.
+            activeTimeoutExtension = Mathf.Max(activeTimeoutExtension, activeAge + minimum - lifetime);
+            if (coreVisual != null)
+                coreVisual.SetTimeoutWarning(EvaluateTimeoutWarning(activeAge, ActiveTimeoutSeconds, Effective_timeoutWarningSeconds));
         }
         private void BeginRetirement()
         {
@@ -324,9 +342,14 @@ namespace Massive.Multiplier
         }
         private void ClearPair()
         {
-            if (ActiveCore != null) ActiveCore.Captured -= OnCoreCaptured;
+            if (ActiveCore != null)
+            {
+                ActiveCore.Captured -= OnCoreCaptured;
+                ActiveCore.PlayerEntered -= OnCoreInteraction;
+                ActiveCore.ShotSettled -= OnCoreInteraction;
+            }
             if (coreVisual != null) coreVisual.SetTimeoutWarning(0f);
-            coreVisual = null; activeAge = 0f;
+            coreVisual = null; activeAge = activeTimeoutExtension = 0f;
             ActiveCore = null; ActiveManifestation = null; ActivePattern = null;
             if (ownedRoot != null)
             {

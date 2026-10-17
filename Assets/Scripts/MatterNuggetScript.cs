@@ -40,6 +40,7 @@ public class MatterNuggetScript : MonoBehaviour
     public ScoreAwardResult LastScoreAward { get; private set; }
     public double LastMultiplierGained { get; private set; }
     public bool IsDespawning => ending;
+    public event System.Action<PlayerControllerScript> Collected;
 
     private static long nextSourceLife;
     private string sourceLifeToken;
@@ -263,23 +264,26 @@ public class MatterNuggetScript : MonoBehaviour
         // shields share the player hierarchy but are not collection surfaces.
         if (!other || other.isTrigger || !other.CompareTag("Player")) return;
         var player = other.GetComponentInParent<PlayerControllerScript>();
-        if (!player || !player.isActiveAndEnabled || player.IsPseudoPlayer || player.temporarilyEliminated || player.IsMatchInputLocked) return;
+        if (!player || !player.isActiveAndEnabled || !CanCollectPlayer(player) || player.temporarilyEliminated || player.IsMatchInputLocked) return;
         BeginExit();
         player.playSFX("massNuggetSFX");
         float before = player.massScore;
         player.GrowScaled(rewardMultiplier); player.GrowScaled(rewardMultiplier); player.GrowScaled(rewardMultiplier);
         LastMassRestored = Mathf.Max(0f, player.massScore - before);
         var scores = MatchScoreService.Instance;
-        if (scores != null && !string.IsNullOrWhiteSpace(scoreRewardKey))
+        if (player.ParticipatesInMatch && scores != null && !string.IsNullOrWhiteSpace(scoreRewardKey))
         {
             scores.TryAwardToPlayer(scoreRewardKey, player, sourceLifeToken, transform.position, out var award);
             LastScoreAward = award;
         }
         LastMultiplierGained = ApplyPersonalMultiplierReward(player);
-        EnemyScoreToast.ShowPickup(rewardToastPrefab, LastScoreAward, LastMassRestored, player.massScoreMax - player.massScoreMin,
-            transform.position, gameObject.scene, LastMultiplierGained);
+        if (player.ParticipatesInMatch)
+            EnemyScoreToast.ShowPickup(rewardToastPrefab, LastScoreAward, LastMassRestored, player.massScoreMax - player.massScoreMin,
+                transform.position, gameObject.scene, LastMultiplierGained);
+        Collected?.Invoke(player);
     }
 
+    protected virtual bool CanCollectPlayer(PlayerControllerScript player) => !player.IsPseudoPlayer;
     protected virtual double ApplyPersonalMultiplierReward(PlayerControllerScript player) => 0;
     protected virtual void FinishDespawn() { Destroy(gameObject); }
 }

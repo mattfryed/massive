@@ -10,6 +10,7 @@ namespace Massive.Enemies
         private EnemyBase source;
         private EnemyDirector director;
         private Transform simulationRoot;
+        private PlayerControllerScript demonstrationCollector;
         private bool isolated, paused, savedKinematic;
         private Rigidbody lootBody;
         private Vector3 savedVelocity;
@@ -23,6 +24,12 @@ namespace Massive.Enemies
         {
             source = owner; director = owner.Director; simulationRoot = owner.SimulationRoot;
             isolated = simulationRoot;
+        }
+        // Explicit opt-in: ordinary isolated enemy loot remains noncollectible.
+        public void ConfigureDemonstration(PlayerControllerScript collector)
+        {
+            if (!collector || collector.ParticipatesInMatch || !collector.SimulationRoot) return;
+            demonstrationCollector = collector; simulationRoot = collector.SimulationRoot; isolated = true;
         }
         protected override void Awake()
         {
@@ -63,12 +70,15 @@ namespace Massive.Enemies
             }
         }
         protected override void FixedUpdate() { if (!SyncPause()) base.FixedUpdate(); }
-        protected override void OnTriggerEnter(Collider other) { if (!isolated && !ShouldPause) base.OnTriggerEnter(other); }
-        protected override void OnTriggerStay(Collider other) { if (!isolated && !ShouldPause) base.OnTriggerStay(other); }
+        protected override void OnTriggerEnter(Collider other) { if ((!isolated || demonstrationCollector) && !ShouldPause) base.OnTriggerEnter(other); }
+        protected override void OnTriggerStay(Collider other) { if ((!isolated || demonstrationCollector) && !ShouldPause) base.OnTriggerStay(other); }
+        protected override bool CanCollectPlayer(PlayerControllerScript player) => isolated
+            ? player == demonstrationCollector && simulationRoot && player.SimulationRoot == simulationRoot
+            : base.CanCollectPlayer(player);
         protected override double ApplyPersonalMultiplierReward(PlayerControllerScript player)
         {
             var scores = MatchScoreService.Instance;
-            if (!scores || !scores.IsScoringOpen || !scores.IsChainClockRunning || scores.IsBonusScoringOnly) return 0;
+            if (player != demonstrationCollector && (!scores || !scores.IsScoringOpen || !scores.IsChainClockRunning || scores.IsBonusScoringOnly)) return 0;
             var chain = player.GetComponent<PlayerScoreChain>();
             return chain ? chain.AddMultiplier(personalMultiplierGain) : 0;
         }

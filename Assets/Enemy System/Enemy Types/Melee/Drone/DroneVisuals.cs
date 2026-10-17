@@ -80,6 +80,24 @@ namespace Massive.Enemies
         private System.Random random;
         private float age, corePhase, panelPhase, chargePanelPhase, chargePanelBlend, deathAge = -1f, roll, emission, engineIntensity, phaseOffset, thrust;
         private int exhaustIndex;
+        private bool presentationThrust;
+        private bool rangedPresentation, presentationCharging;
+        private float presentationCharge, presentationShotPulse;
+        /// <summary>Run the native exhaust while an instruction model remains stationary.</summary>
+        public void SetPresentationThrust(bool active) => presentationThrust = active;
+        /// <summary>Use the native ranged panels/core without enabling targeting or movement.</summary>
+        public void SetRangedPresentationState(bool charging, float charge01, float shotPulse)
+        {
+            rangedPresentation = true; presentationCharging = charging;
+            presentationCharge = Mathf.Clamp01(charge01); presentationShotPulse = Mathf.Clamp01(shotPulse);
+        }
+        public void ClearRangedPresentationState()
+        {
+            rangedPresentation = presentationCharging = false;
+            presentationCharge = presentationShotPulse = 0f;
+        }
+        private float RangedCharge => rangedPresentation ? presentationCharge : (ranged ? ranged.Charge01 : 0f);
+        private float RangedShotPulse => rangedPresentation ? presentationShotPulse : (ranged ? ranged.ShotPulse : 0f);
         private static readonly int BallCountId = Shader.PropertyToID("_BallCount"), BallsId = Shader.PropertyToID("_Balls");
 
         public float FacetProgress(int index) => faceProgress[Mathf.Clamp(index, 0, 11)];
@@ -108,6 +126,8 @@ namespace Massive.Enemies
         }
         public override void OnDisable()
         {
+            presentationThrust = false;
+            ClearRangedPresentationState();
             base.OnDisable();
             if (enemy != null) enemy.Died -= OnDeath;
             if (mesh != null)
@@ -133,11 +153,12 @@ namespace Massive.Enemies
             if (Application.isPlaying && pauseOwner != null && pauseOwner.IsPaused && !pauseOwner.IsDead) return;
             float dt = Application.isPlaying ? Time.deltaTime : 0f;
             age += dt;
-            corePhase += dt * (1f + (ranged ? ranged.Charge01 * 3f : 0f));
+            corePhase += dt * (1f + RangedCharge * 3f);
             // Separate clocks keep idle breathing intact and charging independent of all idle tuning.
             panelPhase += dt * frontHoverSpeed;
             chargePanelPhase += dt * chargeFaceSpeed;
-            bool charging = ranged && ranged.isActiveAndEnabled && ranged.Phase == RangedDroneController.AttackPhase.Charging && deathAge < 0f;
+            bool charging = (rangedPresentation ? presentationCharging :
+                ranged && ranged.isActiveAndEnabled && ranged.Phase == RangedDroneController.AttackPhase.Charging) && deathAge < 0f;
             chargePanelBlend = Mathf.MoveTowards(chargePanelBlend, charging ? 1f : 0f, dt / Mathf.Max(.01f, chargePanelBlendSeconds));
             float panelBlend = Mathf.SmoothStep(0f, 1f, chargePanelBlend);
             if (deathAge >= 0f) deathAge += dt;
@@ -178,7 +199,7 @@ namespace Massive.Enemies
                     float chargeOffset = chargeFaceLift + jitter * chargeFaceVibration;
                     Vector3 lift = normal * Mathf.Lerp(idleOffset, chargeOffset, panelBlend);
                     Vector3 hinge = (a + b) * .5f;
-                    float openingAngle = (ranged ? ranged.ShotPulse : 0f) * shotOpenAngle + jitter * panelBlend * chargeFaceTilt;
+                    float openingAngle = RangedShotPulse * shotOpenAngle + jitter * panelBlend * chargeFaceTilt;
                     Quaternion opening = Quaternion.AngleAxis(openingAngle, (b - a).normalized);
                     a += lift; b += lift; c = hinge + opening * (c - hinge) + lift;
                 }
@@ -210,13 +231,14 @@ namespace Massive.Enemies
             int count = 0;
             for (int i = 0; i < CoreBallCount; i++)
             {
-                float charge = ranged ? ranged.Charge01 : 0f;
+                float charge = RangedCharge;
                 float phase = corePhase * (2.2f + i * .19f) + phaseOffset + i * 2.39996f;
                 Vector3 local = i == 0 ? Vector3.zero : new Vector3(Mathf.Cos(phase), Mathf.Sin(phase * 1.13f), Mathf.Sin(phase * .83f) * .85f) * coreOrbit * (1f + charge * .25f);
                 float r = coreRadius * (1f + charge * .35f) * (i == 0 ? .85f : .72f + .18f * Mathf.Sin(phase * 1.37f));
                 AddBall(volume, transform.TransformPoint(local), r * engineIntensity * rootScale, ref count);
             }
-            bool moving = Application.isPlaying && deathAge < 0f && body != null && body.linearVelocity.sqrMagnitude > .02f && spawn > .9f;
+            bool moving = Application.isPlaying && deathAge < 0f && body != null &&
+                (presentationThrust || body.linearVelocity.sqrMagnitude > .02f) && spawn > .9f;
             thrust = Mathf.MoveTowards(thrust, moving ? 1f : 0f, dt * 8f);
             for (int i = 0; i < 4; i++)
             {

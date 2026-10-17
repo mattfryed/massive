@@ -14,6 +14,8 @@ namespace Massive.Multiplier
         public bool IsPossessionBusy => UsesPossession && ControlState != AmplifierControlState.Available;
         public bool IsOccupied => ControlState == AmplifierControlState.Aiming || ControlState == AmplifierControlState.Contested;
         public bool IsLaunched => ControlState == AmplifierControlState.Launched;
+        public event System.Action<AmplifierCoreGameplay> PlayerEntered;
+        public event System.Action<AmplifierCoreGameplay> ShotSettled;
         public PlayerControllerScript Occupant => pilot != null ? pilot.player : null;
         public PlayerControllerScript Challenger => challenger != null ? challenger.player : null;
         public PlayerControllerScript ShotOwner => shotOwner;
@@ -153,6 +155,7 @@ namespace Massive.Multiplier
                 pilot.hasPress = challenger.hasPress = false;
                 pilot.nextPress = challenger.nextPress = 0f;
             }
+            PlayerEntered?.Invoke(this);
             return true;
         }
 

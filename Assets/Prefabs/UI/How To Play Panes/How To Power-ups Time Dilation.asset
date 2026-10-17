@@ -1,0 +1,47 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c2cd4f1b547996549870d557e152628a, type: 3}
+  m_Name: How To Power-ups Time Dilation
+  m_EditorClassIdentifier: 
+  playerPrefab: {fileID: 8984405948043393506, guid: ef11db7a22c9ebf43826b8f6ab3469f3,
+    type: 3}
+  kind: 2
+  actorScale: 1
+  powerUp: {fileID: 11400000, guid: 41ba2ea8ffebd4b11baac28294d05892, type: 2}
+  readablePause: 0.1
+  actionTimeout: 12
+  movementDistance: 0.75
+  acceleratorChargeFraction: 0.35
+  acceleratorTargetDistance: 4
+  viewPadding: 0.35
+  droneDefinition: {fileID: 0}
+  decoherenceSecondEnemy: {fileID: 0}
+  circlePickups:
+  - {fileID: 209058327977532613, guid: d7a4b7d0d982e0d4fabe320fb89abffd, type: 3}
+  - {fileID: 6835047056463724014, guid: 549e1ce0a57f5ba4cb5389e520dceef9, type: 3}
+  - {fileID: 4783503887170470131, guid: d2ecb018bb73fdf46b1e704807450027, type: 3}
+  - {fileID: 2373062955069156879, guid: 0ede16f2eced2bc48b14a96e91439ccf, type: 3}
+  pickupCircleRadius: 1.45
+  pickupCircleLegSeconds: 0.65
+  pickupSpawnPause: 0.05
+  amplifierCorePrefab: {fileID: 0}
+  teamGoalPrefab: {fileID: 0}
+  demonstrateAmplifierContest: 0
+  opposingTeamGoalPrefab: {fileID: 0}
+  amplifierArenaSize: {x: 16.4, y: 6}
+  amplifierRespawnDelay: 5
+  scoreEconomy: {fileID: 11400000, guid: f9d2e6b7c77a7304cbc60aa75b489131, type: 2}
+  labelFont: {fileID: 0}
+  defense: 0
+  defenderPowerUp: {fileID: 0}
+  heldBlockLead: 0.15
+  counterAttackPause: 0.35

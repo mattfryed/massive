@@ -32,4 +32,5 @@ MonoBehaviour:
     respawnDelayVariation: {x: -2, y: 2}
     placementRetryDelay: 0.5
     maximumActiveSeconds: 30
+    minimumInteractionSeconds: 5
     timeoutWarningSeconds: 5

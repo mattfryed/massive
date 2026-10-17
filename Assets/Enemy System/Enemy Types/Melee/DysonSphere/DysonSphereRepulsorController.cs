@@ -51,7 +51,8 @@ namespace Massive.Enemies
         public float PhaseAge { get; private set; }
         public float AnimationClock { get; private set; }
         public float DamageRadiusWorld => panels ? panels.ShellRadiusWorld : 0f;
-        public bool IsDamaging => Phase == AttackPhase.Expand || Phase == AttackPhase.Hold || Phase == AttackPhase.Return;
+        public bool IsDamaging => !presentationControlled &&
+            (Phase == AttackPhase.Expand || Phase == AttackPhase.Hold || Phase == AttackPhase.Return);
         public int TotalBursts { get; private set; }
         public int TotalHits { get; private set; }
         public int TotalBlocks { get; private set; }
@@ -66,6 +67,23 @@ namespace Massive.Enemies
         private readonly HashSet<PlayerControllerScript> resolved = new HashSet<PlayerControllerScript>();
         private ParticleSystem[] coreParticles;
         private bool particlesPaused;
+        private bool presentationControlled;
+
+        /// <summary>Use the gameplay attack pose in an isolated stationary display, without damage or collider changes.</summary>
+        public void SetPresentationState(AttackPhase phase, float phaseAge, float dt)
+        {
+            presentationControlled = true; Phase = phase; PhaseAge = phaseAge; AnimationClock += dt;
+            if (attackVolume) attackVolume.enabled = false;
+            if (!panels) return;
+            panels.transform.Rotate(shellSpinDegreesPerSecond * dt, Space.Self);
+            ApplyPose(false);
+        }
+        public void ClearPresentationState()
+        {
+            if (!presentationControlled) return;
+            presentationControlled = false; Phase = AttackPhase.Cooldown; PhaseAge = 0f;
+            if (attackVolume) attackVolume.enabled = false;
+        }
 
         private void Awake()
         {
@@ -77,6 +95,7 @@ namespace Massive.Enemies
         }
         private void OnEnable()
         {
+            presentationControlled = false;
             Phase = AttackPhase.Spawning; PhaseAge = decisionAge = 0f; AnimationClock = Time.time;
             TotalBursts = TotalHits = TotalBlocks = 0; Target = null; resolved.Clear();
             panels.BeginRadialControl(AnimationClock); if (ripple) ripple.SetExternalClock(AnimationClock);
@@ -125,6 +144,7 @@ namespace Massive.Enemies
         }
         private void FixedUpdate()
         {
+            if (presentationControlled) return;
             if (!enemy.Definition) return;
             if (particlesPaused != enemy.IsPaused)
             {
@@ -182,7 +202,7 @@ namespace Massive.Enemies
             if (!body.isKinematic) body.linearVelocity = Vector3.MoveTowards(body.linearVelocity,
                 direction * enemy.Definition.moveSpeed * enemy.ExternalMovementMultiplier, chaseAcceleration * dt);
         }
-        private void ApplyPose()
+        private void ApplyPose(bool updateColliders = true)
         {
             float scale = 1f, blend = 0f, radius = 1f, vibration = 0f, frequency = chargePanelFrequency;
             if (Phase == AttackPhase.Charge)
@@ -205,6 +225,7 @@ namespace Massive.Enemies
                 vibration = attackPanelVibration; frequency = attackPanelFrequency;
             }
             panels.SetRadialPose(AnimationClock, scale, blend, radius, vibration, frequency);
+            if (!updateColliders) return;
             if (hull) hull.radius = hullRadius * scale;
             // Fractional damage can shatter the final panel before health reaches zero.
             // The physical core must remain hittable without extending the attack shell.

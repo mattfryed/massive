@@ -1451,6 +1451,12 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
+  useRelativeIconSizes: 0
+  selectedIconScale: 1.5
+  oneStepLeftScale: 1
+  twoStepsLeftScale: 0.5
+  oneStepRightScale: 1
+  twoStepsRightScale: 0.5
   startIndex: 0
   confirmLockoutSecondsOnSceneLoad: 2
   confirmLockoutUsesUnscaledTime: 1

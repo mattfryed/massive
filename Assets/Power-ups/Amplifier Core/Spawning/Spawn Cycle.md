@@ -8,6 +8,8 @@ Match scoring opens → initial delay → Resonance grains form → safe neutral
 
 All times use gameplay time, so pausing also pauses formation and delays. An unclaimed Core remains until captured unless Maximum Active Seconds is greater than zero. Manual retirement/timeout never awards a multiplier. Closing match scoring removes the managed pair and stops further spawns.
 
+**MASSIVE → Shared Settings → Resonance → Cycle → Minimum Time After Interaction (seconds)** defaults to **5**. A successful player entry (including a challenger) or a player-fired shot settling raises the remaining sequence timer to this minimum. More remaining time is left unchanged. Each event grants time once; standing still does not continually refresh it. The instability warning follows the extended deadline. Set this value to zero to disable the extension; disabling the sequence time-out still means unlimited lifetime. Occupied and travelling Cores retain their existing protection from timed despawn.
+
 ## Scene controls
 
 Select **Amplifier + Resonance — Spawn Cycle**:

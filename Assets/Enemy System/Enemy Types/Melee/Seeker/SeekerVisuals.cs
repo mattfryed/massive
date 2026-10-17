@@ -69,6 +69,27 @@ namespace Massive.Enemies
         private float deathAge = -1f;
         private float noseBounceAge = -1f, noseReleaseStretch;
         private bool wasThrusting;
+        private bool presentationControlled;
+        private SeekerController.AttackPhase presentationPhase;
+        private float presentationPhaseAge, presentationCharge, presentationCompression;
+        private Vector3 presentationVelocity;
+        private float presentationTrailMinZ;
+        private SeekerController.AttackPhase VisualPhase => presentationControlled ? presentationPhase :
+            seeker ? seeker.Phase : SeekerController.AttackPhase.Seeking;
+        private float VisualPhaseAge => presentationControlled ? presentationPhaseAge : seeker ? seeker.PhaseAge : 0f;
+        private float VisualCharge => presentationControlled ? presentationCharge : seeker ? seeker.Charge01 : 0f;
+        private float VisualCompression => presentationControlled ? presentationCompression : seeker ? seeker.Compression01 : 0f;
+        private float VisualExtension => presentationControlled ? presentationCharge * (1f - Mathf.SmoothStep(0f, 1f, presentationCompression)) : seeker ? seeker.Extension01 : 0f;
+
+        /// <summary>Drive native poses and camera-relative ghosts without an active AI or moving the model.</summary>
+        public void SetPresentationState(SeekerController.AttackPhase phase, float phaseAge, float charge, float compression,
+            Vector3 trackingVelocity, float trailMinZ)
+        {
+            presentationControlled = true; presentationPhase = phase; presentationPhaseAge = phaseAge;
+            presentationCharge = Mathf.Clamp01(charge); presentationCompression = Mathf.Clamp01(compression);
+            presentationVelocity = trackingVelocity; presentationTrailMinZ = trailMinZ;
+        }
+        public void ClearPresentationState() { presentationControlled = false; presentationVelocity = Vector3.zero; ClearGhosts(); }
         private readonly Vector3[] corners = new Vector3[FaceCount * 3], vertices = new Vector3[FaceCount * 6];
         private readonly Vector3[] directions = new Vector3[FaceCount], axes = new Vector3[FaceCount];
         private readonly float[] start = new float[FaceCount], progress = new float[FaceCount];
@@ -93,6 +114,7 @@ namespace Massive.Enemies
         }
         public override void OnDisable()
         {
+            ClearPresentationState();
             base.OnDisable(); if (enemy) enemy.Died -= OnDeath; ClearGhosts();
             if (mesh)
             {
@@ -117,22 +139,22 @@ namespace Massive.Enemies
             if (deathAge >= 0f) deathAge += dt;
             AnimateNose(dt);
             DeathProgress = deathAge < 0f ? 0f : Mathf.Clamp01(deathAge / Mathf.Max(.01f, enemy ? enemy.despawnDelaySeconds : .75f));
-            float compression = seeker ? Mathf.SmoothStep(0f, 1f, seeker.Compression01) : 0f;
-            if (seeker && seeker.Phase == SeekerController.AttackPhase.Firing)
-                compression = 1f - Mathf.SmoothStep(0f, 1f, seeker.PhaseAge / Mathf.Max(.01f, releaseSeconds));
-            RearDisplacement = (seeker ? seeker.Extension01 : 0f) * chargeStretch - compression * compressionTravel;
+            float compression = Mathf.SmoothStep(0f, 1f, VisualCompression);
+            if (VisualPhase == SeekerController.AttackPhase.Firing)
+                compression = 1f - Mathf.SmoothStep(0f, 1f, VisualPhaseAge / Mathf.Max(.01f, releaseSeconds));
+            RearDisplacement = VisualExtension * chargeStretch - compression * compressionTravel;
             float reveal = Application.isPlaying && seeker ? seeker.RevealProgress : 1f;
             if (Application.isPlaying && spawnPresentation && spawnPresentation.isActiveAndEnabled) reveal = spawnPresentation.Progress01;
             UpdateGeometry(reveal); UpdateCore(reveal); AdvanceGhosts(dt);
         }
         private void AnimateNose(float dt)
         {
-            bool charging = seeker && seeker.Phase == SeekerController.AttackPhase.Charging;
-            float charge = charging ? seeker.Charge01 : 0f;
+            bool charging = VisualPhase == SeekerController.AttackPhase.Charging;
+            float charge = charging ? VisualCharge : 0f;
             if (charging) NoseSpinMultiplier = Mathf.Lerp(1f, Mathf.Max(1f, chargeNoseSpinMultiplier), charge * charge);
             else NoseSpinMultiplier = Mathf.Lerp(NoseSpinMultiplier, 1f, 1f - Mathf.Exp(-5f * dt / Mathf.Max(.01f, noseSpinEaseOutSeconds)));
             NoseAngle = Mathf.Repeat(NoseAngle + noseSpinSpeed * NoseSpinMultiplier * dt, 360f);
-            bool thrusting = seeker && seeker.Phase == SeekerController.AttackPhase.Firing && deathAge < 0f;
+            bool thrusting = VisualPhase == SeekerController.AttackPhase.Firing && deathAge < 0f;
             if (thrusting)
             {
                 NoseStretch = Mathf.Lerp(NoseStretch, 1f + thrustNoseStretch, 1f - Mathf.Exp(-5f * dt / Mathf.Max(.01f, noseStretchRiseSeconds)));
@@ -171,7 +193,7 @@ namespace Massive.Enemies
         private static Vector3 Radial(float angle) => new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0f);
         private void Ring(Vector3[] points, int first, float offset, float radius, float width, float length, float tilt, float spin, bool forward, bool animated)
         {
-            float charge = animated && seeker ? seeker.Charge01 : 0f;
+            float charge = animated ? VisualCharge : 0f;
             float rear = animated ? RearDisplacement : 0f;
             Quaternion roll = Quaternion.AngleAxis(spin, Vector3.forward);
             for (int i = 0; i < 6; i++)
@@ -226,7 +248,7 @@ namespace Massive.Enemies
         }
         private void UpdateCore(float reveal)
         {
-            float charge = seeker ? seeker.Charge01 : 0f;
+            float charge = VisualCharge;
             float radius = coreRadius * (1f + charge * coreChargeGrowth);
             float extension = Mathf.Max(0f, RearDisplacement); CoreLength = radius * 2f + extension;
             float scale = Mathf.SmoothStep(0f, 1f, reveal) * (1f - DeathProgress);

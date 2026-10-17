@@ -13,6 +13,7 @@ namespace Massive.Multiplier
         private struct ShotFlight
         {
             public float remaining, age, stillAge, drag;
+            public bool playerLaunched;
         }
         private ShotFlight flight;
         private ResonanceInteractionDriver[] shotPatterns = Array.Empty<ResonanceInteractionDriver>();
@@ -50,7 +51,7 @@ namespace Massive.Multiplier
             // Distance-driven shots include the stopping interval in their launch
             // drag. Legacy mode retains the independent body-drag floor.
             float drag = AmplifierCoreMotion.ShotDrag(speed, range, Time.fixedDeltaTime, Possession);
-            flight = new ShotFlight { drag = drag, remaining = range };
+            flight = new ShotFlight { drag = drag, remaining = range, playerLaunched = true };
             body.linearDamping = AmplifierCoreMotion.CoastingDrag(drag, Effective_linearDrag, Possession);
             body.linearVelocity = aimDirection * speed;
             _incomingVelocity = body.linearVelocity;
@@ -125,7 +126,12 @@ namespace Massive.Multiplier
             foreach (var driver in shotPatterns)
                 if (driver && driver.IsTurningCore(this)) { magnetic = true; break; }
             bool goalDriven = AmplifierGoalCapture.IsDrivingCore(this);
-            if (AmplifierCoreMotion.Settle(speed, magnetic || goalDriven, dt, ref flight.stillAge, Possession)) BecomeAvailable();
+            if (AmplifierCoreMotion.Settle(speed, magnetic || goalDriven, dt, ref flight.stillAge, Possession))
+            {
+                bool playerShot = flight.playerLaunched;
+                BecomeAvailable();
+                if (playerShot) ShotSettled?.Invoke(this);
+            }
         }
 
         /// <summary>General straight aiming direction. It deliberately makes no

@@ -30,19 +30,21 @@ namespace Massive.Enemies
             return ShowValue(prefab, ScoreText(award.finalMilliElectronVolts), award.finalMilliElectronVolts, 0f, award.worldPosition, scene);
         }
 
-        public static EnemyScoreToast ShowMass(EnemyScoreToast prefab, float restored, float range, Vector3 position, Scene scene)
+        public static EnemyScoreToast ShowMass(EnemyScoreToast prefab, float restored, float range, Vector3 position, Scene scene,
+            Camera presentationCamera = null, Transform lifetimeOwner = null)
         {
             if (restored <= 0f || range <= 0f) return null;
             string percent = (restored / range * 100f).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
-            return ShowValue(prefab, "+" + percent + "% MASS", 0L, restored, position, scene);
+            return ShowValue(prefab, "+" + percent + "% MASS", 0L, restored, position, scene, presentationCamera, lifetimeOwner);
         }
 
         public static EnemyScoreToast ShowPickup(EnemyScoreToast prefab, ScoreAwardResult award,
-            float restored, float range, Vector3 position, Scene scene, double multiplierGained = 0)
+            float restored, float range, Vector3 position, Scene scene, double multiplierGained = 0,
+            Camera presentationCamera = null, Transform lifetimeOwner = null)
         {
             bool scored = award.accepted && award.finalMilliElectronVolts > 0;
             if (!scored && multiplierGained <= 0)
-                return ShowMass(prefab, restored, range, position, scene);
+                return ShowMass(prefab, restored, range, position, scene, presentationCamera, lifetimeOwner);
 
             string text = scored ? ScoreText(award.finalMilliElectronVolts) + " SCORE" : "";
             if (multiplierGained > 0)
@@ -52,7 +54,7 @@ namespace Massive.Enemies
                 string percent = (restored / range * 100f).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
                 text += "\n<size=80%>+" + percent + "% MASS</size>";
             }
-            return ShowValue(prefab, text, scored ? award.finalMilliElectronVolts : 0, restored, position, scene);
+            return ShowValue(prefab, text, scored ? award.finalMilliElectronVolts : 0, restored, position, scene, presentationCamera, lifetimeOwner);
         }
 
         private static string ScoreText(long value)
@@ -63,25 +65,31 @@ namespace Massive.Enemies
             return "+" + amount + " " + display.unitLabel;
         }
 
-        private static EnemyScoreToast ShowValue(EnemyScoreToast prefab, string text, long score, float mass, Vector3 position, Scene scene)
+        private static EnemyScoreToast ShowValue(EnemyScoreToast prefab, string text, long score, float mass, Vector3 position, Scene scene,
+            Camera presentationCamera = null, Transform lifetimeOwner = null)
         {
             if (prefab == null || prefab.label == null) return null;
             EnemyScoreToast toast = null, oldest = null;
+            int ownedCount = 0;
             for (int i = pool.Count - 1; i >= 0; i--)
             {
                 var t = pool[i];
                 if (t == null) { pool.RemoveAt(i); continue; }
+                // Demo receipts are owned by their session; never reuse them across
+                // stages or gameplay, and remove them with the pane on navigation.
+                if (t.transform.parent != lifetimeOwner) continue;
+                ownedCount++;
                 if (!t.gameObject.activeSelf) toast = t;
                 if (oldest == null || t.startedAt < oldest.startedAt) oldest = t;
             }
-            if (toast == null && pool.Count < Capacity)
-            { toast = Instantiate(prefab); pool.Add(toast); }
+            if (toast == null && ownedCount < Capacity)
+            { toast = Instantiate(prefab, lifetimeOwner); pool.Add(toast); }
             if (toast == null) toast = oldest;
             if (toast == null) return null;
-            if (toast.gameObject.scene != scene) SceneManager.MoveGameObjectToScene(toast.gameObject, scene);
+            if (!lifetimeOwner && toast.gameObject.scene != scene) SceneManager.MoveGameObjectToScene(toast.gameObject, scene);
             toast.lifetime = prefab.lifetime; toast.riseDistance = prefab.riseDistance;
             toast.Amount = score; toast.MassRestored = mass;
-            toast.age = 0f; toast.startedAt = Time.unscaledTime; toast.view = Camera.main;
+            toast.age = 0f; toast.startedAt = Time.unscaledTime; toast.view = presentationCamera ? presentationCamera : Camera.main;
             if (toast.view == null) toast.view = FindFirstObjectByType<Camera>();
             toast.up = toast.view != null ? toast.view.transform.up : Vector3.forward;
             toast.origin = position + Vector3.up * .2f + toast.up * .25f;

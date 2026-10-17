@@ -25,6 +25,12 @@ namespace Massive.Demonstrations
         [Header("Decoherence follow-up wave")]
         [Tooltip("Optional second enemy type, spawned after the Drones are defeated.")]
         public Massive.Enemies.EnemyDefinition decoherenceSecondEnemy;
+        [Header("Time Dilation pickup circle")]
+        [Tooltip("Optional canonical body pickups, collected in order around a circle. Empty retains the movement-only demo.")]
+        public Massive.Enemies.EnemyLootPickup[] circlePickups;
+        [Min(.5f)] public float pickupCircleRadius = 1.45f;
+        [Min(.5f)] public float pickupCircleLegSeconds = 1.1f;
+        [Min(0f)] public float pickupSpawnPause = .4f;
         [Header("Amplifier demonstration")]
         public Massive.Multiplier.AmplifierCoreGameplay amplifierCorePrefab;
         public GameObject teamGoalPrefab;

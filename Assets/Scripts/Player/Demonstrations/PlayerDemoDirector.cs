@@ -116,6 +116,15 @@ namespace Massive.Demonstrations
             session.SetActive(false);
             primaryHome = transform.position;
             primary = CreateActor(0, 1, Vector3.zero);
+            if (IsPickupCircle)
+            {
+                primaryHome = transform.position + Vector3.left * scenario.pickupCircleRadius;
+                primary.transform.position = primaryHome;
+                var chain = primary.GetComponent<Massive.Scoring.PlayerScoreChain>();
+                if (!scenario.scoreEconomy) { Fail("Pickup circle needs the shared score economy."); yield break; }
+                if (!chain) chain = primary.gameObject.AddComponent<Massive.Scoring.PlayerScoreChain>();
+                chain.Configure(scenario.scoreEconomy.ChainSettings);
+            }
             var stage = primary.attackController.Profile.GetStage(0);
             float travel = stage.TravelDistance * PlayerScaleAdjuster.ActionReachOf(primary);
             pickupGap = PlayerScaleAdjuster.BodyRadiusOf(primary) + travel * .5f + .3f;
@@ -286,6 +295,8 @@ namespace Massive.Demonstrations
                 FrameView(Vector3.right * ((right - 2f) * .5f), right + 2f, 4.4f);
                 if (pane) CreateAcceleratorEndWall();
             }
+            else if (IsPickupCircle)
+                FrameView(Vector3.zero, scenario.pickupCircleRadius * 2f + 1.5f, scenario.pickupCircleRadius * 2f + 1.5f);
             else if (scenario.powerUp is DecoherencePowerUpDefinition)
                 FrameView(Vector3.right * pickupGap * .5f, pickupGap + 3.6f, 4.6f);
             else
@@ -666,8 +677,12 @@ namespace Massive.Demonstrations
             }
             else if (def is TimeDilationPowerUpDefinition)
             {
-                yield return MoveTo(primaryHome + Vector3.left * scenario.movementDistance);
-                if (!failed) yield return MoveTo(primaryHome + Vector3.right * scenario.movementDistance);
+                if (IsPickupCircle) yield return PickupCircleDemo();
+                else
+                {
+                    yield return MoveTo(primaryHome + Vector3.left * scenario.movementDistance);
+                    if (!failed) yield return MoveTo(primaryHome + Vector3.right * scenario.movementDistance);
+                }
             }
             else if (def is DecoherencePowerUpDefinition decoherence && scenario.droneDefinition)
                 yield return DecoherencePaintDemo(decoherence);
